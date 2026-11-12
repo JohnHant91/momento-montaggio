@@ -44,7 +44,7 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 .av{width:52px;height:52px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:26px;background:#1a272b;border:3px solid var(--c,#345);position:relative}
 .av:after{content:'';position:absolute;right:-2px;bottom:-2px;width:14px;height:14px;border-radius:50%;background:#46555a;border:2px solid var(--card)}
 .lavora .av{animation:bob 1.4s ease-in-out infinite;box-shadow:0 0 0 0 var(--c);animation:bob 1.4s ease-in-out infinite,alone 1.8s infinite}
-.lavora .av:after{background:var(--ok)}.coda .av:after{background:var(--warn)}.errore .av:after{background:var(--err)}
+.riposo{opacity:.4}.lavora .av:after{background:var(--ok)}.coda .av:after{background:var(--warn)}.errore .av:after{background:var(--err)}
 @keyframes bob{50%{transform:translateY(-3px)}}@keyframes alone{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--c) 60%,transparent)}100%{box-shadow:0 0 0 14px transparent}}
 .chi{flex:1;min-width:0}.chi b{font-size:15px}.chi .ruolo{color:var(--mut);font-size:12px}
 .schermo{margin-top:7px;background:#071012;border:1px solid #1d3036;border-radius:8px;padding:7px 9px;font:12.5px/1.35 ui-monospace,Menlo,monospace;color:#9fd9d4;min-height:34px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
@@ -95,10 +95,12 @@ async function regia() {
     if (stati[a]?.s !== 'lavora') stati[a] = { s: preso ? 'lavora' : 'coda', L };
   }
   for (const [a, u] of Object.entries(ultimo)) if (!stati[a] && u.livello === 'errore' && Date.now() - new Date(u.quando) < 30 * 60e3) stati[a] = { s: 'errore' };
-  const testoStato = { lavora: 'al lavoro', coda: 'parte a breve', errore: 'bloccato' };
+  for (const a of R.riposo || []) stati[a] = { s: 'riposo' };
+  if (R.yt_web) AGENTI.scout_yt.r = 'Scout YouTube Shorts · cerca sul web';
+  const testoStato = { lavora: 'al lavoro', coda: 'parte a breve', errore: 'bloccato', riposo: 'a riposo' };
   const scr = (id) => {
     const A = AGENTI[id], st = stati[id] || {}, u = ultimo[id];
-    const msg = st.s === 'coda' ? 'tocca a me: parto entro un minuto…' : u ? u.messaggio : 'pronto, aspetto un lavoro';
+    const msg = st.s === 'riposo' ? 'spento: per TikTok e Instagram servirebbe Apify' : st.s === 'coda' ? 'tocca a me: parto entro un minuto…' : u ? u.messaggio : 'pronto, aspetto un lavoro';
     return '<div class="scrivania ' + (st.s || '') + '" style="--c:' + (A.c || '#345') + '" data-ag="' + id + '"><div class="av">' + A.i + '</div><div class="chi"><b>' + e(A.n) + '</b><span class="stato-ag">' + (testoStato[st.s] || (A.s === 'post' ? '' : 'libero')) + '</span><div class="ruolo">' + e(A.r) + (conti[id] ? ' · ' + conti[id] + ' azioni in 7 gg' : '') + '</div>' +
       (A.s === 'post' ? '' : '<div class="schermo">' + e(msg) + '</div>' + (u && !st.s ? '<div class="mut" style="font-size:11px;margin-top:3px">' + fa(u.quando) + (u.lavoro_id ? ' · lavoro #' + u.lavoro_id : '') + '</div>' : '')) + '</div></div>';
   };

@@ -39,7 +39,7 @@ export async function configurazione(env) {
   return {
     ANTHROPIC_API_KEY: v('ANTHROPIC_API_KEY'), GEMINI_API_KEY: v('GEMINI_API_KEY'),
     YOUTUBE_API_KEY: v('YOUTUBE_API_KEY'), APIFY_TOKEN: v('APIFY_TOKEN'),
-    CLAUDE_MODEL: v('CLAUDE_MODEL', 'claude-sonnet-5-5'),
+    CLAUDE_MODEL: v('CLAUDE_MODEL', 'claude-sonnet-5-5'), WEB_SEARCH_TOOL: v('WEB_SEARCH_TOOL', 'web_search_20250305'),
     GEMINI_MODELS: String(v('GEMINI_MODELS', 'gemini-3.6-flash,gemini-3-flash-preview,gemini-2.5-flash')).split(',').map((s) => s.trim()).filter(Boolean),
     APIFY_TIKTOK_ACTOR: v('APIFY_TIKTOK_ACTOR', 'clockworks/tiktok-scraper'),
     APIFY_INSTAGRAM_ACTOR: v('APIFY_INSTAGRAM_ACTOR', 'apify/instagram-scraper'),

@@ -74,8 +74,9 @@ async function api(req, env, url) {
       all(env, 'SELECT agente, COUNT(*) AS n FROM registro WHERE quando > ? GROUP BY agente', new Date(Date.now() - 7 * 864e5).toISOString()),
     ]);
     const cfg = await configurazione(env);
-    const chiavi = { Claude: !!cfg.ANTHROPIC_API_KEY, Gemini: !!cfg.GEMINI_API_KEY, YouTube: !!cfg.YOUTUBE_API_KEY, Apify: !!cfg.APIFY_TOKEN };
-    return json({ adesso: ora(), attivi, ultimi, feed, conti, chiavi });
+    const chiavi = { Claude: !!cfg.ANTHROPIC_API_KEY, Gemini: !!cfg.GEMINI_API_KEY };
+    const riposo = cfg.APIFY_TOKEN ? [] : ['scout_tt', 'scout_ig'];
+    return json({ adesso: ora(), attivi, ultimi, feed, conti, chiavi, riposo, yt_web: !cfg.YOUTUBE_API_KEY });
   }
   const ag = p.match(/^\/api\/regia\/agente\/([a-z_]+)$/);
   if (ag && m === 'GET') {

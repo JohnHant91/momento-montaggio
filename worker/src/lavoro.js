@@ -149,9 +149,11 @@ async function faseRicerca(env, cfg, L) {
   const p = J(L.piano, {});
   const nomi = ['YouTube', 'TikTok', 'Instagram', 'Link tuoi'];
   const AG = ['scout_yt', 'scout_tt', 'scout_ig', 'direttore'];
-  await log(env, L.id, 'scout_yt', `cerco Shorts: ${(p.youtube_query || []).join(' · ')}`);
-  await log(env, L.id, 'scout_tt', `cerco su TikTok: ${[...(p.tiktok_query || []), ...(p.tiktok_hashtag || []).map((h) => '#' + h)].join(' · ')}`);
-  await log(env, L.id, 'scout_ig', `cerco reel: ${(p.instagram_hashtag || []).map((h) => '#' + h).join(' · ')}`);
+  await log(env, L.id, 'scout_yt', `${cfg.YOUTUBE_API_KEY ? 'cerco Shorts' : 'cerco Shorts sul web'}: ${(p.youtube_query || []).join(' · ')}`);
+  if (cfg.APIFY_TOKEN) {
+    await log(env, L.id, 'scout_tt', `cerco su TikTok: ${[...(p.tiktok_query || []), ...(p.tiktok_hashtag || []).map((h) => '#' + h)].join(' · ')}`);
+    await log(env, L.id, 'scout_ig', `cerco reel: ${(p.instagram_hashtag || []).map((h) => '#' + h).join(' · ')}`);
+  }
   const esiti = await Promise.allSettled([
     S.youtube(cfg, p.youtube_query || []),
     S.tiktok(cfg, p.tiktok_query || [], p.tiktok_hashtag || []),
@@ -163,8 +165,9 @@ async function faseRicerca(env, cfg, L) {
     const e = esiti[i];
     if (e.status === 'rejected') { await log(env, L.id, AG[i], `${nomi[i]}: ${e.reason?.message || e.reason}`, 'warn'); perFonte[nomi[i]] = []; continue; }
     const lista = Array.isArray(e.value) ? e.value : e.value.video;
-    if (e.value.nota) await log(env, L.id, AG[i], e.value.nota, 'warn');
     perFonte[nomi[i]] = lista;
+    if ((i === 1 || i === 2) && !cfg.APIFY_TOKEN) continue; // Tea e Ines a riposo senza Apify
+    if (e.value.nota) await log(env, L.id, AG[i], e.value.nota, 'warn');
     if (i < 3 || lista.length) await log(env, L.id, AG[i], i < 3 ? `trovati ${lista.length} video` : `i tuoi link: ${lista.length} video`);
   }
   // selezione: i link di Johnny sempre, poi i migliori di ogni piattaforma in parti uguali

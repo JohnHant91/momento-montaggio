@@ -144,8 +144,44 @@ const durataIso = (iso) => {
   return m ? (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0) : 0;
 };
 
+// Senza chiave YouTube: Claude cerca sul web gli Shorts del settore (solo link reali presi dai risultati)
+export async function youtubeDaWeb(cfg, queries) {
+  const r = await richiesta('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'x-api-key': cfg.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+    body: JSON.stringify({
+      model: cfg.CLAUDE_MODEL, max_tokens: 3000,
+      tools: [{ type: cfg.WEB_SEARCH_TOOL, name: 'web_search', max_uses: 6 }],
+      messages: [{ role: 'user', content: `Cerca su YouTube Shorts (anche con site:youtube.com/shorts) i video brevi più visti e apprezzati per queste ricerche: ${queries.join(' | ')}.
+Voglio esempi reali di montaggio da cui imparare (stile, ritmo, gancio), pubblicati negli ultimi 2 anni, preferibilmente sotto i 90 secondi.
+Alla fine elenca SOLO i link YouTube trovati nei risultati (massimo 10), uno per riga, con il titolo dopo " | ". Non inventare link.` }],
+    }),
+  });
+  if (r.status !== 200) throw new Error(`ricerca web ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  const d = await r.json();
+  const visti = new Map();
+  const aggiungi = (url, titolo) => {
+    const m = /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([\w-]{11})/.exec(url || '');
+    if (m && !visti.has(m[1])) visti.set(m[1], titolo || '');
+  };
+  for (const b of d.content || []) {
+    if (b.type === 'web_search_tool_result' && Array.isArray(b.content)) b.content.forEach((x) => aggiungi(x.url, x.title));
+  }
+  // dal testo finale tiene solo i link che compaiono anche nei risultati della ricerca (niente link inventati)
+  const testo = (d.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+  const ordine = [...testo.matchAll(/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([\w-]{11})/g)].map((m) => m[1]).filter((id) => visti.has(id));
+  const ids = [...new Set([...ordine, ...visti.keys()])].slice(0, 12);
+  return {
+    video: ids.map((id, i) => ({
+      piattaforma: 'youtube', id, url: `https://www.youtube.com/watch?v=${id}`, video_url: null, titolo: visti.get(id) || '',
+      autore: '', views: 0, likes: 0, commenti: 0, condivisioni: 0, durata: 0, data: '', ordine_web: i,
+    })),
+    nota: ids.length ? null : 'la ricerca web non ha trovato Shorts',
+  };
+}
+
 export async function youtube(cfg, queries, perQuery = 15) {
-  if (!cfg.YOUTUBE_API_KEY) return { video: [], nota: 'YouTube saltato: manca la chiave' };
+  if (!cfg.YOUTUBE_API_KEY) return youtubeDaWeb(cfg, queries);
   const dopo = new Date(Date.now() - cfg.MESI_RICERCA * 30 * 864e5).toISOString().replace(/\.\d+Z$/, 'Z');
   let ids = [];
   for (const q of queries) {
@@ -255,12 +291,14 @@ export async function linkDiretti(cfg, links) {
     if (cfg.YOUTUBE_API_KEY) out.push(...await youtubeDettagli(cfg, yt));
     else out.push(...yt.map((id) => ({ piattaforma: 'youtube', id, url: `https://www.youtube.com/watch?v=${id}`, titolo: '', autore: '', views: 0, likes: 0, commenti: 0, condivisioni: 0, durata: 0 })));
   }
+  if ((tt.length || ig.length) && !cfg.APIFY_TOKEN) out.nota = `${tt.length + ig.length} link TikTok/Instagram non guardabili senza Apify`;
   if (tt.length && cfg.APIFY_TOKEN) out.push(...(await apify(cfg, cfg.APIFY_TIKTOK_ACTOR, { postURLs: tt, shouldDownloadVideos: true, resultsPerPage: 1 })).map(normTiktok));
   if (ig.length && cfg.APIFY_TOKEN) out.push(...(await apify(cfg, cfg.APIFY_INSTAGRAM_ACTOR, { directUrls: ig, resultsType: 'posts', resultsLimit: 1 })).map(normInstagram));
-  return out.map((v) => ({ ...v, scelto_da_johnny: true }));
+  return { video: out.map((v) => ({ ...v, scelto_da_johnny: true })), nota: out.nota };
 }
 
 export function punteggio(v) {
+  if (!v.views && v.ordine_web !== undefined) return 10 - v.ordine_web * 0.1;
   const views = Math.max(v.views || 0, 1);
   const coinv = ((v.likes || 0) + 2 * (v.commenti || 0) + 3 * (v.condivisioni || 0)) / views;
   return Math.round((Math.log10(views + 1) + Math.min(coinv, 0.3) * 10) * 1000) / 1000;
