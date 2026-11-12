@@ -245,9 +245,13 @@ async function faseClip(env, cfg, L, scadenza) {
       return dati;
     }));
     esiti.forEach((e, i) => {
-      if (e.status === 'fulfilled') Object.assign(daFare[i], { stato: 'fatto', analisi: e.value });
-      else Object.assign(daFare[i], { stato: 'saltato', errore: String(e.reason?.message || e.reason).slice(0, 300) });
+      if (e.status === 'fulfilled') return Object.assign(daFare[i], { stato: 'fatto', analisi: e.value });
+      const errore = String(e.reason?.message || e.reason).slice(0, 300);
+      const n = (daFare[i].tentativi || 0) + 1;
+      // errori di rete su file grandi: riprova la stessa clip fino a 3 volte
+      Object.assign(daFare[i], { tentativi: n, errore, stato: n < 3 && !/manca la chiave/.test(errore) ? 'da_guardare' : 'saltato' });
     });
+    for (const c of daFare) if (c.stato === 'da_guardare' && c.errore) await log(env, L.id, 'analista', `${c.nome}: ${c.errore} — riprovo (${c.tentativi}/3)`, 'warn');
     for (const c of daFare) if (c.stato === 'saltato') await log(env, L.id, 'analista', `saltata ${c.nome}: ${c.errore}`, 'warn');
     await run(env, 'UPDATE lavori SET clip=? WHERE id=?', JSON.stringify(clip), L.id);
   }
