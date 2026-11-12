@@ -53,12 +53,12 @@ export async function claude(cfg, sistema, messaggio, { maxTokens = 8000, json =
 // ------------------------------------------------------------------ Gemini (gli occhi)
 const GBASE = 'https://generativelanguage.googleapis.com';
 
-async function geminiGenera(cfg, parti) {
+async function geminiGenera(cfg, parti, { bassa = false } = {}) {
   if (!cfg.GEMINI_API_KEY) throw new Error('manca la chiave Gemini (Impostazioni)');
-  const corpo = JSON.stringify({
-    contents: [{ role: 'user', parts: parti }],
-    generationConfig: { responseMimeType: 'application/json', temperature: 0.2 },
-  });
+  // bassa risoluzione: ~4 volte meno "token" per fotogramma → più veloce e consuma meno quota (basta per le clip grezze)
+  const generationConfig = { responseMimeType: 'application/json', temperature: 0.2 };
+  if (bassa) generationConfig.mediaResolution = 'MEDIA_RESOLUTION_LOW';
+  const corpo = JSON.stringify({ contents: [{ role: 'user', parts: parti }], generationConfig });
   const errori = [];
   for (const modello of cfg.GEMINI_MODELS) {
     const r = await richiesta(`${GBASE}/v1beta/models/${modello}:generateContent`, {
@@ -143,7 +143,7 @@ export async function guardaCorpo(cfg, corpo, lunghezza, nome, istruzioni, fps) 
   return geminiGenera(cfg, [
     { fileData: { fileUri: uri, mimeType: mime }, videoMetadata: { fps: fps || cfg.FPS_ANALISI } },
     { text: istruzioni },
-  ]);
+  ], { bassa: true });
 }
 
 export async function guardaUrlVideo(cfg, srcUrl, nome, istruzioni, fps, headers) {

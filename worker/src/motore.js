@@ -77,7 +77,7 @@ export async function motoreApi(req, env, url) {
     try {
       const { readable, writable } = new FixedLengthStream(lunghezza);
       req.body.pipeTo(writable).catch(() => {});
-      const analisi = await S.guardaCorpo(cfg, readable, lunghezza, c.nome, analisiClip(L.prompt), 2);
+      const analisi = await S.guardaCorpo(cfg, readable, lunghezza, c.nome, analisiClip(L.prompt), 1);
       Object.assign(c, { stato: 'fatto', analisi, errore: undefined });
       await env.DB.prepare('INSERT OR REPLACE INTO cache_analisi (chiave, dati, quando) VALUES (?,?,?)').bind(chiaveClip(c), JSON.stringify({ analisi, tecnico: c.tecnico }), ora()).run();
       await aggiornaClip(env, id, indice, c);

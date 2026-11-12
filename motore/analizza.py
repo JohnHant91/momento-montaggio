@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 REGIA = os.environ.get("REGIA", "https://momento-reel.gestionalelcl.workers.dev").rstrip("/")
 PCLOUD_HOSTS = os.environ.get("PCLOUD_HOSTS")  # solo per i test
 DURATA_MAX = int(os.environ.get("DURATA_MAX_MIN", "45")) * 60
-PARALLELO = int(os.environ.get("PARALLELO", "3"))
+PARALLELO = int(os.environ.get("PARALLELO", "2"))
 UA = "momento-montaggio/1.0"
 INIZIO = time.time()
 
