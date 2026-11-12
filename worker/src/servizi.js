@@ -60,10 +60,18 @@ async function geminiGenera(cfg, parti, { bassa = false } = {}) {
   if (bassa) generationConfig.mediaResolution = 'MEDIA_RESOLUTION_LOW';
   const corpo = JSON.stringify({ contents: [{ role: 'user', parts: parti }], generationConfig });
   const errori = [];
+  let quota = 0;
   for (const modello of cfg.GEMINI_MODELS) {
-    const r = await richiesta(`${GBASE}/v1beta/models/${modello}:generateContent`, {
-      method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': cfg.GEMINI_API_KEY }, body: corpo,
-    });
+    let r;
+    try {
+      r = await richiesta(`${GBASE}/v1beta/models/${modello}:generateContent`, {
+        method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': cfg.GEMINI_API_KEY }, body: corpo,
+      }, 2);
+    } catch (e) {
+      // quota del piano gratuito finita su questo modello: provo il prossimo (ogni modello ha la sua quota)
+      if (/HTTP 429/.test(e.message)) { quota++; errori.push(modello + ': quota'); continue; }
+      throw e;
+    }
     const t = await r.text();
     if (r.status === 200) {
       const d = JSON.parse(t);
@@ -74,6 +82,7 @@ async function geminiGenera(cfg, parti, { bassa = false } = {}) {
     if ((r.status === 404 || r.status === 400) && /not found|not supported|is not available/i.test(t)) { errori.push(modello); continue; }
     throw new Error(`Gemini ${r.status} (${modello}): ${t.slice(0, 400)}`);
   }
+  if (quota) throw new Error('QUOTA_GEMINI: quota gratuita di Gemini esaurita (' + errori.join(', ') + '). Attiva la fatturazione su aistudio.google.com o aspetta il reset giornaliero');
   throw new Error('nessun modello Gemini disponibile tra: ' + errori.join(', '));
 }
 

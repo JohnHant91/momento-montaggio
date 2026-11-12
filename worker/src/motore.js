@@ -85,6 +85,10 @@ export async function motoreApi(req, env, url) {
       return json({ ok: true });
     } catch (e) {
       const errore = String(e?.message || e).slice(0, 300);
+      if (errore.startsWith('QUOTA_GEMINI')) { // non è colpa della clip: resta da guardare, il motore si ferma e riprova più tardi
+        await log(env, id, 'analista', errore.replace('QUOTA_GEMINI: ', '⏸ '), 'warn');
+        return json({ errore, quota: true }, 429);
+      }
       c.tentativi = (c.tentativi || 0) + 1;
       c.errore = errore;
       c.stato = c.tentativi < 3 && !/manca la chiave/.test(errore) ? 'da_guardare' : 'saltato';

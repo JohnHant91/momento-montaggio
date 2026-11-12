@@ -16,6 +16,7 @@ DURATA_MAX = int(os.environ.get("DURATA_MAX_MIN", "45")) * 60
 PARALLELO = int(os.environ.get("PARALLELO", "2"))
 UA = "momento-montaggio/1.0"
 INIZIO = time.time()
+FERMO = {"quota": False}  # quota Gemini finita: smetto di scaricare clip (risparmio traffico pCloud)
 
 
 def log(*a):
@@ -106,6 +107,8 @@ def alleggerisci(src, dst, fps):
 
 def prepara(lavoro, c, cartella):
     nome = c["nome"]
+    if FERMO["quota"]:
+        return
     orig = os.path.join(cartella, f"o_{c['indice']}")
     leggera = os.path.join(cartella, f"l_{c['indice']}.mp4")
     try:
@@ -128,7 +131,11 @@ def prepara(lavoro, c, cartella):
             })
         log(f"{nome}: guardata da Ada")
     except urllib.error.HTTPError as e:
-        log(f"{nome}: la regia ha risposto {e.code} {e.read()[:200]!r}")  # l'errore lo ha già registrato la regia
+        if e.code == 429:
+            FERMO["quota"] = True
+            log("quota Gemini esaurita: mi fermo, riprovo al prossimo giro")
+        else:
+            log(f"{nome}: la regia ha risposto {e.code} {e.read()[:200]!r}")  # l'errore lo ha già registrato la regia
     except Exception as e:
         log(f"{nome}: ERRORE {e}")
         try:
@@ -155,6 +162,9 @@ def main():
             log(f"lavoro #{lavoro['id']}: restano clip da riprovare al prossimo giro")
             return
         visti.add(lavoro["id"])
+        if FERMO["quota"]:
+            regia(lavoro, "fine", data=b"")
+            return
         giri += 1
         log(f"lavoro #{lavoro['id']}: {len(lavoro['clip'])} clip")
         cartella = tempfile.mkdtemp(prefix="clip_")
