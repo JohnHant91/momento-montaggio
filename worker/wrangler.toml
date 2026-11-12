@@ -1,0 +1,11 @@
+name = "momento-reel"
+main = "src/index.js"
+compatibility_date = "2025-10-01"
+
+[triggers]
+crons = ["* * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "momento-reel"
+database_id = "bba77d37-c34e-4dd1-9514-5463ca1d9fec"
