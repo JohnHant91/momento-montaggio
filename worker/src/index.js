@@ -65,6 +65,21 @@ async function api(req, env, url) {
     return json({ ok: true });
   }
 
+  // stato dell'ufficio: lavori aperti + ultima attività di ogni agente
+  if (p === '/api/regia' && m === 'GET') {
+    const [attivi, ultimi, feed, conti] = await Promise.all([
+      all(env, "SELECT id, prompt, fase, stato, blocco_fino, json_extract(piano, '$.settore') AS settore FROM lavori WHERE stato='in_corso' ORDER BY id"),
+      all(env, 'SELECT r.agente, r.messaggio, r.livello, r.quando, r.lavoro_id FROM registro r JOIN (SELECT agente, MAX(id) AS mid FROM registro GROUP BY agente) u ON r.id = u.mid'),
+      all(env, 'SELECT agente, messaggio, livello, quando, lavoro_id FROM registro ORDER BY id DESC LIMIT 30'),
+      all(env, 'SELECT agente, COUNT(*) AS n FROM registro WHERE quando > ? GROUP BY agente', new Date(Date.now() - 7 * 864e5).toISOString()),
+    ]);
+    return json({ adesso: ora(), attivi, ultimi, feed, conti });
+  }
+  const ag = p.match(/^\/api\/regia\/agente\/([a-z_]+)$/);
+  if (ag && m === 'GET') {
+    return json(await all(env, 'SELECT messaggio, livello, quando, lavoro_id FROM registro WHERE agente=? ORDER BY id DESC LIMIT 40', ag[1]));
+  }
+
   if (p === '/api/lavori' && m === 'GET') {
     const r = await all(env, "SELECT id, prompt, stato, fase, errore, creato, aggiornato, json_extract(scheda, '$.titolo_lavoro') AS titolo FROM lavori ORDER BY id DESC LIMIT 60");
     return json(r);
@@ -77,7 +92,7 @@ async function api(req, env, url) {
     if (pcloud && !/code=/.test(pcloud)) return json({ errore: 'il link pCloud deve essere il link pubblico della cartella (contiene "code=")' }, 400);
     const link = String(d.link_rif || '').split(/\s+/).filter((l) => /^https?:\/\//.test(l)).slice(0, 10);
     const r = await one(env, 'INSERT INTO lavori (prompt, pcloud, link_rif, creato, aggiornato) VALUES (?,?,?,?,?) RETURNING id', prompt, pcloud, JSON.stringify(link), ora(), ora());
-    await log(env, r.id, 'Regia', '🎬 nuovo lavoro in coda: il Direttore creativo parte entro un minuto');
+    await log(env, r.id, 'regia', '🎬 nuovo lavoro in coda: il Direttore creativo parte entro un minuto');
     return json({ id: r.id });
   }
   const mm = p.match(/^\/api\/lavori\/(\d+)(?:\/(riprova|registro))?$/);
@@ -105,7 +120,7 @@ async function api(req, env, url) {
       const ripristina = (s) => JSON.stringify((J(s, []) || []).map((x) => (x.stato === 'saltato' ? { ...x, stato: 'da_guardare', errore: undefined } : x)));
       await run(env, "UPDATE lavori SET stato='in_corso', fase=?, errore=NULL, tentativi=0, blocco_fino=NULL, riferimenti=?, clip=?, aggiornato=? WHERE id=?",
         nuovaFase, L.riferimenti ? ripristina(L.riferimenti) : null, L.clip ? ripristina(L.clip) : null, ora(), id);
-      await log(env, id, 'Regia', `🔁 riparto dalla fase "${nuovaFase}"`);
+      await log(env, id, 'regia', `🔁 riparto dalla fase "${nuovaFase}"`);
       return json({ ok: true });
     }
   }

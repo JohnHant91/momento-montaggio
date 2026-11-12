@@ -139,29 +139,33 @@ async function cache(env, chiave, calcola) {
 
 // ------------------------------------------------------------------ le fasi
 async function fasePiano(env, cfg, L) {
-  await log(env, L.id, 'Direttore creativo', 'leggo la richiesta e preparo la ricerca');
+  await log(env, L.id, 'direttore', 'leggo la richiesta e preparo la ricerca');
   const p = await S.claude(cfg, SISTEMA_PIANO, piano(L.prompt), { maxTokens: 1500 });
   await run(env, 'UPDATE lavori SET piano=? WHERE id=?', JSON.stringify(p), L.id);
-  await log(env, L.id, 'Direttore creativo', `settore: ${p.settore} · obiettivo: ${p.obiettivo || '-'}`);
+  await log(env, L.id, 'direttore', `settore: ${p.settore} · obiettivo: ${p.obiettivo || '-'}`);
 }
 
 async function faseRicerca(env, cfg, L) {
   const p = J(L.piano, {});
+  const nomi = ['YouTube', 'TikTok', 'Instagram', 'Link tuoi'];
+  const AG = ['scout_yt', 'scout_tt', 'scout_ig', 'direttore'];
+  await log(env, L.id, 'scout_yt', `cerco Shorts: ${(p.youtube_query || []).join(' · ')}`);
+  await log(env, L.id, 'scout_tt', `cerco su TikTok: ${[...(p.tiktok_query || []), ...(p.tiktok_hashtag || []).map((h) => '#' + h)].join(' · ')}`);
+  await log(env, L.id, 'scout_ig', `cerco reel: ${(p.instagram_hashtag || []).map((h) => '#' + h).join(' · ')}`);
   const esiti = await Promise.allSettled([
     S.youtube(cfg, p.youtube_query || []),
     S.tiktok(cfg, p.tiktok_query || [], p.tiktok_hashtag || []),
     S.instagram(cfg, p.instagram_hashtag || []),
     S.linkDiretti(cfg, J(L.link_rif, [])),
   ]);
-  const nomi = ['YouTube', 'TikTok', 'Instagram', 'Link tuoi'];
   const perFonte = {};
   for (let i = 0; i < 4; i++) {
     const e = esiti[i];
-    if (e.status === 'rejected') { await log(env, L.id, 'Ricerca', `${nomi[i]}: ${e.reason?.message || e.reason}`, 'warn'); perFonte[nomi[i]] = []; continue; }
+    if (e.status === 'rejected') { await log(env, L.id, AG[i], `${nomi[i]}: ${e.reason?.message || e.reason}`, 'warn'); perFonte[nomi[i]] = []; continue; }
     const lista = Array.isArray(e.value) ? e.value : e.value.video;
-    if (e.value.nota) await log(env, L.id, 'Ricerca', e.value.nota, 'warn');
+    if (e.value.nota) await log(env, L.id, AG[i], e.value.nota, 'warn');
     perFonte[nomi[i]] = lista;
-    if (i < 3 || lista.length) await log(env, L.id, 'Ricerca', `${nomi[i]}: ${lista.length} video trovati`);
+    if (i < 3 || lista.length) await log(env, L.id, AG[i], i < 3 ? `trovati ${lista.length} video` : `i tuoi link: ${lista.length} video`);
   }
   // selezione: i link di Johnny sempre, poi i migliori di ogni piattaforma in parti uguali
   const scelti = [...perFonte['Link tuoi']];
@@ -179,19 +183,21 @@ async function faseRicerca(env, cfg, L) {
   if (!scelti.length) throw new Error('nessun video di riferimento trovato: controlla le chiavi in Impostazioni');
   const riferimenti = scelti.map((v) => ({ video: v, stato: 'da_guardare' }));
   await run(env, 'UPDATE lavori SET candidati=?, riferimenti=? WHERE id=?', JSON.stringify(perFonte), JSON.stringify(riferimenti), L.id);
-  await log(env, L.id, 'Direttore creativo', `scelgo ${riferimenti.length} video da far guardare a Gemini`);
+  await log(env, L.id, 'direttore', `scelgo ${riferimenti.length} video da far guardare a Gemini`);
 }
 
 async function guardaRiferimento(env, cfg, L, r) {
   const v = r.video;
   const settore = J(L.piano, {}).settore || '';
+  if (!(await one(env, 'SELECT 1 FROM cache_analisi WHERE chiave=?', `rif:${v.piattaforma}:${v.id}`)))
+    await log(env, L.id, 'occhi', `sto guardando ${v.piattaforma} · ${(v.titolo || v.url).slice(0, 60)} (${(v.views || 0).toLocaleString('it-IT')} views)`);
   const { dati, daCache } = await cache(env, `rif:${v.piattaforma}:${v.id}`, async () => {
     if (v.piattaforma === 'youtube') return S.guardaYoutube(cfg, v.url, analisiRiferimento(settore));
     if (!v.video_url) throw new Error('nessun file video scaricabile');
     const h = v.video_url.includes('api.apify.com') ? { authorization: `Bearer ${cfg.APIFY_TOKEN}` } : {};
     return S.guardaUrlVideo(cfg, v.video_url, `${v.piattaforma}_${v.id}`, analisiRiferimento(settore), null, h);
   });
-  await log(env, L.id, 'Occhi (Gemini)', `${daCache ? 'già visto' : 'guardato'}: ${v.piattaforma} · ${(v.titolo || v.url).slice(0, 60)}`);
+  await log(env, L.id, 'occhi', `${daCache ? 'già visto' : 'guardato'}: ${v.piattaforma} · ${(v.titolo || v.url).slice(0, 60)}`);
   return dati;
 }
 
@@ -205,7 +211,7 @@ async function faseRiferimenti(env, cfg, L, scadenza) {
       if (e.status === 'fulfilled') Object.assign(daFare[i], { stato: 'fatto', analisi: e.value });
       else Object.assign(daFare[i], { stato: 'saltato', errore: String(e.reason?.message || e.reason).slice(0, 300) });
     });
-    for (const [i, e] of esiti.entries()) if (e.status === 'rejected') await log(env, L.id, 'Occhi (Gemini)', `saltato ${daFare[i].video.piattaforma} ${daFare[i].video.id}: ${daFare[i].errore}`, 'warn');
+    for (const [i, e] of esiti.entries()) if (e.status === 'rejected') await log(env, L.id, 'occhi', `saltato ${daFare[i].video.piattaforma} ${daFare[i].video.id}: ${daFare[i].errore}`, 'warn');
     await run(env, 'UPDATE lavori SET riferimenti=? WHERE id=?', JSON.stringify(rif), L.id);
   }
   if (rif.some((r) => r.stato === 'da_guardare')) return false; // continua al prossimo giro
@@ -214,38 +220,39 @@ async function faseRiferimenti(env, cfg, L, scadenza) {
 }
 
 async function faseClip(env, cfg, L, scadenza) {
-  if (!L.pcloud) { await log(env, L.id, 'Analista', 'nessuna cartella pCloud: lavoro solo sui riferimenti'); return true; }
+  if (!L.pcloud) { await log(env, L.id, 'analista', 'nessuna cartella pCloud: lavoro solo sui riferimenti'); return true; }
   let clip = J(L.clip, null);
   if (!clip) {
     const lista = await S.pcloudClip(L.pcloud);
     if (!lista.length) throw new Error('nella cartella pCloud non ci sono video');
     clip = lista.map((c) => ({ ...c, stato: 'da_guardare' }));
     await run(env, 'UPDATE lavori SET clip=? WHERE id=?', JSON.stringify(clip), L.id);
-    await log(env, L.id, 'Analista', `${clip.length} clip trovate su pCloud`);
+    await log(env, L.id, 'analista', `${clip.length} clip trovate su pCloud`);
   }
   while (Date.now() < scadenza) {
     const daFare = clip.filter((c) => c.stato === 'da_guardare').slice(0, 2);
     if (!daFare.length) break;
     const esiti = await Promise.allSettled(daFare.map(async (c) => {
       const { dati, daCache } = await cache(env, `clip:${c.hash}:${c.dimensione}`, async () => {
+        await log(env, L.id, 'analista', `sto guardando ${c.nome} (${Math.round((c.dimensione || 0) / 1048576)} MB${c.tecnico?.fps ? ', ' + c.tecnico.fps + ' fps' : ''})`);
         const url = await S.pcloudLinkDownload(L.pcloud, c.fileid);
         return S.guardaUrlVideo(cfg, url, c.nome, analisiClip(L.prompt), 2);
       });
-      await log(env, L.id, 'Analista', `${daCache ? 'già vista' : 'guardata'}: ${c.nome}`);
+      await log(env, L.id, 'analista', `${daCache ? 'già vista' : 'guardata'}: ${c.nome}`);
       return dati;
     }));
     esiti.forEach((e, i) => {
       if (e.status === 'fulfilled') Object.assign(daFare[i], { stato: 'fatto', analisi: e.value });
       else Object.assign(daFare[i], { stato: 'saltato', errore: String(e.reason?.message || e.reason).slice(0, 300) });
     });
-    for (const c of daFare) if (c.stato === 'saltato') await log(env, L.id, 'Analista', `saltata ${c.nome}: ${c.errore}`, 'warn');
+    for (const c of daFare) if (c.stato === 'saltato') await log(env, L.id, 'analista', `saltata ${c.nome}: ${c.errore}`, 'warn');
     await run(env, 'UPDATE lavori SET clip=? WHERE id=?', JSON.stringify(clip), L.id);
   }
   return !clip.some((c) => c.stato === 'da_guardare');
 }
 
 async function faseScheda(env, cfg, L) {
-  await log(env, L.id, 'Direttore creativo', 'incrocio riferimenti e clip, scrivo la scheda tecnica');
+  await log(env, L.id, 'direttore', 'incrocio riferimenti e clip, scrivo la scheda tecnica');
   const rif = J(L.riferimenti, []).filter((r) => r.stato === 'fatto').map((r) => ({
     piattaforma: r.video.piattaforma, url: r.video.url, views: r.video.views, likes: r.video.likes,
     scelto_da_johnny: !!r.video.scelto_da_johnny, analisi: r.analisi,
@@ -253,7 +260,7 @@ async function faseScheda(env, cfg, L) {
   const clip = (J(L.clip, []) || []).filter((c) => c.stato === 'fatto').map((c) => ({ file: c.nome, tecnico: c.tecnico, ...c.analisi }));
   const s = await S.claude(cfg, SISTEMA_SCHEDA, scheda(L.prompt, J(L.piano, {}), rif, clip), { maxTokens: 8000 });
   await run(env, 'UPDATE lavori SET scheda=? WHERE id=?', JSON.stringify(s), L.id);
-  await log(env, L.id, 'Direttore creativo', `scheda pronta: ${s.titolo_lavoro || ''}`);
+  await log(env, L.id, 'direttore', `scheda pronta: ${s.titolo_lavoro || ''}`);
 }
 
 // ------------------------------------------------------------------ motore
@@ -270,7 +277,7 @@ async function lavora(env, cfg, L, scadenza) {
     const prossima = FASI[FASI.indexOf(L.fase) + 1];
     await run(env, 'UPDATE lavori SET fase=?, stato=?, tentativi=0, aggiornato=? WHERE id=?',
       prossima, prossima === 'fatto' ? 'pronto' : 'in_corso', ora(), L.id);
-    if (prossima === 'fatto') { await log(env, L.id, 'Regia', '✅ lavoro pronto: apri la scheda'); return; }
+    if (prossima === 'fatto') { await log(env, L.id, 'regia', '✅ lavoro pronto: apri la scheda'); return; }
   }
 }
 
@@ -293,7 +300,7 @@ export async function avanza(env) {
       const msg = String(e?.message || e).slice(0, 500);
       const stop = L.tentativi >= 3;
       await run(env, 'UPDATE lavori SET stato=?, errore=?, blocco_fino=NULL, aggiornato=? WHERE id=?', stop ? 'errore' : 'in_corso', msg, ora(), L.id);
-      await log(env, L.id, 'Regia', `${stop ? '❌ fermo' : '⚠️ riprovo'} (fase ${L.fase}): ${msg}`, stop ? 'errore' : 'warn');
+      await log(env, L.id, 'regia', `${stop ? '❌ fermo' : '⚠️ riprovo'} (fase ${L.fase}): ${msg}`, stop ? 'errore' : 'warn');
     }
   }
 }

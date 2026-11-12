@@ -35,7 +35,26 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 .kv{display:grid;grid-template-columns:130px 1fr;gap:6px 12px;font-size:14px}.kv b{color:var(--mut);font-weight:500}
 .vuoto{text-align:center;padding:40px 10px;color:var(--mut)}
 .err{color:var(--err);margin-top:10px}
-@media(max-width:600px){main{padding:12px}.kv{grid-template-columns:1fr}.kv b{margin-top:6px}}
+.studio{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin-top:12px}
+.stanza{background:linear-gradient(180deg,#121b1e,#0f1619);border:1px solid var(--line);border-radius:18px;padding:12px 12px 6px;position:relative}
+.stanza h3{margin:0 0 10px;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mut);font-weight:600}
+.stanza.spenta{opacity:.5;grid-column:1/-1}.posti{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:2px}.posti .scrivania{padding:6px;margin:0}.posti .av{width:40px;height:40px;font-size:19px}.stanza.spenta h3:after{content:' · arriva con la fase 2';text-transform:none;letter-spacing:0}
+.scrivania{display:flex;gap:12px;align-items:flex-start;padding:10px;border-radius:14px;cursor:pointer;margin-bottom:6px;transition:background .2s}
+.scrivania:hover{background:#18252a}
+.av{width:52px;height:52px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:26px;background:#1a272b;border:3px solid var(--c,#345);position:relative}
+.av:after{content:'';position:absolute;right:-2px;bottom:-2px;width:14px;height:14px;border-radius:50%;background:#46555a;border:2px solid var(--card)}
+.lavora .av{animation:bob 1.4s ease-in-out infinite;box-shadow:0 0 0 0 var(--c);animation:bob 1.4s ease-in-out infinite,alone 1.8s infinite}
+.lavora .av:after{background:var(--ok)}.coda .av:after{background:var(--warn)}.errore .av:after{background:var(--err)}
+@keyframes bob{50%{transform:translateY(-3px)}}@keyframes alone{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--c) 60%,transparent)}100%{box-shadow:0 0 0 14px transparent}}
+.chi{flex:1;min-width:0}.chi b{font-size:15px}.chi .ruolo{color:var(--mut);font-size:12px}
+.schermo{margin-top:7px;background:#071012;border:1px solid #1d3036;border-radius:8px;padding:7px 9px;font:12.5px/1.35 ui-monospace,Menlo,monospace;color:#9fd9d4;min-height:34px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.lavora .schermo{border-color:color-mix(in srgb,var(--c) 60%,#1d3036);box-shadow:0 0 18px -6px var(--c)}
+.lavora .schermo:after{content:'▋';animation:cur 1s steps(1) infinite;margin-left:2px}@keyframes cur{50%{opacity:0}}
+.stato-ag{font-size:11px;font-weight:600;margin-left:6px;color:var(--mut)}.lavora .stato-ag{color:var(--ok)}.coda .stato-ag{color:var(--warn)}.errore .stato-ag{color:var(--err)}
+.attivo{display:block;text-decoration:none;color:inherit}
+.pannello{position:fixed;inset:auto 0 0 0;max-height:78vh;background:#101719;border-top:1px solid var(--teal);border-radius:18px 18px 0 0;padding:16px 18px 24px;overflow:auto;z-index:20;box-shadow:0 -20px 60px #000a;max-width:760px;margin:auto}
+.velo{position:fixed;inset:0;background:#0008;z-index:19}
+@media(max-width:600px){header{padding:10px 12px}.logo small{display:none}header nav .btn{padding:8px 10px;font-size:14px;white-space:nowrap}.posti{grid-template-columns:1fr 1fr}main{padding:12px}.kv{grid-template-columns:1fr}.kv b{margin-top:6px}}
 </style></head><body>
 <header><div class="logo">momento<small>reel · regia</small></div><nav id="nav"></nav></header>
 <main id="app"><div class="vuoto">Carico…</div></main>
@@ -46,6 +65,66 @@ const n = (x) => (Number(x) || 0).toLocaleString('it-IT');
 const FASI = [['piano','Piano'],['ricerca','Ricerca'],['riferimenti','Gemini guarda'],['clip','Analista'],['scheda','Scheda'],['fatto','Pronto']];
 let timer = null;
 
+const AGENTI = {
+  direttore: { n: 'Leo', r: 'Direttore creativo', i: '🎬', c: '#12a3a4', s: 'direzione', d: 'Legge il tuo prompt, capisce settore, obiettivo e pubblico, decide cosa cercare. Alla fine incrocia riferimenti e clip e scrive la scheda tecnica per tutta la squadra.' },
+  scout_yt: { n: 'Yuri', r: 'Scout YouTube Shorts', i: '▶️', c: '#e5483f', s: 'scouting', d: 'Cerca gli Shorts del settore pubblicati negli ultimi 18 mesi e li ordina per visualizzazioni e coinvolgimento (like, commenti).' },
+  scout_tt: { n: 'Tea', r: 'Scout TikTok', i: '🎵', c: '#25d6ee', s: 'scouting', d: 'Cerca su TikTok per parole chiave e hashtag del settore (via Apify) e recupera il video per farlo guardare a Gemma.' },
+  scout_ig: { n: 'Ines', r: 'Scout Instagram', i: '📸', c: '#d6409f', s: 'scouting', d: 'Cerca i reel più visti sugli hashtag del settore (via Apify) e recupera il video per farlo guardare a Gemma.' },
+  occhi: { n: 'Gemma', r: 'Occhi · guarda i reel', i: '👁️', c: '#8b7cf6', s: 'visione', d: 'Gemini: guarda e ascolta i reel scelti e li smonta: gancio, numero di tagli, durata delle inquadrature, testi, colore, effetti, musica e BPM, chiusura.' },
+  analista: { n: 'Ada', r: 'Analista delle tue clip', i: '🔎', c: '#f0b44c', s: 'visione', d: 'Gemini: guarda le tue clip grezze da pCloud e segna i momenti utili con i tempi, la qualità, i problemi (mosso, fuori fuoco) e il parlato.' },
+  regista: { n: 'Regista', r: 'struttura scena per scena', i: '🎥', s: 'post' }, copy: { n: 'Copy', r: 'gancio, testi, caption', i: '✍️', s: 'post' },
+  editor: { n: 'Editor', r: 'timeline e tagli sul beat', i: '✂️', s: 'post' }, vfx: { n: 'VFX', r: 'effetti e grafiche', i: '✨', s: 'post' },
+  color: { n: 'Colorist', r: 'look e LUT', i: '🎨', s: 'post' }, audio: { n: 'Audio', r: 'musica, sfx, mix', i: '🎧', s: 'post' },
+  voce: { n: 'Voce', r: 'voice-over', i: '🎙️', s: 'post' }, sottotitoli: { n: 'Sottotitoli', r: 'parola per parola', i: '💬', s: 'post' },
+  revisore: { n: 'Revisore', r: 'controllo qualità', i: '✅', s: 'post' },
+  regia: { n: 'Regia', r: 'sistema', i: '🛰️', c: '#5d7378' },
+};
+const VECCHI = { 'Direttore creativo': 'direttore', 'Occhi (Gemini)': 'occhi', 'Analista': 'analista', 'Regia': 'regia', 'Ricerca': 'scout_yt' };
+const AGID = (a) => AGENTI[a] ? a : VECCHI[a] || 'regia';
+const STANZE = [['direzione', 'Direzione creativa'], ['scouting', 'Scouting · ricerca di settore'], ['visione', 'Sala visione'], ['post', 'Post-produzione']];
+const FASE_AGENTI = { piano: ['direttore'], ricerca: ['scout_yt', 'scout_tt', 'scout_ig'], riferimenti: ['occhi'], clip: ['analista'], scheda: ['direttore'] };
+const fa = (q) => { const s = (Date.now() - new Date(q)) / 1000; return s < 60 ? 'ora' : s < 3600 ? Math.round(s / 60) + ' min fa' : s < 86400 ? Math.round(s / 3600) + ' h fa' : new Date(q).toLocaleDateString('it-IT'); };
+
+async function regia() {
+  const R = await chiama('/api/regia');
+  const ultimo = Object.fromEntries(R.ultimi.map((u) => [AGID(u.agente), u]));
+  const conti = {}; R.conti.forEach((c) => { conti[AGID(c.agente)] = (conti[AGID(c.agente)] || 0) + c.n; });
+  const stati = {};
+  for (const L of R.attivi) for (const a of FASE_AGENTI[L.fase] || []) {
+    const preso = L.blocco_fino && L.blocco_fino > R.adesso;
+    if (stati[a]?.s !== 'lavora') stati[a] = { s: preso ? 'lavora' : 'coda', L };
+  }
+  for (const [a, u] of Object.entries(ultimo)) if (!stati[a] && u.livello === 'errore' && Date.now() - new Date(u.quando) < 30 * 60e3) stati[a] = { s: 'errore' };
+  const testoStato = { lavora: 'al lavoro', coda: 'parte a breve', errore: 'bloccato' };
+  const scr = (id) => {
+    const A = AGENTI[id], st = stati[id] || {}, u = ultimo[id];
+    const msg = st.s === 'coda' ? 'tocca a me: parto entro un minuto…' : u ? u.messaggio : 'pronto, aspetto un lavoro';
+    return '<div class="scrivania ' + (st.s || '') + '" style="--c:' + (A.c || '#345') + '" data-ag="' + id + '"><div class="av">' + A.i + '</div><div class="chi"><b>' + e(A.n) + '</b><span class="stato-ag">' + (testoStato[st.s] || (A.s === 'post' ? '' : 'libero')) + '</span><div class="ruolo">' + e(A.r) + (conti[id] ? ' · ' + conti[id] + ' azioni in 7 gg' : '') + '</div>' +
+      (A.s === 'post' ? '' : '<div class="schermo">' + e(msg) + '</div>' + (u && !st.s ? '<div class="mut" style="font-size:11px;margin-top:3px">' + fa(u.quando) + (u.lavoro_id ? ' · lavoro #' + u.lavoro_id : '') + '</div>' : '')) + '</div></div>';
+  };
+  const attivi = R.attivi.map((L) => { const i = FASI.findIndex((f) => f[0] === L.fase);
+    return '<a class="card attivo" href="#/lavoro/' + L.id + '"><div class="riga"><b style="flex:1">#' + L.id + ' · ' + e(L.settore || L.prompt.slice(0, 60)) + '</b><span class="pill in_corso">' + FASI[i][1] + '…</span></div><div class="fasi">' + FASI.map((f, k) => '<div class="' + (k < i ? 'ok' : k === i ? 'ora' : '') + '"></div>').join('') + '</div></a>'; }).join('');
+  $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Regia</h1><a class="btn" href="#/nuovo">+ Nuovo reel</a></div>' +
+    (attivi || '<p class="mut">Nessun lavoro in corso: la squadra è libera. Avvia un reel con “+ Nuovo reel”.</p>') +
+    '<div class="studio">' + STANZE.map(([s, nome]) => '<div class="stanza' + (s === 'post' ? ' spenta' : '') + '"><h3>' + nome + '</h3><div class="' + (s === 'post' ? 'posti' : '') + '">' + Object.keys(AGENTI).filter((a) => AGENTI[a].s === s).map(scr).join('') + '</div></div>').join('') + '</div>' +
+    '<h2>In diretta</h2><div class="log">' + (R.feed.map((r) => { const A = AGENTI[AGID(r.agente)]; return '<div class="' + r.livello + '"><span class="mut">' + new Date(r.quando).toLocaleTimeString('it-IT') + '</span> ' + A.i + ' <b>' + e(A.n) + '</b> ' + e(r.messaggio) + (r.lavoro_id ? ' <a href="#/lavoro/' + r.lavoro_id + '" class="mut">#' + r.lavoro_id + '</a>' : '') + '</div>'; }).join('') || '<div class="mut">ancora niente</div>') + '</div>';
+  document.querySelectorAll('[data-ag]').forEach((d) => d.onclick = () => agente(d.dataset.ag, stati[d.dataset.ag]));
+  timer = setTimeout(rotta, R.attivi.length ? 3000 : 10000);
+}
+
+async function agente(id, st) {
+  const A = AGENTI[id];
+  const righe = A.s === 'post' ? [] : await chiama('/api/regia/agente/' + id);
+  const chiudi = () => { document.querySelector('.velo')?.remove(); document.querySelector('.pannello')?.remove(); };
+  chiudi();
+  document.body.insertAdjacentHTML('beforeend', '<div class="velo"></div><div class="pannello"><div class="riga"><div class="av" style="--c:' + (A.c || '#345') + '">' + A.i + '</div><div style="flex:1"><h1 style="margin:0">' + e(A.n) + '</h1><div class="mut">' + e(A.r) + '</div></div><button class="sec" id="xx">Chiudi</button></div>' +
+    '<p>' + e(A.d || 'Questo agente entra in squadra con la fase 2 (montaggio): leggerà la scheda tecnica del Direttore creativo.') + '</p>' +
+    (st?.L ? '<p><b>Adesso:</b> lavoro <a href="#/lavoro/' + st.L.id + '">#' + st.L.id + '</a> · ' + e(st.L.settore || st.L.prompt.slice(0, 80)) + '</p>' : '') +
+    (righe.length ? '<h2>Cosa ha fatto</h2><div class="log">' + righe.map((r) => '<div class="' + r.livello + '"><span class="mut">' + new Date(r.quando).toLocaleString('it-IT') + '</span> ' + e(r.messaggio) + (r.lavoro_id ? ' <a class="mut" href="#/lavoro/' + r.lavoro_id + '">#' + r.lavoro_id + '</a>' : '') + '</div>').join('') + '</div>' : '') + '</div>');
+  document.querySelector('.velo').onclick = chiudi; $('#xx').onclick = chiudi;
+  addEventListener('hashchange', chiudi, { once: true });
+}
+
 async function chiama(path, opts = {}) {
   const r = await fetch(path, { ...opts, headers: { 'content-type': 'application/json' }, body: opts.body ? JSON.stringify(opts.body) : undefined });
   const d = await r.json().catch(() => ({}));
@@ -55,7 +134,7 @@ async function chiama(path, opts = {}) {
 }
 
 function menu(on) {
-  $('#nav').innerHTML = on ? '<a class="btn sec" href="#/">Lavori</a><a class="btn" href="#/nuovo">+ Reel</a><a class="btn sec" href="#/impostazioni" title="Impostazioni">⚙︎</a>' : '';
+  $('#nav').innerHTML = on ? '<a class="btn sec" href="#/">Regia</a><a class="btn sec" href="#/lavori">Lavori</a><a class="btn" href="#/nuovo">+ Reel</a><a class="btn sec" href="#/impostazioni" title="Impostazioni">⚙︎</a>' : '';
 }
 
 async function accesso() {
@@ -148,7 +227,7 @@ async function dettaglio(id) {
     '<div class="riga" style="margin-top:14px">' + (L.stato !== 'in_corso' ? '<button class="sec" id="rip">Riprova' + (L.stato === 'pronto' ? ' la scheda' : '') + '</button>' : '') +
     (L.scheda ? '<button class="sec" id="dl">Scarica scheda (JSON)</button>' : '') + '<button class="rosso" id="del">Elimina</button></div>' +
     vistaScheda(L.scheda) + vistaRiferimenti(L.riferimenti) + vistaClip(L.clip) +
-    '<h2>Cosa stanno facendo gli agenti</h2><div class="log">' + L.registro.map((r) => '<div class="' + r.livello + '"><span class="mut">' + new Date(r.quando).toLocaleTimeString('it-IT') + '</span> <b>' + e(r.agente) + '</b> ' + e(r.messaggio) + '</div>').join('') + '</div>';
+    '<h2>Cosa stanno facendo gli agenti</h2><div class="log">' + L.registro.map((r) => { const A = AGENTI[AGID(r.agente)]; return '<div class="' + r.livello + '"><span class="mut">' + new Date(r.quando).toLocaleTimeString('it-IT') + '</span> ' + A.i + ' <b>' + e(A.n) + '</b> ' + e(r.messaggio) + '</div>'; }).join('') + '</div>';
   if ($('#rip')) $('#rip').onclick = async () => { await chiama('/api/lavori/' + id + '/riprova', { method: 'POST', body: {} }); rotta(); };
   if ($('#dl')) $('#dl').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(L.scheda, null, 2)], { type: 'application/json' })); a.download = 'scheda-' + id + '.json'; a.click(); };
   $('#del').onclick = async () => { if (confirm('Eliminare questo lavoro?')) { await chiama('/api/lavori/' + id, { method: 'DELETE' }); location.hash = '#/'; } };
@@ -181,7 +260,9 @@ async function rotta() {
     if (h.startsWith('#/lavoro/')) await dettaglio(h.split('/')[2]);
     else if (h === '#/nuovo') nuovo();
     else if (h === '#/impostazioni') await impostazioni();
-    else await lista();
+    else if (h === '#/lavori') await lista();
+    else if (!document.querySelector('.pannello')) await regia();
+    else timer = setTimeout(rotta, 3000);
   } catch (x) { if (x.message !== 'accesso') $('#app').innerHTML = '<div class="card err">' + e(x.message) + '</div>'; }
 }
 addEventListener('hashchange', rotta);
