@@ -60,8 +60,8 @@ async function geminiGenera(cfg, parti) {
   });
   const errori = [];
   for (const modello of cfg.GEMINI_MODELS) {
-    const r = await richiesta(`${GBASE}/v1beta/models/${modello}:generateContent?key=${cfg.GEMINI_API_KEY}`, {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: corpo,
+    const r = await richiesta(`${GBASE}/v1beta/models/${modello}:generateContent`, {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': cfg.GEMINI_API_KEY }, body: corpo,
     });
     const t = await r.text();
     if (r.status === 200) {
@@ -102,9 +102,10 @@ export async function caricaSuGemini(cfg, srcUrl, nome, headers = {}) {
     corpo = buf;
   }
   if (lunghezza > 1900 * 1024 * 1024) throw new Error('video oltre 1,9 GB: troppo grande per Gemini');
-  const avvio = await richiesta(`${GBASE}/upload/v1beta/files?key=${cfg.GEMINI_API_KEY}`, {
+  const avvio = await richiesta(`${GBASE}/upload/v1beta/files`, {
     method: 'POST',
     headers: {
+      'x-goog-api-key': cfg.GEMINI_API_KEY,
       'X-Goog-Upload-Protocol': 'resumable', 'X-Goog-Upload-Command': 'start',
       'X-Goog-Upload-Header-Content-Length': String(lunghezza), 'X-Goog-Upload-Header-Content-Type': mime,
       'content-type': 'application/json',
@@ -124,7 +125,7 @@ export async function caricaSuGemini(cfg, srcUrl, nome, headers = {}) {
     if (file.state === 'ACTIVE') return { uri: file.uri, mime };
     if (file.state === 'FAILED') throw new Error('Gemini non è riuscito a leggere il video');
     await sleep(5000);
-    file = await (await richiesta(`${GBASE}/v1beta/${file.name}?key=${cfg.GEMINI_API_KEY}`)).json();
+    file = await (await richiesta(`${GBASE}/v1beta/${file.name}`, { headers: { 'x-goog-api-key': cfg.GEMINI_API_KEY } })).json();
   }
   throw new Error('Gemini: tempo scaduto in elaborazione video');
 }
