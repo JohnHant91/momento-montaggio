@@ -20,4 +20,4 @@ Un cron ogni minuto fa avanzare i lavori una fase alla volta (riprende da dove s
 Le chiavi si inseriscono dalla pagina Impostazioni oppure come segreti del Worker
 (`ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `YOUTUBE_API_KEY`, `APIFY_TOKEN`, facoltativo `ADMIN_PASSWORD`).
 
-Pubblicazione: `cd worker && npx wrangler deploy`.
+Pubblicazione: `cd worker && npx wrangler deploy` (oppure il bundle già pronto in `worker/dist/momento-reel.js`).
