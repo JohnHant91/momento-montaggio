@@ -73,7 +73,9 @@ async function api(req, env, url) {
       all(env, 'SELECT agente, messaggio, livello, quando, lavoro_id FROM registro ORDER BY id DESC LIMIT 30'),
       all(env, 'SELECT agente, COUNT(*) AS n FROM registro WHERE quando > ? GROUP BY agente', new Date(Date.now() - 7 * 864e5).toISOString()),
     ]);
-    return json({ adesso: ora(), attivi, ultimi, feed, conti });
+    const cfg = await configurazione(env);
+    const chiavi = { Claude: !!cfg.ANTHROPIC_API_KEY, Gemini: !!cfg.GEMINI_API_KEY, YouTube: !!cfg.YOUTUBE_API_KEY, Apify: !!cfg.APIFY_TOKEN };
+    return json({ adesso: ora(), attivi, ultimi, feed, conti, chiavi });
   }
   const ag = p.match(/^\/api\/regia\/agente\/([a-z_]+)$/);
   if (ag && m === 'GET') {
@@ -88,6 +90,9 @@ async function api(req, env, url) {
     const d = await req.json().catch(() => ({}));
     const prompt = String(d.prompt || '').trim();
     if (prompt.length < 10) return json({ errore: 'descrivi il reel in almeno una frase' }, 400);
+    const cfg = await configurazione(env);
+    const mancanti = [['ANTHROPIC_API_KEY', 'Claude'], ['GEMINI_API_KEY', 'Gemini']].filter(([k]) => !cfg[k]).map(([, n]) => n);
+    if (mancanti.length) return json({ errore: `Prima inserisci le chiavi in ⚙︎ Impostazioni (mancano: ${mancanti.join(', ')})` }, 400);
     const pcloud = String(d.pcloud || '').trim() || null;
     if (pcloud && !/code=/.test(pcloud)) return json({ errore: 'il link pCloud deve essere il link pubblico della cartella (contiene "code=")' }, 400);
     const link = String(d.link_rif || '').split(/\s+/).filter((l) => /^https?:\/\//.test(l)).slice(0, 10);

@@ -298,8 +298,10 @@ export async function avanza(env) {
       await run(env, 'UPDATE lavori SET blocco_fino=NULL WHERE id=?', L.id);
     } catch (e) {
       const msg = String(e?.message || e).slice(0, 500);
-      const stop = L.tentativi >= 3;
-      await run(env, 'UPDATE lavori SET stato=?, errore=?, blocco_fino=NULL, aggiornato=? WHERE id=?', stop ? 'errore' : 'in_corso', msg, ora(), L.id);
+      const stop = L.tentativi >= 3 || /manca la chiave/.test(msg); // senza chiave è inutile riprovare
+      // pausa di 2 minuti prima del nuovo tentativo (prima ripartiva subito e bruciava i 3 tentativi in un secondo)
+      const pausa = new Date(Date.now() + 2 * 60e3).toISOString();
+      await run(env, 'UPDATE lavori SET stato=?, errore=?, blocco_fino=?, aggiornato=? WHERE id=?', stop ? 'errore' : 'in_corso', msg, stop ? null : pausa, ora(), L.id);
       await log(env, L.id, 'regia', `${stop ? '❌ fermo' : '⚠️ riprovo'} (fase ${L.fase}): ${msg}`, stop ? 'errore' : 'warn');
     }
   }
