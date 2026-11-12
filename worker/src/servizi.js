@@ -46,6 +46,7 @@ export async function claude(cfg, sistema, messaggio, { maxTokens = 8000, json =
   if (r.status !== 200) throw new Error(`Claude ${r.status}: ${(await r.text()).slice(0, 400)}`);
   const d = await r.json();
   const testo = (d.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
+  if (d.stop_reason === 'max_tokens') throw new Error('risposta di Claude troncata (troppo lunga): riprovo');
   return json ? estraiJson(testo) : testo;
 }
 

@@ -268,7 +268,7 @@ async function faseScheda(env, cfg, L) {
     scelto_da_johnny: !!r.video.scelto_da_johnny, analisi: r.analisi,
   }));
   const clip = (J(L.clip, []) || []).filter((c) => c.stato === 'fatto').map((c) => ({ file: c.nome, tecnico: c.tecnico, ...c.analisi }));
-  const s = await S.claude(cfg, SISTEMA_SCHEDA, scheda(L.prompt, J(L.piano, {}), rif, clip), { maxTokens: 8000 });
+  const s = await S.claude(cfg, SISTEMA_SCHEDA, scheda(L.prompt, J(L.piano, {}), rif, clip), { maxTokens: 16000 });
   await run(env, 'UPDATE lavori SET scheda=? WHERE id=?', JSON.stringify(s), L.id);
   await log(env, L.id, 'direttore', `scheda pronta: ${s.titolo_lavoro || ''}`);
 }
