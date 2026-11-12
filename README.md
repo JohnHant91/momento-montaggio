@@ -5,7 +5,8 @@ Produzione automatica dei reel di Momento Produzione.
 | Cartella | Dove gira | Cosa fa |
 |---|---|---|
 | `worker/` | **Cloudflare** (Worker `momento-reel` + D1) | Regia: pagina web, Direttore creativo, ricerca su YouTube/TikTok/Instagram, Gemini che guarda i video, Analista delle clip su pCloud, scheda tecnica |
-| `motore/` *(fase 2)* | **GitHub Actions** | Montaggio con ffmpeg: prende i lavori dalla regia con l'identità OIDC di GitHub, nessuna chiave salvata qui |
+| `motore/analizza.py` + `.github/workflows/analizza.yml` | **GitHub Actions** (ogni 5 min) | Scarica le clip da pCloud, legge fps/risoluzione veri (ffprobe), crea copie leggere 720p (ffmpeg) e le manda alla regia, che le fa guardare ad Ada (Gemini). Si presenta con l'identità OIDC di GitHub: nessuna chiave salvata qui |
+| `motore/` montaggio *(fase 2)* | **GitHub Actions** | Montaggio vero e proprio con ffmpeg |
 
 ## Fase 1 – Direttore creativo (attiva)
 

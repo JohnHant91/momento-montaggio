@@ -21,6 +21,10 @@ export async function schema(env) {
     env.DB.prepare('CREATE INDEX IF NOT EXISTS registro_lavoro ON registro(lavoro_id, id)'),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS cache_analisi (chiave TEXT PRIMARY KEY, dati TEXT, quando TEXT)'),
   ]);
+  // colonne aggiunte dopo (motore GitHub): se esistono già l'errore si ignora
+  for (const c of ['motore_pass TEXT', 'motore_fino TEXT', 'motore_visto TEXT']) {
+    try { await env.DB.prepare(`ALTER TABLE lavori ADD COLUMN ${c}`).run(); } catch {}
+  }
   pronto = true;
 }
 

@@ -1,0 +1,38 @@
+# Motore clip di Momento Reel
+# Ogni 5 minuti chiede alla regia (Cloudflare) se ci sono clip da preparare.
+# Si presenta con l'identità firmata da GitHub (OIDC): nessuna chiave salvata qui.
+name: clip
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths: ["motore/**", ".github/workflows/analizza.yml"]
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: motore-clip
+  cancel-in-progress: false
+
+env:
+  REGIA: https://momento-reel.gestionalelcl.workers.dev
+
+jobs:
+  clip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ffmpeg
+        run: |
+          command -v ffmpeg >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null; }
+          ffmpeg -version | head -1
+
+      - name: Prepara le clip
+        run: python3 motore/analizza.py

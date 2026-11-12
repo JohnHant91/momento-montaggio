@@ -1,6 +1,7 @@
 // Momento Reel · Worker Cloudflare: pagina regia + API + cron che fa lavorare gli agenti.
 import { CHIAVI_OPZIONI, CHIAVI_SEGRETE, J, all, configurazione, log, one, ora, run, schema } from './db.js';
 import { avanza } from './lavoro.js';
+import { motoreApi } from './motore.js';
 import { PAGINA } from './pagina.js';
 
 const json = (d, status = 200, extra = {}) => new Response(JSON.stringify(d), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...extra } });
@@ -137,6 +138,10 @@ export default {
   async fetch(req, env) {
     await schema(env);
     const url = new URL(req.url);
+    if (url.pathname.startsWith('/api/motore/')) {
+      try { return await motoreApi(req, env, url); }
+      catch (e) { return json({ errore: String(e?.message || e).slice(0, 300) }, 500); }
+    }
     if (url.pathname.startsWith('/api/')) {
       try { return await api(req, env, url); }
       catch (e) { return json({ errore: String(e?.message || e).slice(0, 300) }, 500); }

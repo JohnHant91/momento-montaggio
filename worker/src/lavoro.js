@@ -225,41 +225,37 @@ async function faseRiferimenti(env, cfg, L, scadenza) {
   return true;
 }
 
-async function faseClip(env, cfg, L, scadenza) {
+// Le clip le prepara il motore su GitHub Actions (download da pCloud + copia leggera 720p con ffmpeg)
+// e le manda alla regia, che le passa a Gemini: vedi motore.js. Qui si aspetta e si tiene il conto.
+async function faseClip(env, cfg, L) {
   if (!L.pcloud) { await log(env, L.id, 'analista', 'nessuna cartella pCloud: lavoro solo sui riferimenti'); return true; }
   let clip = J(L.clip, null);
   if (!clip) {
     const lista = await S.pcloudClip(L.pcloud);
     if (!lista.length) throw new Error('nella cartella pCloud non ci sono video');
     clip = lista.map((c) => ({ ...c, stato: 'da_guardare' }));
-    await run(env, 'UPDATE lavori SET clip=? WHERE id=?', JSON.stringify(clip), L.id);
-    await log(env, L.id, 'analista', `${clip.length} clip trovate su pCloud`);
+    // le clip già viste in altri lavori non si riguardano (e non si pagano)
+    let gia = 0;
+    for (const c of clip) {
+      const r = await one(env, 'SELECT dati FROM cache_analisi WHERE chiave=?', chiaveClip(c));
+      if (r) { const d = J(r.dati, {}); Object.assign(c, { stato: 'fatto', analisi: d.analisi || d, tecnico: d.tecnico || c.tecnico }); gia++; }
+    }
+    await run(env, 'UPDATE lavori SET clip=?, motore_visto=? WHERE id=?', JSON.stringify(clip), ora(), L.id);
+    const peso = Math.round(clip.reduce((s, c) => s + (c.dimensione || 0), 0) / 1073741824 * 10) / 10;
+    await log(env, L.id, 'analista', `${clip.length} clip trovate su pCloud (${peso} GB)${gia ? `, ${gia} già viste in passato` : ''}`);
+    if (clip.some((c) => c.stato === 'da_guardare')) await log(env, L.id, 'motore', 'chiamo il motore GitHub: scarico le clip e preparo le copie leggere per Ada');
   }
-  while (Date.now() < scadenza) {
-    const daFare = clip.filter((c) => c.stato === 'da_guardare').slice(0, 2);
-    if (!daFare.length) break;
-    const esiti = await Promise.allSettled(daFare.map(async (c) => {
-      const { dati, daCache } = await cache(env, `clip:${c.hash}:${c.dimensione}`, async () => {
-        await log(env, L.id, 'analista', `sto guardando ${c.nome} (${Math.round((c.dimensione || 0) / 1048576)} MB${c.tecnico?.fps ? ', ' + c.tecnico.fps + ' fps' : ''})`);
-        const url = await S.pcloudLinkDownload(L.pcloud, c.fileid);
-        return S.guardaUrlVideo(cfg, url, c.nome, analisiClip(L.prompt), 2);
-      });
-      await log(env, L.id, 'analista', `${daCache ? 'già vista' : 'guardata'}: ${c.nome}`);
-      return dati;
-    }));
-    esiti.forEach((e, i) => {
-      if (e.status === 'fulfilled') return Object.assign(daFare[i], { stato: 'fatto', analisi: e.value });
-      const errore = String(e.reason?.message || e.reason).slice(0, 300);
-      const n = (daFare[i].tentativi || 0) + 1;
-      // errori di rete su file grandi: riprova la stessa clip fino a 3 volte
-      Object.assign(daFare[i], { tentativi: n, errore, stato: n < 3 && !/manca la chiave/.test(errore) ? 'da_guardare' : 'saltato' });
-    });
-    for (const c of daFare) if (c.stato === 'da_guardare' && c.errore) await log(env, L.id, 'analista', `${c.nome}: ${c.errore} — riprovo (${c.tentativi}/3)`, 'warn');
-    for (const c of daFare) if (c.stato === 'saltato') await log(env, L.id, 'analista', `saltata ${c.nome}: ${c.errore}`, 'warn');
-    await run(env, 'UPDATE lavori SET clip=? WHERE id=?', JSON.stringify(clip), L.id);
+  if (!clip.some((c) => c.stato === 'da_guardare')) return true;
+  // se il motore non si fa vivo da 45 minuti lo segnalo (una volta)
+  if (L.motore_visto && Date.now() - new Date(L.motore_visto) > 45 * 60e3 && !(L.motore_fino && L.motore_fino > ora())) {
+    await log(env, L.id, 'motore', 'il motore GitHub non risponde da 45 minuti: controlla GitHub → momento-montaggio → Actions', 'warn');
+    await run(env, 'UPDATE lavori SET motore_visto=? WHERE id=?', ora(), L.id);
   }
-  return !clip.some((c) => c.stato === 'da_guardare');
+  return false;
 }
+
+export const chiaveClip = (c) => `clip:${c.hash}:${c.dimensione}`;
+export { analisiClip };
 
 async function faseScheda(env, cfg, L) {
   await log(env, L.id, 'direttore', 'incrocio riferimenti e clip, scrivo la scheda tecnica');
@@ -281,9 +277,9 @@ async function lavora(env, cfg, L, scadenza) {
     if (L.fase === 'piano') await fasePiano(env, cfg, L);
     else if (L.fase === 'ricerca') await faseRicerca(env, cfg, L);
     else if (L.fase === 'riferimenti') finita = await faseRiferimenti(env, cfg, L, scadenza);
-    else if (L.fase === 'clip') finita = await faseClip(env, cfg, L, scadenza);
+    else if (L.fase === 'clip') finita = await faseClip(env, cfg, L);
     else if (L.fase === 'scheda') await faseScheda(env, cfg, L);
-    if (!finita) return;
+    if (!finita) return 'attesa';
     const prossima = FASI[FASI.indexOf(L.fase) + 1];
     await run(env, 'UPDATE lavori SET fase=?, stato=?, tentativi=0, aggiornato=? WHERE id=?',
       prossima, prossima === 'fatto' ? 'pronto' : 'in_corso', ora(), L.id);
@@ -304,8 +300,10 @@ export async function avanza(env) {
     if (!presi.length) return;
     const L = presi[0];
     try {
-      await lavora(env, cfg, L, inizio + BUDGET_MS);
-      await run(env, 'UPDATE lavori SET blocco_fino=NULL WHERE id=?', L.id);
+      const esito = await lavora(env, cfg, L, inizio + BUDGET_MS);
+      // in attesa (es. del motore GitHub): lo rimetto in fila tra un minuto, senza contarlo come tentativo
+      if (esito === 'attesa') await run(env, 'UPDATE lavori SET blocco_fino=?, tentativi=0 WHERE id=?', new Date(Date.now() + 50e3).toISOString(), L.id);
+      else await run(env, 'UPDATE lavori SET blocco_fino=NULL WHERE id=?', L.id);
     } catch (e) {
       const msg = String(e?.message || e).slice(0, 500);
       const stop = L.tentativi >= 3 || /manca la chiave/.test(msg); // senza chiave è inutile riprovare

@@ -72,6 +72,7 @@ const AGENTI = {
   scout_ig: { n: 'Ines', r: 'Scout Instagram', i: '📸', c: '#d6409f', s: 'scouting', d: 'Cerca i reel più visti sugli hashtag del settore (via Apify) e recupera il video per farlo guardare a Gemma.' },
   occhi: { n: 'Gemma', r: 'Occhi · guarda i reel', i: '👁️', c: '#8b7cf6', s: 'visione', d: 'Gemini: guarda e ascolta i reel scelti e li smonta: gancio, numero di tagli, durata delle inquadrature, testi, colore, effetti, musica e BPM, chiusura.' },
   analista: { n: 'Ada', r: 'Analista delle tue clip', i: '🔎', c: '#f0b44c', s: 'visione', d: 'Gemini: guarda le tue clip grezze da pCloud e segna i momenti utili con i tempi, la qualità, i problemi (mosso, fuori fuoco) e il parlato.' },
+  motore: { n: 'Max', r: 'Motore GitHub · prepara le clip', i: '⚙️', c: '#9aa7ab', s: 'visione', d: 'Gira su GitHub Actions: scarica le tue clip da pCloud, legge risoluzione e fps veri e con ffmpeg ne fa copie leggere 720p (una clip da 500 MB diventa ~15 MB) da passare ad Ada. Si sveglia da solo ogni 5 minuti quando c’è lavoro.' },
   regista: { n: 'Regista', r: 'struttura scena per scena', i: '🎥', s: 'post' }, copy: { n: 'Copy', r: 'gancio, testi, caption', i: '✍️', s: 'post' },
   editor: { n: 'Editor', r: 'timeline e tagli sul beat', i: '✂️', s: 'post' }, vfx: { n: 'VFX', r: 'effetti e grafiche', i: '✨', s: 'post' },
   color: { n: 'Colorist', r: 'look e LUT', i: '🎨', s: 'post' }, audio: { n: 'Audio', r: 'musica, sfx, mix', i: '🎧', s: 'post' },
@@ -82,7 +83,7 @@ const AGENTI = {
 const VECCHI = { 'Direttore creativo': 'direttore', 'Occhi (Gemini)': 'occhi', 'Analista': 'analista', 'Regia': 'regia', 'Ricerca': 'scout_yt' };
 const AGID = (a) => AGENTI[a] ? a : VECCHI[a] || 'regia';
 const STANZE = [['direzione', 'Direzione creativa'], ['scouting', 'Scouting · ricerca di settore'], ['visione', 'Sala visione'], ['post', 'Post-produzione']];
-const FASE_AGENTI = { piano: ['direttore'], ricerca: ['scout_yt', 'scout_tt', 'scout_ig'], riferimenti: ['occhi'], clip: ['analista'], scheda: ['direttore'] };
+const FASE_AGENTI = { piano: ['direttore'], ricerca: ['scout_yt', 'scout_tt', 'scout_ig'], riferimenti: ['occhi'], clip: ['motore', 'analista'], scheda: ['direttore'] };
 const fa = (q) => { const s = (Date.now() - new Date(q)) / 1000; return s < 60 ? 'ora' : s < 3600 ? Math.round(s / 60) + ' min fa' : s < 86400 ? Math.round(s / 3600) + ' h fa' : new Date(q).toLocaleDateString('it-IT'); };
 
 async function regia() {

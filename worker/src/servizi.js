@@ -102,6 +102,10 @@ export async function caricaSuGemini(cfg, srcUrl, nome, headers = {}) {
     lunghezza = buf.byteLength;
     corpo = buf;
   }
+  return caricaFlusso(cfg, corpo, lunghezza, mime, nome);
+}
+
+async function caricaFlusso(cfg, corpo, lunghezza, mime, nome) {
   if (lunghezza > 1900 * 1024 * 1024) throw new Error('video oltre 1,9 GB: troppo grande per Gemini');
   const avvio = await richiesta(`${GBASE}/upload/v1beta/files`, {
     method: 'POST',
@@ -129,6 +133,17 @@ export async function caricaSuGemini(cfg, srcUrl, nome, headers = {}) {
     file = await (await richiesta(`${GBASE}/v1beta/${file.name}`, { headers: { 'x-goog-api-key': cfg.GEMINI_API_KEY } })).json();
   }
   throw new Error('Gemini: tempo scaduto in elaborazione video');
+}
+
+// Carica su Gemini un video che arriva come flusso con lunghezza nota (dal motore GitHub) e lo fa guardare
+
+export async function guardaCorpo(cfg, corpo, lunghezza, nome, istruzioni, fps) {
+  if (!cfg.GEMINI_API_KEY) throw new Error('manca la chiave Gemini (Impostazioni)');
+  const { uri, mime } = await caricaFlusso(cfg, corpo, lunghezza, 'video/mp4', nome);
+  return geminiGenera(cfg, [
+    { fileData: { fileUri: uri, mimeType: mime }, videoMetadata: { fps: fps || cfg.FPS_ANALISI } },
+    { text: istruzioni },
+  ]);
 }
 
 export async function guardaUrlVideo(cfg, srcUrl, nome, istruzioni, fps, headers) {
