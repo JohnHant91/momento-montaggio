@@ -215,7 +215,10 @@ async function faseRiferimenti(env, cfg, L, scadenza) {
     await run(env, 'UPDATE lavori SET riferimenti=? WHERE id=?', JSON.stringify(rif), L.id);
   }
   if (rif.some((r) => r.stato === 'da_guardare')) return false; // continua al prossimo giro
-  if (!rif.some((r) => r.stato === 'fatto')) throw new Error('Gemini non è riuscito a guardare nessun riferimento');
+  if (!rif.some((r) => r.stato === 'fatto')) {
+    const chiave = rif.find((r) => /manca la chiave/.test(r.errore || ''));
+    throw new Error(chiave ? chiave.errore : 'Gemini non è riuscito a guardare nessun riferimento');
+  }
   return true;
 }
 
@@ -302,7 +305,8 @@ export async function avanza(env) {
       // pausa di 2 minuti prima del nuovo tentativo (prima ripartiva subito e bruciava i 3 tentativi in un secondo)
       const pausa = new Date(Date.now() + 2 * 60e3).toISOString();
       await run(env, 'UPDATE lavori SET stato=?, errore=?, blocco_fino=?, aggiornato=? WHERE id=?', stop ? 'errore' : 'in_corso', msg, stop ? null : pausa, ora(), L.id);
-      await log(env, L.id, 'regia', `${stop ? '❌ fermo' : '⚠️ riprovo'} (fase ${L.fase}): ${msg}`, stop ? 'errore' : 'warn');
+      const fase = (await one(env, 'SELECT fase FROM lavori WHERE id=?', L.id))?.fase || L.fase;
+      await log(env, L.id, 'regia', `${stop ? '❌ fermo' : '⚠️ riprovo tra 2 minuti'} (fase ${fase}): ${msg}`, stop ? 'errore' : 'warn');
     }
   }
 }
