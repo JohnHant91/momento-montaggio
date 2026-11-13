@@ -252,7 +252,7 @@ export async function svegliaMotore(env, perche = '') {
   await run(env, "INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES ('MOTORE_SVEGLIATO', ?)", String(Date.now()));
   const r = await fetch('https://api.github.com/repos/JohnHant91/momento-montaggio/actions/workflows/analizza.yml/dispatches', {
     method: 'POST', body: JSON.stringify({ ref: 'main' }),
-    headers: { authorization: `Bearer ${cfg.GITHUB_TOKEN}`, accept: 'application/vnd.github+json', 'user-agent': 'momento-reel', 'x-github-api-version': '2022-11-28' },
+    headers: { authorization: `Bearer ${cfg.GITHUB_TOKEN}`, accept: 'application/vnd.github+json', 'content-type': 'application/json', 'user-agent': 'momento-reel', 'x-github-api-version': '2022-11-28' },
   });
   if (r.status !== 204) {
     console.log('sveglia motore', r.status, (await r.text()).slice(0, 200));
