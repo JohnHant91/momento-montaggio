@@ -22,7 +22,7 @@ export async function schema(env) {
     env.DB.prepare('CREATE TABLE IF NOT EXISTS cache_analisi (chiave TEXT PRIMARY KEY, dati TEXT, quando TEXT)'),
   ]);
   // colonne aggiunte dopo (motore GitHub): se esistono già l'errore si ignora
-  for (const c of ['motore_pass TEXT', 'motore_fino TEXT', 'motore_visto TEXT', 'montaggio TEXT', "fonte TEXT DEFAULT 'pcloud'"]) {
+  for (const c of ['motore_pass TEXT', 'motore_fino TEXT', 'motore_visto TEXT', 'motore_svegliato INTEGER', 'montaggio TEXT', "fonte TEXT DEFAULT 'pcloud'"]) {
     try { await env.DB.prepare(`ALTER TABLE lavori ADD COLUMN ${c}`).run(); } catch {}
   }
   pronto = true;
@@ -33,7 +33,7 @@ export async function log(env, lavoroId, agente, messaggio, livello = 'info') {
     lavoroId, agente, String(messaggio).slice(0, 600), livello, ora());
 }
 
-export const CHIAVI_SEGRETE = ['ANTHROPIC_API_KEY', 'YOUTUBE_API_KEY', 'APIFY_TOKEN'];
+export const CHIAVI_SEGRETE = ['ANTHROPIC_API_KEY', 'YOUTUBE_API_KEY', 'APIFY_TOKEN', 'GITHUB_TOKEN'];
 export const CHIAVI_OPZIONI = ['CLAUDE_MODEL', 'CLAUDE_MODEL_LIGHT', 'APIFY_TIKTOK_ACTOR', 'APIFY_INSTAGRAM_ACTOR', 'NUM_RIFERIMENTI', 'DURATA_MAX', 'MESI_RICERCA'];
 
 // configurazione: i segreti di Cloudflare hanno la precedenza su quelli salvati dalla pagina Impostazioni
@@ -42,7 +42,7 @@ export async function configurazione(env) {
   const v = (k, d) => env[k] || salvate[k] || d;
   return {
     ANTHROPIC_API_KEY: v('ANTHROPIC_API_KEY'), GEMINI_API_KEY: v('GEMINI_API_KEY'),
-    YOUTUBE_API_KEY: v('YOUTUBE_API_KEY'), APIFY_TOKEN: v('APIFY_TOKEN'),
+    YOUTUBE_API_KEY: v('YOUTUBE_API_KEY'), APIFY_TOKEN: v('APIFY_TOKEN'), GITHUB_TOKEN: v('GITHUB_TOKEN'),
     CLAUDE_MODEL: v('CLAUDE_MODEL', 'claude-sonnet-5-5'), CLAUDE_MODEL_LIGHT: v('CLAUDE_MODEL_LIGHT', 'claude-haiku-5-5'), WEB_SEARCH_TOOL: v('WEB_SEARCH_TOOL', 'web_search_20250305'),
     GEMINI_MODELS: String(v('GEMINI_MODELS', 'gemini-3.6-flash,gemini-3-flash-preview,gemini-2.5-flash')).split(',').map((s) => s.trim()).filter(Boolean),
     APIFY_TIKTOK_ACTOR: v('APIFY_TIKTOK_ACTOR', 'clockworks/tiktok-scraper'),

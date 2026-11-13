@@ -443,25 +443,49 @@ def monta(lavoro):
         shutil.rmtree(cartella, ignore_errors=True)
 
 
+ATTESA_MAX = int(os.environ.get("ATTESA_MAX", "720"))  # resto sveglio 12 minuti senza lavoro: le fasi successive arrivano subito
+
+
+def risveglia():
+    """Prima di chiudere per limite di tempo, se c'è ancora lavoro rilancio il motore (workflow_dispatch con GITHUB_TOKEN)."""
+    tok, repo = os.environ.get("GITHUB_TOKEN"), os.environ.get("GITHUB_REPOSITORY")
+    if not tok or not repo:
+        return
+    try:
+        with http(f"https://api.github.com/repos/{repo}/actions/workflows/analizza.yml/dispatches", data=json.dumps({"ref": "main"}).encode(),
+                  headers={"authorization": f"Bearer {tok}", "accept": "application/vnd.github+json", "content-type": "application/json"}, method="POST"):
+            log("lavoro ancora in coda: rilancio il motore")
+    except Exception as e:
+        log("rilancio non riuscito:", e)
+
+
 def main():
     if not shutil.which("ffmpeg"):
         sys.exit("ffmpeg mancante")
-    giri, visti = 0, set()
+    giri, tentativi, ultimo = 0, {}, time.time()
     while time.time() - INIZIO < DURATA_MAX:
         lavoro = prossimo()
         if not lavoro:
-            log("niente da guardare" if not giri else "finito")
-            return
+            if time.time() - ultimo > ATTESA_MAX or FERMO["motivo"]:
+                log("niente da guardare" if not giri else "finito: nessun nuovo lavoro")
+                return
+            time.sleep(15)  # gli agenti stanno pensando (scheda, regia): aspetto la fase dopo
+            continue
         chiave = (lavoro["id"], lavoro["tipo"])
-        if chiave in visti or FERMO["motivo"]:  # da riprovare: lo riprende il prossimo giro
+        tentativi[chiave] = tentativi.get(chiave, 0) + 1
+        if tentativi[chiave] > 2 or FERMO["motivo"]:  # da riprovare: lo riprende il prossimo giro
             regia(lavoro, "fine", corpo={"silenzioso": True})
             log(f"lavoro #{lavoro['id']}: restano elementi da riprovare al prossimo giro")
-            return
-        visti.add(chiave)
+            if FERMO["motivo"]:
+                return
+            time.sleep(60)
+            continue
+        ultimo = time.time()
         giri += 1
         if lavoro["tipo"] == "montaggio":
             log(f"lavoro #{lavoro['id']} · montaggio: {len(lavoro['piano']['segmenti'])} pezzi")
             monta(lavoro)
+            ultimo = time.time()
             continue
         log(f"lavoro #{lavoro['id']} · {lavoro['tipo']}: {len(lavoro['elementi'])} video")
         cartella = tempfile.mkdtemp(prefix="occhi_")
@@ -474,6 +498,8 @@ def main():
                 regia(lavoro, "fine")
             except Exception as e:
                 log("fine non comunicata:", e)
+        ultimo = time.time()
+    risveglia()
 
 
 if __name__ == "__main__":

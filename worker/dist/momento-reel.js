@@ -25,7 +25,7 @@ async function schema(env) {
     env.DB.prepare("CREATE INDEX IF NOT EXISTS registro_lavoro ON registro(lavoro_id, id)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS cache_analisi (chiave TEXT PRIMARY KEY, dati TEXT, quando TEXT)")
   ]);
-  for (const c of ["motore_pass TEXT", "motore_fino TEXT", "motore_visto TEXT", "montaggio TEXT", "fonte TEXT DEFAULT 'pcloud'"]) {
+  for (const c of ["motore_pass TEXT", "motore_fino TEXT", "motore_visto TEXT", "motore_svegliato INTEGER", "montaggio TEXT", "fonte TEXT DEFAULT 'pcloud'"]) {
     try {
       await env.DB.prepare(`ALTER TABLE lavori ADD COLUMN ${c}`).run();
     } catch {
@@ -44,7 +44,7 @@ async function log(env, lavoroId, agente, messaggio, livello = "info") {
     ora()
   );
 }
-var CHIAVI_SEGRETE = ["ANTHROPIC_API_KEY", "YOUTUBE_API_KEY", "APIFY_TOKEN"];
+var CHIAVI_SEGRETE = ["ANTHROPIC_API_KEY", "YOUTUBE_API_KEY", "APIFY_TOKEN", "GITHUB_TOKEN"];
 var CHIAVI_OPZIONI = ["CLAUDE_MODEL", "CLAUDE_MODEL_LIGHT", "APIFY_TIKTOK_ACTOR", "APIFY_INSTAGRAM_ACTOR", "NUM_RIFERIMENTI", "DURATA_MAX", "MESI_RICERCA"];
 async function configurazione(env) {
   const salvate = Object.fromEntries((await all(env, "SELECT chiave, valore FROM impostazioni")).map((r) => [r.chiave, r.valore]));
@@ -54,6 +54,7 @@ async function configurazione(env) {
     GEMINI_API_KEY: v("GEMINI_API_KEY"),
     YOUTUBE_API_KEY: v("YOUTUBE_API_KEY"),
     APIFY_TOKEN: v("APIFY_TOKEN"),
+    GITHUB_TOKEN: v("GITHUB_TOKEN"),
     CLAUDE_MODEL: v("CLAUDE_MODEL", "claude-sonnet-5-5"),
     CLAUDE_MODEL_LIGHT: v("CLAUDE_MODEL_LIGHT", "claude-haiku-5-5"),
     WEB_SEARCH_TOOL: v("WEB_SEARCH_TOOL", "web_search_20250305"),
@@ -738,7 +739,32 @@ async function faseRiferimenti(env, cfg, L) {
   await run(env, "UPDATE lavori SET motore_visto=NULL WHERE id=?", L.id);
   return true;
 }
+async function svegliaMotore(env, perche = "") {
+  const cfg = await configurazione(env);
+  if (!cfg.GITHUB_TOKEN) return false;
+  const ultimo = (await one(env, "SELECT valore FROM impostazioni WHERE chiave='MOTORE_SVEGLIATO'"))?.valore;
+  if (ultimo && Date.now() - Number(ultimo) < 3 * 6e4) return true;
+  await run(env, "INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES ('MOTORE_SVEGLIATO', ?)", String(Date.now()));
+  const r = await fetch("https://api.github.com/repos/JohnHant91/momento-montaggio/actions/workflows/analizza.yml/dispatches", {
+    method: "POST",
+    body: JSON.stringify({ ref: "main" }),
+    headers: { authorization: `Bearer ${cfg.GITHUB_TOKEN}`, accept: "application/vnd.github+json", "user-agent": "momento-reel", "x-github-api-version": "2022-11-28" }
+  });
+  if (r.status !== 204) {
+    console.log("sveglia motore", r.status, (await r.text()).slice(0, 200));
+    return false;
+  }
+  return true;
+}
 async function avvisoMotore(env, L) {
+  if (!(L.motore_fino && L.motore_fino > ora())) {
+    const ok = await svegliaMotore(env).catch(() => false);
+    if (ok && !L.motore_svegliato) {
+      await run(env, "UPDATE lavori SET motore_svegliato=1 WHERE id=?", L.id).catch(() => {
+      });
+      await log(env, L.id, "motore", "\u26A1 motore GitHub avviato: parte entro un minuto");
+    }
+  }
   if (L.motore_visto && Date.now() - new Date(L.motore_visto) > 75 * 6e4 && !(L.motore_fino && L.motore_fino > ora())) {
     await log(env, L.id, "motore", "il motore GitHub non si fa vivo da pi\xF9 di un'ora: controlla GitHub \u2192 momento-montaggio \u2192 Actions", "warn");
     await run(env, "UPDATE lavori SET motore_visto=? WHERE id=?", ora(), L.id);
@@ -1516,7 +1542,7 @@ async function dettaglio(id) {
   if (L.stato === 'in_corso') timer = setTimeout(() => { if (!document.activeElement || !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) rotta(); else timer = setTimeout(rotta, 6000); }, 6000);
 }
 
-const NOMI = { ANTHROPIC_API_KEY: ['Claude', 'console.anthropic.com \u2192 API Keys'], GEMINI_API_KEY: ['Gemini (gli occhi)', 'aistudio.google.com/apikey'], YOUTUBE_API_KEY: ['YouTube Data API v3 (facoltativa: senza, Yuri cerca sul web)', 'console.cloud.google.com \u2192 abilita \u201CYouTube Data API v3\u201D \u2192 Credenziali \u2192 Chiave API'], APIFY_TOKEN: ['Apify (facoltativa: TikTok e Instagram)', 'console.apify.com \u2192 Settings \u2192 API & Integrations'] };
+const NOMI = { ANTHROPIC_API_KEY: ['Claude', 'console.anthropic.com \u2192 API Keys'], GEMINI_API_KEY: ['Gemini (gli occhi)', 'aistudio.google.com/apikey'], YOUTUBE_API_KEY: ['YouTube Data API v3 (facoltativa: senza, Yuri cerca sul web)', 'console.cloud.google.com \u2192 abilita \u201CYouTube Data API v3\u201D \u2192 Credenziali \u2192 Chiave API'], APIFY_TOKEN: ['Apify (facoltativa: TikTok e Instagram)', 'console.apify.com \u2192 Settings \u2192 API & Integrations'], GITHUB_TOKEN: ['GitHub (avvio immediato del motore)', 'github.com/settings/personal-access-tokens/new \u2192 solo il repository momento-montaggio \u2192 permesso Actions: Read and write'] };
 async function impostazioni() {
   const d = await chiama('/api/impostazioni');
   $('#app').innerHTML = '<h1>Impostazioni</h1><p class="mut">Le chiavi restano sul tuo Cloudflare. Lascia vuoto un campo per non cambiarlo.</p>' +

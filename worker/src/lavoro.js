@@ -242,7 +242,33 @@ async function faseRiferimenti(env, cfg, L) {
   return true;
 }
 
+// Avvia subito il motore su GitHub (workflow_dispatch) invece di aspettare il giro programmato.
+// Al massimo una richiesta ogni 3 minuti, e non se il motore sta già lavorando a questo lavoro.
+export async function svegliaMotore(env, perche = '') {
+  const cfg = await configurazione(env);
+  if (!cfg.GITHUB_TOKEN) return false;
+  const ultimo = (await one(env, "SELECT valore FROM impostazioni WHERE chiave='MOTORE_SVEGLIATO'"))?.valore;
+  if (ultimo && Date.now() - Number(ultimo) < 3 * 60e3) return true;
+  await run(env, "INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES ('MOTORE_SVEGLIATO', ?)", String(Date.now()));
+  const r = await fetch('https://api.github.com/repos/JohnHant91/momento-montaggio/actions/workflows/analizza.yml/dispatches', {
+    method: 'POST', body: JSON.stringify({ ref: 'main' }),
+    headers: { authorization: `Bearer ${cfg.GITHUB_TOKEN}`, accept: 'application/vnd.github+json', 'user-agent': 'momento-reel', 'x-github-api-version': '2022-11-28' },
+  });
+  if (r.status !== 204) {
+    console.log('sveglia motore', r.status, (await r.text()).slice(0, 200));
+    return false;
+  }
+  return true;
+}
+
 async function avvisoMotore(env, L) {
+  if (!(L.motore_fino && L.motore_fino > ora())) {
+    const ok = await svegliaMotore(env).catch(() => false);
+    if (ok && !L.motore_svegliato) {
+      await run(env, 'UPDATE lavori SET motore_svegliato=1 WHERE id=?', L.id).catch(() => {});
+      await log(env, L.id, 'motore', '⚡ motore GitHub avviato: parte entro un minuto');
+    }
+  }
   if (L.motore_visto && Date.now() - new Date(L.motore_visto) > 75 * 60e3 && !(L.motore_fino && L.motore_fino > ora())) {
     await log(env, L.id, 'motore', 'il motore GitHub non si fa vivo da più di un\'ora: controlla GitHub → momento-montaggio → Actions', 'warn');
     await run(env, 'UPDATE lavori SET motore_visto=? WHERE id=?', ora(), L.id);
