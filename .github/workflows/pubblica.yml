@@ -1,0 +1,46 @@
+# Pubblica la regia (Worker momento-reel) su Cloudflare a ogni modifica di worker/.
+# Serve il segreto CLOUDFLARE_API_TOKEN nel repository (Settings → Secrets and variables → Actions).
+# I segreti del Worker (chiavi Claude, Apify) restano su Cloudflare: la pubblicazione non li tocca.
+name: pubblica
+
+on:
+  push:
+    branches: [main]
+    paths: ["worker/**", ".github/workflows/pubblica.yml"]
+  workflow_dispatch: {}
+
+concurrency:
+  group: pubblica
+  cancel-in-progress: false
+
+jobs:
+  pubblica:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Controllo token
+        env:
+          T: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$T" ]; then echo "::error::Manca il segreto CLOUDFLARE_API_TOKEN (Settings → Secrets and variables → Actions)"; exit 1; fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Archivio video (R2)
+        working-directory: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx -y wrangler@4 r2 bucket create momento-reel-video 2>&1 | grep -v -i "already exists" || true
+
+      - name: Pubblica il Worker
+        working-directory: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx -y wrangler@4 deploy
+
+      - name: Prova
+        run: curl -fsS https://momento-reel.gestionalelcl.workers.dev/api/stato && echo

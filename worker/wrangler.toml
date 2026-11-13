@@ -1,6 +1,9 @@
 name = "momento-reel"
 main = "src/index.js"
 compatibility_date = "2025-10-01"
+account_id = "608de24cab8194f995e09e76369e5b65"
+workers_dev = true
+keep_vars = true
 
 [triggers]
 crons = ["* * * * *"]
@@ -9,3 +12,7 @@ crons = ["* * * * *"]
 binding = "DB"
 database_name = "momento-reel"
 database_id = "bba77d37-c34e-4dd1-9514-5463ca1d9fec"
+
+[[r2_buckets]]
+binding = "VIDEO"
+bucket_name = "momento-reel-video"
