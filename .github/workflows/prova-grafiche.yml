@@ -1,0 +1,35 @@
+# Prova del motore grafico (Remotion): renderizza i tre tipi di pannello e li allega come artefatto da controllare.
+name: prova-grafiche
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  prova:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Installa
+        working-directory: grafiche
+        run: npm install --no-audit --no-fund --loglevel=error && npx remotion versions | head -5
+      - name: Renderizza
+        working-directory: grafiche
+        run: |
+          mkdir -p out
+          echo '{"chip":"TIP","titolo":"Prenotazioni dirette in 6 mesi","tipo":"line","punti":[{"etichetta":"Gen","valore":12},{"etichetta":"Feb","valore":18},{"etichetta":"Mar","valore":25},{"etichetta":"Apr","valore":41},{"etichetta":"Mag","valore":58},{"etichetta":"Giu","valore":74}],"badge":"6x in sei mesi","accento":"#D97757","tema":"dark","durata":5,"grafico_in":0.6}' > line.json
+          echo '{"chip":"DATO","titolo":"Chi prenota dal sito spende di più","tipo":"bar","punti":[{"etichetta":"Booking","valore":92},{"etichetta":"Airbnb","valore":98},{"etichetta":"Sito","valore":131}],"unita":"€","badge":"+42%","accento":"#2F80ED","tema":"light","durata":5,"grafico_in":0.6}' > bar.json
+          echo '{"chip":"COME FARE","titolo":"Tre passi per un menu che vende","tipo":"steps","punti":[],"passi":["Massimo 12 piatti","Prezzi senza €","Il piatto firma in alto"],"accento":"#D97757","tema":"dark","durata":5,"grafico_in":0.5}' > steps.json
+          for p in line bar steps; do
+            npx remotion render src/index.ts Pannello out/$p.mov --props=$p.json --codec=prores --prores-profile=4444 --pixel-format=yuva444p10le --image-format=png --log=error
+            for fr in 12 40 90 140; do npx remotion still src/index.ts Pannello out/${p}_$fr.png --props=$p.json --frame=$fr --log=error; done
+          done
+          ls -la out
+          ffprobe -v error -show_entries stream=codec_name,pix_fmt,width,height,duration -of compact out/line.mov
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grafiche
+          path: grafiche/out/*.png
