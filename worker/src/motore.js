@@ -72,12 +72,12 @@ export async function motoreApi(req, env, url) {
       ? { indice: i, nome: `${x.video.piattaforma} · ${(x.video.titolo || x.video.url || '').slice(0, 60)}`, url: x.video.url,
           // i file di Apify li scarica la regia (ha il token), il motore passa da qui
           video_url: x.video.video_url ? (x.video.video_url.includes('api.apify.com') ? `${url.origin}/api/motore/${L.id}/scarica?i=${i}&tipo=riferimenti&pass=${pass}` : x.video.video_url) : null }
-      : { indice: i, nome: x.nome, fileid: x.fileid, dimensione: x.dimensione });
+      : { indice: i, nome: x.nome, fileid: x.sorgente?.tipo === 'pcloud' || !x.sorgente ? x.fileid : null, video_url: x.sorgente?.tipo === 'url' ? x.sorgente.url : null, dimensione: x.dimensione });
     await log(env, L.id, 'motore', `⚙️ motore GitHub al lavoro: ${elementi.length} ${tipo === 'riferimenti' ? 'reel da scaricare e misurare' : 'clip da scaricare e misurare'}`);
     return json({ id: L.id, tipo, pass, pcloud_code: codice(L.pcloud), pcloud_eu: /(^|\/\/)e\.|eapi/.test(L.pcloud || ''), elementi });
   }
 
-  const mm = p.match(/^\/api\/motore\/(\d+)\/(elemento|errore|fine|scarica|log|video|anteprima|esito)$/);
+  const mm = p.match(/^\/api\/motore\/(\d+)\/(elemento|errore|fine|scarica|log|video|anteprima|copertina|esito)$/);
   if (!mm) return json({ errore: 'non trovato' }, 404);
   const id = Number(mm[1]);
   const L = await one(env, 'SELECT id, prompt, piano, fase, riferimenti, clip, montaggio, motore_pass FROM lavori WHERE id=?', id);
@@ -97,12 +97,12 @@ export async function motoreApi(req, env, url) {
     await run(env, 'UPDATE lavori SET motore_visto=? WHERE id=?', ora(), id);
     return json({ ok: true });
   }
-  if ((mm[2] === 'video' || mm[2] === 'anteprima') && m === 'POST') {
+  if ((mm[2] === 'video' || mm[2] === 'anteprima' || mm[2] === 'copertina') && m === 'POST') {
     if (!env.VIDEO) return json({ errore: 'archivio video non collegato' }, 500);
     const lunghezza = Number(req.headers.get('content-length') || 0);
     // archivio: KV (max 25 MB a file: un reel a 1080p di 30-60 s sta sui 10-20 MB)
     if (!lunghezza || lunghezza > 25 * 1024 * 1024) return json({ errore: `file di ${Math.round(lunghezza / 1048576)} MB: oltre il limite di 25 MB` }, 400);
-    const chiave = `lavoro-${id}/${mm[2] === 'video' ? 'reel.mp4' : 'anteprima.jpg'}`;
+    const chiave = `lavoro-${id}/${mm[2] === 'video' ? 'reel.mp4' : mm[2] + '.jpg'}`;
     await env.VIDEO.put(chiave, await req.arrayBuffer(), { metadata: { tipo: mm[2] === 'video' ? 'video/mp4' : 'image/jpeg' } });
     return json({ ok: true, chiave });
   }
@@ -115,7 +115,8 @@ export async function motoreApi(req, env, url) {
       mont.stato = mont.tentativi < 2 ? 'da_fare' : 'errore';
       await log(env, id, 'editor', `montaggio non riuscito: ${mont.errore.slice(0, 200)}${mont.stato === 'da_fare' ? ' — riprovo' : ''}`, 'warn');
     } else {
-      Object.assign(mont, { stato: 'fatto', revisore: d.revisore || {}, video: `lavoro-${id}/reel.mp4`, anteprima: `lavoro-${id}/anteprima.jpg`, finito: ora() });
+      Object.assign(mont, { stato: 'fatto', revisore: d.revisore || {}, video: `lavoro-${id}/reel.mp4`, anteprima: `lavoro-${id}/anteprima.jpg`, copertina: d.copertina ? `lavoro-${id}/copertina.jpg` : null, finito: ora() });
+      delete mont.indicazioni_rimonta;
     }
     await run(env, 'UPDATE lavori SET montaggio=?, motore_pass=NULL, motore_fino=NULL, motore_visto=? WHERE id=?', JSON.stringify(mont), ora(), id);
     return json({ ok: true });

@@ -98,17 +98,17 @@ async function api(req, env, url) {
     const pcloud = String(d.pcloud || '').trim() || null;
     if (pcloud && !/code=/.test(pcloud)) return json({ errore: 'il link pCloud deve essere il link pubblico della cartella (contiene "code=")' }, 400);
     const link = String(d.link_rif || '').split(/\s+/).filter((l) => /^https?:\/\//.test(l)).slice(0, 10);
-    const r = await one(env, 'INSERT INTO lavori (prompt, pcloud, link_rif, creato, aggiornato) VALUES (?,?,?,?,?) RETURNING id', prompt, pcloud, JSON.stringify(link), ora(), ora());
+    const r = await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, creato, aggiornato) VALUES (?,?,?,'pcloud',?,?) RETURNING id", prompt, pcloud, JSON.stringify(link), ora(), ora());
     await log(env, r.id, 'regia', '🎬 nuovo lavoro in coda: il Direttore creativo parte entro un minuto');
     return json({ id: r.id });
   }
-  const vv = p.match(/^\/api\/lavori\/(\d+)\/(reel\.mp4|anteprima\.jpg)$/);
+  const vv = p.match(/^\/api\/lavori\/(\d+)\/(reel\.mp4|anteprima\.jpg|copertina\.jpg)$/);
   if (vv && m === 'GET') {
     if (!env.VIDEO) return json({ errore: 'archivio video non collegato' }, 404);
     const { value, metadata } = await env.VIDEO.getWithMetadata(`lavoro-${vv[1]}/${vv[2]}`, { type: 'arrayBuffer' });
     if (!value) return json({ errore: 'non ancora pronto' }, 404);
     const h = new Headers({ 'content-type': metadata?.tipo || (vv[2] === 'reel.mp4' ? 'video/mp4' : 'image/jpeg'), 'accept-ranges': 'bytes', 'cache-control': 'private, max-age=3600' });
-    if (url.searchParams.get('scarica')) h.set('content-disposition', `attachment; filename="reel-${vv[1]}.mp4"`);
+    if (url.searchParams.get('scarica')) h.set('content-disposition', `attachment; filename="${vv[2] === 'reel.mp4' ? 'reel' : 'copertina'}-${vv[1]}.${vv[2].split('.')[1]}"`);
     const tot = value.byteLength;
     const rg = /bytes=(\d*)-(\d*)/.exec(req.headers.get('range') || '');
     if (rg) { // Safari su iPhone vuole le richieste a pezzi per riprodurre i video
@@ -121,7 +121,7 @@ async function api(req, env, url) {
     h.set('content-length', String(tot));
     return new Response(value, { headers: h });
   }
-  const mm = p.match(/^\/api\/lavori\/(\d+)(?:\/(riprova|registro))?$/);
+  const mm = p.match(/^\/api\/lavori\/(\d+)(?:\/(riprova|registro|girato|rimonta))?$/);
   if (mm) {
     const id = Number(mm[1]);
     if (!mm[2] && m === 'GET') {
@@ -134,6 +134,26 @@ async function api(req, env, url) {
     }
     if (!mm[2] && m === 'DELETE') {
       await env.DB.batch([env.DB.prepare('DELETE FROM lavori WHERE id=?').bind(id), env.DB.prepare('DELETE FROM registro WHERE lavoro_id=?').bind(id)]);
+      return json({ ok: true });
+    }
+    // aggiungere il girato a un lavoro che non lo aveva (o cambiarlo): riparte dall'analisi delle clip
+    if (mm[2] === 'girato' && m === 'POST') {
+      const d = await req.json().catch(() => ({}));
+      const pcloud = String(d.pcloud || '').trim();
+      if (!/code=/.test(pcloud)) return json({ errore: 'serve il link pubblico della cartella pCloud (contiene "code=")' }, 400);
+      await run(env, "UPDATE lavori SET pcloud=?, fonte='pcloud', clip=NULL, montaggio=NULL, fase='clip', stato='in_corso', errore=NULL, tentativi=0, blocco_fino=NULL, motore_visto=NULL, motore_pass=NULL, motore_fino=NULL, aggiornato=? WHERE id=?", pcloud, ora(), id);
+      await log(env, id, 'regia', '📁 girato collegato: Max lo scarica e lo misura, poi scheda, piano e montaggio');
+      return json({ ok: true });
+    }
+    // rifare il montaggio con indicazioni (look, durata, ritmo, note) senza rifare ricerca e analisi
+    if (mm[2] === 'rimonta' && m === 'POST') {
+      const d = await req.json().catch(() => ({}));
+      const L = await one(env, 'SELECT montaggio, clip FROM lavori WHERE id=?', id);
+      const mont = J(L?.montaggio, null);
+      if (!mont?.piano) return json({ errore: 'questo lavoro non ha ancora un montaggio da rifare' }, 400);
+      mont.indicazioni_rimonta = { testo: String(d.testo || '').slice(0, 800), look: d.look || null, durata: Number(d.durata) || null, ritmo: d.ritmo || null };
+      await run(env, "UPDATE lavori SET montaggio=?, fase='regia', stato='in_corso', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(mont), ora(), id);
+      await log(env, id, 'regia', `🎬 rimontaggio richiesto${d.testo ? ': ' + String(d.testo).slice(0, 120) : ''}`);
       return json({ ok: true });
     }
     if (mm[2] === 'riprova' && m === 'POST') {

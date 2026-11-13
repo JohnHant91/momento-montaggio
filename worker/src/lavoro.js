@@ -3,6 +3,7 @@
 import { J, all, log, one, ora, run, configurazione } from './db.js';
 import { libreriaTesto } from './libreria.js';
 import * as S from './servizi.js';
+import { MANUALE_AUDIO, MANUALE_COPY, MANUALE_DIRETTORE, MANUALE_IRIS, MANUALE_PUBBLICAZIONE, MANUALE_REGISTA } from './manuali.js';
 
 const FASI = ['piano', 'ricerca', 'riferimenti', 'clip', 'scheda', 'regia', 'montaggio', 'fatto'];
 const BLOCCO_MIN = 12;       // un lavoro "preso" resta riservato per 12 minuti
@@ -12,7 +13,9 @@ const PER_GIRO = 3;          // video guardati in parallelo per giro
 // ------------------------------------------------------------------ prompt degli agenti
 const SISTEMA_PIANO = `Sei il Direttore creativo di Momento Produzione, agenzia italiana di video e social.
 Ricevi la richiesta di un reel e prepari la ricerca dei video di riferimento del SETTORE del cliente
-su YouTube Shorts, TikTok e Instagram Reels. Rispondi SOLO con JSON valido.`;
+su YouTube Shorts, TikTok e Instagram Reels. Rispondi SOLO con JSON valido.
+
+${MANUALE_DIRETTORE}`;
 
 const piano = (prompt) => `RICHIESTA DI JOHNNY:
 ${prompt}
@@ -32,6 +35,9 @@ JSON:
 }`;
 
 const analisiRiferimento = (settore) => `Sei un montatore video senior. Analizza questo reel come se dovessi rifarlo.
+
+${MANUALE_IRIS}
+
 È un riferimento per un reel del settore "${settore}".
 Non vedi il video in movimento: ti do (1) una tavola con i primi 3 secondi (il gancio), (2) una tavola con un
 fotogramma per ogni inquadratura, con il tempo scritto in giallo, (3) MISURE ESATTE fatte con ffmpeg e Whisper
@@ -63,6 +69,10 @@ Rispondi SOLO con JSON:
   "audio": {"musica": bool, "mood": "nome libreria", "bpm_stimato": n|null, "voce": "nessuna|voiceover|parlato_in_camera|entrambi", "effetti_sonori": ["..."]},
   "chiusura": {"tipo": "cta|loop|logo|nessuna", "cosa_succede": "..."},
   "perche_funziona": "2-3 frasi concrete",
+  "motori": ["i 1-2 elementi portanti (prova controfattuale)"],
+  "leva_condivisione": "identità|emozione|valore_sociale|utilità|immedesimazione|storia|nessuna",
+  "replicabile": {"si": bool, "perche": "eventuali fattori di fortuna/dimensione profilo"},
+  "principio": "la leva in una riga, applicabile al nostro settore",
   "da_copiare": ["tecniche replicabili"],
   "da_evitare": ["cosa non funziona o è già visto"]
 }`;
@@ -95,7 +105,13 @@ regista, copy, editor, VFX, colorist, audio, voce e sottotitoli. Ogni scelta dev
 riferimenti analizzati e realizzabile con le clip disponibili. Usa SOLO elementi della libreria per look,
 effetti, transizioni, stili testo e mood. Niente formule abusate ("POV", "aspetta la fine") se non richieste.
 Il reel deve essere riconoscibile e diverso, non una copia. Non inventare clip che non esistono.
-Rispondi SOLO JSON.`;
+Rispondi SOLO JSON.
+
+${MANUALE_DIRETTORE}
+
+${MANUALE_PUBBLICAZIONE}
+
+${MANUALE_AUDIO}`;
 
 const scheda = (prompt, piano, rif, clip) => `RICHIESTA DI JOHNNY:
 ${prompt}
@@ -128,6 +144,11 @@ Produci la scheda:
   "transizioni": ["nomi libreria"],
   "audio": {"mood": "nome libreria", "bpm": n, "musica_suggerita": "tipo di brano da cercare su IG/TikTok", "effetti_sonori": ["..."], "voce": "nessuna|voiceover|parlato_clip", "note_voce": "..."},
   "chiusura": {"tipo": "...", "cta": "..."},
+  "obiettivo_reel": "portata|invii|salvataggi|follower|commenti",
+  "leva_invio": "chi lo manderebbe a chi e perché",
+  "loop": "come la fine si ricollega all'inizio",
+  "parola_chiave": "parola chiave principale per la ricerca Instagram",
+  "copertina": {"momento": "quale inquadratura", "testo": "testo grande della copertina"},
   "caption": "bozza caption",
   "hashtag": ["..."],
   "riferimenti_chiave": [{"url": "...", "perche": "..."}],
@@ -230,11 +251,19 @@ export const chiaveRif = (v) => `rif2:${v.piattaforma}:${v.id}`;
 
 // Le clip le prepara il motore su GitHub Actions (download da pCloud + copia leggera 720p con ffmpeg)
 // e le manda alla regia, che le passa a Gemini: vedi motore.js. Qui si aspetta e si tiene il conto.
+// FONTI DEL GIRATO: ognuna restituisce l'elenco delle clip ({nome, dimensione, hash, tecnico, sorgente}).
+// Il resto del sistema (analisi, scheda, regia, montatore) non sa da dove arrivano. Per aggiungere stock/AI/HeyGen
+// basta aggiungere una voce qui e il download corrispondente nel motore (motore/analizza.py → scarica).
+export const FONTI = {
+  pcloud: { nome: 'Cartella pCloud', pronta: (L) => !!L.pcloud, elenca: async (L) => (await S.pcloudClip(L.pcloud)).map((c) => ({ ...c, sorgente: { tipo: 'pcloud', fileid: c.fileid } })) },
+};
+
 async function faseClip(env, cfg, L) {
-  if (!L.pcloud) { await log(env, L.id, 'analista', 'nessuna cartella pCloud: lavoro solo sui riferimenti'); return true; }
+  const fonte = FONTI[L.fonte || 'pcloud'] || FONTI.pcloud;
+  if (!fonte.pronta(L)) { await log(env, L.id, 'analista', 'nessun girato collegato: preparo scheda e lista delle riprese'); return true; }
   let clip = J(L.clip, null);
   if (!clip) {
-    const lista = await S.pcloudClip(L.pcloud);
+    const lista = await fonte.elenca(L);
     if (!lista.length) throw new Error('nella cartella pCloud non ci sono video');
     clip = lista.map((c) => ({ ...c, stato: 'da_guardare' }));
     // le clip già viste in altri lavori non si riguardano (e non si pagano)
@@ -245,7 +274,7 @@ async function faseClip(env, cfg, L) {
     }
     await run(env, 'UPDATE lavori SET clip=?, motore_visto=? WHERE id=?', JSON.stringify(clip), ora(), L.id);
     const peso = Math.round(clip.reduce((s, c) => s + (c.dimensione || 0), 0) / 1073741824 * 10) / 10;
-    await log(env, L.id, 'analista', `${clip.length} clip trovate su pCloud (${peso} GB)${gia ? `, ${gia} già viste in passato` : ''}`);
+    await log(env, L.id, 'analista', `${clip.length} clip trovate (${fonte.nome}, ${peso} GB)${gia ? `, ${gia} già viste in passato` : ''}`);
     if (clip.some((c) => c.stato === 'da_guardare')) await log(env, L.id, 'motore', 'chiamo il motore GitHub: scarico e misuro le clip per Ada');
   }
   if (!clip.some((c) => c.stato === 'da_guardare')) return true;
@@ -278,7 +307,15 @@ const SISTEMA_REGISTA = `Sei il Regista e il Copy di Momento Produzione. Trasfor
 PIANO DI MONTAGGIO preciso che un montatore automatico eseguirà alla lettera. Scegli i pezzi migliori dalle clip analizzate
 (usa solo momenti con qualità alta e senza problemi, rispetta i tempi da/a dei momenti), costruisci gancio → sviluppo → climax →
 chiusura, alterna inquadrature (totale/dettaglio/primo piano), non ripetere lo stesso momento. Il rallenty va su clip girate a
-48 fps o più (rallenty_possibile). Testi brevi, in italiano corretto, niente formule abusate. Rispondi SOLO JSON.`;
+48 fps o più (rallenty_possibile). Testi brevi, in italiano corretto, niente formule abusate. Rispondi SOLO JSON.
+
+${MANUALE_REGISTA}
+
+${MANUALE_COPY}
+
+${MANUALE_PUBBLICAZIONE}
+
+${MANUALE_AUDIO}`;
 
 const pianoMontaggio = (scheda, clip) => `SCHEDA TECNICA:
 ${JSON.stringify(scheda)}
@@ -306,7 +343,12 @@ JSON:
                 "testo": {"testo": "...", "stile": "...", "posizione": "...", "evidenzia": "parola"} oppure null}],
   "sottotitoli": {"usare": bool, "stile": "parola_per_parola|karaoke_evidenziato|sottotitolo_classico", "posizione": "terzo_inferiore"},
   "chiusura": {"testo": "...", "sottotesto": "cta breve", "evidenzia": "parola", "durata": 2-3, "colore": "#hex"} oppure null,
-  "caption": "caption finale per il post",
+  "ganci_alternativi": [{"testo": "...", "meccanismo": "..."}],
+  "loop": "come il finale si ricollega al primo pezzo",
+  "copertina": {"clip": indice, "secondo": n, "testo": "testo grande della copertina (2-5 parole)"},
+  "parola_chiave": "...",
+  "caption": "caption finale: prima riga con la parola chiave, corpo, UNA call to action",
+  "hashtag": ["3-5 etichette specifiche"],
   "musica_da_mettere": "che brano cercare su Instagram e da che secondo, a che volume rispetto al suono originale"
 }`;
 
@@ -316,12 +358,24 @@ async function faseRegia(env, cfg, L) {
     indice: i, file: c.nome, tecnico: c.tecnico, descrizione: c.analisi?.descrizione, momenti: c.analisi?.momenti,
     problemi: c.analisi?.problemi, parlato: c.analisi?.parlato, verticale: c.analisi?.adatta_al_verticale,
   }));
+  const prima = J(L.montaggio, null);
   if (!clip.length) {
-    await log(env, L.id, 'regista', 'nessuna clip analizzata: senza girato non posso montare. La scheda resta pronta da usare.', 'warn');
+    // senza girato: Rocco scrive la lista delle riprese da fare/trovare; il montaggio parte quando arriva il girato
+    await log(env, L.id, 'regista', 'nessun girato: scrivo la lista delle inquadrature da girare o da trovare');
+    const lr = await S.claude(cfg, SISTEMA_REGISTA, `SCHEDA TECNICA:
+${JSON.stringify(scheda)}
+
+Non c'è ancora girato. Scrivi la LISTA DELLE RIPRESE necessarie per montare questo reel, nell'ordine del montaggio.
+JSON: {"riprese": [{"n": 1, "fase": "gancio|sviluppo|climax|chiusura", "inquadratura": "totale|piano_medio|primo_piano|dettaglio|macro", "cosa": "...", "movimento": "...", "durata_utile_sec": n, "fps_consigliati": 25|50|60, "note": "luce, angolo, cosa evitare"}],
+ "consigli_ripresa": ["..."], "ganci_alternativi": [{"testo": "...", "meccanismo": "..."}], "caption": "...", "hashtag": ["..."]}`, { maxTokens: 6000 });
+    await run(env, 'UPDATE lavori SET montaggio=? WHERE id=?', JSON.stringify({ stato: 'senza_girato', lista_riprese: lr, creato: ora() }), L.id);
+    await log(env, L.id, 'regista', `lista pronta: ${(lr.riprese || []).length} inquadrature. Aggiungi il girato dalla pagina del lavoro e monto.`);
     return 'salta';
   }
-  await log(env, L.id, 'regista', `scrivo il piano di montaggio da ${clip.length} clip`);
-  const p = await S.claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda, clip), { maxTokens: 12000 });
+  const indicazioni = prima?.indicazioni_rimonta;
+  await log(env, L.id, 'regista', indicazioni ? `rimonto con le tue indicazioni: ${indicazioni.testo || ''}` : `scrivo il piano di montaggio da ${clip.length} clip`);
+  const extra = indicazioni ? `\n\nQUESTO È UN NUOVO MONTAGGIO. Piano precedente:\n${JSON.stringify(prima.piano || {})}\n\nINDICAZIONI DI JOHNNY PER IL NUOVO MONTAGGIO (hanno la precedenza sulla scheda):\n${JSON.stringify(indicazioni)}\nCambia davvero quello che chiede, il resto miglioralo se puoi.` : '';
+  const p = await S.claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda, clip) + extra, { maxTokens: 12000 });
   // controllo del piano: valori ammessi, clip esistenti, tempi dentro le clip
   const tutte = J(L.clip, []);
   const seg = (p.segmenti || []).filter((s) => tutte[s.clip]?.stato === 'fatto').slice(0, 40).map((s, k) => {
@@ -331,18 +385,21 @@ async function faseRegia(env, cfg, L) {
     const rallenty = !!s.rallenty;
     const serve = durata * (rallenty ? 0.5 : 1);
     return {
-      clip: s.clip, fileid: c.fileid, nome: c.nome, in: Math.max(0, Math.min(Number(s.in) || 0, Math.max(0, durClip - serve - 0.05))), durata, rallenty,
+      clip: s.clip, fileid: c.sorgente?.tipo === 'url' ? null : c.fileid, url: c.sorgente?.tipo === 'url' ? c.sorgente.url : null, nome: c.nome, in: Math.max(0, Math.min(Number(s.in) || 0, Math.max(0, durClip - serve - 0.05))), durata, rallenty,
       effetto: EFFETTI_PEZZO.includes(s.effetto) ? s.effetto : 'nessuno',
       transizione_in: k === 0 ? null : (TRANSIZIONI.includes(s.transizione_in) ? s.transizione_in : 'taglio_netto'),
       audio: Math.min(1, Math.max(0, Number(s.audio ?? 0.8))), motivo: s.motivo, testo: s.testo?.testo ? s.testo : null,
     };
   });
   if (!seg.length) throw new Error('il piano del Regista non contiene pezzi validi');
+  const lookVoluto = indicazioni?.look && LOOKS.includes(indicazioni.look) ? indicazioni.look : null;
+  const cop = p.copertina && tutte[p.copertina.clip]?.stato === 'fatto' ? { fileid: tutte[p.copertina.clip].fileid, url: tutte[p.copertina.clip].sorgente?.url || null, secondo: Math.max(0, Number(p.copertina.secondo) || 0), testo: String(p.copertina.testo || '').slice(0, 60) } : null;
   const piano = {
-    ...p, segmenti: seg, look: LOOKS.includes(p.look) ? p.look : (LOOKS.includes(scheda.colore?.look) ? scheda.colore.look : 'naturale_vivace'),
-    effetti_globali: (p.effetti_globali || []).filter((e) => EFFETTI_GLOBALI.includes(e)),
+    ...p, segmenti: seg, look: lookVoluto || (LOOKS.includes(p.look) ? p.look : (LOOKS.includes(scheda.colore?.look) ? scheda.colore.look : 'naturale_vivace')),
+    effetti_globali: (p.effetti_globali || []).filter((e) => EFFETTI_GLOBALI.includes(e)), copertina: cop,
   };
-  await run(env, 'UPDATE lavori SET montaggio=? WHERE id=?', JSON.stringify({ stato: 'da_fare', piano, creato: ora() }), L.id);
+  const versione = (prima?.versione || 0) + 1;
+  await run(env, 'UPDATE lavori SET montaggio=? WHERE id=?', JSON.stringify({ stato: 'da_fare', piano, versione, creato: ora(), indicazioni: indicazioni || null }), L.id);
   const tot = seg.reduce((a, s) => a + s.durata, 0);
   await log(env, L.id, 'regista', `piano pronto: ${seg.length} pezzi, ~${Math.round(tot + (piano.chiusura?.durata || 0))} s, look ${piano.look}`);
   if (seg.some((s) => s.testo) || piano.chiusura) await log(env, L.id, 'copy', `testi: ${[...seg.filter((s) => s.testo).map((s) => '"' + s.testo.testo + '"'), piano.chiusura?.testo ? '"' + piano.chiusura.testo + '"' : ''].filter(Boolean).join(' · ').slice(0, 300)}`);

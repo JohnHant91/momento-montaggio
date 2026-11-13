@@ -344,7 +344,7 @@ class Montatore:
                 "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
                 f"Style: Titolo,{f_tit},118,{bianco},{bianco},&H00000000,&H64000000,-1,0,0,0,100,100,1,0,1,0,7,5,70,70,0,1\n"
                 f"Style: Box,{f_txt},64,{bianco},{bianco},{box},{box},-1,0,0,0,100,100,1,0,3,18,0,5,90,90,0,1\n"
-                f"Style: Classico,{f_txt},58,{bianco},{bianco},&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3,2,2,90,90,330,1\n"
+                f"Style: Classico,{f_txt},58,{bianco},{bianco},&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3,2,2,90,90,420,1\n"
                 f"Style: Sub,{f_txt},78,{bianco},{bianco},&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,6,0,5,80,80,0,1\n\n"
                 "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
         pulisci = lambda t: str(t).replace("\\", "").replace("{", "(").replace("}", ")").replace("\n", "\\N")
@@ -560,6 +560,44 @@ class Montatore:
         rep["secondi_di_lavoro"] = round(time.time() - t0)
         self.avvisa("revisore", f"controllo: {rep['durata']}s · {rep['lufs']} LUFS · {rep['mb']} MB" + (" · ⚠ " + "; ".join(rep["problemi"]) if rep["problemi"] else " · tutto ok"))
         return rep
+
+
+def copertina(sorgente, secondo, testo, dest, font_dir=None, colore_accento="#F2B84B"):
+    """Copertina 1080x1920: fotogramma scelto (reframe al centro) + testo grande nella zona sicura della griglia 3:4."""
+    from PIL import Image, ImageDraw, ImageFont, ImageEnhance
+    p = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-ss", f"{max(0, secondo):.2f}", "-i", sorgente, "-frames:v", "1",
+                        "-vf", f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H}", "-f", "image2pipe", "-vcodec", "png", "-"], capture_output=True)
+    import io
+    im = Image.open(io.BytesIO(p.stdout)).convert("RGB") if p.stdout else Image.new("RGB", (W, H), (16, 20, 23))
+    im = ImageEnhance.Brightness(im).enhance(0.82)
+    if testo:
+        d = ImageDraw.Draw(im)
+        font_path = None
+        for cand in ([os.path.join(font_dir, f) for f in sorted(os.listdir(font_dir))] if font_dir and os.path.isdir(font_dir) else []) + [
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]:
+            if cand.endswith(".ttf") and os.path.exists(cand):
+                font_path = cand
+                break
+        parole, righe, dim = testo.upper().split(), [], 120
+        f = ImageFont.truetype(font_path, dim) if font_path else ImageFont.load_default()
+        riga = ""
+        for w in parole:  # a capo entro 900 px di larghezza
+            prova = (riga + " " + w).strip()
+            if d.textlength(prova, font=f) > 900 and riga:
+                righe.append(riga)
+                riga = w
+            else:
+                riga = prova
+        righe.append(riga)
+        alt = dim * 1.12
+        y = H / 2 - alt * len(righe) / 2
+        for r in righe:  # centro della griglia 3:4 (y 240-1680): resta visibile in tutti i ritagli
+            x = (W - d.textlength(r, font=f)) / 2
+            d.text((x + 4, y + 5), r, font=f, fill=(0, 0, 0))
+            d.text((x, y), r, font=f, fill=(255, 255, 255))
+            y += alt
+    im.save(dest, "JPEG", quality=90)
+    return dest
 
 
 def anteprima(video, dest, n=8):

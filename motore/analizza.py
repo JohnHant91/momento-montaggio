@@ -357,7 +357,7 @@ def invia_file(lavoro, azione, path, tipo_mime):
 
 def monta(lavoro):
     """Scarica le clip del piano da pCloud e monta il reel con il montatore."""
-    from montatore import Montatore, anteprima
+    from montatore import Montatore, anteprima, copertina
     cartella = tempfile.mkdtemp(prefix="monta_")
     piano = dict(lavoro["piano"])
 
@@ -368,25 +368,40 @@ def monta(lavoro):
         except Exception:
             pass
     try:
-        file_per_id = {}
-        ids = list(dict.fromkeys(s["fileid"] for s in piano["segmenti"]))
-        avvisa("motore", f"scarico {len(ids)} clip da pCloud")
+        chiave = lambda s: str(s.get("fileid") or s.get("url"))
+        cop = piano.get("copertina") or {}
+        voci = {chiave(s): s for s in piano["segmenti"]}
+        if cop.get("fileid") or cop.get("url"):
+            voci.setdefault(chiave(cop), cop)
+        avvisa("motore", f"scarico {len(voci)} clip")
 
-        def prendi(fid):
-            dest = os.path.join(cartella, f"src_{fid}")
-            scarica_url(link_pcloud(lavoro, fid), dest)
-            return fid, dest
+        def prendi(k):
+            s = voci[k]
+            dest = os.path.join(cartella, "src_" + re.sub(r"\W+", "_", k)[-40:])
+            scarica_url(link_pcloud(lavoro, s["fileid"]) if s.get("fileid") else s["url"], dest)
+            return k, dest
+        file_per_id = {}
         with ThreadPoolExecutor(3) as ex:
-            for fid, dest in ex.map(prendi, ids):
-                file_per_id[fid] = dest
-        piano["segmenti"] = [dict(s, file=file_per_id[s["fileid"]]) for s in piano["segmenti"]]
+            for k, dest in ex.map(prendi, list(voci)):
+                file_per_id[k] = dest
+        piano["segmenti"] = [dict(s, file=file_per_id[chiave(s)]) for s in piano["segmenti"]]
         out = os.path.join(cartella, "reel.mp4")
         m = Montatore(piano, os.path.join(cartella, "lavoro"), avvisa=avvisa)
         rep = m.monta(out)
         prev = anteprima(out, os.path.join(cartella, "anteprima.jpg"))
         invia_file(lavoro, "video", out, "video/mp4")
         invia_file(lavoro, "anteprima", prev, "image/jpeg")
-        regia(lavoro, "esito", corpo={"revisore": rep})
+        cop_ok = False
+        try:
+            sorg = file_per_id.get(chiave(cop)) if (cop.get("fileid") or cop.get("url")) else out
+            sec = float(cop.get("secondo", 0.6)) if sorg != out else 0.6
+            c = copertina(sorg, sec, cop.get("testo") or "", os.path.join(cartella, "copertina.jpg"), m.fontdir)
+            invia_file(lavoro, "copertina", c, "image/jpeg")
+            cop_ok = True
+            avvisa("vfx", f"copertina pronta{': ' + cop['testo'] if cop.get('testo') else ''}")
+        except Exception as e:
+            avvisa("vfx", f"copertina non riuscita: {str(e)[:120]}", "warn")
+        regia(lavoro, "esito", corpo={"revisore": rep, "copertina": cop_ok})
         avvisa("motore", f"🎬 reel consegnato: {rep['durata']} s, {rep['mb']} MB")
     except Exception as e:
         log("montaggio non riuscito:", e)

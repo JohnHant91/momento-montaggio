@@ -168,8 +168,9 @@ function nuovo() {
   $('#app').innerHTML = '<h1>Nuovo reel</h1><p class="mut">Il Direttore creativo cerca i video che funzionano nel settore su YouTube, TikTok e Instagram, il motore li misura, Iris li studia, l\\'Analista studia le tue clip e alla fine ricevi la scheda tecnica.</p>' +
     '<label>Cosa deve essere il reel</label><textarea id="pr" placeholder="Es. Reel per la pizzeria Da Gino a Salerno, 30 secondi, clip in cucina e in sala. Deve far venire fame e portare prenotazioni. Target 25-40 anni, tono giovane ma non volgare."></textarea>' +
     '<div class="aiuto">Cliente, settore, obiettivo, durata, tono, a chi parla. Più sei preciso, migliore è la ricerca.</div>' +
+    '<label>Fonte del girato</label><select id="fo"><option value="pcloud">Le mie clip (cartella pCloud)</option><option disabled>Video stock — in arrivo</option><option disabled>Generati con AI — in arrivo</option></select>' +
     '<label>Cartella delle clip su pCloud (facoltativo)</label><input id="pc" placeholder="https://e.pcloud.link/publink/show?code=…">' +
-    '<div class="aiuto">Su pCloud: tasto destro sulla cartella → Condividi → Link di condivisione → copia. Senza clip fa solo la ricerca.</div>' +
+    '<div class="aiuto">Su pCloud: tasto destro sulla cartella → Condividi → Link di condivisione → copia. Senza clip ottieni scheda e lista delle riprese, e il girato lo aggiungi dopo.</div>' +
     '<label>Reel di riferimento che ti piacciono (facoltativo)</label><textarea id="lr" style="min-height:70px" placeholder="Un link per riga: YouTube, TikTok o Instagram"></textarea>' +
     '<div style="margin-top:18px"><button id="go">Avvia la squadra</button></div><div id="er" class="err"></div>';
   $('#go').onclick = async () => {
@@ -195,7 +196,11 @@ function vistaScheda(s) {
     '<b>Effetti</b><span>' + e((s.effetti || []).map((x) => x.nome + ' (' + x.dove + ')').join(' · ')) + '</span>' +
     '<b>Transizioni</b><span>' + e((s.transizioni || []).join(', ')) + '</span>' +
     '<b>Audio</b><span>' + e(a.mood) + ' · ' + e(a.bpm) + ' BPM · ' + e(a.musica_suggerita) + '<br>voce: ' + e(a.voce) + (a.note_voce ? ' — ' + e(a.note_voce) : '') + '<br>effetti sonori: ' + e((a.effetti_sonori || []).join(', ')) + '</span>' +
-    '<b>Chiusura</b><span>' + e(s.chiusura?.tipo) + ' — ' + e(s.chiusura?.cta) + '</span></div></div>' +
+    '<b>Chiusura</b><span>' + e(s.chiusura?.tipo) + ' — ' + e(s.chiusura?.cta) + '</span>' +
+    (s.obiettivo_reel ? '<b>Obiettivo</b><span>' + e(s.obiettivo_reel) + (s.leva_invio ? ' · chi lo manda a chi: ' + e(s.leva_invio) : '') + '</span>' : '') +
+    (s.loop ? '<b>Loop</b><span>' + e(s.loop) + '</span>' : '') +
+    (s.parola_chiave ? '<b>Parola chiave</b><span>' + e(s.parola_chiave) + '</span>' : '') +
+    (s.copertina ? '<b>Copertina</b><span>' + e(s.copertina.momento) + ' — “' + e(s.copertina.testo) + '”</span>' : '') + '</div></div>' +
     '<h2>Cosa funziona nel settore</h2><div class="card">' + lst(s.cosa_funziona_nel_settore) + '</div>' +
     '<h2>Struttura</h2><div class="card"><table>' + st + '</table></div>' +
     '<h2>Clip da usare</h2><div class="card">' + lst((s.clip_da_usare || []).map((c) => c.file + ' · ' + c.momento + ' → ' + c.per)) + '</div>' +
@@ -204,17 +209,43 @@ function vistaScheda(s) {
     '<h2>Caption</h2><div class="card"><p style="white-space:pre-wrap">' + e(s.caption) + '</p><p class="mut">' + e((s.hashtag || []).map((h) => '#' + String(h).replace(/^#/, '')).join(' ')) + '</p></div>';
 }
 
+const LOOKS_UI = [['', 'come prima'], ['caldo_cinematico', 'Caldo cinematico'], ['pulito_commerciale', 'Pulito commerciale'], ['teal_orange', 'Teal & orange'], ['moody_scuro', 'Moody scuro'], ['naturale_vivace', 'Naturale vivace'], ['bn_contrasto', 'Bianco e nero'], ['pastello_soft', 'Pastello'], ['vintage_film', 'Vintage film']];
+
+function boxGirato(L) {
+  return '<div class="card"><b>Aggiungi il girato</b><p class="mut">Link pubblico della cartella pCloud con le clip: Max le scarica e le misura, poi scheda, piano e montaggio.</p>' +
+    '<input id="gir" placeholder="https://e.pcloud.link/publink/show?code=…"><div style="margin-top:10px"><button id="gir_ok">Collega e monta</button></div><div id="gir_er" class="err"></div></div>';
+}
+
 function vistaReel(L) {
   const m = L.montaggio;
-  if (!m) return '';
+  if (!m) return L.stato === 'pronto' && !L.pcloud ? '<h2>Girato</h2>' + boxGirato(L) : '';
+  if (m.stato === 'senza_girato') {
+    const lr = m.lista_riprese || {};
+    return '<h2>Lista delle riprese</h2><div class="card"><p class="mut">Non c’è ancora girato: ecco cosa serve, nell’ordine del montaggio.</p><table><tr><th>#</th><th>Fase</th><th>Inquadratura</th><th>Note</th></tr>' +
+      (lr.riprese || []).map((r) => '<tr><td>' + e(r.n) + '</td><td>' + e(r.fase) + '</td><td><b>' + e(r.inquadratura) + '</b> · ' + e(r.cosa) + '<div class="mut">' + e(r.movimento) + ' · ' + e(r.durata_utile_sec) + ' s · ' + e(r.fps_consigliati) + ' fps</div></td><td class="mut">' + e(r.note) + '</td></tr>').join('') + '</table>' +
+      ((lr.consigli_ripresa || []).length ? '<p><b>Consigli</b></p>' + lst(lr.consigli_ripresa) : '') + '</div>' + boxGirato(L);
+  }
   if (m.stato !== 'fatto') return '<h2>Reel</h2><div class="card">' + (m.stato === 'errore' ? '<span class="err">Montaggio non riuscito: ' + e(m.errore) + '</span>' : '🎬 In montaggio sul motore GitHub…') + '</div>';
   const r = m.revisore || {}, p = m.piano || {};
-  return '<h2>Il reel</h2><div class="card" style="text-align:center"><video src="/api/lavori/' + L.id + '/reel.mp4" controls playsinline preload="metadata" style="width:100%;max-width:360px;border-radius:12px;background:#000"></video>' +
-    '<div class="riga" style="justify-content:center;margin-top:10px"><a class="btn" href="/api/lavori/' + L.id + '/reel.mp4?scarica=1">Scarica MP4</a></div>' +
+  const t0 = Date.now();
+  return '<h2>Il reel' + (m.versione > 1 ? ' · versione ' + m.versione : '') + '</h2><div class="card" style="text-align:center"><div class="riga" style="justify-content:center;align-items:flex-start;gap:14px">' +
+    '<video src="/api/lavori/' + L.id + '/reel.mp4?v=' + e(m.versione || 1) + '" controls playsinline preload="metadata" style="width:100%;max-width:330px;border-radius:12px;background:#000"></video>' +
+    (m.copertina ? '<div><img src="/api/lavori/' + L.id + '/copertina.jpg?v=' + e(m.versione || 1) + '" style="width:150px;border-radius:10px;display:block"><div class="mut">copertina</div></div>' : '') + '</div>' +
+    '<div class="riga" style="justify-content:center;margin-top:10px"><a class="btn" href="/api/lavori/' + L.id + '/reel.mp4?scarica=1">Scarica MP4</a>' + (m.copertina ? '<a class="btn sec" href="/api/lavori/' + L.id + '/copertina.jpg?scarica=1">Scarica copertina</a>' : '') + '</div>' +
     '<p class="mut">' + e(r.durata) + ' s · ' + e(r.lufs) + ' LUFS · ' + e(r.mb) + ' MB · montato in ' + e(r.secondi_di_lavoro) + ' s</p>' +
-    ((r.problemi || []).length ? '<p class="err">⚠︎ ' + e(r.problemi.join(' · ')) + '</p>' : '<p style="color:var(--ok)">✓ Revisore: tutto ok</p>') +
-    (p.musica_da_mettere ? '<p><b>Musica da aggiungere su IG:</b> ' + e(p.musica_da_mettere) + '</p>' : '') +
-    (p.caption ? '<p style="white-space:pre-wrap;text-align:left"><b>Caption:</b> ' + e(p.caption) + '</p>' : '') + '</div>';
+    ((r.problemi || []).length ? '<p class="err">⚠︎ ' + e(r.problemi.join(' · ')) + '</p>' : '<p style="color:var(--ok)">✓ Revisore: tutto ok</p>') + '</div>' +
+    '<div class="card"><div class="kv">' +
+    (p.parola_chiave ? '<b>Parola chiave</b><span>' + e(p.parola_chiave) + '</span>' : '') +
+    (p.loop ? '<b>Loop</b><span>' + e(p.loop) + '</span>' : '') +
+    (p.musica_da_mettere ? '<b>Musica (in app)</b><span>' + e(p.musica_da_mettere) + '</span>' : '') + '</div>' +
+    (p.caption ? '<p style="white-space:pre-wrap"><b>Caption</b><br>' + e(p.caption) + '</p>' : '') +
+    ((p.hashtag || []).length ? '<p class="mut">' + e(p.hashtag.map((h) => '#' + String(h).replace(/^#/, '')).join(' ')) + '</p>' : '') +
+    ((p.ganci_alternativi || []).length ? '<p><b>Ganci alternativi da provare</b></p>' + lst(p.ganci_alternativi.map((g) => g.testo + ' (' + g.meccanismo + ')')) : '') + '</div>' +
+    '<div class="card"><b>Rimonta</b><p class="mut">Rifà solo piano e montaggio (niente nuova ricerca né analisi).</p>' +
+    '<label>Cosa cambiare</label><textarea id="rim_t" style="min-height:70px" placeholder="Es. più veloce, gancio con la tazza, meno testi, chiusura con il logo"></textarea>' +
+    '<div class="riga"><div style="flex:1"><label>Look</label><select id="rim_l">' + LOOKS_UI.map(([v, n]) => '<option value="' + v + '">' + n + '</option>').join('') + '</select></div>' +
+    '<div style="flex:1"><label>Durata (s)</label><input id="rim_d" type="number" min="7" max="90" placeholder="come prima"></div></div>' +
+    '<div style="margin-top:12px"><button id="rim_ok">Rimonta</button></div><div id="rim_er" class="err"></div></div>';
 }
 
 function vistaRiferimenti(R) {
@@ -224,7 +255,7 @@ function vistaRiferimenti(R) {
     return '<div class="card"><div class="riga"><span class="tag ' + v.piattaforma + '">' + v.piattaforma + '</span>' + (v.scelto_da_johnny ? '<span class="pill">scelto da te</span>' : '') + '<span class="pill">' + e(r.stato.replace('_', ' ')) + '</span></div>' +
       '<p style="margin:8px 0 4px"><a href="' + e(v.url) + '" target="_blank" rel="noopener">' + e((v.titolo || v.url).slice(0, 80)) + '</a></p>' +
       '<div class="mut">' + n(v.views) + ' views · ' + n(v.likes) + ' like · ' + e(v.durata) + ' s · ' + e(v.autore) + '</div>' +
-      (r.analisi ? '<p><b>Gancio</b> ' + e(a.gancio?.cosa_succede) + ' (fino a ' + e(a.gancio?.fine_sec) + ' s)<br><b>Ritmo</b> ' + e(a.ritmo) + ' · ' + e(a.numero_tagli) + ' tagli · media ' + e(a.durata_media_inquadratura_sec) + ' s<br><b>Look</b> ' + e(a.colore?.look) + ' · <b>Effetti</b> ' + e((a.effetti || []).join(', ')) + '<br><b>Audio</b> ' + e(a.audio?.mood) + ' ' + e(a.audio?.bpm_stimato) + ' BPM · voce ' + e(a.audio?.voce) + '</p><p class="mut">' + e(a.perche_funziona) + '</p>' : '') +
+      (r.analisi ? '<p><b>Gancio</b> ' + e(a.gancio?.cosa_succede) + ' (fino a ' + e(a.gancio?.fine_sec) + ' s)<br><b>Ritmo</b> ' + e(a.ritmo) + ' · ' + e(a.numero_tagli) + ' tagli · media ' + e(a.durata_media_inquadratura_sec) + ' s<br><b>Look</b> ' + e(a.colore?.look) + ' · <b>Effetti</b> ' + e((a.effetti || []).join(', ')) + '<br><b>Audio</b> ' + e(a.audio?.mood) + ' ' + e(a.audio?.bpm_stimato) + ' BPM · voce ' + e(a.audio?.voce) + '</p><p class="mut">' + e(a.perche_funziona) + '</p>' + (a.principio ? '<p><b>Principio</b> ' + e(a.principio) + (a.replicabile && a.replicabile.si === false ? ' <span class="pill errore">poco replicabile</span>' : '') + '</p>' : '') : '') +
       (r.errore ? '<p class="err">' + e(r.errore) + '</p>' : '') + '</div>';
   }).join('') + '</div>';
 }
@@ -249,10 +280,12 @@ async function dettaglio(id) {
     (L.scheda ? '<button class="sec" id="dl">Scarica scheda (JSON)</button>' : '') + '<button class="rosso" id="del">Elimina</button></div>' +
     vistaReel(L) + vistaScheda(L.scheda) + vistaRiferimenti(L.riferimenti) + vistaClip(L.clip) +
     '<h2>Cosa stanno facendo gli agenti</h2><div class="log">' + L.registro.map((r) => { const A = AGENTI[AGID(r.agente)]; return '<div class="' + r.livello + '"><span class="mut">' + new Date(r.quando).toLocaleTimeString('it-IT') + '</span> ' + A.i + ' <b>' + e(A.n) + '</b> ' + e(r.messaggio) + '</div>'; }).join('') + '</div>';
+  if ($('#gir_ok')) $('#gir_ok').onclick = async () => { try { await chiama('/api/lavori/' + id + '/girato', { method: 'POST', body: { pcloud: $('#gir').value } }); rotta(); } catch (x) { $('#gir_er').textContent = x.message; } };
+  if ($('#rim_ok')) $('#rim_ok').onclick = async () => { try { await chiama('/api/lavori/' + id + '/rimonta', { method: 'POST', body: { testo: $('#rim_t').value, look: $('#rim_l').value || null, durata: $('#rim_d').value || null } }); rotta(); } catch (x) { $('#rim_er').textContent = x.message; } };
   if ($('#rip')) $('#rip').onclick = async () => { await chiama('/api/lavori/' + id + '/riprova', { method: 'POST', body: {} }); rotta(); };
   if ($('#dl')) $('#dl').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(L.scheda, null, 2)], { type: 'application/json' })); a.download = 'scheda-' + id + '.json'; a.click(); };
   $('#del').onclick = async () => { if (confirm('Eliminare questo lavoro?')) { await chiama('/api/lavori/' + id, { method: 'DELETE' }); location.hash = '#/'; } };
-  if (L.stato === 'in_corso') timer = setTimeout(rotta, 6000);
+  if (L.stato === 'in_corso') timer = setTimeout(() => { if (!document.activeElement || !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) rotta(); else timer = setTimeout(rotta, 6000); }, 6000);
 }
 
 const NOMI = { ANTHROPIC_API_KEY: ['Claude', 'console.anthropic.com → API Keys'], GEMINI_API_KEY: ['Gemini (gli occhi)', 'aistudio.google.com/apikey'], YOUTUBE_API_KEY: ['YouTube Data API v3 (facoltativa: senza, Yuri cerca sul web)', 'console.cloud.google.com → abilita “YouTube Data API v3” → Credenziali → Chiave API'], APIFY_TOKEN: ['Apify (facoltativa: TikTok e Instagram)', 'console.apify.com → Settings → API & Integrations'] };
