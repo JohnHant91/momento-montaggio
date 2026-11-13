@@ -357,12 +357,13 @@ class Montatore:
             y = pos_y.get(t.get("posizione", "centro"), 900)
             anim = t.get("animazione", "pop")
             testo = pulisci(t["testo"])
+            col_t = f"\\c{self.ass_colore(t['colore'])}" if t.get("colore") else ""
             if stile == "nessun_testo":
                 continue
             if stile == "etichetta_box":
                 ev.append(f"Dialogue: 2,{self.tempo_ass(a)},{self.tempo_ass(b)},Box,,0,0,0,,{{\\an5\\pos(540,{y})\\fad(120,150)\\fscx80\\fscy80\\t(0,180,\\fscx100\\fscy100)}}{testo}")
             elif stile == "sottotitolo_classico":
-                ev.append(f"Dialogue: 2,{self.tempo_ass(a)},{self.tempo_ass(b)},Classico,,0,0,0,,{{\\fad(150,150)}}{testo}")
+                ev.append(f"Dialogue: 2,{self.tempo_ass(a)},{self.tempo_ass(b)},Classico,,0,0,0,,{{\\fad(150,150){col_t}}}{testo}")
             else:  # titolo grande: parole che entrano una alla volta con un piccolo "pop", la parola chiave in colore
                 parole_t = testo.split()
                 chiave = (t.get("evidenzia") or "").lower()
@@ -370,8 +371,8 @@ class Montatore:
                 for k, w in enumerate(parole_t):
                     t0 = int(k * (90 if anim != "dissolvi" else 0))
                     colore = f"\\c{acc}" if chiave and chiave in w.lower() else ""
-                    pezzi.append(f"{{\\alpha&HFF&{colore}\\t({t0},{t0 + 160},\\alpha&H00&)\\fscx70\\fscy70\\t({t0},{t0 + 200},\\fscx104\\fscy104)\\t({t0 + 200},{t0 + 300},\\fscx100\\fscy100)}}{w}{{\\c{bianco}}}")
-                ev.append(f"Dialogue: 3,{self.tempo_ass(a)},{self.tempo_ass(b)},Titolo,,0,0,0,,{{\\an5\\pos(540,{y})\\fad(0,220)}}{' '.join(pezzi)}")
+                    pezzi.append(f"{{\\alpha&HFF&{colore}\\t({t0},{t0 + 160},\\alpha&H00&)\\fscx70\\fscy70\\t({t0},{t0 + 200},\\fscx104\\fscy104)\\t({t0 + 200},{t0 + 300},\\fscx100\\fscy100)}}{w}{{\\c{self.ass_colore(t['colore']) if t.get('colore') else bianco}}}")
+                ev.append(f"Dialogue: 3,{self.tempo_ass(a)},{self.tempo_ass(b)},Titolo,,0,0,0,,{{\\an5\\pos(540,{y})\\fad(0,220){col_t}}}{' '.join(pezzi)}")
         # sottotitoli dal parlato
         st = (P.get("sottotitoli") or {})
         if st.get("usare") and parole:
@@ -542,10 +543,13 @@ class Montatore:
         if P.get("chiusura"):
             c = P["chiusura"]
             a = inizi[-1] + 0.15
+            hx = (c.get("colore") or "#101417").lstrip("#")[:6].ljust(6, "0")
+            lum = (0.2126 * int(hx[0:2], 16) + 0.7152 * int(hx[2:4], 16) + 0.0722 * int(hx[4:6], 16)) / 255
+            col_chiusura = "#1A1A1A" if lum > 0.6 else None  # sfondo chiaro → testo scuro, sempre leggibile
             if c.get("testo"):
-                testi.append({"da": a, "a": totale, "testo": c["testo"], "stile": "titolo_grande_centrale", "posizione": "centro", "evidenzia": c.get("evidenzia")})
+                testi.append({"da": a, "a": totale, "testo": c["testo"], "stile": "titolo_grande_centrale", "posizione": "centro", "evidenzia": c.get("evidenzia"), "colore": col_chiusura})
             if c.get("sottotesto"):
-                testi.append({"da": a + 0.35, "a": totale, "testo": c["sottotesto"], "stile": "sottotitolo_classico"})
+                testi.append({"da": a + 0.35, "a": totale, "testo": c["sottotesto"], "stile": "sottotitolo_classico", "colore": col_chiusura})
         parole = []
         if (P.get("sottotitoli") or {}).get("usare"):
             self.avvisa("sottotitoli", "trascrivo il parlato con Whisper")
