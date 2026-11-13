@@ -38,22 +38,33 @@ export async function richiesta(url, opts = {}, tentativi = 4) {
 // ------------------------------------------------------------------ Claude
 export async function claude(cfg, sistema, messaggio, { maxTokens = 8000, json = true } = {}) {
   if (!cfg.ANTHROPIC_API_KEY) throw new Error('manca la chiave Claude (Impostazioni)');
-  // se la risposta non ci sta, la faccio continuare da dove si è fermata (fino a 4 pezzi) invece di buttarla
-  const messaggi = [{ role: 'user', content: messaggio }];
-  let testo = '';
-  for (let pezzo = 0; pezzo < 4; pezzo++) {
+  // in streaming (le risposte lunghe non vanno in timeout); se non ci sta, riprovo una volta con il doppio dello spazio
+  for (const budget of [maxTokens, Math.min(64000, maxTokens * 2)]) {
     const r = await richiesta('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'x-api-key': cfg.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({ model: cfg.CLAUDE_MODEL, max_tokens: maxTokens, system: sistema, messages: testo ? [...messaggi, { role: 'assistant', content: testo }] : messaggi }),
+      body: JSON.stringify({ model: cfg.CLAUDE_MODEL, max_tokens: budget, stream: true, system: sistema, messages: [{ role: 'user', content: messaggio }] }),
     });
     if (r.status !== 200) throw new Error(`Claude ${r.status}: ${(await r.text()).slice(0, 400)}`);
-    const d = await r.json();
-    testo += (d.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
-    if (d.stop_reason !== 'max_tokens') return json ? estraiJson(testo) : testo;
-    testo = testo.replace(/\s+$/, ''); // il prefill dell'assistente non può finire con spazi
+    let testo = '', stop = null, resto = '';
+    const dec = new TextDecoder();
+    for await (const chunk of r.body) {
+      resto += dec.decode(chunk, { stream: true });
+      const righe = resto.split('\n');
+      resto = righe.pop();
+      for (const riga of righe) {
+        if (!riga.startsWith('data:')) continue;
+        let ev;
+        try { ev = JSON.parse(riga.slice(5)); } catch { continue; }
+        if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta') testo += ev.delta.text;
+        else if (ev.type === 'message_delta' && ev.delta?.stop_reason) stop = ev.delta.stop_reason;
+        else if (ev.type === 'error') throw new Error('Claude: ' + (ev.error?.message || 'errore nello streaming'));
+      }
+    }
+    if (stop !== 'max_tokens') return json ? estraiJson(testo) : testo;
+    if (budget >= 64000) break;
   }
-  throw new Error('risposta di Claude troncata anche dopo 4 continuazioni');
+  throw new Error('risposta di Claude troncata (troppo lunga anche col doppio dello spazio)');
 }
 
 // Claude con immagini (tavole di fotogrammi preparate dal motore GitHub)

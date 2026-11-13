@@ -163,21 +163,36 @@ async function richiesta(url, opts = {}, tentativi = 4) {
 }
 async function claude(cfg, sistema, messaggio, { maxTokens = 8e3, json: json3 = true } = {}) {
   if (!cfg.ANTHROPIC_API_KEY) throw new Error("manca la chiave Claude (Impostazioni)");
-  const messaggi = [{ role: "user", content: messaggio }];
-  let testo = "";
-  for (let pezzo = 0; pezzo < 4; pezzo++) {
+  for (const budget of [maxTokens, Math.min(64e3, maxTokens * 2)]) {
     const r = await richiesta("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": cfg.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: cfg.CLAUDE_MODEL, max_tokens: maxTokens, system: sistema, messages: testo ? [...messaggi, { role: "assistant", content: testo }] : messaggi })
+      body: JSON.stringify({ model: cfg.CLAUDE_MODEL, max_tokens: budget, stream: true, system: sistema, messages: [{ role: "user", content: messaggio }] })
     });
     if (r.status !== 200) throw new Error(`Claude ${r.status}: ${(await r.text()).slice(0, 400)}`);
-    const d = await r.json();
-    testo += (d.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
-    if (d.stop_reason !== "max_tokens") return json3 ? estraiJson(testo) : testo;
-    testo = testo.replace(/\s+$/, "");
+    let testo = "", stop = null, resto = "";
+    const dec = new TextDecoder();
+    for await (const chunk of r.body) {
+      resto += dec.decode(chunk, { stream: true });
+      const righe = resto.split("\n");
+      resto = righe.pop();
+      for (const riga of righe) {
+        if (!riga.startsWith("data:")) continue;
+        let ev;
+        try {
+          ev = JSON.parse(riga.slice(5));
+        } catch {
+          continue;
+        }
+        if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") testo += ev.delta.text;
+        else if (ev.type === "message_delta" && ev.delta?.stop_reason) stop = ev.delta.stop_reason;
+        else if (ev.type === "error") throw new Error("Claude: " + (ev.error?.message || "errore nello streaming"));
+      }
+    }
+    if (stop !== "max_tokens") return json3 ? estraiJson(testo) : testo;
+    if (budget >= 64e3) break;
   }
-  throw new Error("risposta di Claude troncata anche dopo 4 continuazioni");
+  throw new Error("risposta di Claude troncata (troppo lunga anche col doppio dello spazio)");
 }
 async function claudeVisione(cfg, modello, sistema, testo, immagini, maxTokens = 4e3) {
   if (!cfg.ANTHROPIC_API_KEY) throw new Error("manca la chiave Claude (Impostazioni)");
@@ -526,7 +541,7 @@ Se il girato non si presta al formato (es. talking_head senza parlato), usa "mon
 
 // src/lavoro.js
 var FASI = ["piano", "ricerca", "riferimenti", "clip", "scheda", "regia", "montaggio", "fatto"];
-var BLOCCO_MIN = 12;
+var BLOCCO_MIN = 15;
 var BUDGET_MS = 9 * 6e4;
 var SISTEMA_PIANO = `Sei il Direttore creativo di Momento Produzione, agenzia italiana di video e social.
 Ricevi la richiesta di un reel e prepari la ricerca dei video di riferimento del SETTORE del cliente
@@ -821,7 +836,7 @@ async function faseScheda(env, cfg, L) {
     analisi: r.analisi
   }));
   const clip = (J(L.clip, []) || []).filter((c) => c.stato === "fatto").map((c) => ({ file: c.nome, tecnico: c.tecnico, ...c.analisi }));
-  const s = await claude(cfg, SISTEMA_SCHEDA, scheda(L.prompt, J(L.piano, {}), rif, clip), { maxTokens: 16e3 });
+  const s = await claude(cfg, SISTEMA_SCHEDA, scheda(L.prompt, J(L.piano, {}), rif, clip), { maxTokens: 24e3 });
   await run(env, "UPDATE lavori SET scheda=? WHERE id=?", JSON.stringify(s), L.id);
   await log(env, L.id, "direttore", `scheda pronta: ${s.titolo_lavoro || ""}`);
 }

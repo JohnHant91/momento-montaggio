@@ -6,7 +6,7 @@ import * as S from './servizi.js';
 import { MANUALE_AUDIO, MANUALE_COPY, MANUALE_DIRETTORE, MANUALE_FORMATI, MANUALE_IRIS, MANUALE_PUBBLICAZIONE, MANUALE_REGISTA } from './manuali.js';
 
 const FASI = ['piano', 'ricerca', 'riferimenti', 'clip', 'scheda', 'regia', 'montaggio', 'fatto'];
-const BLOCCO_MIN = 12;       // un lavoro "preso" resta riservato per 12 minuti
+const BLOCCO_MIN = 15;       // un lavoro "preso" resta riservato per 15 minuti (le risposte lunghe di Claude ci stanno)
 const BUDGET_MS = 9 * 60e3;  // quanto lavora ogni giro del cron
 const PER_GIRO = 3;          // video guardati in parallelo per giro
 
@@ -321,7 +321,7 @@ async function faseScheda(env, cfg, L) {
     scelto_da_johnny: !!r.video.scelto_da_johnny, analisi: r.analisi,
   }));
   const clip = (J(L.clip, []) || []).filter((c) => c.stato === 'fatto').map((c) => ({ file: c.nome, tecnico: c.tecnico, ...c.analisi }));
-  const s = await S.claude(cfg, SISTEMA_SCHEDA, scheda(L.prompt, J(L.piano, {}), rif, clip), { maxTokens: 16000 });
+  const s = await S.claude(cfg, SISTEMA_SCHEDA, scheda(L.prompt, J(L.piano, {}), rif, clip), { maxTokens: 24000 });
   await run(env, 'UPDATE lavori SET scheda=? WHERE id=?', JSON.stringify(s), L.id);
   await log(env, L.id, 'direttore', `scheda pronta: ${s.titolo_lavoro || ''}`);
 }
