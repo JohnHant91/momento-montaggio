@@ -3,7 +3,7 @@ name: prova-grafiche
 on:
   workflow_dispatch: {}
 permissions:
-  contents: read
+  contents: write
 jobs:
   prova:
     runs-on: ubuntu-latest
@@ -29,7 +29,12 @@ jobs:
           done
           ls -la out
           ls out/*.mov
-      - uses: actions/upload-artifact@v4
-        with:
-          name: grafiche
-          path: grafiche/out/*.png
+      - name: Pubblica i fotogrammi sul ramo prove-grafiche
+        run: |
+          cd grafiche/out
+          for p in line bar steps; do convert ${p}_12.png ${p}_40.png ${p}_90.png ${p}_140.png -resize 50% +append riga_$p.png; done
+          convert riga_line.png riga_bar.png riga_steps.png -append -quality 85 tavola.jpg
+          mkdir -p /tmp/pub && cp tavola.jpg /tmp/pub/ && cd /tmp/pub
+          git init -q && git checkout -q -b prove-grafiche && git add tavola.jpg
+          git -c user.name=motore -c user.email=motore@momento commit -qm prova
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" prove-grafiche
