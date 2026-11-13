@@ -28,7 +28,7 @@ jobs:
             for fr in 12 40 90 140; do npx remotion still src/index.ts Pannello out/${p}_$fr.png --props=$p.json --frame=$fr --log=error; done
           done
           ls -la out
-          ffprobe -v error -show_entries stream=codec_name,pix_fmt,width,height,duration -of compact out/line.mov
+          ls out/*.mov
       - uses: actions/upload-artifact@v4
         with:
           name: grafiche

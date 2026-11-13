@@ -85,6 +85,28 @@ class _Base(Montatore):
         return super().sfx(tipo)
 
 
+# ====================================================================== GRAFICHE (Remotion)
+GRAFICHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "grafiche")
+
+
+def render_pannello(props, out, avvisa=None):
+    """Pannello explainer animato (Remotion) con trasparenza: ProRes 4444 da sovrapporre al video."""
+    if not os.path.isdir(os.path.join(GRAFICHE, "node_modules", "remotion")):
+        if avvisa:
+            avvisa("vfx", "preparo il motore grafico (Remotion), solo la prima volta")
+        p = subprocess.run(["npm", "install", "--no-audit", "--no-fund", "--loglevel=error"], cwd=GRAFICHE, capture_output=True, text=True, timeout=900)
+        if p.returncode != 0:
+            raise RuntimeError("installazione Remotion non riuscita: " + p.stderr[-300:])
+    pj = out + ".json"
+    with open(pj, "w") as f:
+        json.dump(props, f, ensure_ascii=False)
+    p = subprocess.run(["npx", "remotion", "render", "src/index.ts", "Pannello", out, f"--props={pj}", "--codec=prores", "--prores-profile=4444",
+                        "--pixel-format=yuva444p10le", "--image-format=png", "--log=error"], cwd=GRAFICHE, capture_output=True, text=True, timeout=1800)
+    if p.returncode != 0 or not os.path.exists(out):
+        raise RuntimeError("render del pannello non riuscito: " + (p.stderr or p.stdout)[-400:])
+    return out
+
+
 # ====================================================================== TALKING HEAD
 class TalkingHead(_Base):
     ZOOM = [1.0, 1.14, 1.05, 1.19]  # un "punch" diverso a ogni frase: il taglio si sente e il viso resta incorniciato
@@ -268,6 +290,18 @@ class TalkingHead(_Base):
         broll = [b for b in (P.get("broll") or []) if b.get("file")]
         gancio_fine = self.fine_gancio(righe)
         eventi_sfx = [("boom", 0.0, 0.9)]
+        self.pannello = None
+        pan = P.get("pannello") or {}
+        if pan.get("titolo") and (pan.get("punti") or pan.get("passi")):
+            chiave = norm(pan.get("sulla_parola", ""))
+            w = next((w for w in tutte if chiave and norm(w["testo"]).startswith(chiave) and w["t0"] >= gancio_fine), None)
+            da = max(gancio_fine, (w["t0"] - 0.15) if w else gancio_fine)
+            fine = totale - (2.4 if (P.get("cta") or {}).get("testo") else 0.2)
+            a = min(fine, da + float(pan.get("durata") or 99))
+            if a - da >= 2.5:
+                self.pannello = (da, a)
+            else:
+                self.report.append("pannello non inserito: non c'è abbastanza parlato dopo il gancio")
         if broll:
             self.avvisa("vfx", f"inserisco {len(broll)} b-roll sulle parole chiave")
             usati, pos = [], 0
@@ -282,6 +316,8 @@ class TalkingHead(_Base):
                 dur = min(float(b.get("durata", 2.0)), 3.5, totale - da - 0.3)
                 if dur < 0.8 or any(da < u["a"] + 0.6 for u in usati):
                     continue
+                if self.pannello and da < self.pannello[1] and da + dur > self.pannello[0]:
+                    continue  # durante il pannello il b-roll coprirebbe il grafico
                 b2 = dict(b, durata=dur, effetto=b.get("effetto") or "zoom_lento", rallenty=bool(b.get("rallenty")), _info=self.probe(b["file"]))
                 usati.append({"da": da, "a": da + dur, "b": b2})
             if usati:
@@ -298,6 +334,8 @@ class TalkingHead(_Base):
                 video = v2
                 self.broll_usati = usati
 
+        if self.pannello:
+            video = self.con_pannello(video, pan, eventi_sfx)
         self.avvisa("sottotitoli", f"scrivo {len(righe)} righe di sottotitoli con il riquadro che segue la voce")
         ass = self.sottotitoli(righe, totale, segmenti)
         for k, p in enumerate(tratti[1:], 1):
@@ -311,6 +349,25 @@ class TalkingHead(_Base):
         rep["formato"] = "talking_head"
         self.avvisa("revisore", f"controllo: {rep['durata']}s · {rep['lufs']} LUFS · {rep['mb']} MB" + (" · ⚠ " + "; ".join(rep["problemi"]) if rep["problemi"] else " · tutto ok"))
         return rep
+
+    def con_pannello(self, video, pan, eventi_sfx):
+        """Explainer: il pannello animato scende sulla metà alta, il viso si sposta nella metà bassa."""
+        da, a = self.pannello
+        col = self.p.get("colori") or {}
+        props = {"chip": str(pan.get("chip") or "TIP")[:14], "titolo": str(pan["titolo"])[:70], "tipo": pan.get("tipo") or "line",
+                 "punti": pan.get("punti") or [], "passi": pan.get("passi") or None, "unita": pan.get("unita") or "", "badge": pan.get("badge") or None,
+                 "accento": col.get("accento") or "#D97757", "tema": pan.get("tema") or "dark", "durata": round(a - da, 2), "grafico_in": 0.6}
+        self.avvisa("vfx", f"disegno il pannello animato \"{props['titolo']}\" ({props['tipo']}) con Remotion")
+        mov = render_pannello(props, os.path.join(self.tmp, "pannello.mov"), self.avvisa)
+        y0 = int(min(max(0, H * 0.36 - 200), H // 2))  # il viso (al 36% dell'altezza) finisce nella parte alta della metà bassa
+        out = os.path.join(self.tmp, "parlato_pannello.mp4")
+        fc = (f"[0:v]split[f][c];[c]crop={W}:{H // 2}:0:{y0}[cam];[f]crop={W}:{H // 2}:0:0,gblur=sigma=30,eq=brightness=-0.2[alto];"
+              f"[alto][cam]vstack[div];[0:v][div]overlay=0:0:enable='between(t,{da:.3f},{a:.3f})'[v1];"
+              f"[1:v]setpts=PTS+{da:.3f}/TB,format=yuva420p[p];[v1][p]overlay=0:0:eof_action=pass:format=auto:enable='between(t,{da:.3f},{a + 0.05:.3f})'[v]")
+        self.ff(["-i", video, "-i", mov, "-filter_complex", fc, "-map", "[v]"] + X264_INT + [out], "pannello")
+        eventi_sfx += [("whoosh", da - 0.15, 0.6), ("tick", da + 2.1, 0.7)]
+        self.report.append(f"pannello {props['tipo']} da {da:.1f}s a {a:.1f}s")
+        return out
 
     def fine_gancio(self, righe):
         g = self.p.get("gancio") or {}
@@ -394,7 +451,9 @@ class TalkingHead(_Base):
                 centri.append(x + lw / 2)
                 x += lw + spazio
             testo = " ".join((f"{{\\c{giallo}}}{p}{{\\c{bianco}}}" if norm(w["testo"]) in evid else p) for p, w in zip(parole_r, r))
-            ev.append(f"Dialogue: 3,{self.tempo_ass(da)},{self.tempo_ass(a)},S,,0,0,0,,{{\\an5\\pos(540,{y_sub})\\fscx86\\fscy86\\t(0,90,\\fscx100\\fscy100)}}{testo}")
+            pan = getattr(self, "pannello", None)
+            y_r = (SICURO_BASSO - 120) if pan and pan[0] - 0.05 <= da < pan[1] else y_sub
+            ev.append(f"Dialogue: 3,{self.tempo_ass(da)},{self.tempo_ass(a)},S,,0,0,0,,{{\\an5\\pos(540,{y_r})\\fscx86\\fscy86\\t(0,90,\\fscx100\\fscy100)}}{testo}")
             for j, w in enumerate(r):
                 b0 = w["t0"]
                 b1 = r[j + 1]["t0"] if j + 1 < len(r) else a
@@ -402,9 +461,9 @@ class TalkingHead(_Base):
                 if j and prec_box:  # scivola dalla parola prima
                     (px, pw) = prec_box
                     sx = 100 * pw / bw
-                    ev.append(f"Dialogue: 2,{self.tempo_ass(b0)},{self.tempo_ass(b1)},Box,,0,0,0,,{{\\an5\\move({px:.0f},{y_sub},{cx:.0f},{y_sub},0,90)\\fscx{sx:.0f}\\t(0,90,\\fscx100)\\c{acc}\\p1}}{self.rettangolo(bw, alt_box)}")
+                    ev.append(f"Dialogue: 2,{self.tempo_ass(b0)},{self.tempo_ass(b1)},Box,,0,0,0,,{{\\an5\\move({px:.0f},{y_r},{cx:.0f},{y_r},0,90)\\fscx{sx:.0f}\\t(0,90,\\fscx100)\\c{acc}\\p1}}{self.rettangolo(bw, alt_box)}")
                 else:
-                    ev.append(f"Dialogue: 2,{self.tempo_ass(b0)},{self.tempo_ass(b1)},Box,,0,0,0,,{{\\an5\\pos({cx:.0f},{y_sub})\\fscx70\\fscy70\\t(0,80,\\fscx100\\fscy100)\\c{acc}\\p1}}{self.rettangolo(bw, alt_box)}")
+                    ev.append(f"Dialogue: 2,{self.tempo_ass(b0)},{self.tempo_ass(b1)},Box,,0,0,0,,{{\\an5\\pos({cx:.0f},{y_r})\\fscx70\\fscy70\\t(0,80,\\fscx100\\fscy100)\\c{acc}\\p1}}{self.rettangolo(bw, alt_box)}")
                 prec_box = (cx, bw)
             prec_box = None
         # CTA finale
