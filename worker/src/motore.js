@@ -64,7 +64,7 @@ export async function motoreApi(req, env, url) {
     const tipo = L.fase;
     if (tipo === 'montaggio') {
       const m = J(L.montaggio, {});
-      await log(env, L.id, 'motore', `⚙️ motore GitHub al lavoro: scarico ${new Set(m.piano.segmenti.map((s) => s.fileid)).size} clip e monto il reel`);
+      await log(env, L.id, 'motore', `⚙️ motore GitHub al lavoro: scarico ${new Set([...(m.piano.segmenti || []), ...(m.piano.broll || []), ...(m.piano.slide || [])].map((s) => s.fileid || s.url)).size} file e monto il reel (${m.piano.formato || 'montaggio'})`);
       return json({ id: L.id, tipo, pass, pcloud_code: codice(L.pcloud), pcloud_eu: /(^|\/\/)e\.|eapi/.test(L.pcloud || ''), piano: m.piano });
     }
     const elenco = J(tipo === 'riferimenti' ? L.riferimenti : L.clip, []);
@@ -72,7 +72,7 @@ export async function motoreApi(req, env, url) {
       ? { indice: i, nome: `${x.video.piattaforma} · ${(x.video.titolo || x.video.url || '').slice(0, 60)}`, url: x.video.url,
           // i file di Apify li scarica la regia (ha il token), il motore passa da qui
           video_url: x.video.video_url ? (x.video.video_url.includes('api.apify.com') ? `${url.origin}/api/motore/${L.id}/scarica?i=${i}&tipo=riferimenti&pass=${pass}` : x.video.video_url) : null }
-      : { indice: i, nome: x.nome, fileid: x.sorgente?.tipo === 'pcloud' || !x.sorgente ? x.fileid : null, video_url: x.sorgente?.tipo === 'url' ? x.sorgente.url : null, dimensione: x.dimensione });
+      : { indice: i, nome: x.nome, tipo: x.tipo || x.tecnico?.tipo || 'video', fileid: x.sorgente?.tipo === 'pcloud' || !x.sorgente ? x.fileid : null, video_url: x.sorgente?.tipo === 'url' ? x.sorgente.url : null, dimensione: x.dimensione });
     await log(env, L.id, 'motore', `⚙️ motore GitHub al lavoro: ${elementi.length} ${tipo === 'riferimenti' ? 'reel da scaricare e misurare' : 'clip da scaricare e misurare'}`);
     return json({ id: L.id, tipo, pass, pcloud_code: codice(L.pcloud), pcloud_eu: /(^|\/\/)e\.|eapi/.test(L.pcloud || ''), elementi });
   }

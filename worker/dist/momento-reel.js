@@ -1099,7 +1099,7 @@ async function motoreApi(req, env, url) {
     const tipo2 = L2.fase;
     if (tipo2 === "montaggio") {
       const m2 = J(L2.montaggio, {});
-      await log(env, L2.id, "motore", `\u2699\uFE0F motore GitHub al lavoro: scarico ${new Set(m2.piano.segmenti.map((s) => s.fileid)).size} clip e monto il reel`);
+      await log(env, L2.id, "motore", `\u2699\uFE0F motore GitHub al lavoro: scarico ${new Set([...m2.piano.segmenti || [], ...m2.piano.broll || [], ...m2.piano.slide || []].map((s) => s.fileid || s.url)).size} file e monto il reel (${m2.piano.formato || "montaggio"})`);
       return json({ id: L2.id, tipo: tipo2, pass: pass2, pcloud_code: codice(L2.pcloud), pcloud_eu: /(^|\/\/)e\.|eapi/.test(L2.pcloud || ""), piano: m2.piano });
     }
     const elenco2 = J(tipo2 === "riferimenti" ? L2.riferimenti : L2.clip, []);
@@ -1109,7 +1109,7 @@ async function motoreApi(req, env, url) {
       url: x.video.url,
       // i file di Apify li scarica la regia (ha il token), il motore passa da qui
       video_url: x.video.video_url ? x.video.video_url.includes("api.apify.com") ? `${url.origin}/api/motore/${L2.id}/scarica?i=${i}&tipo=riferimenti&pass=${pass2}` : x.video.video_url : null
-    } : { indice: i, nome: x.nome, fileid: x.sorgente?.tipo === "pcloud" || !x.sorgente ? x.fileid : null, video_url: x.sorgente?.tipo === "url" ? x.sorgente.url : null, dimensione: x.dimensione });
+    } : { indice: i, nome: x.nome, tipo: x.tipo || x.tecnico?.tipo || "video", fileid: x.sorgente?.tipo === "pcloud" || !x.sorgente ? x.fileid : null, video_url: x.sorgente?.tipo === "url" ? x.sorgente.url : null, dimensione: x.dimensione });
     await log(env, L2.id, "motore", `\u2699\uFE0F motore GitHub al lavoro: ${elementi.length} ${tipo2 === "riferimenti" ? "reel da scaricare e misurare" : "clip da scaricare e misurare"}`);
     return json({ id: L2.id, tipo: tipo2, pass: pass2, pcloud_code: codice(L2.pcloud), pcloud_eu: /(^|\/\/)e\.|eapi/.test(L2.pcloud || ""), elementi });
   }
@@ -1492,7 +1492,7 @@ function vistaClip(C) {
   if (!C || !C.length) return '';
   return '<h2>Le tue clip (' + C.length + ')</h2><div class="card"><table><tr><th>Clip</th><th>Tecnico</th><th>Contenuto</th></tr>' + C.map((c) => {
     const t = c.tecnico || {}, a = c.analisi || {};
-    return '<tr><td>' + e(c.nome) + '<div class="mut">' + e(c.stato.replace('_', ' ')) + '</div></td><td class="mut">' + e(t.risoluzione) + '<br>' + e(t.fps) + ' fps \xB7 ' + e(t.durata_sec) + ' s</td><td>' + e(a.descrizione || c.errore) +
+    return '<tr><td>' + e(c.nome) + '<div class="mut">' + e(c.stato.replace('_', ' ')) + '</div></td><td class="mut">' + e(t.risoluzione) + '<br>' + (t.tipo === 'immagine' ? 'foto' : e(t.fps) + ' fps \xB7 ' + e(t.durata_sec) + ' s') + '</td><td>' + e(a.descrizione || c.errore) +
       ((a.problemi || []).length ? '<div class="mut">\u26A0\uFE0E ' + e(a.problemi.map((p) => p.tipo + ' ' + p.da + '-' + p.a + 's').join(', ')) + '</div>' : '') + '</td></tr>';
   }).join('') + '</table></div>';
 }

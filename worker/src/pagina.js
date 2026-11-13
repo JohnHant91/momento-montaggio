@@ -266,7 +266,7 @@ function vistaClip(C) {
   if (!C || !C.length) return '';
   return '<h2>Le tue clip (' + C.length + ')</h2><div class="card"><table><tr><th>Clip</th><th>Tecnico</th><th>Contenuto</th></tr>' + C.map((c) => {
     const t = c.tecnico || {}, a = c.analisi || {};
-    return '<tr><td>' + e(c.nome) + '<div class="mut">' + e(c.stato.replace('_', ' ')) + '</div></td><td class="mut">' + e(t.risoluzione) + '<br>' + e(t.fps) + ' fps · ' + e(t.durata_sec) + ' s</td><td>' + e(a.descrizione || c.errore) +
+    return '<tr><td>' + e(c.nome) + '<div class="mut">' + e(c.stato.replace('_', ' ')) + '</div></td><td class="mut">' + e(t.risoluzione) + '<br>' + (t.tipo === 'immagine' ? 'foto' : e(t.fps) + ' fps · ' + e(t.durata_sec) + ' s') + '</td><td>' + e(a.descrizione || c.errore) +
       ((a.problemi || []).length ? '<div class="mut">⚠︎ ' + e(a.problemi.map((p) => p.tipo + ' ' + p.da + '-' + p.a + 's').join(', ')) + '</div>' : '') + '</td></tr>';
   }).join('') + '</table></div>';
 }
