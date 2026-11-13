@@ -102,13 +102,26 @@ async function api(req, env, url) {
     await log(env, r.id, 'regia', '🎬 nuovo lavoro in coda: il Direttore creativo parte entro un minuto');
     return json({ id: r.id });
   }
+  const vv = p.match(/^\/api\/lavori\/(\d+)\/(reel\.mp4|anteprima\.jpg)$/);
+  if (vv && m === 'GET') {
+    if (!env.VIDEO) return json({ errore: 'archivio video non collegato' }, 404);
+    const o = await env.VIDEO.get(`lavoro-${vv[1]}/${vv[2] === 'reel.mp4' ? 'reel.mp4' : 'anteprima.jpg'}`, { range: req.headers });
+    if (!o) return json({ errore: 'non ancora pronto' }, 404);
+    const h = new Headers();
+    o.writeHttpMetadata(h);
+    h.set('etag', o.httpEtag); h.set('accept-ranges', 'bytes'); h.set('cache-control', 'private, max-age=3600');
+    if (url.searchParams.get('scarica')) h.set('content-disposition', `attachment; filename="reel-${vv[1]}.mp4"`);
+    if (o.range) { h.set('content-range', `bytes ${o.range.offset}-${o.range.offset + o.range.length - 1}/${o.size}`); h.set('content-length', String(o.range.length)); return new Response(o.body, { status: 206, headers: h }); }
+    h.set('content-length', String(o.size));
+    return new Response(o.body, { headers: h });
+  }
   const mm = p.match(/^\/api\/lavori\/(\d+)(?:\/(riprova|registro))?$/);
   if (mm) {
     const id = Number(mm[1]);
     if (!mm[2] && m === 'GET') {
       const L = await one(env, 'SELECT * FROM lavori WHERE id=?', id);
       if (!L) return json({ errore: 'non trovato' }, 404);
-      for (const k of ['piano', 'riferimenti', 'clip', 'scheda', 'link_rif']) L[k] = J(L[k]);
+      for (const k of ['piano', 'riferimenti', 'clip', 'scheda', 'link_rif', 'montaggio']) L[k] = J(L[k]);
       delete L.candidati;
       L.registro = await all(env, 'SELECT agente, messaggio, livello, quando FROM registro WHERE lavoro_id=? ORDER BY id DESC LIMIT 200', id);
       return json(L);
@@ -119,7 +132,7 @@ async function api(req, env, url) {
     }
     if (mm[2] === 'riprova' && m === 'POST') {
       const d = await req.json().catch(() => ({}));
-      const fase = ['piano', 'ricerca', 'riferimenti', 'clip', 'scheda'].includes(d.fase) ? d.fase : null;
+      const fase = ['piano', 'ricerca', 'riferimenti', 'clip', 'scheda', 'regia', 'montaggio'].includes(d.fase) ? d.fase : null;
       const L = await one(env, 'SELECT fase, riferimenti, clip FROM lavori WHERE id=?', id);
       if (!L) return json({ errore: 'non trovato' }, 404);
       const nuovaFase = fase || (L.fase === 'fatto' ? 'scheda' : L.fase);
@@ -127,6 +140,7 @@ async function api(req, env, url) {
       const ripristina = (s) => JSON.stringify((J(s, []) || []).map((x) => (x.stato === 'saltato' ? { ...x, stato: 'da_guardare', errore: undefined } : x)));
       await run(env, "UPDATE lavori SET stato='in_corso', fase=?, errore=NULL, tentativi=0, blocco_fino=NULL, riferimenti=?, clip=?, aggiornato=? WHERE id=?",
         nuovaFase, L.riferimenti ? ripristina(L.riferimenti) : null, L.clip ? ripristina(L.clip) : null, ora(), id);
+      if (nuovaFase === 'montaggio') await run(env, "UPDATE lavori SET montaggio=json_set(montaggio, '$.stato', 'da_fare', '$.tentativi', 0) WHERE id=? AND montaggio IS NOT NULL", id);
       await log(env, id, 'regia', `🔁 riparto dalla fase "${nuovaFase}"`);
       return json({ ok: true });
     }

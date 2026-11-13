@@ -26,7 +26,7 @@ env:
 jobs:
   occhi:
     runs-on: ubuntu-latest
-    timeout-minutes: 58
+    timeout-minutes: 120
     steps:
       - name: C'è lavoro?
         id: coda
@@ -55,10 +55,10 @@ jobs:
       - name: Strumenti
         if: steps.coda.outputs.lavoro == 'si'
         run: |
-          command -v ffmpeg >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null; }
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core > /dev/null
           pip install -q -r motore/requirements.txt
           ffmpeg -version | head -1
 
-      - name: Guarda i video
+      - name: Guarda i video e monta i reel
         if: steps.coda.outputs.lavoro == 'si'
         run: python motore/analizza.py

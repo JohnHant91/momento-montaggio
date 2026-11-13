@@ -4,7 +4,7 @@ import { J, all, log, one, ora, run, configurazione } from './db.js';
 import { libreriaTesto } from './libreria.js';
 import * as S from './servizi.js';
 
-const FASI = ['piano', 'ricerca', 'riferimenti', 'clip', 'scheda', 'fatto'];
+const FASI = ['piano', 'ricerca', 'riferimenti', 'clip', 'scheda', 'regia', 'montaggio', 'fatto'];
 const BLOCCO_MIN = 12;       // un lavoro "preso" resta riservato per 12 minuti
 const BUDGET_MS = 9 * 60e3;  // quanto lavora ogni giro del cron
 const PER_GIRO = 3;          // video guardati in parallelo per giro
@@ -267,6 +267,96 @@ async function faseScheda(env, cfg, L) {
 }
 
 // ------------------------------------------------------------------ motore
+// ------------------------------------------------------------------ Regista: dalla scheda al piano di montaggio
+const LOOKS = ['caldo_cinematico', 'pulito_commerciale', 'teal_orange', 'moody_scuro', 'naturale_vivace', 'bn_contrasto', 'pastello_soft', 'vintage_film'];
+const TRANSIZIONI = ['taglio_netto', 'dissolvenza', 'flash_bianco', 'whip_pan', 'zoom', 'glitch', 'slide', 'fadenero'];
+const EFFETTI_PEZZO = ['punch_in', 'zoom_lento', 'zoom_out', 'shake', 'nessuno'];
+const EFFETTI_GLOBALI = ['grana', 'vignettatura', 'bande_cinema', 'light_leak'];
+
+const SISTEMA_REGISTA = `Sei il Regista e il Copy di Momento Produzione. Trasformi la SCHEDA TECNICA del Direttore creativo in un
+PIANO DI MONTAGGIO preciso che un montatore automatico eseguirà alla lettera. Scegli i pezzi migliori dalle clip analizzate
+(usa solo momenti con qualità alta e senza problemi, rispetta i tempi da/a dei momenti), costruisci gancio → sviluppo → climax →
+chiusura, alterna inquadrature (totale/dettaglio/primo piano), non ripetere lo stesso momento. Il rallenty va su clip girate a
+48 fps o più (rallenty_possibile). Testi brevi, in italiano corretto, niente formule abusate. Rispondi SOLO JSON.`;
+
+const pianoMontaggio = (scheda, clip) => `SCHEDA TECNICA:
+${JSON.stringify(scheda)}
+
+CLIP DISPONIBILI (indice, file, dati tecnici, momenti con tempi e qualità, problemi):
+${JSON.stringify(clip)}
+
+VALORI AMMESSI
+- look: ${LOOKS.join(', ')}
+- transizione_in: ${TRANSIZIONI.join(', ')} (la prima clip non ne ha)
+- effetto: ${EFFETTI_PEZZO.join(', ')}
+- effetti_globali: ${EFFETTI_GLOBALI.join(', ')}
+- stile testi: titolo_grande_centrale, etichetta_box, sottotitolo_classico; posizione: alto, centro, terzo_inferiore
+
+JSON:
+{
+  "durata_target": n,
+  "look": "...", "intensita_look": 0.6-1.0,
+  "effetti_globali": ["..."],
+  "font": {"titoli": "font Google Fonts", "testi": "font Google Fonts"},
+  "colori": {"testo": "#hex", "accento": "#hex", "box": "#hex"},
+  "sfx": true/false, "riser": secondi del primo picco (o null),
+  "segmenti": [{"clip": indice, "in": secondi nella clip, "durata": secondi nel reel, "rallenty": bool, "effetto": "...",
+                "transizione_in": "...", "audio": 0-1 (suono originale), "motivo": "perché questo pezzo qui",
+                "testo": {"testo": "...", "stile": "...", "posizione": "...", "evidenzia": "parola"} oppure null}],
+  "sottotitoli": {"usare": bool, "stile": "parola_per_parola|karaoke_evidenziato|sottotitolo_classico", "posizione": "terzo_inferiore"},
+  "chiusura": {"testo": "...", "sottotesto": "cta breve", "evidenzia": "parola", "durata": 2-3, "colore": "#hex"} oppure null,
+  "caption": "caption finale per il post",
+  "musica_da_mettere": "che brano cercare su Instagram e da che secondo, a che volume rispetto al suono originale"
+}`;
+
+async function faseRegia(env, cfg, L) {
+  const scheda = J(L.scheda, {});
+  const clip = (J(L.clip, []) || []).map((c, i) => ({ c, i })).filter(({ c }) => c.stato === 'fatto').map(({ c, i }) => ({
+    indice: i, file: c.nome, tecnico: c.tecnico, descrizione: c.analisi?.descrizione, momenti: c.analisi?.momenti,
+    problemi: c.analisi?.problemi, parlato: c.analisi?.parlato, verticale: c.analisi?.adatta_al_verticale,
+  }));
+  if (!clip.length) {
+    await log(env, L.id, 'regista', 'nessuna clip analizzata: senza girato non posso montare. La scheda resta pronta da usare.', 'warn');
+    return 'salta';
+  }
+  await log(env, L.id, 'regista', `scrivo il piano di montaggio da ${clip.length} clip`);
+  const p = await S.claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda, clip), { maxTokens: 12000 });
+  // controllo del piano: valori ammessi, clip esistenti, tempi dentro le clip
+  const tutte = J(L.clip, []);
+  const seg = (p.segmenti || []).filter((s) => tutte[s.clip]?.stato === 'fatto').slice(0, 40).map((s, k) => {
+    const c = tutte[s.clip];
+    const durClip = Number(c.tecnico?.durata_sec) || 9999;
+    const durata = Math.min(Math.max(Number(s.durata) || 1.5, 0.4), 12);
+    const rallenty = !!s.rallenty;
+    const serve = durata * (rallenty ? 0.5 : 1);
+    return {
+      clip: s.clip, fileid: c.fileid, nome: c.nome, in: Math.max(0, Math.min(Number(s.in) || 0, Math.max(0, durClip - serve - 0.05))), durata, rallenty,
+      effetto: EFFETTI_PEZZO.includes(s.effetto) ? s.effetto : 'nessuno',
+      transizione_in: k === 0 ? null : (TRANSIZIONI.includes(s.transizione_in) ? s.transizione_in : 'taglio_netto'),
+      audio: Math.min(1, Math.max(0, Number(s.audio ?? 0.8))), motivo: s.motivo, testo: s.testo?.testo ? s.testo : null,
+    };
+  });
+  if (!seg.length) throw new Error('il piano del Regista non contiene pezzi validi');
+  const piano = {
+    ...p, segmenti: seg, look: LOOKS.includes(p.look) ? p.look : (LOOKS.includes(scheda.colore?.look) ? scheda.colore.look : 'naturale_vivace'),
+    effetti_globali: (p.effetti_globali || []).filter((e) => EFFETTI_GLOBALI.includes(e)),
+  };
+  await run(env, 'UPDATE lavori SET montaggio=? WHERE id=?', JSON.stringify({ stato: 'da_fare', piano, creato: ora() }), L.id);
+  const tot = seg.reduce((a, s) => a + s.durata, 0);
+  await log(env, L.id, 'regista', `piano pronto: ${seg.length} pezzi, ~${Math.round(tot + (piano.chiusura?.durata || 0))} s, look ${piano.look}`);
+  if (seg.some((s) => s.testo) || piano.chiusura) await log(env, L.id, 'copy', `testi: ${[...seg.filter((s) => s.testo).map((s) => '"' + s.testo.testo + '"'), piano.chiusura?.testo ? '"' + piano.chiusura.testo + '"' : ''].filter(Boolean).join(' · ').slice(0, 300)}`);
+  await log(env, L.id, 'motore', 'chiamo il motore GitHub per il montaggio');
+  return true;
+}
+
+async function faseMontaggio(env, cfg, L) {
+  const m = J(L.montaggio, null);
+  if (!m) return true; // niente da montare (nessuna clip)
+  if (m.stato === 'fatto') return true;
+  if (m.stato === 'errore') throw new Error('montaggio non riuscito: ' + (m.errore || ''));
+  return avvisoMotore(env, L);
+}
+
 async function lavora(env, cfg, L, scadenza) {
   while (Date.now() < scadenza) {
     L = await one(env, 'SELECT * FROM lavori WHERE id=?', L.id);
@@ -276,11 +366,14 @@ async function lavora(env, cfg, L, scadenza) {
     else if (L.fase === 'riferimenti') finita = await faseRiferimenti(env, cfg, L);
     else if (L.fase === 'clip') finita = await faseClip(env, cfg, L);
     else if (L.fase === 'scheda') await faseScheda(env, cfg, L);
+    else if (L.fase === 'regia') finita = await faseRegia(env, cfg, L);
+    else if (L.fase === 'montaggio') finita = await faseMontaggio(env, cfg, L);
     if (!finita) return 'attesa';
-    const prossima = FASI[FASI.indexOf(L.fase) + 1];
+    let prossima = FASI[FASI.indexOf(L.fase) + 1];
+    if (finita === 'salta') prossima = 'fatto';
     await run(env, 'UPDATE lavori SET fase=?, stato=?, tentativi=0, aggiornato=? WHERE id=?',
       prossima, prossima === 'fatto' ? 'pronto' : 'in_corso', ora(), L.id);
-    if (prossima === 'fatto') { await log(env, L.id, 'regia', '✅ lavoro pronto: apri la scheda'); return; }
+    if (prossima === 'fatto') { await log(env, L.id, 'regia', J((await one(env, 'SELECT montaggio FROM lavori WHERE id=?', L.id))?.montaggio, null)?.stato === 'fatto' ? '✅ reel montato: aprilo e guardalo' : '✅ lavoro pronto: apri la scheda'); return; }
   }
 }
 

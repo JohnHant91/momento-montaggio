@@ -17,6 +17,8 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 REGIA = os.environ.get("REGIA", "https://momento-reel.gestionalelcl.workers.dev").rstrip("/")
 PCLOUD_HOSTS = os.environ.get("PCLOUD_HOSTS")  # solo per i test
 DURATA_MAX = int(os.environ.get("DURATA_MAX_MIN", "50")) * 60
@@ -340,6 +342,56 @@ def lavora_elemento(lavoro, el, cartella):
             log("errore non comunicato:", e2)
 
 
+def invia_file(lavoro, azione, path, tipo_mime):
+    with open(path, "rb") as f:
+        with http(f"{REGIA}/api/motore/{lavoro['id']}/{azione}", data=f, timeout=900, headers={
+                "x-pass": lavoro["pass"], "content-type": tipo_mime, "content-length": str(os.path.getsize(path))}) as r:
+            return json.loads(r.read() or b"{}")
+
+
+def monta(lavoro):
+    """Scarica le clip del piano da pCloud e monta il reel con il montatore."""
+    from montatore import Montatore, anteprima
+    cartella = tempfile.mkdtemp(prefix="monta_")
+    piano = dict(lavoro["piano"])
+
+    def avvisa(agente, msg, livello="info"):
+        log(f"[{agente}] {msg}")
+        try:
+            regia(lavoro, "log", corpo={"agente": agente, "messaggio": msg, "livello": livello})
+        except Exception:
+            pass
+    try:
+        file_per_id = {}
+        ids = list(dict.fromkeys(s["fileid"] for s in piano["segmenti"]))
+        avvisa("motore", f"scarico {len(ids)} clip da pCloud")
+
+        def prendi(fid):
+            dest = os.path.join(cartella, f"src_{fid}")
+            scarica_url(link_pcloud(lavoro, fid), dest)
+            return fid, dest
+        with ThreadPoolExecutor(3) as ex:
+            for fid, dest in ex.map(prendi, ids):
+                file_per_id[fid] = dest
+        piano["segmenti"] = [dict(s, file=file_per_id[s["fileid"]]) for s in piano["segmenti"]]
+        out = os.path.join(cartella, "reel.mp4")
+        m = Montatore(piano, os.path.join(cartella, "lavoro"), avvisa=avvisa)
+        rep = m.monta(out)
+        prev = anteprima(out, os.path.join(cartella, "anteprima.jpg"))
+        invia_file(lavoro, "video", out, "video/mp4")
+        invia_file(lavoro, "anteprima", prev, "image/jpeg")
+        regia(lavoro, "esito", corpo={"revisore": rep})
+        avvisa("motore", f"🎬 reel consegnato: {rep['durata']} s, {rep['mb']} MB")
+    except Exception as e:
+        log("montaggio non riuscito:", e)
+        try:
+            regia(lavoro, "esito", corpo={"errore": str(e)[:500]})
+        except Exception as e2:
+            log("esito non comunicato:", e2)
+    finally:
+        shutil.rmtree(cartella, ignore_errors=True)
+
+
 def main():
     if not shutil.which("ffmpeg"):
         sys.exit("ffmpeg mancante")
@@ -356,6 +408,10 @@ def main():
             return
         visti.add(chiave)
         giri += 1
+        if lavoro["tipo"] == "montaggio":
+            log(f"lavoro #{lavoro['id']} · montaggio: {len(lavoro['piano']['segmenti'])} pezzi")
+            monta(lavoro)
+            continue
         log(f"lavoro #{lavoro['id']} · {lavoro['tipo']}: {len(lavoro['elementi'])} video")
         cartella = tempfile.mkdtemp(prefix="occhi_")
         try:

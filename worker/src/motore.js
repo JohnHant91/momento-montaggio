@@ -43,7 +43,8 @@ export async function motoreApi(req, env, url) {
   // 0) c'è qualcosa da guardare? (solo sì/no, senza dettagli: serve al motore per non installare niente se non serve)
   if (p === '/api/motore/coda' && m === 'GET') {
     const r = await one(env, `SELECT COUNT(*) AS n FROM lavori WHERE stato='in_corso' AND (
-      (fase='riferimenti' AND riferimenti IS NOT NULL AND ${PENDENTE('riferimenti')}) OR (fase='clip' AND clip IS NOT NULL AND ${PENDENTE('clip')}))`);
+      (fase='riferimenti' AND riferimenti IS NOT NULL AND ${PENDENTE('riferimenti')}) OR (fase='clip' AND clip IS NOT NULL AND ${PENDENTE('clip')}) OR
+      (fase='montaggio' AND json_extract(montaggio, '$.stato')='da_fare'))`);
     return json({ lavoro: (r?.n || 0) > 0 });
   }
 
@@ -55,11 +56,17 @@ export async function motoreApi(req, env, url) {
     const L = await one(env, `UPDATE lavori SET motore_pass=?, motore_fino=?, motore_visto=? WHERE id = (
         SELECT id FROM lavori WHERE stato='in_corso' AND (motore_fino IS NULL OR motore_fino < ?) AND (
           (fase='riferimenti' AND riferimenti IS NOT NULL AND ${PENDENTE('riferimenti')}) OR
-          (fase='clip' AND clip IS NOT NULL AND ${PENDENTE('clip')}))
+          (fase='clip' AND clip IS NOT NULL AND ${PENDENTE('clip')}) OR
+          (fase='montaggio' AND json_extract(montaggio, '$.stato')='da_fare'))
         ORDER BY id LIMIT 1)
-      RETURNING id, fase, pcloud, riferimenti, clip`, pass, new Date(Date.now() + 55 * 60e3).toISOString(), adesso, adesso);
+      RETURNING id, fase, pcloud, riferimenti, clip, montaggio`, pass, new Date(Date.now() + 55 * 60e3).toISOString(), adesso, adesso);
     if (!L) return new Response(null, { status: 204 });
     const tipo = L.fase;
+    if (tipo === 'montaggio') {
+      const m = J(L.montaggio, {});
+      await log(env, L.id, 'motore', `⚙️ motore GitHub al lavoro: scarico ${new Set(m.piano.segmenti.map((s) => s.fileid)).size} clip e monto il reel`);
+      return json({ id: L.id, tipo, pass, pcloud_code: codice(L.pcloud), pcloud_eu: /(^|\/\/)e\.|eapi/.test(L.pcloud || ''), piano: m.piano });
+    }
     const elenco = J(tipo === 'riferimenti' ? L.riferimenti : L.clip, []);
     const elementi = elenco.map((x, i) => [x, i]).filter(([x]) => x.stato === 'da_guardare').map(([x, i]) => tipo === 'riferimenti'
       ? { indice: i, nome: `${x.video.piattaforma} · ${(x.video.titolo || x.video.url || '').slice(0, 60)}`, url: x.video.url,
@@ -70,10 +77,10 @@ export async function motoreApi(req, env, url) {
     return json({ id: L.id, tipo, pass, pcloud_code: codice(L.pcloud), pcloud_eu: /(^|\/\/)e\.|eapi/.test(L.pcloud || ''), elementi });
   }
 
-  const mm = p.match(/^\/api\/motore\/(\d+)\/(elemento|errore|fine|scarica)$/);
+  const mm = p.match(/^\/api\/motore\/(\d+)\/(elemento|errore|fine|scarica|log|video|anteprima|esito)$/);
   if (!mm) return json({ errore: 'non trovato' }, 404);
   const id = Number(mm[1]);
-  const L = await one(env, 'SELECT id, prompt, piano, fase, riferimenti, clip, motore_pass FROM lavori WHERE id=?', id);
+  const L = await one(env, 'SELECT id, prompt, piano, fase, riferimenti, clip, montaggio, motore_pass FROM lavori WHERE id=?', id);
   const pass = req.headers.get('x-pass') || url.searchParams.get('pass') || '';
   if (!L || !L.motore_pass || pass.length < 32 || pass !== L.motore_pass) return json({ errore: 'lasciapassare non valido' }, 403);
   const tipo = COLONNA[url.searchParams.get('tipo')] || (L.fase === 'riferimenti' ? 'riferimenti' : 'clip');
@@ -81,6 +88,39 @@ export async function motoreApi(req, env, url) {
   const indice = Number(url.searchParams.get('i'));
   const el = elenco[indice];
   const nome = (x) => (tipo === 'riferimenti' ? `${x.video.piattaforma} ${x.video.id}` : x.nome);
+
+  // ---- montaggio: avanzamento dei reparti, video, anteprima, esito del revisore
+  if (mm[2] === 'log' && m === 'POST') {
+    const d = await req.json().catch(() => ({}));
+    const ag = ['editor', 'vfx', 'color', 'audio', 'sottotitoli', 'revisore', 'motore'].includes(d.agente) ? d.agente : 'motore';
+    await log(env, id, ag, String(d.messaggio || '').slice(0, 300), d.livello === 'warn' ? 'warn' : 'info');
+    await run(env, 'UPDATE lavori SET motore_visto=? WHERE id=?', ora(), id);
+    return json({ ok: true });
+  }
+  if ((mm[2] === 'video' || mm[2] === 'anteprima') && m === 'POST') {
+    if (!env.VIDEO) return json({ errore: 'archivio video non collegato' }, 500);
+    const lunghezza = Number(req.headers.get('content-length') || 0);
+    if (!lunghezza || lunghezza > 300 * 1024 * 1024) return json({ errore: 'dimensione non valida' }, 400);
+    const chiave = `lavoro-${id}/${mm[2] === 'video' ? 'reel.mp4' : 'anteprima.jpg'}`;
+    const { readable, writable } = new FixedLengthStream(lunghezza);
+    req.body.pipeTo(writable).catch(() => {});
+    await env.VIDEO.put(chiave, readable, { httpMetadata: { contentType: mm[2] === 'video' ? 'video/mp4' : 'image/jpeg' } });
+    return json({ ok: true, chiave });
+  }
+  if (mm[2] === 'esito' && m === 'POST') {
+    const d = await req.json().catch(() => ({}));
+    const mont = J(L.montaggio, {});
+    if (d.errore) {
+      mont.tentativi = (mont.tentativi || 0) + 1;
+      mont.errore = String(d.errore).slice(0, 500);
+      mont.stato = mont.tentativi < 2 ? 'da_fare' : 'errore';
+      await log(env, id, 'editor', `montaggio non riuscito: ${mont.errore.slice(0, 200)}${mont.stato === 'da_fare' ? ' — riprovo' : ''}`, 'warn');
+    } else {
+      Object.assign(mont, { stato: 'fatto', revisore: d.revisore || {}, video: `lavoro-${id}/reel.mp4`, anteprima: `lavoro-${id}/anteprima.jpg`, finito: ora() });
+    }
+    await run(env, 'UPDATE lavori SET montaggio=?, motore_pass=NULL, motore_fino=NULL, motore_visto=? WHERE id=?', JSON.stringify(mont), ora(), id);
+    return json({ ok: true });
+  }
 
   // scaricamento dei video Apify (servono il token, che resta qui)
   if (mm[2] === 'scarica' && m === 'GET') {
