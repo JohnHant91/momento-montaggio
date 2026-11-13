@@ -38,16 +38,22 @@ export async function richiesta(url, opts = {}, tentativi = 4) {
 // ------------------------------------------------------------------ Claude
 export async function claude(cfg, sistema, messaggio, { maxTokens = 8000, json = true } = {}) {
   if (!cfg.ANTHROPIC_API_KEY) throw new Error('manca la chiave Claude (Impostazioni)');
-  const r = await richiesta('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'x-api-key': cfg.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-    body: JSON.stringify({ model: cfg.CLAUDE_MODEL, max_tokens: maxTokens, system: sistema, messages: [{ role: 'user', content: messaggio }] }),
-  });
-  if (r.status !== 200) throw new Error(`Claude ${r.status}: ${(await r.text()).slice(0, 400)}`);
-  const d = await r.json();
-  const testo = (d.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
-  if (d.stop_reason === 'max_tokens') throw new Error('risposta di Claude troncata (troppo lunga): riprovo');
-  return json ? estraiJson(testo) : testo;
+  // se la risposta non ci sta, la faccio continuare da dove si è fermata (fino a 4 pezzi) invece di buttarla
+  const messaggi = [{ role: 'user', content: messaggio }];
+  let testo = '';
+  for (let pezzo = 0; pezzo < 4; pezzo++) {
+    const r = await richiesta('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': cfg.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({ model: cfg.CLAUDE_MODEL, max_tokens: maxTokens, system: sistema, messages: testo ? [...messaggi, { role: 'assistant', content: testo }] : messaggi }),
+    });
+    if (r.status !== 200) throw new Error(`Claude ${r.status}: ${(await r.text()).slice(0, 400)}`);
+    const d = await r.json();
+    testo += (d.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
+    if (d.stop_reason !== 'max_tokens') return json ? estraiJson(testo) : testo;
+    testo = testo.replace(/\s+$/, ''); // il prefill dell'assistente non può finire con spazi
+  }
+  throw new Error('risposta di Claude troncata anche dopo 4 continuazioni');
 }
 
 // Claude con immagini (tavole di fotogrammi preparate dal motore GitHub)

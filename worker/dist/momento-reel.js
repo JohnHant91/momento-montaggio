@@ -163,16 +163,21 @@ async function richiesta(url, opts = {}, tentativi = 4) {
 }
 async function claude(cfg, sistema, messaggio, { maxTokens = 8e3, json: json3 = true } = {}) {
   if (!cfg.ANTHROPIC_API_KEY) throw new Error("manca la chiave Claude (Impostazioni)");
-  const r = await richiesta("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "x-api-key": cfg.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: cfg.CLAUDE_MODEL, max_tokens: maxTokens, system: sistema, messages: [{ role: "user", content: messaggio }] })
-  });
-  if (r.status !== 200) throw new Error(`Claude ${r.status}: ${(await r.text()).slice(0, 400)}`);
-  const d = await r.json();
-  const testo = (d.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
-  if (d.stop_reason === "max_tokens") throw new Error("risposta di Claude troncata (troppo lunga): riprovo");
-  return json3 ? estraiJson(testo) : testo;
+  const messaggi = [{ role: "user", content: messaggio }];
+  let testo = "";
+  for (let pezzo = 0; pezzo < 4; pezzo++) {
+    const r = await richiesta("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": cfg.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({ model: cfg.CLAUDE_MODEL, max_tokens: maxTokens, system: sistema, messages: testo ? [...messaggi, { role: "assistant", content: testo }] : messaggi })
+    });
+    if (r.status !== 200) throw new Error(`Claude ${r.status}: ${(await r.text()).slice(0, 400)}`);
+    const d = await r.json();
+    testo += (d.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
+    if (d.stop_reason !== "max_tokens") return json3 ? estraiJson(testo) : testo;
+    testo = testo.replace(/\s+$/, "");
+  }
+  throw new Error("risposta di Claude troncata anche dopo 4 continuazioni");
 }
 async function claudeVisione(cfg, modello, sistema, testo, immagini, maxTokens = 4e3) {
   if (!cfg.ANTHROPIC_API_KEY) throw new Error("manca la chiave Claude (Impostazioni)");
@@ -616,6 +621,7 @@ regista, copy, editor, VFX, colorist, audio, voce e sottotitoli. Ogni scelta dev
 riferimenti analizzati e realizzabile con le clip disponibili. Usa SOLO elementi della libreria per look,
 effetti, transizioni, stili testo e mood. Niente formule abusate ("POV", "aspetta la fine") se non richieste.
 Il reel deve essere riconoscibile e diverso, non una copia. Non inventare clip che non esistono.
+Sii denso e sintetico: frasi brevi, niente ripetizioni, cita solo le clip che userai davvero.
 Rispondi SOLO JSON.
 
 ${MANUALE_DIRETTORE}

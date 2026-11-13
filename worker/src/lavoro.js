@@ -108,6 +108,7 @@ regista, copy, editor, VFX, colorist, audio, voce e sottotitoli. Ogni scelta dev
 riferimenti analizzati e realizzabile con le clip disponibili. Usa SOLO elementi della libreria per look,
 effetti, transizioni, stili testo e mood. Niente formule abusate ("POV", "aspetta la fine") se non richieste.
 Il reel deve essere riconoscibile e diverso, non una copia. Non inventare clip che non esistono.
+Sii denso e sintetico: frasi brevi, niente ripetizioni, cita solo le clip che userai davvero.
 Rispondi SOLO JSON.
 
 ${MANUALE_DIRETTORE}
