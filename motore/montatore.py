@@ -11,7 +11,7 @@ Reparti, nell'ordine in cui lavorano:
   Revisore     → controlla fotogrammi neri, durata, volume, peso; scarta se qualcosa non va
 Ogni pezzo si monta in parallelo, poi si assembla.
 """
-import json, math, os, re, shutil, subprocess, tempfile, time, urllib.parse, urllib.request
+import json, math, os, re, shutil, subprocess, tempfile, time, urllib.error, urllib.parse, urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
@@ -305,13 +305,18 @@ class Montatore:
         if os.path.exists(nome_file):
             return famiglia
         try:
-            url = "https://fonts.googleapis.com/css2?family=" + urllib.parse.quote(famiglia) + f":wght@{peso}"
-            req = urllib.request.Request(url, headers={"user-agent": "Mozilla/4.0"})  # UA vecchio → link .ttf
-            css = urllib.request.urlopen(req, timeout=30).read().decode()
-            ttf = re.search(r"url\((https://[^)]+\.ttf)\)", css)
-            if not ttf:
-                css = urllib.request.urlopen(urllib.request.Request(url.split(":wght")[0], headers={"user-agent": "Mozilla/4.0"}), timeout=30).read().decode()
+            base = "https://fonts.googleapis.com/css2?family=" + urllib.parse.quote(famiglia)
+            ttf = None
+            for suff in (f":wght@{peso}", ":wght@700", ":wght@600", ":wght@400", ""):  # non tutti i font hanno tutti i pesi
+                try:
+                    css = urllib.request.urlopen(urllib.request.Request(base + suff, headers={"user-agent": "Mozilla/4.0"}), timeout=30).read().decode()
+                except urllib.error.HTTPError:
+                    continue
                 ttf = re.search(r"url\((https://[^)]+\.ttf)\)", css)
+                if ttf:
+                    break
+            if not ttf:
+                raise RuntimeError("font non trovato su Google Fonts")
             with urllib.request.urlopen(ttf.group(1), timeout=60) as r, open(nome_file, "wb") as f:
                 f.write(r.read())
             return famiglia
@@ -471,14 +476,26 @@ class Montatore:
                 filt.append(f"[{k}:a]adelay={ms}|{ms}[s{n}]")
                 mix.append(f"[s{n}]")
                 k += 1
+        # 1) mix audio a parte (senza normalizzare)
+        mixwav = os.path.join(self.tmp, "mix.wav")
         if mix:
-            filt.append(f"{''.join(mix)}amix=inputs={len(mix)}:normalize=0:duration=longest,atrim=duration={totale:.3f},loudnorm=I=-14:TP=-1.5:LRA=11,aformat=sample_rates=48000[aout]")
+            filt.append(f"{''.join(mix)}amix=inputs={len(mix)}:normalize=0:duration=longest,apad,atrim=duration={totale:.3f},aformat=sample_rates=48000:channel_layouts=stereo[aout]")
+            self.ff(args + ["-filter_complex", ";".join(filt), "-map", "[aout]", "-vn", "-t", f"{totale:.3f}", "-c:a", "pcm_s16le", mixwav], "mix audio")
         else:
-            args += ["-f", "lavfi", "-t", f"{totale:.3f}", "-i", "anullsrc=r=48000:cl=stereo"]
-            filt.append(f"[{k}:a]anull[aout]")
-        filt.append(f"[0:v]ass='{ass}':fontsdir='{self.fontdir}'[vout]")
+            self.ff(["-f", "lavfi", "-t", f"{totale:.3f}", "-i", "anullsrc=r=48000:cl=stereo", "-c:a", "pcm_s16le", mixwav], "silenzio")
+        # 2) volume a −14 LUFS con loudnorm a due passaggi (il passaggio singolo sbaglia sui mix con molte pause)
+        norm = "anull"
+        p = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", mixwav, "-af", "loudnorm=I=-14:TP=-1.5:LRA=11:print_format=json", "-f", "null", "-"],
+                           capture_output=True, text=True)
+        m = re.search(r"\{[^{}]*\"input_i\"[^{}]*\}", p.stderr)
+        if m:
+            mis = json.loads(m.group(0))
+            if mis.get("input_i") not in ("-inf", None) and float(mis["input_i"]) > -60:
+                norm = (f"loudnorm=I=-14:TP=-1.5:LRA=11:measured_I={mis['input_i']}:measured_TP={mis['input_tp']}:measured_LRA={mis['input_lra']}:"
+                        f"measured_thresh={mis['input_thresh']}:offset={mis['target_offset']}:linear=true,aresample=48000")
         rate = max(3.0, min(12.0, 165 / max(totale, 1)))  # Mbit/s: il reel resta sotto ~22 MB (limite archivio 25 MB), IG ricomprime comunque
-        self.ff(args + ["-filter_complex", ";".join(filt), "-map", "[vout]", "-map", "[aout]", "-t", f"{totale:.3f}",
+        self.ff(["-i", video, "-i", mixwav, "-filter_complex", f"[0:v]ass='{ass}':fontsdir='{self.fontdir}'[vout];[1:a]{norm}[aout]",
+                 "-map", "[vout]", "-map", "[aout]", "-t", f"{totale:.3f}",
                         "-c:v", "libx264", "-preset", "slow", "-crf", "19", "-profile:v", "high", "-maxrate", f"{rate:.1f}M", "-bufsize", f"{rate * 2:.1f}M",
                         "-pix_fmt", "yuv420p", "-r", str(FPS), "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out], "mix finale")
 
