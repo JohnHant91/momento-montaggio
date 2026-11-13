@@ -105,15 +105,21 @@ async function api(req, env, url) {
   const vv = p.match(/^\/api\/lavori\/(\d+)\/(reel\.mp4|anteprima\.jpg)$/);
   if (vv && m === 'GET') {
     if (!env.VIDEO) return json({ errore: 'archivio video non collegato' }, 404);
-    const o = await env.VIDEO.get(`lavoro-${vv[1]}/${vv[2] === 'reel.mp4' ? 'reel.mp4' : 'anteprima.jpg'}`, { range: req.headers });
-    if (!o) return json({ errore: 'non ancora pronto' }, 404);
-    const h = new Headers();
-    o.writeHttpMetadata(h);
-    h.set('etag', o.httpEtag); h.set('accept-ranges', 'bytes'); h.set('cache-control', 'private, max-age=3600');
+    const { value, metadata } = await env.VIDEO.getWithMetadata(`lavoro-${vv[1]}/${vv[2]}`, { type: 'arrayBuffer' });
+    if (!value) return json({ errore: 'non ancora pronto' }, 404);
+    const h = new Headers({ 'content-type': metadata?.tipo || (vv[2] === 'reel.mp4' ? 'video/mp4' : 'image/jpeg'), 'accept-ranges': 'bytes', 'cache-control': 'private, max-age=3600' });
     if (url.searchParams.get('scarica')) h.set('content-disposition', `attachment; filename="reel-${vv[1]}.mp4"`);
-    if (o.range) { h.set('content-range', `bytes ${o.range.offset}-${o.range.offset + o.range.length - 1}/${o.size}`); h.set('content-length', String(o.range.length)); return new Response(o.body, { status: 206, headers: h }); }
-    h.set('content-length', String(o.size));
-    return new Response(o.body, { headers: h });
+    const tot = value.byteLength;
+    const rg = /bytes=(\d*)-(\d*)/.exec(req.headers.get('range') || '');
+    if (rg) { // Safari su iPhone vuole le richieste a pezzi per riprodurre i video
+      let a = rg[1] === '' ? Math.max(0, tot - Number(rg[2])) : Number(rg[1]);
+      let b = rg[1] === '' || rg[2] === '' ? tot - 1 : Math.min(Number(rg[2]), tot - 1);
+      if (a > b || a >= tot) return new Response(null, { status: 416, headers: { 'content-range': `bytes */${tot}` } });
+      h.set('content-range', `bytes ${a}-${b}/${tot}`); h.set('content-length', String(b - a + 1));
+      return new Response(value.slice(a, b + 1), { status: 206, headers: h });
+    }
+    h.set('content-length', String(tot));
+    return new Response(value, { headers: h });
   }
   const mm = p.match(/^\/api\/lavori\/(\d+)(?:\/(riprova|registro))?$/);
   if (mm) {

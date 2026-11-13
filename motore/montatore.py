@@ -473,8 +473,9 @@ class Montatore:
             args += ["-f", "lavfi", "-t", f"{totale:.3f}", "-i", "anullsrc=r=48000:cl=stereo"]
             filt.append(f"[{k}:a]anull[aout]")
         filt.append(f"[0:v]ass='{ass}':fontsdir='{self.fontdir}'[vout]")
+        rate = max(3.0, min(12.0, 165 / max(totale, 1)))  # Mbit/s: il reel resta sotto ~22 MB (limite archivio 25 MB), IG ricomprime comunque
         self.ff(args + ["-filter_complex", ";".join(filt), "-map", "[vout]", "-map", "[aout]", "-t", f"{totale:.3f}",
-                        "-c:v", "libx264", "-preset", "slow", "-crf", "19", "-profile:v", "high", "-maxrate", "12M", "-bufsize", "24M",
+                        "-c:v", "libx264", "-preset", "slow", "-crf", "19", "-profile:v", "high", "-maxrate", f"{rate:.1f}M", "-bufsize", f"{rate * 2:.1f}M",
                         "-pix_fmt", "yuv420p", "-r", str(FPS), "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out], "mix finale")
 
     # -------------------------------------------------------------- revisore
@@ -497,8 +498,8 @@ class Montatore:
         if lufs is not None and lufs > -60 and abs(lufs + 14) > 2.5:
             problemi.append(f"volume {lufs:.1f} LUFS (atteso −14)")
         mb = os.path.getsize(out) / 1048576
-        if mb > 95:
-            problemi.append(f"file troppo pesante ({mb:.0f} MB)")
+        if mb > 24.5:
+            problemi.append(f"file troppo pesante per l'archivio ({mb:.0f} MB, max 25)")
         return {"durata": round(info["dur"], 2), "lufs": lufs, "mb": round(mb, 1), "problemi": problemi, "note": self.report}
 
     # -------------------------------------------------------------- regia del montaggio

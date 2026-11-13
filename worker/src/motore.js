@@ -100,11 +100,10 @@ export async function motoreApi(req, env, url) {
   if ((mm[2] === 'video' || mm[2] === 'anteprima') && m === 'POST') {
     if (!env.VIDEO) return json({ errore: 'archivio video non collegato' }, 500);
     const lunghezza = Number(req.headers.get('content-length') || 0);
-    if (!lunghezza || lunghezza > 300 * 1024 * 1024) return json({ errore: 'dimensione non valida' }, 400);
+    // archivio: KV (max 25 MB a file: un reel a 1080p di 30-60 s sta sui 10-20 MB)
+    if (!lunghezza || lunghezza > 25 * 1024 * 1024) return json({ errore: `file di ${Math.round(lunghezza / 1048576)} MB: oltre il limite di 25 MB` }, 400);
     const chiave = `lavoro-${id}/${mm[2] === 'video' ? 'reel.mp4' : 'anteprima.jpg'}`;
-    const { readable, writable } = new FixedLengthStream(lunghezza);
-    req.body.pipeTo(writable).catch(() => {});
-    await env.VIDEO.put(chiave, readable, { httpMetadata: { contentType: mm[2] === 'video' ? 'video/mp4' : 'image/jpeg' } });
+    await env.VIDEO.put(chiave, await req.arrayBuffer(), { metadata: { tipo: mm[2] === 'video' ? 'video/mp4' : 'image/jpeg' } });
     return json({ ok: true, chiave });
   }
   if (mm[2] === 'esito' && m === 'POST') {

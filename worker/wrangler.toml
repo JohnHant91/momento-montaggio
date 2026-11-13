@@ -13,6 +13,6 @@ binding = "DB"
 database_name = "momento-reel"
 database_id = "bba77d37-c34e-4dd1-9514-5463ca1d9fec"
 
-[[r2_buckets]]
+[[kv_namespaces]]
 binding = "VIDEO"
-bucket_name = "momento-reel-video"
+id = "a0a0abcdb7ab4d4c89929628dee137b1"
