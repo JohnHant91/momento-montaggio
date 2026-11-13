@@ -32,8 +32,16 @@ jobs:
       - name: Pubblica i fotogrammi sul ramo prove-grafiche
         run: |
           cd grafiche/out
-          for p in line bar steps; do convert ${p}_12.png ${p}_40.png ${p}_90.png ${p}_140.png -resize 50% +append riga_$p.png; done
-          convert riga_line.png riga_bar.png riga_steps.png -append -quality 85 tavola.jpg
+          pip install -q pillow
+          python3 -c "
+          from PIL import Image
+          righe=[[Image.open(f'{p}_{f}.png').convert('RGBA') for f in (12,40,90,140)] for p in ('line','bar','steps')]
+          w,h=righe[0][0].width//2,righe[0][0].height//2
+          out=Image.new('RGB',(w*4,h*3),(40,140,60))
+          for r,ims in enumerate(righe):
+              for c,im in enumerate(ims):
+                  im=im.resize((w,h)); out.paste(im,(c*w,r*h),im)
+          out.save('tavola.jpg',quality=85)"
           mkdir -p /tmp/pub && cp tavola.jpg /tmp/pub/ && cd /tmp/pub
           git init -q && git checkout -q -b prove-grafiche && git add tavola.jpg
           git -c user.name=motore -c user.email=motore@momento commit -qm prova
