@@ -73,6 +73,7 @@ per chi dovrà montare un reel verticale 9:16. Non vedi il video in movimento: t
 su 480 px: sotto ~40 tende a mosso/sfocato, sopra ~150 è nitido), luminosità 0-255, % bruciato e % chiuso;
 movimento tra fotogrammi (alto = camera o soggetto che si muovono); parlato trascritto da Whisper.
 Usa le misure per qualità e problemi, i fotogrammi per contenuto e inquadrature. Non inventare.
+Sii sintetico: al massimo 8 momenti e 5 problemi, frasi brevi.
 
 Contesto del lavoro: ${contesto}
 
