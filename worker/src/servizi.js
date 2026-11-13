@@ -358,6 +358,7 @@ export function punteggio(v) {
 
 // ------------------------------------------------------------------ pCloud (link pubblico della cartella)
 const VIDEO_EXT = /\.(mp4|mov|m4v|mkv|avi|mts|mxf|webm)$/i;
+const FOTO_EXT = /\.(jpe?g|png|webp)$/i;
 
 function codicePcloud(link) {
   try { return new URL(link).searchParams.get('code'); } catch { return null; }
@@ -384,7 +385,11 @@ export async function pcloudClip(link) {
   const out = [];
   const visita = (m, cartella = '') => {
     if (m.isfolder) (m.contents || []).forEach((c) => visita(c, cartella ? `${cartella}/${m.name}` : m.name));
-    else if (m.category === 2 || VIDEO_EXT.test(m.name)) {
+    else if ((m.category === 1 || FOTO_EXT.test(m.name)) && FOTO_EXT.test(m.name)) {
+      // foto e slide di carosello (per il formato carosello e come immagini nel montaggio)
+      out.push({ fileid: m.fileid, nome: m.name, cartella, dimensione: m.size, hash: String(m.hash || m.fileid), tipo: 'immagine',
+        tecnico: { tipo: 'immagine', durata_sec: 0, risoluzione: m.width ? `${m.width}x${m.height}` : null, orientamento: m.width ? (m.height > m.width ? 'verticale' : m.width > m.height ? 'orizzontale' : 'quadrato') : null } });
+    } else if (m.category === 2 || VIDEO_EXT.test(m.name)) {
       out.push({
         fileid: m.fileid, nome: m.name, cartella, dimensione: m.size, hash: String(m.hash || m.fileid),
         tecnico: { durata_sec: m.duration ? Number(m.duration) : null, risoluzione: m.width ? `${m.width}x${m.height}` : null, fps: m.fps ? Number(m.fps) : null, orientamento: m.width ? (m.height > m.width ? 'verticale' : m.width > m.height ? 'orizzontale' : 'quadrato') : null, rallenty_possibile: m.fps ? Number(m.fps) >= 48 : null },

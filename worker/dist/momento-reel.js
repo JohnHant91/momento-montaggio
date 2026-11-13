@@ -1,16 +1,446 @@
-var w=()=>new Date().toISOString(),T=(i,e=null)=>{try{return i==null?e:JSON.parse(i)}catch{return e}},N=async(i,e,...o)=>(await i.DB.prepare(e).bind(...o).all()).results||[],O=(i,e,...o)=>i.DB.prepare(e).bind(...o).first(),A=(i,e,...o)=>i.DB.prepare(e).bind(...o).run(),V=!1;async function U(i){if(!V){await i.DB.batch([i.DB.prepare("CREATE TABLE IF NOT EXISTS impostazioni (chiave TEXT PRIMARY KEY, valore TEXT)"),i.DB.prepare(`CREATE TABLE IF NOT EXISTS lavori (
+// src/db.js
+var ora = () => (/* @__PURE__ */ new Date()).toISOString();
+var J = (s, d = null) => {
+  try {
+    return s == null ? d : JSON.parse(s);
+  } catch {
+    return d;
+  }
+};
+var all = async (env, sql, ...a) => (await env.DB.prepare(sql).bind(...a).all()).results || [];
+var one = (env, sql, ...a) => env.DB.prepare(sql).bind(...a).first();
+var run = (env, sql, ...a) => env.DB.prepare(sql).bind(...a).run();
+var pronto = false;
+async function schema(env) {
+  if (pronto) return;
+  await env.DB.batch([
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS impostazioni (chiave TEXT PRIMARY KEY, valore TEXT)"),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS lavori (
       id INTEGER PRIMARY KEY AUTOINCREMENT, prompt TEXT NOT NULL, pcloud TEXT, link_rif TEXT,
       stato TEXT NOT NULL DEFAULT 'in_corso', fase TEXT NOT NULL DEFAULT 'piano',
       piano TEXT, candidati TEXT, riferimenti TEXT, clip TEXT, scheda TEXT, errore TEXT,
-      tentativi INTEGER DEFAULT 0, blocco_fino TEXT, creato TEXT, aggiornato TEXT)`),i.DB.prepare(`CREATE TABLE IF NOT EXISTS registro (
-      id INTEGER PRIMARY KEY AUTOINCREMENT, lavoro_id INTEGER, agente TEXT, messaggio TEXT, livello TEXT, quando TEXT)`),i.DB.prepare("CREATE INDEX IF NOT EXISTS registro_lavoro ON registro(lavoro_id, id)"),i.DB.prepare("CREATE TABLE IF NOT EXISTS cache_analisi (chiave TEXT PRIMARY KEY, dati TEXT, quando TEXT)")]);for(let e of["motore_pass TEXT","motore_fino TEXT","motore_visto TEXT","montaggio TEXT","fonte TEXT DEFAULT 'pcloud'"])try{await i.DB.prepare(`ALTER TABLE lavori ADD COLUMN ${e}`).run()}catch{}V=!0}}async function h(i,e,o,t,a="info"){await A(i,"INSERT INTO registro (lavoro_id, agente, messaggio, livello, quando) VALUES (?,?,?,?,?)",e,o,String(t).slice(0,600),a,w())}var $=["ANTHROPIC_API_KEY","YOUTUBE_API_KEY","APIFY_TOKEN"],j=["CLAUDE_MODEL","CLAUDE_MODEL_LIGHT","APIFY_TIKTOK_ACTOR","APIFY_INSTAGRAM_ACTOR","NUM_RIFERIMENTI","DURATA_MAX","MESI_RICERCA"];async function k(i){let e=Object.fromEntries((await N(i,"SELECT chiave, valore FROM impostazioni")).map(t=>[t.chiave,t.valore])),o=(t,a)=>i[t]||e[t]||a;return{ANTHROPIC_API_KEY:o("ANTHROPIC_API_KEY"),GEMINI_API_KEY:o("GEMINI_API_KEY"),YOUTUBE_API_KEY:o("YOUTUBE_API_KEY"),APIFY_TOKEN:o("APIFY_TOKEN"),CLAUDE_MODEL:o("CLAUDE_MODEL","claude-sonnet-5-5"),CLAUDE_MODEL_LIGHT:o("CLAUDE_MODEL_LIGHT","claude-haiku-5-5"),WEB_SEARCH_TOOL:o("WEB_SEARCH_TOOL","web_search_20250305"),GEMINI_MODELS:String(o("GEMINI_MODELS","gemini-3.6-flash,gemini-3-flash-preview,gemini-2.5-flash")).split(",").map(t=>t.trim()).filter(Boolean),APIFY_TIKTOK_ACTOR:o("APIFY_TIKTOK_ACTOR","clockworks/tiktok-scraper"),APIFY_INSTAGRAM_ACTOR:o("APIFY_INSTAGRAM_ACTOR","apify/instagram-scraper"),NUM_RIFERIMENTI:Number(o("NUM_RIFERIMENTI",9)),DURATA_MAX:Number(o("DURATA_MAX",90)),MESI_RICERCA:Number(o("MESI_RICERCA",18)),FPS_ANALISI:Number(o("FPS_ANALISI",4)),_salvate:e,_env:Object.fromEntries($.map(t=>[t,!!i[t]]))}}var zi={caldo_cinematico:"toni caldi, ombre morbide, leggera grana, contrasto medio",pulito_commerciale:"bianchi puliti, colori fedeli, contrasto alto, nitido",teal_orange:"pelle calda, ombre e cieli verso il ciano, look da film",moody_scuro:"sottoesposto, colori desaturati, neri profondi",naturale_vivace:"colori saturi ma naturali, luminoso, estivo",bn_contrasto:"bianco e nero contrastato",pastello_soft:"colori pastello, alte luci morbide, poco contrasto",vintage_film:"neri sollevati, dominante calda, grana pellicola"},Ci={punch_in:"zoom secco del 10-20% sul taglio o sull'accento",zoom_lento:"zoom progressivo durante l'inquadratura",speed_ramp:"accelerazione/rallenty dentro la stessa clip",rallenty:"clip rallentata (fluida solo se girata a 50/60 fps)",whip_pan:"transizione a frusta con mosso direzionale",flash_bianco:"lampo bianco di 2-4 fotogrammi sul taglio",shake:"tremolio di camera sull'impatto",light_leak:"bagliore di luce in sovrapposizione",glitch:"distorsione digitale breve",split_screen:"schermo diviso in 2-3 riquadri",freeze_frame:"fermo immagine con testo",dissolvenza:"dissolvenza incrociata",taglio_netto:"taglio secco senza transizione",bande_cinema:"bande nere orizzontali (look cinema)",grana:"grana pellicola",vignettatura:"bordi scuriti"},$i={titolo_grande_centrale:"parole grandi al centro, 1-4 parole per schermata",parola_per_parola:"sottotitoli che compaiono una parola alla volta",karaoke_evidenziato:"frase intera, parola pronunciata evidenziata",sottotitolo_classico:"1-2 righe in basso, sobrio",etichetta_box:"testo dentro un box colorato",nessun_testo:"nessun testo a schermo"},Di=["alto","centro","terzo_inferiore"],Mi=["energico","elegante","emozionale","divertente","lusso","urbano_hiphop","acustico_caldo","elettronico","epico","chill"];function G(){let i=["LOOK COLORE:"];for(let[e,o]of Object.entries(zi))i.push(`- ${e}: ${o}`);i.push(`
-EFFETTI E TRANSIZIONI:`);for(let[e,o]of Object.entries(Ci))i.push(`- ${e}: ${o}`);i.push(`
-STILI TESTO:`);for(let[e,o]of Object.entries($i))i.push(`- ${e}: ${o}`);return i.push(`
-POSIZIONI TESTO: ${Di.join(", ")}`),i.push(`MOOD MUSICA: ${Mi.join(", ")}`),i.join(`
-`)}var Z=i=>new Promise(e=>setTimeout(e,i));function Q(i){if(i&&typeof i=="object")return i;let e=String(i||"").trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/,"");try{return JSON.parse(e)}catch{}for(let[o,t]of[["{","}"],["[","]"]]){let a=e.indexOf(o),n=e.lastIndexOf(t);if(a!==-1&&n>a)try{return JSON.parse(e.slice(a,n+1))}catch{}}throw new Error("risposta non in JSON: "+e.slice(0,300))}async function z(i,e={},o=4){let t;for(let a=0;a<o;a++)try{let n=await fetch(i,e);if([429,500,502,503,504,529].includes(n.status)){t=new Error(`HTTP ${n.status}: ${(await n.text()).slice(0,300)}`),await Z(4e3*(a+1)*(n.status===429?3:1));continue}return n}catch(n){if(t=n,e.body&&typeof e.body!="string")break;await Z(3e3*(a+1))}throw new Error(`richiesta fallita (${String(i).split("?")[0]}): ${t?.message||t}`)}async function C(i,e,o,{maxTokens:t=8e3,json:a=!0}={}){if(!i.ANTHROPIC_API_KEY)throw new Error("manca la chiave Claude (Impostazioni)");let n=await z("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"x-api-key":i.ANTHROPIC_API_KEY,"anthropic-version":"2023-06-01","content-type":"application/json"},body:JSON.stringify({model:i.CLAUDE_MODEL,max_tokens:t,system:e,messages:[{role:"user",content:o}]})});if(n.status!==200)throw new Error(`Claude ${n.status}: ${(await n.text()).slice(0,400)}`);let l=await n.json(),d=(l.content||[]).filter(r=>r.type==="text").map(r=>r.text).join("");if(l.stop_reason==="max_tokens")throw new Error("risposta di Claude troncata (troppo lunga): riprovo");return a?Q(d):d}async function ii(i,e,o,t,a,n=4e3){if(!i.ANTHROPIC_API_KEY)throw new Error("manca la chiave Claude (Impostazioni)");let l=[];for(let g of a)l.push({type:"text",text:`Immagine: ${g.cosa}`}),l.push({type:"image",source:{type:"base64",media_type:"image/jpeg",data:g.jpeg}});l.push({type:"text",text:t});let d=await z("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"x-api-key":i.ANTHROPIC_API_KEY,"anthropic-version":"2023-06-01","content-type":"application/json"},body:JSON.stringify({model:e,max_tokens:n,system:o,messages:[{role:"user",content:l}]})}),r=await d.text();if(d.status!==200)throw d.status===429||/credit balance|billing/i.test(r)?new Error("LIMITE_CLAUDE: "+r.slice(0,200)):new Error(`Claude ${d.status}: ${r.slice(0,300)}`);let s=JSON.parse(r);if(s.stop_reason==="max_tokens")throw new Error("risposta di Claude troncata");let c=Q((s.content||[]).filter(g=>g.type==="text").map(g=>g.text).join(""));return c._uso=s.usage?{in:s.usage.input_tokens,out:s.usage.output_tokens,modello:e}:void 0,c}var Pi=i=>{let e=/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/.exec(i||"");return e?(+e[1]||0)*3600+(+e[2]||0)*60+(+e[3]||0):0};async function Ui(i,e){let o=await z("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"x-api-key":i.ANTHROPIC_API_KEY,"anthropic-version":"2023-06-01","content-type":"application/json"},body:JSON.stringify({model:i.CLAUDE_MODEL,max_tokens:3e3,tools:[{type:i.WEB_SEARCH_TOOL,name:"web_search",max_uses:6}],messages:[{role:"user",content:`Cerca su YouTube Shorts (anche con site:youtube.com/shorts) i video brevi pi\xF9 visti e apprezzati per queste ricerche: ${e.join(" | ")}.
+      tentativi INTEGER DEFAULT 0, blocco_fino TEXT, creato TEXT, aggiornato TEXT)`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS registro (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, lavoro_id INTEGER, agente TEXT, messaggio TEXT, livello TEXT, quando TEXT)`),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS registro_lavoro ON registro(lavoro_id, id)"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS cache_analisi (chiave TEXT PRIMARY KEY, dati TEXT, quando TEXT)")
+  ]);
+  for (const c of ["motore_pass TEXT", "motore_fino TEXT", "motore_visto TEXT", "montaggio TEXT", "fonte TEXT DEFAULT 'pcloud'"]) {
+    try {
+      await env.DB.prepare(`ALTER TABLE lavori ADD COLUMN ${c}`).run();
+    } catch {
+    }
+  }
+  pronto = true;
+}
+async function log(env, lavoroId, agente, messaggio, livello = "info") {
+  await run(
+    env,
+    "INSERT INTO registro (lavoro_id, agente, messaggio, livello, quando) VALUES (?,?,?,?,?)",
+    lavoroId,
+    agente,
+    String(messaggio).slice(0, 600),
+    livello,
+    ora()
+  );
+}
+var CHIAVI_SEGRETE = ["ANTHROPIC_API_KEY", "YOUTUBE_API_KEY", "APIFY_TOKEN"];
+var CHIAVI_OPZIONI = ["CLAUDE_MODEL", "CLAUDE_MODEL_LIGHT", "APIFY_TIKTOK_ACTOR", "APIFY_INSTAGRAM_ACTOR", "NUM_RIFERIMENTI", "DURATA_MAX", "MESI_RICERCA"];
+async function configurazione(env) {
+  const salvate = Object.fromEntries((await all(env, "SELECT chiave, valore FROM impostazioni")).map((r) => [r.chiave, r.valore]));
+  const v = (k, d) => env[k] || salvate[k] || d;
+  return {
+    ANTHROPIC_API_KEY: v("ANTHROPIC_API_KEY"),
+    GEMINI_API_KEY: v("GEMINI_API_KEY"),
+    YOUTUBE_API_KEY: v("YOUTUBE_API_KEY"),
+    APIFY_TOKEN: v("APIFY_TOKEN"),
+    CLAUDE_MODEL: v("CLAUDE_MODEL", "claude-sonnet-5-5"),
+    CLAUDE_MODEL_LIGHT: v("CLAUDE_MODEL_LIGHT", "claude-haiku-5-5"),
+    WEB_SEARCH_TOOL: v("WEB_SEARCH_TOOL", "web_search_20250305"),
+    GEMINI_MODELS: String(v("GEMINI_MODELS", "gemini-3.6-flash,gemini-3-flash-preview,gemini-2.5-flash")).split(",").map((s) => s.trim()).filter(Boolean),
+    APIFY_TIKTOK_ACTOR: v("APIFY_TIKTOK_ACTOR", "clockworks/tiktok-scraper"),
+    APIFY_INSTAGRAM_ACTOR: v("APIFY_INSTAGRAM_ACTOR", "apify/instagram-scraper"),
+    NUM_RIFERIMENTI: Number(v("NUM_RIFERIMENTI", 9)),
+    DURATA_MAX: Number(v("DURATA_MAX", 90)),
+    MESI_RICERCA: Number(v("MESI_RICERCA", 18)),
+    FPS_ANALISI: Number(v("FPS_ANALISI", 4)),
+    _salvate: salvate,
+    _env: Object.fromEntries(CHIAVI_SEGRETE.map((k) => [k, !!env[k]]))
+  };
+}
+
+// src/libreria.js
+var LOOK_COLORE = {
+  caldo_cinematico: "toni caldi, ombre morbide, leggera grana, contrasto medio",
+  pulito_commerciale: "bianchi puliti, colori fedeli, contrasto alto, nitido",
+  teal_orange: "pelle calda, ombre e cieli verso il ciano, look da film",
+  moody_scuro: "sottoesposto, colori desaturati, neri profondi",
+  naturale_vivace: "colori saturi ma naturali, luminoso, estivo",
+  bn_contrasto: "bianco e nero contrastato",
+  pastello_soft: "colori pastello, alte luci morbide, poco contrasto",
+  vintage_film: "neri sollevati, dominante calda, grana pellicola"
+};
+var EFFETTI = {
+  punch_in: "zoom secco del 10-20% sul taglio o sull'accento",
+  zoom_lento: "zoom progressivo durante l'inquadratura",
+  speed_ramp: "accelerazione/rallenty dentro la stessa clip",
+  rallenty: "clip rallentata (fluida solo se girata a 50/60 fps)",
+  whip_pan: "transizione a frusta con mosso direzionale",
+  flash_bianco: "lampo bianco di 2-4 fotogrammi sul taglio",
+  shake: "tremolio di camera sull'impatto",
+  light_leak: "bagliore di luce in sovrapposizione",
+  glitch: "distorsione digitale breve",
+  split_screen: "schermo diviso in 2-3 riquadri",
+  freeze_frame: "fermo immagine con testo",
+  dissolvenza: "dissolvenza incrociata",
+  taglio_netto: "taglio secco senza transizione",
+  bande_cinema: "bande nere orizzontali (look cinema)",
+  grana: "grana pellicola",
+  vignettatura: "bordi scuriti"
+};
+var STILI_TESTO = {
+  titolo_grande_centrale: "parole grandi al centro, 1-4 parole per schermata",
+  parola_per_parola: "sottotitoli che compaiono una parola alla volta",
+  karaoke_evidenziato: "frase intera, parola pronunciata evidenziata",
+  sottotitolo_classico: "1-2 righe in basso, sobrio",
+  etichetta_box: "testo dentro un box colorato",
+  nessun_testo: "nessun testo a schermo"
+};
+var POSIZIONI = ["alto", "centro", "terzo_inferiore"];
+var MOOD = ["energico", "elegante", "emozionale", "divertente", "lusso", "urbano_hiphop", "acustico_caldo", "elettronico", "epico", "chill"];
+function libreriaTesto() {
+  const r = ["LOOK COLORE:"];
+  for (const [k, v] of Object.entries(LOOK_COLORE)) r.push(`- ${k}: ${v}`);
+  r.push("\nEFFETTI E TRANSIZIONI:");
+  for (const [k, v] of Object.entries(EFFETTI)) r.push(`- ${k}: ${v}`);
+  r.push("\nSTILI TESTO:");
+  for (const [k, v] of Object.entries(STILI_TESTO)) r.push(`- ${k}: ${v}`);
+  r.push(`
+POSIZIONI TESTO: ${POSIZIONI.join(", ")}`);
+  r.push(`MOOD MUSICA: ${MOOD.join(", ")}`);
+  return r.join("\n");
+}
+
+// src/servizi.js
+var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+function estraiJson(testo) {
+  if (testo && typeof testo === "object") return testo;
+  let t = String(testo || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  try {
+    return JSON.parse(t);
+  } catch {
+  }
+  for (const [a, c] of [["{", "}"], ["[", "]"]]) {
+    const i = t.indexOf(a), j = t.lastIndexOf(c);
+    if (i !== -1 && j > i) {
+      try {
+        return JSON.parse(t.slice(i, j + 1));
+      } catch {
+      }
+    }
+  }
+  throw new Error("risposta non in JSON: " + t.slice(0, 300));
+}
+async function richiesta(url, opts = {}, tentativi = 4) {
+  let ultimo;
+  for (let n = 0; n < tentativi; n++) {
+    try {
+      const r = await fetch(url, opts);
+      if ([429, 500, 502, 503, 504, 529].includes(r.status)) {
+        ultimo = new Error(`HTTP ${r.status}: ${(await r.text()).slice(0, 300)}`);
+        await sleep(4e3 * (n + 1) * (r.status === 429 ? 3 : 1));
+        continue;
+      }
+      return r;
+    } catch (e) {
+      ultimo = e;
+      if (opts.body && typeof opts.body !== "string") break;
+      await sleep(3e3 * (n + 1));
+    }
+  }
+  throw new Error(`richiesta fallita (${String(url).split("?")[0]}): ${ultimo?.message || ultimo}`);
+}
+async function claude(cfg, sistema, messaggio, { maxTokens = 8e3, json: json3 = true } = {}) {
+  if (!cfg.ANTHROPIC_API_KEY) throw new Error("manca la chiave Claude (Impostazioni)");
+  const r = await richiesta("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "x-api-key": cfg.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    body: JSON.stringify({ model: cfg.CLAUDE_MODEL, max_tokens: maxTokens, system: sistema, messages: [{ role: "user", content: messaggio }] })
+  });
+  if (r.status !== 200) throw new Error(`Claude ${r.status}: ${(await r.text()).slice(0, 400)}`);
+  const d = await r.json();
+  const testo = (d.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
+  if (d.stop_reason === "max_tokens") throw new Error("risposta di Claude troncata (troppo lunga): riprovo");
+  return json3 ? estraiJson(testo) : testo;
+}
+async function claudeVisione(cfg, modello, sistema, testo, immagini, maxTokens = 4e3) {
+  if (!cfg.ANTHROPIC_API_KEY) throw new Error("manca la chiave Claude (Impostazioni)");
+  const content = [];
+  for (const im of immagini) {
+    content.push({ type: "text", text: `Immagine: ${im.cosa}` });
+    content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: im.jpeg } });
+  }
+  content.push({ type: "text", text: testo });
+  const r = await richiesta("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "x-api-key": cfg.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    body: JSON.stringify({ model: modello, max_tokens: maxTokens, system: sistema, messages: [{ role: "user", content }] })
+  });
+  const t = await r.text();
+  if (r.status !== 200) {
+    if (r.status === 429 || /credit balance|billing/i.test(t)) throw new Error("LIMITE_CLAUDE: " + t.slice(0, 200));
+    throw new Error(`Claude ${r.status}: ${t.slice(0, 300)}`);
+  }
+  const d = JSON.parse(t);
+  if (d.stop_reason === "max_tokens") throw new Error("risposta di Claude troncata");
+  const out = estraiJson((d.content || []).filter((b) => b.type === "text").map((b) => b.text).join(""));
+  out._uso = d.usage ? { in: d.usage.input_tokens, out: d.usage.output_tokens, modello } : void 0;
+  return out;
+}
+var durataIso = (iso) => {
+  const m = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/.exec(iso || "");
+  return m ? (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0) : 0;
+};
+async function youtubeDaWeb(cfg, queries) {
+  const r = await richiesta("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "x-api-key": cfg.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    body: JSON.stringify({
+      model: cfg.CLAUDE_MODEL,
+      max_tokens: 3e3,
+      tools: [{ type: cfg.WEB_SEARCH_TOOL, name: "web_search", max_uses: 6 }],
+      messages: [{ role: "user", content: `Cerca su YouTube Shorts (anche con site:youtube.com/shorts) i video brevi pi\xF9 visti e apprezzati per queste ricerche: ${queries.join(" | ")}.
 Voglio esempi reali di montaggio da cui imparare (stile, ritmo, gancio), pubblicati negli ultimi 2 anni, preferibilmente sotto i 90 secondi.
-Alla fine elenca SOLO i link YouTube trovati nei risultati (massimo 10), uno per riga, con il titolo dopo " | ". Non inventare link.`}]})});if(o.status!==200)throw new Error(`ricerca web ${o.status}: ${(await o.text()).slice(0,200)}`);let t=await o.json(),a=new Map,n=(s,c)=>{let g=/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([\w-]{11})/.exec(s||"");g&&!a.has(g[1])&&a.set(g[1],c||"")};for(let s of t.content||[])s.type==="web_search_tool_result"&&Array.isArray(s.content)&&s.content.forEach(c=>n(c.url,c.title));let d=[...(t.content||[]).filter(s=>s.type==="text").map(s=>s.text).join(`
-`).matchAll(/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([\w-]{11})/g)].map(s=>s[1]).filter(s=>a.has(s)),r=[...new Set([...d,...a.keys()])].slice(0,12);return{video:r.map((s,c)=>({piattaforma:"youtube",id:s,url:`https://www.youtube.com/watch?v=${s}`,video_url:null,titolo:a.get(s)||"",autore:"",views:0,likes:0,commenti:0,condivisioni:0,durata:0,data:"",ordine_web:c})),nota:r.length?null:"la ricerca web non ha trovato Shorts"}}async function ei(i,e,o=15){if(!i.YOUTUBE_API_KEY)return Ui(i,e);let t=new Date(Date.now()-i.MESI_RICERCA*30*864e5).toISOString().replace(/\.\d+Z$/,"Z"),a=[];for(let n of e){let l=new URL("https://www.googleapis.com/youtube/v3/search");Object.entries({part:"id",q:n,type:"video",videoDuration:"short",order:"viewCount",publishedAfter:t,maxResults:o,key:i.YOUTUBE_API_KEY}).forEach(([r,s])=>l.searchParams.set(r,s));let d=await z(l.toString());if(d.status!==200)throw new Error(`YouTube ${d.status}: ${(await d.text()).slice(0,200)}`);a.push(...((await d.json()).items||[]).map(r=>r.id?.videoId).filter(Boolean))}return a=[...new Set(a)],{video:await oi(i,a,i.DURATA_MAX)}}async function oi(i,e,o=9999){let t=[];for(let a=0;a<e.length;a+=50){let n=`https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${e.slice(a,a+50).join(",")}&key=${i.YOUTUBE_API_KEY}`,l=await z(n);if(l.status===200)for(let d of(await l.json()).items||[]){let r=d.statistics||{},s=d.snippet||{},c=Pi(d.contentDetails?.duration);!c||c>o||t.push({piattaforma:"youtube",id:d.id,url:`https://www.youtube.com/watch?v=${d.id}`,video_url:null,titolo:s.title||"",autore:s.channelTitle||"",views:+r.viewCount||0,likes:+r.likeCount||0,commenti:+r.commentCount||0,condivisioni:0,durata:c,data:s.publishedAt||""})}}return t}async function D(i,e,o){let t=`https://api.apify.com/v2/acts/${e.replace("/","~")}/run-sync-get-dataset-items?token=${i.APIFY_TOKEN}&timeout=280`,a=await z(t,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(o)},2);if(a.status!==200&&a.status!==201)throw new Error(`Apify ${e} ${a.status}: ${(await a.text()).slice(0,200)}`);let n=await a.json();return Array.isArray(n)?n:[]}var S=(i,...e)=>{for(let o of e){let t=i;for(let a of o.split("."))t=t==null?void 0:Array.isArray(t)&&/^\d+$/.test(a)?t[+a]:t[a];if(t!=null&&t!==""&&!(Array.isArray(t)&&!t.length))return t}},L=i=>Math.round(Number(i)||0);function ai(i){return{piattaforma:"tiktok",id:String(S(i,"id","video_id")||""),url:S(i,"webVideoUrl","url","detail_url")||"",video_url:S(i,"mediaUrls.0","videoMeta.downloadAddr","videoMeta.originalDownloadAddr","video_url_720p","videoUrl")||null,titolo:String(S(i,"text","desc","ad_title")||"").slice(0,200),autore:S(i,"authorMeta.name","author","brand_name")||"",views:L(S(i,"playCount","views")),likes:L(S(i,"diggCount","likes")),commenti:L(S(i,"commentCount","comments")),condivisioni:L(S(i,"shareCount","shares")),durata:L(S(i,"videoMeta.duration","duration_sec","duration")),data:S(i,"createTimeISO")||""}}function ti(i){return{piattaforma:"instagram",id:String(S(i,"shortCode","id")||""),url:S(i,"url","reelURL")||"",video_url:S(i,"videoUrl","video_url")||null,titolo:String(S(i,"caption")||"").slice(0,200),autore:S(i,"ownerUsername")||"",views:L(S(i,"videoPlayCount","videoViewCount","views")),likes:L(S(i,"likesCount","likes")),commenti:L(S(i,"commentsCount","comments")),condivisioni:0,durata:L(S(i,"videoDuration","duration")),data:S(i,"timestamp")||"",_video:!!S(i,"videoUrl")||/video|clips/i.test(String(S(i,"type","productType")||""))}}async function ri(i,e,o,t=10){return i.APIFY_TOKEN?{video:(await D(i,i.APIFY_TIKTOK_ACTOR,{searchQueries:e,hashtags:o.map(n=>n.replace(/^#/,"")),searchSection:"/video",resultsPerPage:t,shouldDownloadVideos:!0,shouldDownloadCovers:!1,shouldDownloadSubtitles:!1,shouldDownloadSlideshowImages:!1})).map(ai).filter(n=>n.id&&(!n.durata||n.durata<=i.DURATA_MAX))}:{video:[],nota:"TikTok saltato: manca il token Apify"}}async function ni(i,e,o=15){return i.APIFY_TOKEN?{video:(await D(i,i.APIFY_INSTAGRAM_ACTOR,{directUrls:e.map(a=>`https://www.instagram.com/explore/tags/${a.replace(/^#/,"")}/`),resultsType:"posts",resultsLimit:o,addParentData:!1})).map(ti).filter(a=>a.id&&a._video&&(!a.durata||a.durata<=i.DURATA_MAX))}:{video:[],nota:"Instagram saltato: manca il token Apify"}}async function si(i,e){let o=[],t=[],a=[];for(let l of e){let d=/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([\w-]{11})/.exec(l);d?o.push(d[1]):/tiktok\.com/.test(l)?t.push(l):/instagram\.com/.test(l)&&a.push(l)}let n=[];return o.length&&(i.YOUTUBE_API_KEY?n.push(...await oi(i,o)):n.push(...o.map(l=>({piattaforma:"youtube",id:l,url:`https://www.youtube.com/watch?v=${l}`,titolo:"",autore:"",views:0,likes:0,commenti:0,condivisioni:0,durata:0})))),(t.length||a.length)&&!i.APIFY_TOKEN&&(n.nota=`${t.length+a.length} link TikTok/Instagram non guardabili senza Apify`),t.length&&i.APIFY_TOKEN&&n.push(...(await D(i,i.APIFY_TIKTOK_ACTOR,{postURLs:t,shouldDownloadVideos:!0,resultsPerPage:1})).map(ai)),a.length&&i.APIFY_TOKEN&&n.push(...(await D(i,i.APIFY_INSTAGRAM_ACTOR,{directUrls:a,resultsType:"posts",resultsLimit:1})).map(ti)),{video:n.map(l=>({...l,scelto_da_johnny:!0})),nota:n.nota}}function li(i){if(!i.views&&i.ordine_web!==void 0)return 10-i.ordine_web*.1;let e=Math.max(i.views||0,1),o=((i.likes||0)+2*(i.commenti||0)+3*(i.condivisioni||0))/e;return Math.round((Math.log10(e+1)+Math.min(o,.3)*10)*1e3)/1e3}var ji=/\.(mp4|mov|m4v|mkv|avi|mts|mxf|webm)$/i;function Gi(i){try{return new URL(i).searchParams.get("code")}catch{return null}}async function Hi(i,e,o){let t=Gi(i);if(!t)throw new Error('link pCloud non valido: deve contenere "code=" (link pubblico della cartella)');let a=/(^|\/\/)e\.|eapi/.test(i)?["eapi","api"]:["api","eapi"],n;for(let l of a){let d=new URL(`https://${l}.pcloud.com/${e}`);d.searchParams.set("code",t),Object.entries(o||{}).forEach(([s,c])=>d.searchParams.set(s,c));let r=await(await z(d.toString())).json();if(r.result===0)return r;n=r}throw new Error(`pCloud: ${n?.error||"errore "+n?.result}`)}async function ci(i){let e=await Hi(i,"showpublink",{}),o=[],t=(a,n="")=>{a.isfolder?(a.contents||[]).forEach(l=>t(l,n?`${n}/${a.name}`:a.name)):(a.category===2||ji.test(a.name))&&o.push({fileid:a.fileid,nome:a.name,cartella:n,dimensione:a.size,hash:String(a.hash||a.fileid),tecnico:{durata_sec:a.duration?Number(a.duration):null,risoluzione:a.width?`${a.width}x${a.height}`:null,fps:a.fps?Number(a.fps):null,orientamento:a.width?a.height>a.width?"verticale":a.width>a.height?"orizzontale":"quadrato":null,rallenty_possibile:a.fps?Number(a.fps)>=48:null}})};return t(e.metadata),o}var H=`MANUALE DEL DIRETTORE CREATIVO (dalle skill short-form-video-script + reels-script)
+Alla fine elenca SOLO i link YouTube trovati nei risultati (massimo 10), uno per riga, con il titolo dopo " | ". Non inventare link.` }]
+    })
+  });
+  if (r.status !== 200) throw new Error(`ricerca web ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  const d = await r.json();
+  const visti = /* @__PURE__ */ new Map();
+  const aggiungi = (url, titolo) => {
+    const m = /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([\w-]{11})/.exec(url || "");
+    if (m && !visti.has(m[1])) visti.set(m[1], titolo || "");
+  };
+  for (const b of d.content || []) {
+    if (b.type === "web_search_tool_result" && Array.isArray(b.content)) b.content.forEach((x) => aggiungi(x.url, x.title));
+  }
+  const testo = (d.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  const ordine = [...testo.matchAll(/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([\w-]{11})/g)].map((m) => m[1]).filter((id) => visti.has(id));
+  const ids = [.../* @__PURE__ */ new Set([...ordine, ...visti.keys()])].slice(0, 12);
+  return {
+    video: ids.map((id, i) => ({
+      piattaforma: "youtube",
+      id,
+      url: `https://www.youtube.com/watch?v=${id}`,
+      video_url: null,
+      titolo: visti.get(id) || "",
+      autore: "",
+      views: 0,
+      likes: 0,
+      commenti: 0,
+      condivisioni: 0,
+      durata: 0,
+      data: "",
+      ordine_web: i
+    })),
+    nota: ids.length ? null : "la ricerca web non ha trovato Shorts"
+  };
+}
+async function youtube(cfg, queries, perQuery = 15) {
+  if (!cfg.YOUTUBE_API_KEY) return youtubeDaWeb(cfg, queries);
+  const dopo = new Date(Date.now() - cfg.MESI_RICERCA * 30 * 864e5).toISOString().replace(/\.\d+Z$/, "Z");
+  let ids = [];
+  for (const q of queries) {
+    const u = new URL("https://www.googleapis.com/youtube/v3/search");
+    Object.entries({ part: "id", q, type: "video", videoDuration: "short", order: "viewCount", publishedAfter: dopo, maxResults: perQuery, key: cfg.YOUTUBE_API_KEY }).forEach(([k, v]) => u.searchParams.set(k, v));
+    const r = await richiesta(u.toString());
+    if (r.status !== 200) throw new Error(`YouTube ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    ids.push(...((await r.json()).items || []).map((i) => i.id?.videoId).filter(Boolean));
+  }
+  ids = [...new Set(ids)];
+  return { video: await youtubeDettagli(cfg, ids, cfg.DURATA_MAX) };
+}
+async function youtubeDettagli(cfg, ids, durataMax = 9999) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += 50) {
+    const u = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${ids.slice(i, i + 50).join(",")}&key=${cfg.YOUTUBE_API_KEY}`;
+    const r = await richiesta(u);
+    if (r.status !== 200) continue;
+    for (const v of (await r.json()).items || []) {
+      const st = v.statistics || {}, sn = v.snippet || {};
+      const durata = durataIso(v.contentDetails?.duration);
+      if (!durata || durata > durataMax) continue;
+      out.push({
+        piattaforma: "youtube",
+        id: v.id,
+        url: `https://www.youtube.com/watch?v=${v.id}`,
+        video_url: null,
+        titolo: sn.title || "",
+        autore: sn.channelTitle || "",
+        views: +st.viewCount || 0,
+        likes: +st.likeCount || 0,
+        commenti: +st.commentCount || 0,
+        condivisioni: 0,
+        durata,
+        data: sn.publishedAt || ""
+      });
+    }
+  }
+  return out;
+}
+async function apify(cfg, actor, input) {
+  const u = `https://api.apify.com/v2/acts/${actor.replace("/", "~")}/run-sync-get-dataset-items?token=${cfg.APIFY_TOKEN}&timeout=280`;
+  const r = await richiesta(u, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) }, 2);
+  if (r.status !== 200 && r.status !== 201) throw new Error(`Apify ${actor} ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  const d = await r.json();
+  return Array.isArray(d) ? d : [];
+}
+var primo = (d, ...chiavi) => {
+  for (const k of chiavi) {
+    let v = d;
+    for (const p of k.split(".")) v = v == null ? void 0 : Array.isArray(v) && /^\d+$/.test(p) ? v[+p] : v[p];
+    if (v !== void 0 && v !== null && v !== "" && !(Array.isArray(v) && !v.length)) return v;
+  }
+  return void 0;
+};
+var num = (v) => Math.round(Number(v) || 0);
+function normTiktok(it) {
+  return {
+    piattaforma: "tiktok",
+    id: String(primo(it, "id", "video_id") || ""),
+    url: primo(it, "webVideoUrl", "url", "detail_url") || "",
+    video_url: primo(it, "mediaUrls.0", "videoMeta.downloadAddr", "videoMeta.originalDownloadAddr", "video_url_720p", "videoUrl") || null,
+    titolo: String(primo(it, "text", "desc", "ad_title") || "").slice(0, 200),
+    autore: primo(it, "authorMeta.name", "author", "brand_name") || "",
+    views: num(primo(it, "playCount", "views")),
+    likes: num(primo(it, "diggCount", "likes")),
+    commenti: num(primo(it, "commentCount", "comments")),
+    condivisioni: num(primo(it, "shareCount", "shares")),
+    durata: num(primo(it, "videoMeta.duration", "duration_sec", "duration")),
+    data: primo(it, "createTimeISO") || ""
+  };
+}
+function normInstagram(it) {
+  return {
+    piattaforma: "instagram",
+    id: String(primo(it, "shortCode", "id") || ""),
+    url: primo(it, "url", "reelURL") || "",
+    video_url: primo(it, "videoUrl", "video_url") || null,
+    titolo: String(primo(it, "caption") || "").slice(0, 200),
+    autore: primo(it, "ownerUsername") || "",
+    views: num(primo(it, "videoPlayCount", "videoViewCount", "views")),
+    likes: num(primo(it, "likesCount", "likes")),
+    commenti: num(primo(it, "commentsCount", "comments")),
+    condivisioni: 0,
+    durata: num(primo(it, "videoDuration", "duration")),
+    data: primo(it, "timestamp") || "",
+    _video: !!primo(it, "videoUrl") || /video|clips/i.test(String(primo(it, "type", "productType") || ""))
+  };
+}
+async function tiktok(cfg, queries, hashtags, perVoce = 10) {
+  if (!cfg.APIFY_TOKEN) return { video: [], nota: "TikTok saltato: manca il token Apify" };
+  const items = await apify(cfg, cfg.APIFY_TIKTOK_ACTOR, {
+    searchQueries: queries,
+    hashtags: hashtags.map((h) => h.replace(/^#/, "")),
+    searchSection: "/video",
+    resultsPerPage: perVoce,
+    shouldDownloadVideos: true,
+    shouldDownloadCovers: false,
+    shouldDownloadSubtitles: false,
+    shouldDownloadSlideshowImages: false
+  });
+  return { video: items.map(normTiktok).filter((v) => v.id && (!v.durata || v.durata <= cfg.DURATA_MAX)) };
+}
+async function instagram(cfg, hashtags, perVoce = 15) {
+  if (!cfg.APIFY_TOKEN) return { video: [], nota: "Instagram saltato: manca il token Apify" };
+  const items = await apify(cfg, cfg.APIFY_INSTAGRAM_ACTOR, {
+    directUrls: hashtags.map((h) => `https://www.instagram.com/explore/tags/${h.replace(/^#/, "")}/`),
+    resultsType: "posts",
+    resultsLimit: perVoce,
+    addParentData: false
+  });
+  return { video: items.map(normInstagram).filter((v) => v.id && v._video && (!v.durata || v.durata <= cfg.DURATA_MAX)) };
+}
+async function linkDiretti(cfg, links) {
+  const yt = [], tt = [], ig = [];
+  for (const l of links) {
+    const y = /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([\w-]{11})/.exec(l);
+    if (y) yt.push(y[1]);
+    else if (/tiktok\.com/.test(l)) tt.push(l);
+    else if (/instagram\.com/.test(l)) ig.push(l);
+  }
+  const out = [];
+  if (yt.length) {
+    if (cfg.YOUTUBE_API_KEY) out.push(...await youtubeDettagli(cfg, yt));
+    else out.push(...yt.map((id) => ({ piattaforma: "youtube", id, url: `https://www.youtube.com/watch?v=${id}`, titolo: "", autore: "", views: 0, likes: 0, commenti: 0, condivisioni: 0, durata: 0 })));
+  }
+  if ((tt.length || ig.length) && !cfg.APIFY_TOKEN) out.nota = `${tt.length + ig.length} link TikTok/Instagram non guardabili senza Apify`;
+  if (tt.length && cfg.APIFY_TOKEN) out.push(...(await apify(cfg, cfg.APIFY_TIKTOK_ACTOR, { postURLs: tt, shouldDownloadVideos: true, resultsPerPage: 1 })).map(normTiktok));
+  if (ig.length && cfg.APIFY_TOKEN) out.push(...(await apify(cfg, cfg.APIFY_INSTAGRAM_ACTOR, { directUrls: ig, resultsType: "posts", resultsLimit: 1 })).map(normInstagram));
+  return { video: out.map((v) => ({ ...v, scelto_da_johnny: true })), nota: out.nota };
+}
+function punteggio(v) {
+  if (!v.views && v.ordine_web !== void 0) return 10 - v.ordine_web * 0.1;
+  const views = Math.max(v.views || 0, 1);
+  const coinv = ((v.likes || 0) + 2 * (v.commenti || 0) + 3 * (v.condivisioni || 0)) / views;
+  return Math.round((Math.log10(views + 1) + Math.min(coinv, 0.3) * 10) * 1e3) / 1e3;
+}
+var VIDEO_EXT = /\.(mp4|mov|m4v|mkv|avi|mts|mxf|webm)$/i;
+var FOTO_EXT = /\.(jpe?g|png|webp)$/i;
+function codicePcloud(link) {
+  try {
+    return new URL(link).searchParams.get("code");
+  } catch {
+    return null;
+  }
+}
+async function pcloudApi(link, metodo, params) {
+  const code = codicePcloud(link);
+  if (!code) throw new Error('link pCloud non valido: deve contenere "code=" (link pubblico della cartella)');
+  const host = /(^|\/\/)e\.|eapi/.test(link) ? ["eapi", "api"] : ["api", "eapi"];
+  let ultimo;
+  for (const h of host) {
+    const u = new URL(`https://${h}.pcloud.com/${metodo}`);
+    u.searchParams.set("code", code);
+    Object.entries(params || {}).forEach(([k, v]) => u.searchParams.set(k, v));
+    const d = await (await richiesta(u.toString())).json();
+    if (d.result === 0) return d;
+    ultimo = d;
+  }
+  throw new Error(`pCloud: ${ultimo?.error || "errore " + ultimo?.result}`);
+}
+async function pcloudClip(link) {
+  const d = await pcloudApi(link, "showpublink", {});
+  const out = [];
+  const visita = (m, cartella = "") => {
+    if (m.isfolder) (m.contents || []).forEach((c) => visita(c, cartella ? `${cartella}/${m.name}` : m.name));
+    else if ((m.category === 1 || FOTO_EXT.test(m.name)) && FOTO_EXT.test(m.name)) {
+      out.push({
+        fileid: m.fileid,
+        nome: m.name,
+        cartella,
+        dimensione: m.size,
+        hash: String(m.hash || m.fileid),
+        tipo: "immagine",
+        tecnico: { tipo: "immagine", durata_sec: 0, risoluzione: m.width ? `${m.width}x${m.height}` : null, orientamento: m.width ? m.height > m.width ? "verticale" : m.width > m.height ? "orizzontale" : "quadrato" : null }
+      });
+    } else if (m.category === 2 || VIDEO_EXT.test(m.name)) {
+      out.push({
+        fileid: m.fileid,
+        nome: m.name,
+        cartella,
+        dimensione: m.size,
+        hash: String(m.hash || m.fileid),
+        tecnico: { durata_sec: m.duration ? Number(m.duration) : null, risoluzione: m.width ? `${m.width}x${m.height}` : null, fps: m.fps ? Number(m.fps) : null, orientamento: m.width ? m.height > m.width ? "verticale" : m.width > m.height ? "orizzontale" : "quadrato" : null, rallenty_possibile: m.fps ? Number(m.fps) >= 48 : null }
+      });
+    }
+  };
+  visita(d.metadata);
+  return out;
+}
+
+// src/manuali.js
+var MANUALE_DIRETTORE = `MANUALE DEL DIRETTORE CREATIVO (dalle skill short-form-video-script + reels-script)
 - Lo scopo del reel \xE8 essere impossibile da saltare: conta la visione fino in fondo, non i like.
 - Metodo WATCH:
   W \xB7 Vinci i primi 3 secondi (l\xEC avviene il 50-60% degli abbandoni): l'inquadratura pi\xF9 forte per prima, niente intro,
@@ -28,7 +458,8 @@ Alla fine elenca SOLO i link YouTube trovati nei risultati (massimo 10), uno per
 - Ricerca su Instagram ora \xE8 per parole chiave: la parola chiave principale va nel testo a schermo dei primi secondi e nella
   prima frase della caption; il contenuto visivo deve corrispondere alla caption.
 - Requisiti per essere spinto: contenuto originale, nessun watermark di altre piattaforme, con audio, nicchia chiara.
-- La copertina si sceglie prima di pubblicare e non si cambia dopo: fotogramma forte + testo grande al centro.`,pi=`MANUALE DI IRIS (dalla skill viral-reverse-engineering)
+- La copertina si sceglie prima di pubblicare e non si cambia dopo: fotogramma forte + testo grande al centro.`;
+var MANUALE_IRIS = `MANUALE DI IRIS (dalla skill viral-reverse-engineering)
 - Meccanismo, non superficie: individua i 1-2 elementi portanti (di solito il gancio e la leva emotiva/di condivisione),
   non le caratteristiche incidentali. Copiare il rumore riproduce rumore.
 - Prova controfattuale: "se tolgo questo elemento, funziona ancora?" Se crolla \xE8 un motore, se no \xE8 incidentale.
@@ -37,14 +468,16 @@ Alla fine elenca SOLO i link YouTube trovati nei risultati (massimo 10), uno per
   viralit\xE0 no.
 - Onest\xE0 sulla fortuna: profilo molto grande, momento irripetibile, caso, sopravvivenza dei soli vincitori. Se il successo
   dipende da questo, dichiaralo NON replicabile e non inventare una regola.
-- Uscita: il principio in una riga ("la leva \xE8 X") applicabile al nostro settore, mai una copia.`,ui=`MANUALE DEL REGISTA (dalle skill capcut + short-form-video-script + captions-and-clipping)
+- Uscita: il principio in una riga ("la leva \xE8 X") applicabile al nostro settore, mai una copia.`;
+var MANUALE_REGISTA = `MANUALE DEL REGISTA (dalle skill capcut + short-form-video-script + captions-and-clipping)
 - Metodo EDITS: monta seguendo la scheda; taglia tutto ci\xF2 che non serve; il gancio arriva nei primi secondi; l'ultimo
   taglio \xE8 il loop.
 - Ritmo: cambio visivo ogni 2-4 s (taglio, punch-in, cambio inquadratura, testo che compare); niente tratti morti.
 - Primo pezzo = l'immagine pi\xF9 forte di tutto il girato (mai un'inquadratura di apertura lenta, mai il logo all'inizio).
 - Alterna i piani (totale, dettaglio, primo piano) e i movimenti; non ripetere lo stesso momento.
 - Il finale deve poter "chiudere il cerchio" con l'inizio (stessa inquadratura, stesso gesto o movimento che riparte).
-- Ogni clip deve stare in piedi da sola nel suo pezzo, con il soggetto inquadrato nel 9:16.`,mi=`MANUALE DEL COPY (dalle skill hook-writer + caption-writer + instagram-seo + hashtag-strategy)
+- Ogni clip deve stare in piedi da sola nel suo pezzo, con il soggetto inquadrato nel 9:16.`;
+var MANUALE_COPY = `MANUALE DEL COPY (dalle skill hook-writer + caption-writer + instagram-seo + hashtag-strategy)
 - Il gancio funziona aprendo un vuoto che chi guarda deve chiudere. Meccanismi: curiosit\xE0, contrario, posta in gioco/costo,
   numero specifico, identit\xE0 ("se sei..."), storia gi\xE0 in corso, errore, trasformazione prima\u2192dopo, domanda, attualit\xE0.
 - Scrivi 5 ganci con meccanismi DIVERSI, scegli il migliore: deve essere specifico, vero (il video lo mantiene),
@@ -55,19 +488,43 @@ Alla fine elenca SOLO i link YouTube trovati nei risultati (massimo 10), uno per
   all'obiettivo (salva, manda a..., commenta con..., link in bio).
 - Ricerca Instagram: parola chiave principale nella prima frase + 2-4 parole correlate nel testo, mai riempire di keyword.
 - Hashtag: 3-5 etichette di argomento specifiche (non trenta, non generici tipo #reels #viral).
-- Mai statistiche inventate o promesse false.`,F=`REGOLE DI PUBBLICAZIONE (dalla skill instagram-reels-publishing)
+- Mai statistiche inventate o promesse false.`;
+var MANUALE_PUBBLICAZIONE = `REGOLE DI PUBBLICAZIONE (dalla skill instagram-reels-publishing)
 - 1080x1920, 9:16. Zone coperte dall'interfaccia: circa 250 px in alto e 350 px in basso \u2192 testi, volti e CTA nella fascia
   centrale (anche per i ritagli 4:5 del feed e 3:4 della griglia profilo).
 - Copertina: scelta prima di pubblicare, non modificabile dopo; meglio una copertina dedicata che un fotogramma qualsiasi;
-  testo grande (\u226560 px) al centro.`,Y=`REGOLE AUDIO (dalla skill ai-music-and-sound)
+  testo grande (\u226560 px) al centro.`;
+var MANUALE_AUDIO = `REGOLE AUDIO (dalla skill ai-music-and-sound)
 - Per un brand mai musica protetta o "di tendenza" incorporata senza licenza (rischio silenziamento/rivendicazione).
 - Il brano di tendenza si aggiunge in app dalla libreria di Instagram; nel file si mettono solo suono originale ed effetti.
-- Il sound design (whoosh, impatti, riser sui tagli) nei video brevi conta spesso pi\xF9 del brano.`;var gi=["piano","ricerca","riferimenti","clip","scheda","regia","montaggio","fatto"],Fi=12,fi=9*6e4;var Yi=`Sei il Direttore creativo di Momento Produzione, agenzia italiana di video e social.
+- Il sound design (whoosh, impatti, riser sui tagli) nei video brevi conta spesso pi\xF9 del brano.`;
+var MANUALE_FORMATI = `FORMATI DEL MONTATORE (scegli "formato" nel piano, in base al girato e alla scheda)
+- "montaggio": il reel classico da tante clip (b-roll, prodotto, luoghi, persone senza un discorso). Gancio \u2192 sviluppo \u2192
+  climax \u2192 chiusura sul ritmo. \xC8 il formato di base.
+- "talking_head": una persona che PARLA IN CAMERA (clip con parlato presente e trascrizione). Il montatore toglie da solo
+  i silenzi, fa un punch zoom a ogni frase, scrive sottotitoli grandi (1-3 parole) sotto il mento con un riquadro colorato
+  che scorre di parola in parola, mette la prima frase come GANCIO grande sopra la testa con un "boom", e copre le parole
+  chiave con i b-roll che scegli. Tu scegli SOLO i tratti di parlato buoni (le prese migliori, niente ripetizioni o frasi
+  sbagliate), in ordine, con "in" e "durata" sui tempi della trascrizione; il primo tratto deve aprire con la frase pi\xF9
+  forte (il gancio: un risultato, una promessa, una domanda). Correggi le parole che Whisper sente male in "correzioni".
+  B-roll: 2-5 inserti di 1,5-3 s sulle parole concrete (un piatto, una camera, il prodotto), mai durante il gancio.
+  Testi sempre fuori dal viso: non servono "testo" sui segmenti. Durata ideale 20-45 s.
+- "carosello": hai delle FOTO/SLIDE (tecnico.tipo = immagine) che formano un carosello o una sequenza: ogni slide resta
+  intera su uno sfondo sfocato di se stessa, con barre di avanzamento come le storie, push-in lento e transizioni a spinta
+  con whoosh. Slide ricche di testo: ~1 s ogni 8 parole, minimo 1,8 s. Gancio breve sulla prima slide, CTA sull'ultima.
+Se il girato non si presta al formato (es. talking_head senza parlato), usa "montaggio".`;
+
+// src/lavoro.js
+var FASI = ["piano", "ricerca", "riferimenti", "clip", "scheda", "regia", "montaggio", "fatto"];
+var BLOCCO_MIN = 12;
+var BUDGET_MS = 9 * 6e4;
+var SISTEMA_PIANO = `Sei il Direttore creativo di Momento Produzione, agenzia italiana di video e social.
 Ricevi la richiesta di un reel e prepari la ricerca dei video di riferimento del SETTORE del cliente
 su YouTube Shorts, TikTok e Instagram Reels. Rispondi SOLO con JSON valido.
 
-${H}`,qi=i=>`RICHIESTA DI JOHNNY:
-${i}
+${MANUALE_DIRETTORE}`;
+var piano = (prompt) => `RICHIESTA DI JOHNNY:
+${prompt}
 
 Prepara il piano di ricerca. Cerca i video che hanno FUNZIONATO nel settore: mescola ricerche italiane
 e inglesi (le tecniche di montaggio migliori spesso arrivano da USA/UK). Hashtag specifici del settore,
@@ -81,11 +538,12 @@ JSON:
   "tiktok_query": ["2-3 ricerche"],
   "tiktok_hashtag": ["2-3 hashtag senza #"],
   "instagram_hashtag": ["3 hashtag senza #"]
-}`,_i=i=>`Sei un montatore video senior. Analizza questo reel come se dovessi rifarlo.
+}`;
+var analisiRiferimento = (settore) => `Sei un montatore video senior. Analizza questo reel come se dovessi rifarlo.
 
-${pi}
+${MANUALE_IRIS}
 
-\xC8 un riferimento per un reel del settore "${i}".
+\xC8 un riferimento per un reel del settore "${settore}".
 Non vedi il video in movimento: ti do (1) una tavola con i primi 3 secondi (il gancio), (2) una tavola con un
 fotogramma per ogni inquadratura, con il tempo scritto in giallo, (3) MISURE ESATTE fatte con ffmpeg e Whisper
 (tagli, durate delle inquadrature, BPM, volume, parlato trascritto). Le misure sono vere: copiale cos\xEC come sono.
@@ -94,7 +552,7 @@ fotogrammi fermi non si pu\xF2 sapere (es. come si animano i testi, effetti sono
 Non inventare. Tempi in secondi.
 
 Per gli elementi visivi usa, quando possibile, i nomi di questa libreria:
-${G()}
+${libreriaTesto()}
 
 Rispondi SOLO con JSON:
 {
@@ -122,15 +580,18 @@ Rispondi SOLO con JSON:
   "principio": "la leva in una riga, applicabile al nostro settore",
   "da_copiare": ["tecniche replicabili"],
   "da_evitare": ["cosa non funziona o \xE8 gi\xE0 visto"]
-}`,bi=i=>`Sei l'assistente al montaggio di un'agenzia video. Descrivi questa clip GREZZA
+}`;
+var analisiClip = (contesto) => `Sei l'assistente al montaggio di un'agenzia video. Descrivi questa clip GREZZA
 per chi dovr\xE0 montare un reel verticale 9:16. Non vedi il video in movimento: ti do i fotogrammi in ordine di tempo
 (tempo in giallo) e MISURE ESATTE: fps, risoluzione, durata; per ogni fotogramma nitidezza (varianza del laplaciano
 su 480 px: sotto ~40 tende a mosso/sfocato, sopra ~150 \xE8 nitido), luminosit\xE0 0-255, % bruciato e % chiuso;
 movimento tra fotogrammi (alto = camera o soggetto che si muovono); parlato trascritto da Whisper.
 Usa le misure per qualit\xE0 e problemi, i fotogrammi per contenuto e inquadrature. Non inventare.
 Sii sintetico: al massimo 8 momenti e 5 problemi, frasi brevi.
+Se \xE8 una FOTO o una SLIDE (tecnico.tipo = immagine): niente momenti n\xE9 problemi di tempo; descrivi cosa mostra e trascrivi
+il testo che contiene (se \xE8 una slide di carosello) in "testo_nell_immagine".
 
-Contesto del lavoro: ${i}
+Contesto del lavoro: ${contesto}
 
 Rispondi SOLO con JSON:
 {
@@ -142,31 +603,34 @@ Rispondi SOLO con JSON:
   "problemi": [{"da": n, "a": n, "tipo": "mosso|fuori_fuoco|sovraesposto|sottoesposto|rumore_audio|altro", "nota": "..."}],
   "parlato": {"presente": bool, "sintesi": "di cosa si parla, o null"},
   "adatta_al_verticale": "si|serve_reframe|solo_con_sfondo_sfocato",
-  "note_montaggio": "consigli pratici per usarla"
-}`,Bi=`Sei il Direttore creativo di Momento Produzione. Scrivi la SCHEDA TECNICA che guider\xE0
+  "note_montaggio": "consigli pratici per usarla",
+  "testo_nell_immagine": "solo per foto/slide: il testo scritto, o null"
+}`;
+var SISTEMA_SCHEDA = `Sei il Direttore creativo di Momento Produzione. Scrivi la SCHEDA TECNICA che guider\xE0
 regista, copy, editor, VFX, colorist, audio, voce e sottotitoli. Ogni scelta deve essere motivata dai
 riferimenti analizzati e realizzabile con le clip disponibili. Usa SOLO elementi della libreria per look,
 effetti, transizioni, stili testo e mood. Niente formule abusate ("POV", "aspetta la fine") se non richieste.
 Il reel deve essere riconoscibile e diverso, non una copia. Non inventare clip che non esistono.
 Rispondi SOLO JSON.
 
-${H}
+${MANUALE_DIRETTORE}
 
-${F}
+${MANUALE_PUBBLICAZIONE}
 
-${Y}`,Ki=(i,e,o,t)=>`RICHIESTA DI JOHNNY:
-${i}
+${MANUALE_AUDIO}`;
+var scheda = (prompt, piano2, rif, clip) => `RICHIESTA DI JOHNNY:
+${prompt}
 
-PIANO: ${JSON.stringify(e)}
+PIANO: ${JSON.stringify(piano2)}
 
 LIBRERIA:
-${G()}
+${libreriaTesto()}
 
 RIFERIMENTI ANALIZZATI (quelli "scelto_da_johnny" pesano di pi\xF9):
-${JSON.stringify(o)}
+${JSON.stringify(rif)}
 
 CLIP DISPONIBILI (analisi dell'Analista; pu\xF2 essere vuoto):
-${JSON.stringify(t)}
+${JSON.stringify(clip)}
 
 Produci la scheda:
 {
@@ -196,33 +660,172 @@ Produci la scheda:
   "clip_da_usare": [{"file": "...", "momento": "da-a sec", "per": "fase"}],
   "clip_mancanti": ["inquadrature che servirebbero e non ci sono"],
   "rischi": ["cosa pu\xF2 venire male e come evitarlo"]
-}`;async function Wi(i,e,o){await h(i,o.id,"direttore","leggo la richiesta e preparo la ricerca");let t=await C(e,Yi,qi(o.prompt),{maxTokens:1500});await A(i,"UPDATE lavori SET piano=? WHERE id=?",JSON.stringify(t),o.id),await h(i,o.id,"direttore",`settore: ${t.settore} \xB7 obiettivo: ${t.obiettivo||"-"}`)}async function Ji(i,e,o){let t=T(o.piano,{}),a=["YouTube","TikTok","Instagram","Link tuoi"],n=["scout_yt","scout_tt","scout_ig","direttore"];await h(i,o.id,"scout_yt",`${e.YOUTUBE_API_KEY?"cerco Shorts":"cerco Shorts sul web"}: ${(t.youtube_query||[]).join(" \xB7 ")}`),e.APIFY_TOKEN&&(await h(i,o.id,"scout_tt",`cerco su TikTok: ${[...t.tiktok_query||[],...(t.tiktok_hashtag||[]).map(v=>"#"+v)].join(" \xB7 ")}`),await h(i,o.id,"scout_ig",`cerco reel: ${(t.instagram_hashtag||[]).map(v=>"#"+v).join(" \xB7 ")}`));let l=await Promise.allSettled([ei(e,t.youtube_query||[]),ri(e,t.tiktok_query||[],t.tiktok_hashtag||[]),ni(e,t.instagram_hashtag||[]),si(e,T(o.link_rif,[]))]),d={};for(let v=0;v<4;v++){let m=l[v];if(m.status==="rejected"){await h(i,o.id,n[v],`${a[v]}: ${m.reason?.message||m.reason}`,"warn"),d[a[v]]=[];continue}let f=Array.isArray(m.value)?m.value:m.value.video;d[a[v]]=f,!((v===1||v===2)&&!e.APIFY_TOKEN)&&(m.value.nota&&await h(i,o.id,n[v],m.value.nota,"warn"),(v<3||f.length)&&await h(i,o.id,n[v],v<3?`trovati ${f.length} video`:`i tuoi link: ${f.length} video`))}let r=[...d["Link tuoi"]],s=["YouTube","TikTok","Instagram"].filter(v=>d[v].length),c=s.length?Math.max(1,Math.floor(Math.max(e.NUM_RIFERIMENTI-r.length,s.length)/s.length)):0;for(let v of s){let m=new Set;r.push(...d[v].map(f=>({...f,punteggio:li(f)})).sort((f,u)=>u.punteggio-f.punteggio).filter(f=>!m.has(f.id)&&m.add(f.id)).slice(0,c))}let g=new Set;if(r.splice(0,r.length,...r.filter(v=>{let m=`${v.piattaforma}:${v.id}`;return!g.has(m)&&g.add(m)})),!r.length)throw new Error("nessun video di riferimento trovato: controlla le chiavi in Impostazioni");let p=r.map(v=>({video:v,stato:"da_guardare"}));await A(i,"UPDATE lavori SET candidati=?, riferimenti=?, motore_visto=NULL WHERE id=?",JSON.stringify(d),JSON.stringify(p),o.id),await h(i,o.id,"direttore",`scelgo ${p.length} reel da far guardare a Iris`)}async function Xi(i,e,o){let t=T(o.riferimenti,[]);if(!o.motore_visto){let a=0;for(let n of t){if(n.stato!=="da_guardare")continue;let l=await O(i,"SELECT dati FROM cache_analisi WHERE chiave=?",B(n.video));l&&(Object.assign(n,{stato:"fatto",analisi:T(l.dati,{})}),a++)}await A(i,"UPDATE lavori SET riferimenti=?, motore_visto=? WHERE id=?",JSON.stringify(t),w(),o.id),a&&await h(i,o.id,"occhi",`${a} reel gi\xE0 visti in passato: non li riguardo`),t.some(n=>n.stato==="da_guardare")&&await h(i,o.id,"motore",`chiamo il motore GitHub: scarico e misuro ${t.filter(n=>n.stato==="da_guardare").length} reel di riferimento`)}if(t.some(a=>a.stato==="da_guardare"))return q(i,o);if(!t.some(a=>a.stato==="fatto"))throw new Error("nessun reel di riferimento \xE8 stato analizzato (vedi il registro)");return await A(i,"UPDATE lavori SET motore_visto=NULL WHERE id=?",o.id),!0}async function q(i,e){return e.motore_visto&&Date.now()-new Date(e.motore_visto)>75*6e4&&!(e.motore_fino&&e.motore_fino>w())&&(await h(i,e.id,"motore","il motore GitHub non si fa vivo da pi\xF9 di un'ora: controlla GitHub \u2192 momento-montaggio \u2192 Actions","warn"),await A(i,"UPDATE lavori SET motore_visto=? WHERE id=?",w(),e.id)),!1}var B=i=>`rif2:${i.piattaforma}:${i.id}`,vi={pcloud:{nome:"Cartella pCloud",pronta:i=>!!i.pcloud,elenca:async i=>(await ci(i.pcloud)).map(e=>({...e,sorgente:{tipo:"pcloud",fileid:e.fileid}}))}};async function Vi(i,e,o){let t=vi[o.fonte||"pcloud"]||vi.pcloud;if(!t.pronta(o))return await h(i,o.id,"analista","nessun girato collegato: preparo scheda e lista delle riprese"),!0;let a=T(o.clip,null);if(!a){let n=await t.elenca(o);if(!n.length)throw new Error("nella cartella pCloud non ci sono video");a=n.map(r=>({...r,stato:"da_guardare"}));let l=0;for(let r of a){let s=await O(i,"SELECT dati FROM cache_analisi WHERE chiave=?",K(r));if(s){let c=T(s.dati,{});Object.assign(r,{stato:"fatto",analisi:c.analisi||c,tecnico:c.tecnico||r.tecnico}),l++}}await A(i,"UPDATE lavori SET clip=?, motore_visto=? WHERE id=?",JSON.stringify(a),w(),o.id);let d=Math.round(a.reduce((r,s)=>r+(s.dimensione||0),0)/1073741824*10)/10;await h(i,o.id,"analista",`${a.length} clip trovate (${t.nome}, ${d} GB)${l?`, ${l} gi\xE0 viste in passato`:""}`),a.some(r=>r.stato==="da_guardare")&&await h(i,o.id,"motore","chiamo il motore GitHub: scarico e misuro le clip per Ada")}return a.some(n=>n.stato==="da_guardare")?q(i,o):!0}var K=i=>`clip2:${i.hash}:${i.dimensione}`;async function Zi(i,e,o){await h(i,o.id,"direttore","incrocio riferimenti e clip, scrivo la scheda tecnica");let t=T(o.riferimenti,[]).filter(l=>l.stato==="fatto").map(l=>({piattaforma:l.video.piattaforma,url:l.video.url,views:l.video.views,likes:l.video.likes,scelto_da_johnny:!!l.video.scelto_da_johnny,analisi:l.analisi})),a=(T(o.clip,[])||[]).filter(l=>l.stato==="fatto").map(l=>({file:l.nome,tecnico:l.tecnico,...l.analisi})),n=await C(e,Bi,Ki(o.prompt,T(o.piano,{}),t,a),{maxTokens:16e3});await A(i,"UPDATE lavori SET scheda=? WHERE id=?",JSON.stringify(n),o.id),await h(i,o.id,"direttore",`scheda pronta: ${n.titolo_lavoro||""}`)}var M=["caldo_cinematico","pulito_commerciale","teal_orange","moody_scuro","naturale_vivace","bn_contrasto","pastello_soft","vintage_film"],Ei=["taglio_netto","dissolvenza","flash_bianco","whip_pan","zoom","glitch","slide","fadenero"],wi=["punch_in","zoom_lento","zoom_out","shake","nessuno"],Ti=["grana","vignettatura","bande_cinema","light_leak"],hi=`Sei il Regista e il Copy di Momento Produzione. Trasformi la SCHEDA TECNICA del Direttore creativo in un
+}`;
+async function fasePiano(env, cfg, L) {
+  await log(env, L.id, "direttore", "leggo la richiesta e preparo la ricerca");
+  const p = await claude(cfg, SISTEMA_PIANO, piano(L.prompt), { maxTokens: 1500 });
+  await run(env, "UPDATE lavori SET piano=? WHERE id=?", JSON.stringify(p), L.id);
+  await log(env, L.id, "direttore", `settore: ${p.settore} \xB7 obiettivo: ${p.obiettivo || "-"}`);
+}
+async function faseRicerca(env, cfg, L) {
+  const p = J(L.piano, {});
+  const nomi = ["YouTube", "TikTok", "Instagram", "Link tuoi"];
+  const AG = ["scout_yt", "scout_tt", "scout_ig", "direttore"];
+  await log(env, L.id, "scout_yt", `${cfg.YOUTUBE_API_KEY ? "cerco Shorts" : "cerco Shorts sul web"}: ${(p.youtube_query || []).join(" \xB7 ")}`);
+  if (cfg.APIFY_TOKEN) {
+    await log(env, L.id, "scout_tt", `cerco su TikTok: ${[...p.tiktok_query || [], ...(p.tiktok_hashtag || []).map((h) => "#" + h)].join(" \xB7 ")}`);
+    await log(env, L.id, "scout_ig", `cerco reel: ${(p.instagram_hashtag || []).map((h) => "#" + h).join(" \xB7 ")}`);
+  }
+  const esiti = await Promise.allSettled([
+    youtube(cfg, p.youtube_query || []),
+    tiktok(cfg, p.tiktok_query || [], p.tiktok_hashtag || []),
+    instagram(cfg, p.instagram_hashtag || []),
+    linkDiretti(cfg, J(L.link_rif, []))
+  ]);
+  const perFonte = {};
+  for (let i = 0; i < 4; i++) {
+    const e = esiti[i];
+    if (e.status === "rejected") {
+      await log(env, L.id, AG[i], `${nomi[i]}: ${e.reason?.message || e.reason}`, "warn");
+      perFonte[nomi[i]] = [];
+      continue;
+    }
+    const lista = Array.isArray(e.value) ? e.value : e.value.video;
+    perFonte[nomi[i]] = lista;
+    if ((i === 1 || i === 2) && !cfg.APIFY_TOKEN) continue;
+    if (e.value.nota) await log(env, L.id, AG[i], e.value.nota, "warn");
+    if (i < 3 || lista.length) await log(env, L.id, AG[i], i < 3 ? `trovati ${lista.length} video` : `i tuoi link: ${lista.length} video`);
+  }
+  const scelti = [...perFonte["Link tuoi"]];
+  const fonti = ["YouTube", "TikTok", "Instagram"].filter((n) => perFonte[n].length);
+  const quota = fonti.length ? Math.max(1, Math.floor(Math.max(cfg.NUM_RIFERIMENTI - scelti.length, fonti.length) / fonti.length)) : 0;
+  for (const n of fonti) {
+    const visti = /* @__PURE__ */ new Set();
+    scelti.push(...perFonte[n].map((v) => ({ ...v, punteggio: punteggio(v) })).sort((a, b) => b.punteggio - a.punteggio).filter((v) => !visti.has(v.id) && visti.add(v.id)).slice(0, quota));
+  }
+  const unici = /* @__PURE__ */ new Set();
+  scelti.splice(0, scelti.length, ...scelti.filter((v) => {
+    const k = `${v.piattaforma}:${v.id}`;
+    return !unici.has(k) && unici.add(k);
+  }));
+  if (!scelti.length) throw new Error("nessun video di riferimento trovato: controlla le chiavi in Impostazioni");
+  const riferimenti = scelti.map((v) => ({ video: v, stato: "da_guardare" }));
+  await run(env, "UPDATE lavori SET candidati=?, riferimenti=?, motore_visto=NULL WHERE id=?", JSON.stringify(perFonte), JSON.stringify(riferimenti), L.id);
+  await log(env, L.id, "direttore", `scelgo ${riferimenti.length} reel da far guardare a Iris`);
+}
+async function faseRiferimenti(env, cfg, L) {
+  const rif = J(L.riferimenti, []);
+  if (!L.motore_visto) {
+    let gia = 0;
+    for (const r of rif) {
+      if (r.stato !== "da_guardare") continue;
+      const c = await one(env, "SELECT dati FROM cache_analisi WHERE chiave=?", chiaveRif(r.video));
+      if (c) {
+        Object.assign(r, { stato: "fatto", analisi: J(c.dati, {}) });
+        gia++;
+      }
+    }
+    await run(env, "UPDATE lavori SET riferimenti=?, motore_visto=? WHERE id=?", JSON.stringify(rif), ora(), L.id);
+    if (gia) await log(env, L.id, "occhi", `${gia} reel gi\xE0 visti in passato: non li riguardo`);
+    if (rif.some((r) => r.stato === "da_guardare")) await log(env, L.id, "motore", `chiamo il motore GitHub: scarico e misuro ${rif.filter((r) => r.stato === "da_guardare").length} reel di riferimento`);
+  }
+  if (rif.some((r) => r.stato === "da_guardare")) return avvisoMotore(env, L);
+  if (!rif.some((r) => r.stato === "fatto")) throw new Error("nessun reel di riferimento \xE8 stato analizzato (vedi il registro)");
+  await run(env, "UPDATE lavori SET motore_visto=NULL WHERE id=?", L.id);
+  return true;
+}
+async function avvisoMotore(env, L) {
+  if (L.motore_visto && Date.now() - new Date(L.motore_visto) > 75 * 6e4 && !(L.motore_fino && L.motore_fino > ora())) {
+    await log(env, L.id, "motore", "il motore GitHub non si fa vivo da pi\xF9 di un'ora: controlla GitHub \u2192 momento-montaggio \u2192 Actions", "warn");
+    await run(env, "UPDATE lavori SET motore_visto=? WHERE id=?", ora(), L.id);
+  }
+  return false;
+}
+var chiaveRif = (v) => `rif2:${v.piattaforma}:${v.id}`;
+var FONTI = {
+  pcloud: { nome: "Cartella pCloud", pronta: (L) => !!L.pcloud, elenca: async (L) => (await pcloudClip(L.pcloud)).map((c) => ({ ...c, sorgente: { tipo: "pcloud", fileid: c.fileid } })) }
+};
+async function faseClip(env, cfg, L) {
+  const fonte = FONTI[L.fonte || "pcloud"] || FONTI.pcloud;
+  if (!fonte.pronta(L)) {
+    await log(env, L.id, "analista", "nessun girato collegato: preparo scheda e lista delle riprese");
+    return true;
+  }
+  let clip = J(L.clip, null);
+  if (!clip) {
+    const lista = await fonte.elenca(L);
+    if (!lista.length) throw new Error("nella cartella pCloud non ci sono n\xE9 video n\xE9 foto");
+    clip = lista.map((c) => ({ ...c, stato: "da_guardare" }));
+    let gia = 0;
+    for (const c of clip) {
+      const r = await one(env, "SELECT dati FROM cache_analisi WHERE chiave=?", chiaveClip(c));
+      if (r) {
+        const d = J(r.dati, {});
+        Object.assign(c, { stato: "fatto", analisi: d.analisi || d, tecnico: d.tecnico || c.tecnico });
+        gia++;
+      }
+    }
+    await run(env, "UPDATE lavori SET clip=?, motore_visto=? WHERE id=?", JSON.stringify(clip), ora(), L.id);
+    const peso = Math.round(clip.reduce((s, c) => s + (c.dimensione || 0), 0) / 1073741824 * 10) / 10;
+    await log(env, L.id, "analista", `${clip.length} clip trovate (${fonte.nome}, ${peso} GB)${gia ? `, ${gia} gi\xE0 viste in passato` : ""}`);
+    if (clip.some((c) => c.stato === "da_guardare")) await log(env, L.id, "motore", "chiamo il motore GitHub: scarico e misuro le clip per Ada");
+  }
+  if (!clip.some((c) => c.stato === "da_guardare")) return true;
+  return avvisoMotore(env, L);
+}
+var chiaveClip = (c) => `clip2:${c.hash}:${c.dimensione}`;
+async function faseScheda(env, cfg, L) {
+  await log(env, L.id, "direttore", "incrocio riferimenti e clip, scrivo la scheda tecnica");
+  const rif = J(L.riferimenti, []).filter((r) => r.stato === "fatto").map((r) => ({
+    piattaforma: r.video.piattaforma,
+    url: r.video.url,
+    views: r.video.views,
+    likes: r.video.likes,
+    scelto_da_johnny: !!r.video.scelto_da_johnny,
+    analisi: r.analisi
+  }));
+  const clip = (J(L.clip, []) || []).filter((c) => c.stato === "fatto").map((c) => ({ file: c.nome, tecnico: c.tecnico, ...c.analisi }));
+  const s = await claude(cfg, SISTEMA_SCHEDA, scheda(L.prompt, J(L.piano, {}), rif, clip), { maxTokens: 16e3 });
+  await run(env, "UPDATE lavori SET scheda=? WHERE id=?", JSON.stringify(s), L.id);
+  await log(env, L.id, "direttore", `scheda pronta: ${s.titolo_lavoro || ""}`);
+}
+var LOOKS = ["caldo_cinematico", "pulito_commerciale", "teal_orange", "moody_scuro", "naturale_vivace", "bn_contrasto", "pastello_soft", "vintage_film"];
+var TRANSIZIONI = ["taglio_netto", "dissolvenza", "flash_bianco", "whip_pan", "zoom", "glitch", "slide", "fadenero"];
+var EFFETTI_PEZZO = ["punch_in", "zoom_lento", "zoom_out", "shake", "nessuno"];
+var EFFETTI_GLOBALI = ["grana", "vignettatura", "bande_cinema", "light_leak"];
+var FORMATI_REEL = ["montaggio", "talking_head", "carosello"];
+var SISTEMA_REGISTA = `Sei il Regista e il Copy di Momento Produzione. Trasformi la SCHEDA TECNICA del Direttore creativo in un
 PIANO DI MONTAGGIO preciso che un montatore automatico eseguir\xE0 alla lettera. Scegli i pezzi migliori dalle clip analizzate
 (usa solo momenti con qualit\xE0 alta e senza problemi, rispetta i tempi da/a dei momenti), costruisci gancio \u2192 sviluppo \u2192 climax \u2192
 chiusura, alterna inquadrature (totale/dettaglio/primo piano), non ripetere lo stesso momento. Il rallenty va su clip girate a
 48 fps o pi\xF9 (rallenty_possibile). Testi brevi, in italiano corretto, niente formule abusate. Rispondi SOLO JSON.
 
-${ui}
+${MANUALE_REGISTA}
 
-${mi}
+${MANUALE_FORMATI}
 
-${F}
+${MANUALE_COPY}
 
-${Y}`,Qi=(i,e)=>`SCHEDA TECNICA:
-${JSON.stringify(i)}
+${MANUALE_PUBBLICAZIONE}
+
+${MANUALE_AUDIO}`;
+var pianoMontaggio = (scheda2, clip) => `SCHEDA TECNICA:
+${JSON.stringify(scheda2)}
 
 CLIP DISPONIBILI (indice, file, dati tecnici, momenti con tempi e qualit\xE0, problemi):
-${JSON.stringify(e)}
+${JSON.stringify(clip)}
 
 VALORI AMMESSI
-- look: ${M.join(", ")}
-- transizione_in: ${Ei.join(", ")} (la prima clip non ne ha)
-- effetto: ${wi.join(", ")}
-- effetti_globali: ${Ti.join(", ")}
+- look: ${LOOKS.join(", ")}
+- transizione_in: ${TRANSIZIONI.join(", ")} (la prima clip non ne ha)
+- effetto: ${EFFETTI_PEZZO.join(", ")}
+- effetti_globali: ${EFFETTI_GLOBALI.join(", ")}
 - stile testi: titolo_grande_centrale, etichetta_box, sottotitolo_classico; posizione: alto, centro, terzo_inferiore
+- formato: montaggio, talking_head, carosello (vedi FORMATI DEL MONTATORE)
 
-JSON:
+JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel formato):
 {
+  "formato": "montaggio|talking_head|carosello",
   "durata_target": n,
   "look": "...", "intensita_look": 0.6-1.0,
   "effetti_globali": ["..."],
@@ -233,7 +836,13 @@ JSON:
                 "transizione_in": "...", "audio": 0-1 (suono originale), "motivo": "perch\xE9 questo pezzo qui",
                 "testo": {"testo": "...", "stile": "...", "posizione": "...", "evidenzia": "parola"} oppure null}],
   "sottotitoli": {"usare": bool, "stile": "parola_per_parola|karaoke_evidenziato|sottotitolo_classico", "posizione": "terzo_inferiore"},
-  "chiusura": {"testo": "...", "sottotesto": "cta breve", "evidenzia": "parola", "durata": 2-3, "colore": "#hex"} oppure null,
+  "chiusura": {"testo": "...", "sottotesto": "cta breve", "evidenzia": "parola", "durata": 2-3, "colore": "#hex"} oppure null (non per talking_head/carosello),
+  "gancio": {"testo": "solo carosello: frase breve sulla prima slide; talking_head: lascia null (usa la prima frase detta)", "evidenzia": ["parole del gancio da colorare"]},
+  "evidenzia": ["solo talking_head: 3-8 parole chiave del discorso da colorare nei sottotitoli"],
+  "correzioni": {"parola_sentita_male": "parola giusta"},
+  "broll": [{"clip": indice, "in": secondi, "durata": 1.5-3, "sulla_parola": "parola detta su cui entra", "rallenty": bool}],
+  "cta": {"testo": "solo talking_head/carosello: call to action breve (es. Scrivici ORTO in DM)"},
+  "slide": [{"clip": indice di una foto/slide, "durata": secondi}],
   "ganci_alternativi": [{"testo": "...", "meccanismo": "..."}],
   "loop": "come il finale si ricollega al primo pezzo",
   "copertina": {"clip": indice, "secondo": n, "testo": "testo grande della copertina (2-5 parole)"},
@@ -241,32 +850,356 @@ JSON:
   "caption": "caption finale: prima riga con la parola chiave, corpo, UNA call to action",
   "hashtag": ["3-5 etichette specifiche"],
   "musica_da_mettere": "che brano cercare su Instagram e da che secondo, a che volume rispetto al suono originale"
-}`;async function ie(i,e,o){let t=T(o.scheda,{}),a=(T(o.clip,[])||[]).map((u,y)=>({c:u,i:y})).filter(({c:u})=>u.stato==="fatto").map(({c:u,i:y})=>({indice:y,file:u.nome,tecnico:u.tecnico,descrizione:u.analisi?.descrizione,momenti:u.analisi?.momenti,problemi:u.analisi?.problemi,parlato:u.analisi?.parlato,verticale:u.analisi?.adatta_al_verticale})),n=T(o.montaggio,null);if(!a.length){await h(i,o.id,"regista","nessun girato: scrivo la lista delle inquadrature da girare o da trovare");let u=await C(e,hi,`SCHEDA TECNICA:
-${JSON.stringify(t)}
+}`;
+async function faseRegia(env, cfg, L) {
+  const scheda2 = J(L.scheda, {});
+  const clip = (J(L.clip, []) || []).map((c, i) => ({ c, i })).filter(({ c }) => c.stato === "fatto").map(({ c, i }) => ({
+    indice: i,
+    file: c.nome,
+    tipo: c.tipo === "immagine" || c.tecnico?.tipo === "immagine" ? "immagine" : "video",
+    tecnico: c.tecnico,
+    descrizione: c.analisi?.descrizione,
+    momenti: c.analisi?.momenti,
+    problemi: c.analisi?.problemi,
+    parlato: c.analisi?.parlato,
+    trascrizione: (c.analisi?.misure?.parlato?.trascrizione || []).slice(0, 60),
+    testo_nell_immagine: c.analisi?.testo_nell_immagine || void 0,
+    verticale: c.analisi?.adatta_al_verticale
+  }));
+  const prima = J(L.montaggio, null);
+  if (!clip.length) {
+    await log(env, L.id, "regista", "nessun girato: scrivo la lista delle inquadrature da girare o da trovare");
+    const lr = await claude(cfg, SISTEMA_REGISTA, `SCHEDA TECNICA:
+${JSON.stringify(scheda2)}
 
 Non c'\xE8 ancora girato. Scrivi la LISTA DELLE RIPRESE necessarie per montare questo reel, nell'ordine del montaggio.
 JSON: {"riprese": [{"n": 1, "fase": "gancio|sviluppo|climax|chiusura", "inquadratura": "totale|piano_medio|primo_piano|dettaglio|macro", "cosa": "...", "movimento": "...", "durata_utile_sec": n, "fps_consigliati": 25|50|60, "note": "luce, angolo, cosa evitare"}],
- "consigli_ripresa": ["..."], "ganci_alternativi": [{"testo": "...", "meccanismo": "..."}], "caption": "...", "hashtag": ["..."]}`,{maxTokens:6e3});return await A(i,"UPDATE lavori SET montaggio=? WHERE id=?",JSON.stringify({stato:"senza_girato",lista_riprese:u,creato:w()}),o.id),await h(i,o.id,"regista",`lista pronta: ${(u.riprese||[]).length} inquadrature. Aggiungi il girato dalla pagina del lavoro e monto.`),"salta"}let l=n?.indicazioni_rimonta;await h(i,o.id,"regista",l?`rimonto con le tue indicazioni: ${l.testo||""}`:`scrivo il piano di montaggio da ${a.length} clip`);let d=l?`
+ "consigli_ripresa": ["..."], "ganci_alternativi": [{"testo": "...", "meccanismo": "..."}], "caption": "...", "hashtag": ["..."]}`, { maxTokens: 6e3 });
+    await run(env, "UPDATE lavori SET montaggio=? WHERE id=?", JSON.stringify({ stato: "senza_girato", lista_riprese: lr, creato: ora() }), L.id);
+    await log(env, L.id, "regista", `lista pronta: ${(lr.riprese || []).length} inquadrature. Aggiungi il girato dalla pagina del lavoro e monto.`);
+    return "salta";
+  }
+  const indicazioni = prima?.indicazioni_rimonta;
+  await log(env, L.id, "regista", indicazioni ? `rimonto con le tue indicazioni: ${indicazioni.testo || ""}` : `scrivo il piano di montaggio da ${clip.length} clip`);
+  const extra = indicazioni ? `
 
 QUESTO \xC8 UN NUOVO MONTAGGIO. Piano precedente:
-${JSON.stringify(n.piano||{})}
+${JSON.stringify(prima.piano || {})}
 
 INDICAZIONI DI JOHNNY PER IL NUOVO MONTAGGIO (hanno la precedenza sulla scheda):
-${JSON.stringify(l)}
-Cambia davvero quello che chiede, il resto miglioralo se puoi.`:"",r=await C(e,hi,Qi(t,a)+d,{maxTokens:12e3}),s=T(o.clip,[]),c=(r.segmenti||[]).filter(u=>s[u.clip]?.stato==="fatto").slice(0,40).map((u,y)=>{let b=s[u.clip],R=Number(b.tecnico?.durata_sec)||9999,_=Math.min(Math.max(Number(u.durata)||1.5,.4),12),I=!!u.rallenty,Li=_*(I?.5:1);return{clip:u.clip,fileid:b.sorgente?.tipo==="url"?null:b.fileid,url:b.sorgente?.tipo==="url"?b.sorgente.url:null,nome:b.nome,in:Math.max(0,Math.min(Number(u.in)||0,Math.max(0,R-Li-.05))),durata:_,rallenty:I,effetto:wi.includes(u.effetto)?u.effetto:"nessuno",transizione_in:y===0?null:Ei.includes(u.transizione_in)?u.transizione_in:"taglio_netto",audio:Math.min(1,Math.max(0,Number(u.audio??.8))),motivo:u.motivo,testo:u.testo?.testo?u.testo:null}});if(!c.length)throw new Error("il piano del Regista non contiene pezzi validi");let g=l?.look&&M.includes(l.look)?l.look:null,p=r.copertina&&s[r.copertina.clip]?.stato==="fatto"?{fileid:s[r.copertina.clip].fileid,url:s[r.copertina.clip].sorgente?.url||null,secondo:Math.max(0,Number(r.copertina.secondo)||0),testo:String(r.copertina.testo||"").slice(0,60)}:null,v={...r,segmenti:c,look:g||(M.includes(r.look)?r.look:M.includes(t.colore?.look)?t.colore.look:"naturale_vivace"),effetti_globali:(r.effetti_globali||[]).filter(u=>Ti.includes(u)),copertina:p},m=(n?.versione||0)+1;await A(i,"UPDATE lavori SET montaggio=? WHERE id=?",JSON.stringify({stato:"da_fare",piano:v,versione:m,creato:w(),indicazioni:l||null}),o.id);let f=c.reduce((u,y)=>u+y.durata,0);return await h(i,o.id,"regista",`piano pronto: ${c.length} pezzi, ~${Math.round(f+(v.chiusura?.durata||0))} s, look ${v.look}`),(c.some(u=>u.testo)||v.chiusura)&&await h(i,o.id,"copy",`testi: ${[...c.filter(u=>u.testo).map(u=>'"'+u.testo.testo+'"'),v.chiusura?.testo?'"'+v.chiusura.testo+'"':""].filter(Boolean).join(" \xB7 ").slice(0,300)}`),await h(i,o.id,"motore","chiamo il motore GitHub per il montaggio"),!0}async function ee(i,e,o){let t=T(o.montaggio,null);if(!t||t.stato==="fatto")return!0;if(t.stato==="errore")throw new Error("montaggio non riuscito: "+(t.errore||""));return q(i,o)}async function oe(i,e,o,t){for(;Date.now()<t;){o=await O(i,"SELECT * FROM lavori WHERE id=?",o.id);let a=!0;if(o.fase==="piano"?await Wi(i,e,o):o.fase==="ricerca"?await Ji(i,e,o):o.fase==="riferimenti"?a=await Xi(i,e,o):o.fase==="clip"?a=await Vi(i,e,o):o.fase==="scheda"?await Zi(i,e,o):o.fase==="regia"?a=await ie(i,e,o):o.fase==="montaggio"&&(a=await ee(i,e,o)),!a)return"attesa";let n=gi[gi.indexOf(o.fase)+1];if(a==="salta"&&(n="fatto"),await A(i,"UPDATE lavori SET fase=?, stato=?, tentativi=0, aggiornato=? WHERE id=?",n,n==="fatto"?"pronto":"in_corso",w(),o.id),n==="fatto"){await h(i,o.id,"regia",T((await O(i,"SELECT montaggio FROM lavori WHERE id=?",o.id))?.montaggio,null)?.stato==="fatto"?"\u2705 reel montato: aprilo e guardalo":"\u2705 lavoro pronto: apri la scheda");return}}}async function Ai(i){let e=Date.now(),o=await k(i),t=w(),a=new Date(Date.now()+Fi*6e4).toISOString();for(let n=0;n<5&&Date.now()-e<fi-6e4;n++){let l=await N(i,`UPDATE lavori SET blocco_fino=?, tentativi=tentativi+1, aggiornato=?
+${JSON.stringify(indicazioni)}
+Cambia davvero quello che chiede, il resto miglioralo se puoi.` : "";
+  const p = await claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda2, clip) + extra, { maxTokens: 12e3 });
+  const tutte = J(L.clip, []);
+  const eImm = (c) => c?.tipo === "immagine" || c?.tecnico?.tipo === "immagine";
+  const sorg = (c) => ({ fileid: c.sorgente?.tipo === "url" ? null : c.fileid, url: c.sorgente?.tipo === "url" ? c.sorgente.url : null, nome: c.nome });
+  let formato = FORMATI_REEL.includes(indicazioni?.formato) ? indicazioni.formato : FORMATI_REEL.includes(p.formato) ? p.formato : "montaggio";
+  const slide = (p.slide || []).filter((s) => tutte[s.clip]?.stato === "fatto" && eImm(tutte[s.clip])).slice(0, 20).map((s) => ({ clip: s.clip, ...sorg(tutte[s.clip]), durata: Math.min(Math.max(Number(s.durata) || 2.2, 1.8), 8) }));
+  if (formato === "carosello" && slide.length < 2) {
+    const foto = tutte.map((c, i) => ({ c, i })).filter(({ c }) => c.stato === "fatto" && eImm(c));
+    if (foto.length >= 2) slide.push(...foto.slice(0, 15).map(({ c, i }) => ({ clip: i, ...sorg(c), durata: 2.2 })));
+    else formato = "montaggio";
+  }
+  const parla = (c) => c?.analisi?.misure?.parlato?.presente || c?.analisi?.parlato?.presente;
+  if (formato === "talking_head" && !(p.segmenti || []).some((s) => parla(tutte[s.clip]))) formato = "montaggio";
+  const seg = (p.segmenti || []).filter((s) => tutte[s.clip]?.stato === "fatto" && !eImm(tutte[s.clip])).slice(0, formato === "talking_head" ? 30 : 40).map((s, k) => {
+    const c = tutte[s.clip];
+    const durClip = Number(c.tecnico?.durata_sec) || 9999;
+    const durata = Math.min(Math.max(Number(s.durata) || 1.5, 0.4), formato === "talking_head" ? 90 : 12);
+    const rallenty = !!s.rallenty;
+    const serve = durata * (rallenty ? 0.5 : 1);
+    return {
+      clip: s.clip,
+      fileid: c.sorgente?.tipo === "url" ? null : c.fileid,
+      url: c.sorgente?.tipo === "url" ? c.sorgente.url : null,
+      nome: c.nome,
+      in: Math.max(0, Math.min(Number(s.in) || 0, Math.max(0, durClip - serve - 0.05))),
+      durata,
+      rallenty,
+      effetto: EFFETTI_PEZZO.includes(s.effetto) ? s.effetto : "nessuno",
+      transizione_in: k === 0 ? null : TRANSIZIONI.includes(s.transizione_in) ? s.transizione_in : "taglio_netto",
+      audio: Math.min(1, Math.max(0, Number(s.audio ?? 0.8))),
+      motivo: s.motivo,
+      testo: s.testo?.testo ? s.testo : null
+    };
+  });
+  if (!seg.length && formato !== "carosello") throw new Error("il piano del Regista non contiene pezzi validi");
+  const broll = formato !== "talking_head" ? [] : (p.broll || []).filter((b) => tutte[b.clip]?.stato === "fatto" && !eImm(tutte[b.clip]) && b.sulla_parola).slice(0, 8).map((b) => {
+    const c = tutte[b.clip];
+    const durata = Math.min(Math.max(Number(b.durata) || 2, 1), 3.5);
+    return { clip: b.clip, ...sorg(c), in: Math.max(0, Math.min(Number(b.in) || 0, Math.max(0, (Number(c.tecnico?.durata_sec) || 9999) - durata * (b.rallenty ? 0.5 : 1) - 0.05))), durata, rallenty: !!b.rallenty, sulla_parola: String(b.sulla_parola).slice(0, 40) };
+  });
+  const lookVoluto = indicazioni?.look && LOOKS.includes(indicazioni.look) ? indicazioni.look : null;
+  const cop = p.copertina && tutte[p.copertina.clip]?.stato === "fatto" ? { fileid: tutte[p.copertina.clip].fileid, url: tutte[p.copertina.clip].sorgente?.url || null, secondo: Math.max(0, Number(p.copertina.secondo) || 0), testo: String(p.copertina.testo || "").slice(0, 60) } : null;
+  const piano2 = {
+    ...p,
+    formato,
+    segmenti: formato === "carosello" ? [] : seg,
+    broll,
+    slide: formato === "carosello" ? slide : [],
+    chiusura: formato === "montaggio" ? p.chiusura : null,
+    look: lookVoluto || (LOOKS.includes(p.look) ? p.look : LOOKS.includes(scheda2.colore?.look) ? scheda2.colore.look : "naturale_vivace"),
+    effetti_globali: (p.effetti_globali || []).filter((e) => EFFETTI_GLOBALI.includes(e)),
+    copertina: cop
+  };
+  const versione = (prima?.versione || 0) + 1;
+  await run(env, "UPDATE lavori SET montaggio=? WHERE id=?", JSON.stringify({ stato: "da_fare", piano: piano2, versione, creato: ora(), indicazioni: indicazioni || null }), L.id);
+  const tot = seg.reduce((a, s) => a + s.durata, 0);
+  const nomeF = { montaggio: "montaggio", talking_head: "talking-head", carosello: "carosello" }[formato];
+  await log(env, L.id, "regista", formato === "carosello" ? `piano pronto: formato carosello, ${slide.length} slide` : `piano pronto: formato ${nomeF}, ${seg.length} ${formato === "talking_head" ? "tratti di parlato" : "pezzi"}${broll.length ? ` + ${broll.length} b-roll` : ""}, ~${Math.round(tot + (piano2.chiusura?.durata || 0))} s, look ${piano2.look}`);
+  if (seg.some((s) => s.testo) || piano2.chiusura) await log(env, L.id, "copy", `testi: ${[...seg.filter((s) => s.testo).map((s) => '"' + s.testo.testo + '"'), piano2.chiusura?.testo ? '"' + piano2.chiusura.testo + '"' : ""].filter(Boolean).join(" \xB7 ").slice(0, 300)}`);
+  await log(env, L.id, "motore", "chiamo il motore GitHub per il montaggio");
+  return true;
+}
+async function faseMontaggio(env, cfg, L) {
+  const m = J(L.montaggio, null);
+  if (!m) return true;
+  if (m.stato === "fatto") return true;
+  if (m.stato === "errore") throw new Error("montaggio non riuscito: " + (m.errore || ""));
+  return avvisoMotore(env, L);
+}
+async function lavora(env, cfg, L, scadenza) {
+  while (Date.now() < scadenza) {
+    L = await one(env, "SELECT * FROM lavori WHERE id=?", L.id);
+    let finita = true;
+    if (L.fase === "piano") await fasePiano(env, cfg, L);
+    else if (L.fase === "ricerca") await faseRicerca(env, cfg, L);
+    else if (L.fase === "riferimenti") finita = await faseRiferimenti(env, cfg, L);
+    else if (L.fase === "clip") finita = await faseClip(env, cfg, L);
+    else if (L.fase === "scheda") await faseScheda(env, cfg, L);
+    else if (L.fase === "regia") finita = await faseRegia(env, cfg, L);
+    else if (L.fase === "montaggio") finita = await faseMontaggio(env, cfg, L);
+    if (!finita) return "attesa";
+    let prossima = FASI[FASI.indexOf(L.fase) + 1];
+    if (finita === "salta") prossima = "fatto";
+    await run(
+      env,
+      "UPDATE lavori SET fase=?, stato=?, tentativi=0, aggiornato=? WHERE id=?",
+      prossima,
+      prossima === "fatto" ? "pronto" : "in_corso",
+      ora(),
+      L.id
+    );
+    if (prossima === "fatto") {
+      await log(env, L.id, "regia", J((await one(env, "SELECT montaggio FROM lavori WHERE id=?", L.id))?.montaggio, null)?.stato === "fatto" ? "\u2705 reel montato: aprilo e guardalo" : "\u2705 lavoro pronto: apri la scheda");
+      return;
+    }
+  }
+}
+async function avanza(env) {
+  const inizio = Date.now();
+  const cfg = await configurazione(env);
+  const adesso = ora();
+  const libero = new Date(Date.now() + BLOCCO_MIN * 6e4).toISOString();
+  for (let giri = 0; giri < 5 && Date.now() - inizio < BUDGET_MS - 6e4; giri++) {
+    const presi = await all(env, `UPDATE lavori SET blocco_fino=?, tentativi=tentativi+1, aggiornato=?
       WHERE id = (SELECT id FROM lavori WHERE stato='in_corso' AND (blocco_fino IS NULL OR blocco_fino < ?) ORDER BY id LIMIT 1)
-      RETURNING *`,a,t,t);if(!l.length)return;let d=l[0];try{await oe(i,o,d,e+fi)==="attesa"?await A(i,"UPDATE lavori SET blocco_fino=?, tentativi=0 WHERE id=?",new Date(Date.now()+5e4).toISOString(),d.id):await A(i,"UPDATE lavori SET blocco_fino=NULL WHERE id=?",d.id)}catch(r){let s=String(r?.message||r).slice(0,500),c=d.tentativi>=3||/manca la chiave/.test(s),g=new Date(Date.now()+2*6e4).toISOString();await A(i,"UPDATE lavori SET stato=?, errore=?, blocco_fino=?, aggiornato=? WHERE id=?",c?"errore":"in_corso",s,c?null:g,w(),d.id);let p=(await O(i,"SELECT fase FROM lavori WHERE id=?",d.id))?.fase||d.fase;await h(i,d.id,"regia",`${c?"\u274C fermo":"\u26A0\uFE0F riprovo tra 2 minuti"} (fase ${p}): ${s}`,c?"errore":"warn")}}}var ae="johnhant91/momento-montaggio",te="momento-reel",re={riferimenti:"riferimenti",clip:"clip"},x=(i,e=200)=>new Response(JSON.stringify(i),{status:e,headers:{"content-type":"application/json","cache-control":"no-store"}}),W=i=>Uint8Array.from(atob(i.replace(/-/g,"+").replace(/_/g,"/").padEnd(Math.ceil(i.length/4)*4,"=")),e=>e.charCodeAt(0));async function ne(i){let o=String(i||"").replace(/^Bearer\s+/i,"").trim().split(".");if(o.length!==3)return null;let t,a;try{t=JSON.parse(new TextDecoder().decode(W(o[0]))),a=JSON.parse(new TextDecoder().decode(W(o[1])))}catch{return null}let n=Array.isArray(a.aud)?a.aud:[a.aud];if(a.iss!=="https://token.actions.githubusercontent.com"||!n.includes(te)||String(a.repository||"").toLowerCase()!==ae||!a.exp||a.exp*1e3<Date.now())return null;let d=((await(await fetch("https://token.actions.githubusercontent.com/.well-known/jwks",{cf:{cacheTtl:3600,cacheEverything:!0}})).json()).keys||[]).find(c=>c.kid===t.kid);if(!d)return null;let r=await crypto.subtle.importKey("jwk",d,{name:"RSASSA-PKCS1-v1_5",hash:"SHA-256"},!1,["verify"]);return await crypto.subtle.verify("RSASSA-PKCS1-v1_5",r,W(o[2]),new TextEncoder().encode(o[0]+"."+o[1]))?a:null}var Ii=i=>{try{return new URL(i).searchParams.get("code")}catch{return null}};async function J(i,e,o,t,a){await A(i,`UPDATE lavori SET ${o}=json_set(${o}, ?, json(?)), motore_visto=? WHERE id=?`,`$[${Math.trunc(t)}]`,JSON.stringify(a),w(),e)}var P=i=>`EXISTS (SELECT 1 FROM json_each(lavori.${i}) WHERE json_extract(value, '$.stato')='da_guardare')`;async function Si(i,e,o){let t=o.pathname,a=i.method;if(t==="/api/motore/coda"&&a==="GET"){let m=await O(e,`SELECT COUNT(*) AS n FROM lavori WHERE stato='in_corso' AND (
-      (fase='riferimenti' AND riferimenti IS NOT NULL AND ${P("riferimenti")}) OR (fase='clip' AND clip IS NOT NULL AND ${P("clip")}) OR
-      (fase='montaggio' AND json_extract(montaggio, '$.stato')='da_fare'))`);return x({lavoro:(m?.n||0)>0})}if(t==="/api/motore/prossimo"&&a==="POST"){if(!await ne(i.headers.get("authorization")))return x({errore:"motore non riconosciuto"},401);let m=w(),f=[...crypto.getRandomValues(new Uint8Array(24))].map(_=>_.toString(16).padStart(2,"0")).join(""),u=await O(e,`UPDATE lavori SET motore_pass=?, motore_fino=?, motore_visto=? WHERE id = (
+      RETURNING *`, libero, adesso, adesso);
+    if (!presi.length) return;
+    const L = presi[0];
+    try {
+      const esito = await lavora(env, cfg, L, inizio + BUDGET_MS);
+      if (esito === "attesa") await run(env, "UPDATE lavori SET blocco_fino=?, tentativi=0 WHERE id=?", new Date(Date.now() + 5e4).toISOString(), L.id);
+      else await run(env, "UPDATE lavori SET blocco_fino=NULL WHERE id=?", L.id);
+    } catch (e) {
+      const msg = String(e?.message || e).slice(0, 500);
+      const stop = L.tentativi >= 3 || /manca la chiave/.test(msg);
+      const pausa = new Date(Date.now() + 2 * 6e4).toISOString();
+      await run(env, "UPDATE lavori SET stato=?, errore=?, blocco_fino=?, aggiornato=? WHERE id=?", stop ? "errore" : "in_corso", msg, stop ? null : pausa, ora(), L.id);
+      const fase = (await one(env, "SELECT fase FROM lavori WHERE id=?", L.id))?.fase || L.fase;
+      await log(env, L.id, "regia", `${stop ? "\u274C fermo" : "\u26A0\uFE0F riprovo tra 2 minuti"} (fase ${fase}): ${msg}`, stop ? "errore" : "warn");
+    }
+  }
+}
+
+// src/motore.js
+var REPO = "johnhant91/momento-montaggio";
+var AUD = "momento-reel";
+var COLONNA = { riferimenti: "riferimenti", clip: "clip" };
+var json = (d, status = 200) => new Response(JSON.stringify(d), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
+var b64u = (s) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(s.length / 4) * 4, "=")), (c) => c.charCodeAt(0));
+async function identitaGitHub(auth) {
+  const tok = String(auth || "").replace(/^Bearer\s+/i, "").trim();
+  const parti = tok.split(".");
+  if (parti.length !== 3) return null;
+  let hdr, pl;
+  try {
+    hdr = JSON.parse(new TextDecoder().decode(b64u(parti[0])));
+    pl = JSON.parse(new TextDecoder().decode(b64u(parti[1])));
+  } catch {
+    return null;
+  }
+  const aud = Array.isArray(pl.aud) ? pl.aud : [pl.aud];
+  if (pl.iss !== "https://token.actions.githubusercontent.com" || !aud.includes(AUD)) return null;
+  if (String(pl.repository || "").toLowerCase() !== REPO || !pl.exp || pl.exp * 1e3 < Date.now()) return null;
+  const jwks = await (await fetch("https://token.actions.githubusercontent.com/.well-known/jwks", { cf: { cacheTtl: 3600, cacheEverything: true } })).json();
+  const jwk = (jwks.keys || []).find((k) => k.kid === hdr.kid);
+  if (!jwk) return null;
+  const key = await crypto.subtle.importKey("jwk", jwk, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
+  const ok = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, b64u(parti[2]), new TextEncoder().encode(parti[0] + "." + parti[1]));
+  return ok ? pl : null;
+}
+var codice = (link) => {
+  try {
+    return new URL(link).searchParams.get("code");
+  } catch {
+    return null;
+  }
+};
+async function aggiorna(env, id, colonna, indice, el) {
+  await run(env, `UPDATE lavori SET ${colonna}=json_set(${colonna}, ?, json(?)), motore_visto=? WHERE id=?`, `$[${Math.trunc(indice)}]`, JSON.stringify(el), ora(), id);
+}
+var PENDENTE = (col) => `EXISTS (SELECT 1 FROM json_each(lavori.${col}) WHERE json_extract(value, '$.stato')='da_guardare')`;
+async function motoreApi(req, env, url) {
+  const p = url.pathname, m = req.method;
+  if (p === "/api/motore/coda" && m === "GET") {
+    const r = await one(env, `SELECT COUNT(*) AS n FROM lavori WHERE stato='in_corso' AND (
+      (fase='riferimenti' AND riferimenti IS NOT NULL AND ${PENDENTE("riferimenti")}) OR (fase='clip' AND clip IS NOT NULL AND ${PENDENTE("clip")}) OR
+      (fase='montaggio' AND json_extract(montaggio, '$.stato')='da_fare'))`);
+    return json({ lavoro: (r?.n || 0) > 0 });
+  }
+  if (p === "/api/motore/prossimo" && m === "POST") {
+    if (!await identitaGitHub(req.headers.get("authorization"))) return json({ errore: "motore non riconosciuto" }, 401);
+    const adesso = ora();
+    const pass2 = [...crypto.getRandomValues(new Uint8Array(24))].map((b) => b.toString(16).padStart(2, "0")).join("");
+    const L2 = await one(env, `UPDATE lavori SET motore_pass=?, motore_fino=?, motore_visto=? WHERE id = (
         SELECT id FROM lavori WHERE stato='in_corso' AND (motore_fino IS NULL OR motore_fino < ?) AND (
-          (fase='riferimenti' AND riferimenti IS NOT NULL AND ${P("riferimenti")}) OR
-          (fase='clip' AND clip IS NOT NULL AND ${P("clip")}) OR
+          (fase='riferimenti' AND riferimenti IS NOT NULL AND ${PENDENTE("riferimenti")}) OR
+          (fase='clip' AND clip IS NOT NULL AND ${PENDENTE("clip")}) OR
           (fase='montaggio' AND json_extract(montaggio, '$.stato')='da_fare'))
         ORDER BY id LIMIT 1)
-      RETURNING id, fase, pcloud, riferimenti, clip, montaggio`,f,new Date(Date.now()+55*6e4).toISOString(),m,m);if(!u)return new Response(null,{status:204});let y=u.fase;if(y==="montaggio"){let _=T(u.montaggio,{});return await h(e,u.id,"motore",`\u2699\uFE0F motore GitHub al lavoro: scarico ${new Set(_.piano.segmenti.map(I=>I.fileid)).size} clip e monto il reel`),x({id:u.id,tipo:y,pass:f,pcloud_code:Ii(u.pcloud),pcloud_eu:/(^|\/\/)e\.|eapi/.test(u.pcloud||""),piano:_.piano})}let R=T(y==="riferimenti"?u.riferimenti:u.clip,[]).map((_,I)=>[_,I]).filter(([_])=>_.stato==="da_guardare").map(([_,I])=>y==="riferimenti"?{indice:I,nome:`${_.video.piattaforma} \xB7 ${(_.video.titolo||_.video.url||"").slice(0,60)}`,url:_.video.url,video_url:_.video.video_url?_.video.video_url.includes("api.apify.com")?`${o.origin}/api/motore/${u.id}/scarica?i=${I}&tipo=riferimenti&pass=${f}`:_.video.video_url:null}:{indice:I,nome:_.nome,fileid:_.sorgente?.tipo==="pcloud"||!_.sorgente?_.fileid:null,video_url:_.sorgente?.tipo==="url"?_.sorgente.url:null,dimensione:_.dimensione});return await h(e,u.id,"motore",`\u2699\uFE0F motore GitHub al lavoro: ${R.length} ${y==="riferimenti"?"reel da scaricare e misurare":"clip da scaricare e misurare"}`),x({id:u.id,tipo:y,pass:f,pcloud_code:Ii(u.pcloud),pcloud_eu:/(^|\/\/)e\.|eapi/.test(u.pcloud||""),elementi:R})}let n=t.match(/^\/api\/motore\/(\d+)\/(elemento|errore|fine|scarica|log|video|anteprima|copertina|esito)$/);if(!n)return x({errore:"non trovato"},404);let l=Number(n[1]),d=await O(e,"SELECT id, prompt, piano, fase, riferimenti, clip, montaggio, motore_pass FROM lavori WHERE id=?",l),r=i.headers.get("x-pass")||o.searchParams.get("pass")||"";if(!d||!d.motore_pass||r.length<32||r!==d.motore_pass)return x({errore:"lasciapassare non valido"},403);let s=re[o.searchParams.get("tipo")]||(d.fase==="riferimenti"?"riferimenti":"clip"),c=T(d[s],[]),g=Number(o.searchParams.get("i")),p=c[g],v=m=>s==="riferimenti"?`${m.video.piattaforma} ${m.video.id}`:m.nome;if(n[2]==="log"&&a==="POST"){let m=await i.json().catch(()=>({})),f=["editor","vfx","color","audio","sottotitoli","revisore","motore"].includes(m.agente)?m.agente:"motore";return await h(e,l,f,String(m.messaggio||"").slice(0,300),m.livello==="warn"?"warn":"info"),await A(e,"UPDATE lavori SET motore_visto=? WHERE id=?",w(),l),x({ok:!0})}if((n[2]==="video"||n[2]==="anteprima"||n[2]==="copertina")&&a==="POST"){if(!e.VIDEO)return x({errore:"archivio video non collegato"},500);let m=Number(i.headers.get("content-length")||0);if(!m||m>25*1024*1024)return x({errore:`file di ${Math.round(m/1048576)} MB: oltre il limite di 25 MB`},400);let f=`lavoro-${l}/${n[2]==="video"?"reel.mp4":n[2]+".jpg"}`;return await e.VIDEO.put(f,await i.arrayBuffer(),{metadata:{tipo:n[2]==="video"?"video/mp4":"image/jpeg"}}),x({ok:!0,chiave:f})}if(n[2]==="esito"&&a==="POST"){let m=await i.json().catch(()=>({})),f=T(d.montaggio,{});return m.errore?(f.tentativi=(f.tentativi||0)+1,f.errore=String(m.errore).slice(0,500),f.stato=f.tentativi<2?"da_fare":"errore",await h(e,l,"editor",`montaggio non riuscito: ${f.errore.slice(0,200)}${f.stato==="da_fare"?" \u2014 riprovo":""}`,"warn")):(Object.assign(f,{stato:"fatto",revisore:m.revisore||{},video:`lavoro-${l}/reel.mp4`,anteprima:`lavoro-${l}/anteprima.jpg`,copertina:m.copertina?`lavoro-${l}/copertina.jpg`:null,finito:w()}),delete f.indicazioni_rimonta),await A(e,"UPDATE lavori SET montaggio=?, motore_pass=NULL, motore_fino=NULL, motore_visto=? WHERE id=?",JSON.stringify(f),w(),l),x({ok:!0})}if(n[2]==="scarica"&&a==="GET"){if(!p?.video?.video_url)return x({errore:"niente da scaricare"},404);let m=await k(e),f=await fetch(p.video.video_url,{headers:{authorization:`Bearer ${m.APIFY_TOKEN}`}});return new Response(f.body,{status:f.status,headers:{"content-type":f.headers.get("content-type")||"video/mp4",...f.headers.get("content-length")?{"content-length":f.headers.get("content-length")}:{}}})}if(n[2]==="elemento"&&a==="POST"){if(!p)return x({errore:"elemento sconosciuto"},400);let m=await i.json().catch(()=>null);if(!m?.misure||!Array.isArray(m.immagini)||!m.immagini.length)return x({errore:"dati mancanti"},400);let f=await k(e),u=s==="riferimenti",y=u?"occhi":"analista",b=m.misure;await h(e,l,y,`sto guardando ${u?p.video.piattaforma+" \xB7 "+(p.video.titolo||p.video.url).slice(0,50):p.nome} (${b.tecnico?.risoluzione||"?"} \xB7 ${b.tecnico?.fps||"?"} fps \xB7 ${b.numero_tagli} tagli${b.bpm_stimato?" \xB7 "+b.bpm_stimato+" BPM":""})`);try{let R=u?_i(T(d.piano,{}).settore||""):bi(d.prompt),_=`MISURE ESATTE (ffmpeg + Whisper):
-${JSON.stringify(b)}
+      RETURNING id, fase, pcloud, riferimenti, clip, montaggio`, pass2, new Date(Date.now() + 55 * 6e4).toISOString(), adesso, adesso);
+    if (!L2) return new Response(null, { status: 204 });
+    const tipo2 = L2.fase;
+    if (tipo2 === "montaggio") {
+      const m2 = J(L2.montaggio, {});
+      await log(env, L2.id, "motore", `\u2699\uFE0F motore GitHub al lavoro: scarico ${new Set(m2.piano.segmenti.map((s) => s.fileid)).size} clip e monto il reel`);
+      return json({ id: L2.id, tipo: tipo2, pass: pass2, pcloud_code: codice(L2.pcloud), pcloud_eu: /(^|\/\/)e\.|eapi/.test(L2.pcloud || ""), piano: m2.piano });
+    }
+    const elenco2 = J(tipo2 === "riferimenti" ? L2.riferimenti : L2.clip, []);
+    const elementi = elenco2.map((x, i) => [x, i]).filter(([x]) => x.stato === "da_guardare").map(([x, i]) => tipo2 === "riferimenti" ? {
+      indice: i,
+      nome: `${x.video.piattaforma} \xB7 ${(x.video.titolo || x.video.url || "").slice(0, 60)}`,
+      url: x.video.url,
+      // i file di Apify li scarica la regia (ha il token), il motore passa da qui
+      video_url: x.video.video_url ? x.video.video_url.includes("api.apify.com") ? `${url.origin}/api/motore/${L2.id}/scarica?i=${i}&tipo=riferimenti&pass=${pass2}` : x.video.video_url : null
+    } : { indice: i, nome: x.nome, fileid: x.sorgente?.tipo === "pcloud" || !x.sorgente ? x.fileid : null, video_url: x.sorgente?.tipo === "url" ? x.sorgente.url : null, dimensione: x.dimensione });
+    await log(env, L2.id, "motore", `\u2699\uFE0F motore GitHub al lavoro: ${elementi.length} ${tipo2 === "riferimenti" ? "reel da scaricare e misurare" : "clip da scaricare e misurare"}`);
+    return json({ id: L2.id, tipo: tipo2, pass: pass2, pcloud_code: codice(L2.pcloud), pcloud_eu: /(^|\/\/)e\.|eapi/.test(L2.pcloud || ""), elementi });
+  }
+  const mm = p.match(/^\/api\/motore\/(\d+)\/(elemento|errore|fine|scarica|log|video|anteprima|copertina|esito)$/);
+  if (!mm) return json({ errore: "non trovato" }, 404);
+  const id = Number(mm[1]);
+  const L = await one(env, "SELECT id, prompt, piano, fase, riferimenti, clip, montaggio, motore_pass FROM lavori WHERE id=?", id);
+  const pass = req.headers.get("x-pass") || url.searchParams.get("pass") || "";
+  if (!L || !L.motore_pass || pass.length < 32 || pass !== L.motore_pass) return json({ errore: "lasciapassare non valido" }, 403);
+  const tipo = COLONNA[url.searchParams.get("tipo")] || (L.fase === "riferimenti" ? "riferimenti" : "clip");
+  const elenco = J(L[tipo], []);
+  const indice = Number(url.searchParams.get("i"));
+  const el = elenco[indice];
+  const nome = (x) => tipo === "riferimenti" ? `${x.video.piattaforma} ${x.video.id}` : x.nome;
+  if (mm[2] === "log" && m === "POST") {
+    const d = await req.json().catch(() => ({}));
+    const ag = ["editor", "vfx", "color", "audio", "sottotitoli", "revisore", "motore"].includes(d.agente) ? d.agente : "motore";
+    await log(env, id, ag, String(d.messaggio || "").slice(0, 300), d.livello === "warn" ? "warn" : "info");
+    await run(env, "UPDATE lavori SET motore_visto=? WHERE id=?", ora(), id);
+    return json({ ok: true });
+  }
+  if ((mm[2] === "video" || mm[2] === "anteprima" || mm[2] === "copertina") && m === "POST") {
+    if (!env.VIDEO) return json({ errore: "archivio video non collegato" }, 500);
+    const lunghezza = Number(req.headers.get("content-length") || 0);
+    if (!lunghezza || lunghezza > 25 * 1024 * 1024) return json({ errore: `file di ${Math.round(lunghezza / 1048576)} MB: oltre il limite di 25 MB` }, 400);
+    const chiave = `lavoro-${id}/${mm[2] === "video" ? "reel.mp4" : mm[2] + ".jpg"}`;
+    await env.VIDEO.put(chiave, await req.arrayBuffer(), { metadata: { tipo: mm[2] === "video" ? "video/mp4" : "image/jpeg" } });
+    return json({ ok: true, chiave });
+  }
+  if (mm[2] === "esito" && m === "POST") {
+    const d = await req.json().catch(() => ({}));
+    const mont = J(L.montaggio, {});
+    if (d.errore) {
+      mont.tentativi = (mont.tentativi || 0) + 1;
+      mont.errore = String(d.errore).slice(0, 500);
+      mont.stato = mont.tentativi < 2 ? "da_fare" : "errore";
+      await log(env, id, "editor", `montaggio non riuscito: ${mont.errore.slice(0, 200)}${mont.stato === "da_fare" ? " \u2014 riprovo" : ""}`, "warn");
+    } else {
+      Object.assign(mont, { stato: "fatto", revisore: d.revisore || {}, video: `lavoro-${id}/reel.mp4`, anteprima: `lavoro-${id}/anteprima.jpg`, copertina: d.copertina ? `lavoro-${id}/copertina.jpg` : null, finito: ora() });
+      delete mont.indicazioni_rimonta;
+    }
+    await run(env, "UPDATE lavori SET montaggio=?, motore_pass=NULL, motore_fino=NULL, motore_visto=? WHERE id=?", JSON.stringify(mont), ora(), id);
+    return json({ ok: true });
+  }
+  if (mm[2] === "scarica" && m === "GET") {
+    if (!el?.video?.video_url) return json({ errore: "niente da scaricare" }, 404);
+    const cfg = await configurazione(env);
+    const r = await fetch(el.video.video_url, { headers: { authorization: `Bearer ${cfg.APIFY_TOKEN}` } });
+    return new Response(r.body, { status: r.status, headers: { "content-type": r.headers.get("content-type") || "video/mp4", ...r.headers.get("content-length") ? { "content-length": r.headers.get("content-length") } : {} } });
+  }
+  if (mm[2] === "elemento" && m === "POST") {
+    if (!el) return json({ errore: "elemento sconosciuto" }, 400);
+    const d = await req.json().catch(() => null);
+    if (!d?.misure || !Array.isArray(d.immagini) || !d.immagini.length) return json({ errore: "dati mancanti" }, 400);
+    const cfg = await configurazione(env);
+    const rif = tipo === "riferimenti";
+    const agente = rif ? "occhi" : "analista";
+    const mis = d.misure;
+    await log(env, id, agente, `sto guardando ${rif ? el.video.piattaforma + " \xB7 " + (el.video.titolo || el.video.url).slice(0, 50) : el.nome} (${mis.tecnico?.tipo === "immagine" ? "foto " + (mis.tecnico?.risoluzione || "") : `${mis.tecnico?.risoluzione || "?"} \xB7 ${mis.tecnico?.fps || "?"} fps \xB7 ${mis.numero_tagli} tagli${mis.bpm_stimato ? " \xB7 " + mis.bpm_stimato + " BPM" : ""}`})`);
+    try {
+      const sistema = rif ? analisiRiferimento(J(L.piano, {}).settore || "") : analisiClip(L.prompt);
+      const testo = `MISURE ESATTE (ffmpeg + Whisper):
+${JSON.stringify(mis)}
 
-Rispondi SOLO con il JSON richiesto.`,I=await ii(f,u?f.CLAUDE_MODEL:f.CLAUDE_MODEL_LIGHT,R,_,m.immagini.slice(0,3),7e3);return u?(Object.assign(I,{numero_tagli:b.numero_tagli,durata_media_inquadratura_sec:b.durata_media_inquadratura_sec,durata_sec:b.tecnico?.durata_sec}),I.audio={...I.audio||{},bpm_stimato:b.bpm_stimato??I.audio?.bpm_stimato??null,volume_lufs:b.volume_lufs},I.misure={tagli_sec:b.tagli_sec,piu_breve:b.inquadratura_piu_breve_sec,piu_lunga:b.inquadratura_piu_lunga_sec,tagli_sul_beat_indice:b.tagli_sul_beat_indice,parlato:b.parlato},Object.assign(p,{stato:"fatto",analisi:I,errore:void 0}),await e.DB.prepare("INSERT OR REPLACE INTO cache_analisi (chiave, dati, quando) VALUES (?,?,?)").bind(B(p.video),JSON.stringify(I),w()).run()):(I.misure={qualita:b.qualita_fotogrammi,movimento:b.movimento_tra_fotogrammi,tagli_interni_sec:b.tagli_sec,volume_lufs:b.volume_lufs,parlato:b.parlato},Object.assign(p,{stato:"fatto",analisi:I,tecnico:{...p.tecnico||{},...b.tecnico},errore:void 0}),await e.DB.prepare("INSERT OR REPLACE INTO cache_analisi (chiave, dati, quando) VALUES (?,?,?)").bind(K(p),JSON.stringify({analisi:I,tecnico:p.tecnico}),w()).run()),await J(e,l,s,g,p),await h(e,l,y,`guardato: ${u?p.video.piattaforma:p.nome} \u2014 ${String(u?I.perche_funziona||I.gancio?.cosa_succede:I.descrizione||"").slice(0,130)}`),x({ok:!0,uso:I._uso})}catch(R){let _=String(R?.message||R).slice(0,300);return _.startsWith("LIMITE_CLAUDE")?(await h(e,l,y,"\u23F8 Claude ha rifiutato per limite o credito esaurito: riprendo pi\xF9 tardi. "+_.slice(15,160),"warn"),x({errore:_},429)):(p.tentativi=(p.tentativi||0)+1,p.errore=_,p.stato=p.tentativi<3?"da_guardare":"saltato",await J(e,l,s,g,p),await h(e,l,y,`${v(p)}: ${_}${p.stato==="saltato"?" \u2014 saltato":` \u2014 riprovo (${p.tentativi}/3)`}`,"warn"),x({errore:_},502))}}if(n[2]==="errore"&&a==="POST"){if(!p)return x({errore:"elemento sconosciuto"},400);let m=await i.json().catch(()=>({}));return p.tentativi=(p.tentativi||0)+1,p.errore=String(m.errore||"errore del motore").slice(0,300),p.stato=p.tentativi<3&&!/YouTube non ha lasciato|HTTP 4\d\d/.test(p.errore)?"da_guardare":"saltato",await J(e,l,s,g,p),await h(e,l,"motore",`${v(p)}: ${p.errore}${p.stato==="saltato"?" \u2014 saltato":" \u2014 riprovo"}`,"warn"),x({ok:!0})}if(n[2]==="fine"&&a==="POST"){if(await A(e,"UPDATE lavori SET motore_pass=NULL, motore_fino=NULL, motore_visto=? WHERE id=?",w(),l),(await i.json().catch(()=>({}))).silenzioso)return x({ok:!0});let m=c.filter(f=>f.stato==="fatto").length;return await h(e,l,"motore",`giro del motore finito: ${m}/${c.length} ${s==="riferimenti"?"reel":"clip"} analizzati`),x({ok:!0})}return x({errore:"metodo non consentito"},405)}var xi=`<!DOCTYPE html>
+Rispondi SOLO con il JSON richiesto.`;
+      const analisi = await claudeVisione(cfg, rif ? cfg.CLAUDE_MODEL : cfg.CLAUDE_MODEL_LIGHT, sistema, testo, d.immagini.slice(0, 3), rif ? 7e3 : 7e3);
+      if (rif) {
+        Object.assign(analisi, { numero_tagli: mis.numero_tagli, durata_media_inquadratura_sec: mis.durata_media_inquadratura_sec, durata_sec: mis.tecnico?.durata_sec });
+        analisi.audio = { ...analisi.audio || {}, bpm_stimato: mis.bpm_stimato ?? analisi.audio?.bpm_stimato ?? null, volume_lufs: mis.volume_lufs };
+        analisi.misure = { tagli_sec: mis.tagli_sec, piu_breve: mis.inquadratura_piu_breve_sec, piu_lunga: mis.inquadratura_piu_lunga_sec, tagli_sul_beat_indice: mis.tagli_sul_beat_indice, parlato: mis.parlato };
+        Object.assign(el, { stato: "fatto", analisi, errore: void 0 });
+        await env.DB.prepare("INSERT OR REPLACE INTO cache_analisi (chiave, dati, quando) VALUES (?,?,?)").bind(chiaveRif(el.video), JSON.stringify(analisi), ora()).run();
+      } else {
+        analisi.misure = { qualita: mis.qualita_fotogrammi, movimento: mis.movimento_tra_fotogrammi, tagli_interni_sec: mis.tagli_sec, volume_lufs: mis.volume_lufs, parlato: mis.parlato };
+        Object.assign(el, { stato: "fatto", analisi, tecnico: { ...el.tecnico || {}, ...mis.tecnico }, errore: void 0 });
+        await env.DB.prepare("INSERT OR REPLACE INTO cache_analisi (chiave, dati, quando) VALUES (?,?,?)").bind(chiaveClip(el), JSON.stringify({ analisi, tecnico: el.tecnico }), ora()).run();
+      }
+      await aggiorna(env, id, tipo, indice, el);
+      await log(env, id, agente, `guardato: ${rif ? el.video.piattaforma : el.nome} \u2014 ${String(rif ? analisi.perche_funziona || analisi.gancio?.cosa_succede : analisi.descrizione || "").slice(0, 130)}`);
+      return json({ ok: true, uso: analisi._uso });
+    } catch (e) {
+      const errore = String(e?.message || e).slice(0, 300);
+      if (errore.startsWith("LIMITE_CLAUDE")) {
+        await log(env, id, agente, "\u23F8 Claude ha rifiutato per limite o credito esaurito: riprendo pi\xF9 tardi. " + errore.slice(15, 160), "warn");
+        return json({ errore }, 429);
+      }
+      el.tentativi = (el.tentativi || 0) + 1;
+      el.errore = errore;
+      el.stato = el.tentativi < 3 ? "da_guardare" : "saltato";
+      await aggiorna(env, id, tipo, indice, el);
+      await log(env, id, agente, `${nome(el)}: ${errore}${el.stato === "saltato" ? " \u2014 saltato" : ` \u2014 riprovo (${el.tentativi}/3)`}`, "warn");
+      return json({ errore }, 502);
+    }
+  }
+  if (mm[2] === "errore" && m === "POST") {
+    if (!el) return json({ errore: "elemento sconosciuto" }, 400);
+    const d = await req.json().catch(() => ({}));
+    el.tentativi = (el.tentativi || 0) + 1;
+    el.errore = String(d.errore || "errore del motore").slice(0, 300);
+    el.stato = el.tentativi < 3 && !/YouTube non ha lasciato|HTTP 4\d\d/.test(el.errore) ? "da_guardare" : "saltato";
+    await aggiorna(env, id, tipo, indice, el);
+    await log(env, id, "motore", `${nome(el)}: ${el.errore}${el.stato === "saltato" ? " \u2014 saltato" : " \u2014 riprovo"}`, "warn");
+    return json({ ok: true });
+  }
+  if (mm[2] === "fine" && m === "POST") {
+    await run(env, "UPDATE lavori SET motore_pass=NULL, motore_fino=NULL, motore_visto=? WHERE id=?", ora(), id);
+    if ((await req.json().catch(() => ({}))).silenzioso) return json({ ok: true });
+    const fatti = elenco.filter((x) => x.stato === "fatto").length;
+    await log(env, id, "motore", `giro del motore finito: ${fatti}/${elenco.length} ${tipo === "riferimenti" ? "reel" : "clip"} analizzati`);
+    return json({ ok: true });
+  }
+  return json({ errore: "metodo non consentito" }, 405);
+}
+
+// src/pagina.js
+var PAGINA = `<!DOCTYPE html>
 <html lang="it"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0b1113">
@@ -502,6 +1435,7 @@ function vistaReel(L) {
     '<p class="mut">' + e(r.durata) + ' s \xB7 ' + e(r.lufs) + ' LUFS \xB7 ' + e(r.mb) + ' MB \xB7 montato in ' + e(r.secondi_di_lavoro) + ' s</p>' +
     ((r.problemi || []).length ? '<p class="err">\u26A0\uFE0E ' + e(r.problemi.join(' \xB7 ')) + '</p>' : '<p style="color:var(--ok)">\u2713 Revisore: tutto ok</p>') + '</div>' +
     '<div class="card"><div class="kv">' +
+    '<b>Formato</b><span>' + e({ talking_head: 'Talking-head', carosello: 'Carosello \u2192 reel' }[p.formato] || 'Montaggio') + '</span>' +
     (p.parola_chiave ? '<b>Parola chiave</b><span>' + e(p.parola_chiave) + '</span>' : '') +
     (p.loop ? '<b>Loop</b><span>' + e(p.loop) + '</span>' : '') +
     (p.musica_da_mettere ? '<b>Musica (in app)</b><span>' + e(p.musica_da_mettere) + '</span>' : '') + '</div>' +
@@ -511,7 +1445,8 @@ function vistaReel(L) {
     '<div class="card"><b>Rimonta</b><p class="mut">Rif\xE0 solo piano e montaggio (niente nuova ricerca n\xE9 analisi).</p>' +
     '<label>Cosa cambiare</label><textarea id="rim_t" style="min-height:70px" placeholder="Es. pi\xF9 veloce, gancio con la tazza, meno testi, chiusura con il logo"></textarea>' +
     '<div class="riga"><div style="flex:1"><label>Look</label><select id="rim_l">' + LOOKS_UI.map(([v, n]) => '<option value="' + v + '">' + n + '</option>').join('') + '</select></div>' +
-    '<div style="flex:1"><label>Durata (s)</label><input id="rim_d" type="number" min="7" max="90" placeholder="come prima"></div></div>' +
+    '<div style="flex:1"><label>Durata (s)</label><input id="rim_d" type="number" min="7" max="90" placeholder="come prima"></div>' +
+    '<div style="flex:1"><label>Formato</label><select id="rim_f"><option value="">decide Rocco</option><option value="montaggio">Montaggio</option><option value="talking_head">Talking-head</option><option value="carosello">Carosello \u2192 reel</option></select></div></div>' +
     '<div style="margin-top:12px"><button id="rim_ok">Rimonta</button></div><div id="rim_er" class="err"></div></div>';
 }
 
@@ -548,7 +1483,7 @@ async function dettaglio(id) {
     vistaReel(L) + vistaScheda(L.scheda) + vistaRiferimenti(L.riferimenti) + vistaClip(L.clip) +
     '<h2>Cosa stanno facendo gli agenti</h2><div class="log">' + L.registro.map((r) => { const A = AGENTI[AGID(r.agente)]; return '<div class="' + r.livello + '"><span class="mut">' + new Date(r.quando).toLocaleTimeString('it-IT') + '</span> ' + A.i + ' <b>' + e(A.n) + '</b> ' + e(r.messaggio) + '</div>'; }).join('') + '</div>';
   if ($('#gir_ok')) $('#gir_ok').onclick = async () => { try { await chiama('/api/lavori/' + id + '/girato', { method: 'POST', body: { pcloud: $('#gir').value } }); rotta(); } catch (x) { $('#gir_er').textContent = x.message; } };
-  if ($('#rim_ok')) $('#rim_ok').onclick = async () => { try { await chiama('/api/lavori/' + id + '/rimonta', { method: 'POST', body: { testo: $('#rim_t').value, look: $('#rim_l').value || null, durata: $('#rim_d').value || null } }); rotta(); } catch (x) { $('#rim_er').textContent = x.message; } };
+  if ($('#rim_ok')) $('#rim_ok').onclick = async () => { try { await chiama('/api/lavori/' + id + '/rimonta', { method: 'POST', body: { testo: $('#rim_t').value, look: $('#rim_l').value || null, durata: $('#rim_d').value || null, formato: $('#rim_f').value || null } }); rotta(); } catch (x) { $('#rim_er').textContent = x.message; } };
   if ($('#rip')) $('#rip').onclick = async () => { await chiama('/api/lavori/' + id + '/riprova', { method: 'POST', body: {} }); rotta(); };
   if ($('#dl')) $('#dl').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(L.scheda, null, 2)], { type: 'application/json' })); a.download = 'scheda-' + id + '.json'; a.click(); };
   $('#del').onclick = async () => { if (confirm('Eliminare questo lavoro?')) { await chiama('/api/lavori/' + id, { method: 'DELETE' }); location.hash = '#/'; } };
@@ -588,4 +1523,198 @@ async function rotta() {
 }
 addEventListener('hashchange', rotta);
 rotta();
-<\/script></body></html>`;var E=(i,e=200,o={})=>new Response(JSON.stringify(i),{status:e,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store",...o}}),Ni=i=>[...new Uint8Array(i)].map(e=>e.toString(16).padStart(2,"0")).join(""),Ri=async i=>Ni(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(i)));async function X(i){return i.ADMIN_PASSWORD?Ri("momento-reel|"+i.ADMIN_PASSWORD):(await O(i,"SELECT valore FROM impostazioni WHERE chiave='ADMIN_HASH'"))?.valore||null}async function ki(i){let e=await crypto.subtle.importKey("raw",new TextEncoder().encode(i),{name:"HMAC",hash:"SHA-256"},!1,["sign"]);return Ni(await crypto.subtle.sign("HMAC",e,new TextEncoder().encode("momento-reel-sessione")))}async function yi(i,e){let o=await X(e);if(!o)return!1;let t=/(?:^|;\s*)mr_s=([a-f0-9]{64})/.exec(i.headers.get("cookie")||"");return!!t&&t[1]===await ki(o)}var Oi=(i,e)=>`mr_s=${i}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${e}`;async function se(i,e,o){let t=o.pathname,a=i.method;if(t==="/api/stato")return E({configurato:!!await X(e),dentro:await yi(i,e)});if(t==="/api/accedi"&&a==="POST"){let{password:r}=await i.json().catch(()=>({}));if(!r||String(r).length<6)return E({errore:"password di almeno 6 caratteri"},400);let s=await X(e),c=Ri("momento-reel|"+r);if(!s)s=await c,await A(e,"INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES ('ADMIN_HASH', ?)",s);else if(await c!==s)return E({errore:"password errata"},401);return E({ok:!0},200,{"set-cookie":Oi(await ki(s),3600*24*60)})}if(t==="/api/esci")return E({ok:!0},200,{"set-cookie":Oi("",0)});if(!await yi(i,e))return E({errore:"accesso richiesto"},401);if(t==="/api/impostazioni"&&a==="GET"){let r=await k(e),s=Object.fromEntries($.map(g=>{let p=r[g];return[g,{impostata:!!p,da_cloudflare:r._env[g],anteprima:p?"\u2022\u2022\u2022\u2022"+String(p).slice(-4):""}]})),c=Object.fromEntries(j.map(g=>[g,Array.isArray(r[g])?r[g].join(","):r[g]]));return E({segreti:s,opzioni:c})}if(t==="/api/impostazioni"&&a==="POST"){let r=await i.json().catch(()=>({})),s=[];for(let c of[...$,...j]){if(typeof r[c]!="string")continue;let g=r[c].trim();s.push(g?e.DB.prepare("INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES (?,?)").bind(c,g):e.DB.prepare("DELETE FROM impostazioni WHERE chiave=?").bind(c))}return s.length&&await e.DB.batch(s),E({ok:!0})}if(t==="/api/regia"&&a==="GET"){let[r,s,c,g]=await Promise.all([N(e,"SELECT id, prompt, fase, stato, blocco_fino, json_extract(piano, '$.settore') AS settore FROM lavori WHERE stato='in_corso' ORDER BY id"),N(e,"SELECT r.agente, r.messaggio, r.livello, r.quando, r.lavoro_id FROM registro r JOIN (SELECT agente, MAX(id) AS mid FROM registro GROUP BY agente) u ON r.id = u.mid"),N(e,"SELECT agente, messaggio, livello, quando, lavoro_id FROM registro ORDER BY id DESC LIMIT 30"),N(e,"SELECT agente, COUNT(*) AS n FROM registro WHERE quando > ? GROUP BY agente",new Date(Date.now()-6048e5).toISOString())]),p=await k(e),v={Claude:!!p.ANTHROPIC_API_KEY},m=p.APIFY_TOKEN?[]:["scout_tt","scout_ig"];return E({adesso:w(),attivi:r,ultimi:s,feed:c,conti:g,chiavi:v,riposo:m,yt_web:!p.YOUTUBE_API_KEY})}let n=t.match(/^\/api\/regia\/agente\/([a-z_]+)$/);if(n&&a==="GET")return E(await N(e,"SELECT messaggio, livello, quando, lavoro_id FROM registro WHERE agente=? ORDER BY id DESC LIMIT 40",n[1]));if(t==="/api/lavori"&&a==="GET"){let r=await N(e,"SELECT id, prompt, stato, fase, errore, creato, aggiornato, json_extract(scheda, '$.titolo_lavoro') AS titolo FROM lavori ORDER BY id DESC LIMIT 60");return E(r)}if(t==="/api/lavori"&&a==="POST"){let r=await i.json().catch(()=>({})),s=String(r.prompt||"").trim();if(s.length<10)return E({errore:"descrivi il reel in almeno una frase"},400);let c=await k(e),g=[["ANTHROPIC_API_KEY","Claude"]].filter(([f])=>!c[f]).map(([,f])=>f);if(g.length)return E({errore:`Prima inserisci le chiavi in \u2699\uFE0E Impostazioni (mancano: ${g.join(", ")})`},400);let p=String(r.pcloud||"").trim()||null;if(p&&!/code=/.test(p))return E({errore:'il link pCloud deve essere il link pubblico della cartella (contiene "code=")'},400);let v=String(r.link_rif||"").split(/\s+/).filter(f=>/^https?:\/\//.test(f)).slice(0,10),m=await O(e,"INSERT INTO lavori (prompt, pcloud, link_rif, fonte, creato, aggiornato) VALUES (?,?,?,'pcloud',?,?) RETURNING id",s,p,JSON.stringify(v),w(),w());return await h(e,m.id,"regia","\u{1F3AC} nuovo lavoro in coda: il Direttore creativo parte entro un minuto"),E({id:m.id})}let l=t.match(/^\/api\/lavori\/(\d+)\/(reel\.mp4|anteprima\.jpg|copertina\.jpg)$/);if(l&&a==="GET"){if(!e.VIDEO)return E({errore:"archivio video non collegato"},404);let{value:r,metadata:s}=await e.VIDEO.getWithMetadata(`lavoro-${l[1]}/${l[2]}`,{type:"arrayBuffer"});if(!r)return E({errore:"non ancora pronto"},404);let c=new Headers({"content-type":s?.tipo||(l[2]==="reel.mp4"?"video/mp4":"image/jpeg"),"accept-ranges":"bytes","cache-control":"private, max-age=3600"});o.searchParams.get("scarica")&&c.set("content-disposition",`attachment; filename="${l[2]==="reel.mp4"?"reel":"copertina"}-${l[1]}.${l[2].split(".")[1]}"`);let g=r.byteLength,p=/bytes=(\d*)-(\d*)/.exec(i.headers.get("range")||"");if(p){let v=p[1]===""?Math.max(0,g-Number(p[2])):Number(p[1]),m=p[1]===""||p[2]===""?g-1:Math.min(Number(p[2]),g-1);return v>m||v>=g?new Response(null,{status:416,headers:{"content-range":`bytes */${g}`}}):(c.set("content-range",`bytes ${v}-${m}/${g}`),c.set("content-length",String(m-v+1)),new Response(r.slice(v,m+1),{status:206,headers:c}))}return c.set("content-length",String(g)),new Response(r,{headers:c})}let d=t.match(/^\/api\/lavori\/(\d+)(?:\/(riprova|registro|girato|rimonta))?$/);if(d){let r=Number(d[1]);if(!d[2]&&a==="GET"){let s=await O(e,"SELECT * FROM lavori WHERE id=?",r);if(!s)return E({errore:"non trovato"},404);for(let c of["piano","riferimenti","clip","scheda","link_rif","montaggio"])s[c]=T(s[c]);return delete s.candidati,s.registro=await N(e,"SELECT agente, messaggio, livello, quando FROM registro WHERE lavoro_id=? ORDER BY id DESC LIMIT 200",r),E(s)}if(!d[2]&&a==="DELETE")return await e.DB.batch([e.DB.prepare("DELETE FROM lavori WHERE id=?").bind(r),e.DB.prepare("DELETE FROM registro WHERE lavoro_id=?").bind(r)]),E({ok:!0});if(d[2]==="girato"&&a==="POST"){let s=await i.json().catch(()=>({})),c=String(s.pcloud||"").trim();return/code=/.test(c)?(await A(e,"UPDATE lavori SET pcloud=?, fonte='pcloud', clip=NULL, montaggio=NULL, fase='clip', stato='in_corso', errore=NULL, tentativi=0, blocco_fino=NULL, motore_visto=NULL, motore_pass=NULL, motore_fino=NULL, aggiornato=? WHERE id=?",c,w(),r),await h(e,r,"regia","\u{1F4C1} girato collegato: Max lo scarica e lo misura, poi scheda, piano e montaggio"),E({ok:!0})):E({errore:'serve il link pubblico della cartella pCloud (contiene "code=")'},400)}if(d[2]==="rimonta"&&a==="POST"){let s=await i.json().catch(()=>({})),c=await O(e,"SELECT montaggio, clip FROM lavori WHERE id=?",r),g=T(c?.montaggio,null);return g?.piano?(g.indicazioni_rimonta={testo:String(s.testo||"").slice(0,800),look:s.look||null,durata:Number(s.durata)||null,ritmo:s.ritmo||null},await A(e,"UPDATE lavori SET montaggio=?, fase='regia', stato='in_corso', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?",JSON.stringify(g),w(),r),await h(e,r,"regia",`\u{1F3AC} rimontaggio richiesto${s.testo?": "+String(s.testo).slice(0,120):""}`),E({ok:!0})):E({errore:"questo lavoro non ha ancora un montaggio da rifare"},400)}if(d[2]==="riprova"&&a==="POST"){let s=await i.json().catch(()=>({})),c=["piano","ricerca","riferimenti","clip","scheda","regia","montaggio"].includes(s.fase)?s.fase:null,g=await O(e,"SELECT fase, riferimenti, clip FROM lavori WHERE id=?",r);if(!g)return E({errore:"non trovato"},404);let p=c||(g.fase==="fatto"?"scheda":g.fase),v=m=>JSON.stringify((T(m,[])||[]).map(f=>f.stato==="saltato"?{...f,stato:"da_guardare",errore:void 0}:f));return await A(e,"UPDATE lavori SET stato='in_corso', fase=?, errore=NULL, tentativi=0, blocco_fino=NULL, riferimenti=?, clip=?, aggiornato=? WHERE id=?",p,g.riferimenti?v(g.riferimenti):null,g.clip?v(g.clip):null,w(),r),p==="montaggio"&&await A(e,"UPDATE lavori SET montaggio=json_set(montaggio, '$.stato', 'da_fare', '$.tentativi', 0) WHERE id=? AND montaggio IS NOT NULL",r),await h(e,r,"regia",`\u{1F501} riparto dalla fase "${p}"`),E({ok:!0})}}return E({errore:"non trovato"},404)}var Ae={async fetch(i,e){await U(e);let o=new URL(i.url);if(o.pathname.startsWith("/api/motore/"))try{return await Si(i,e,o)}catch(t){return E({errore:String(t?.message||t).slice(0,300)},500)}if(o.pathname.startsWith("/api/"))try{return await se(i,e,o)}catch(t){return E({errore:String(t?.message||t).slice(0,300)},500)}return new Response(xi,{headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store"}})},async scheduled(i,e,o){await U(e),o.waitUntil(Ai(e))}};export{Ae as default};
+<\/script></body></html>`;
+
+// src/index.js
+var json2 = (d, status = 200, extra = {}) => new Response(JSON.stringify(d), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...extra } });
+var hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+var sha = async (s) => hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)));
+async function hashPassword(env) {
+  if (env.ADMIN_PASSWORD) return sha("momento-reel|" + env.ADMIN_PASSWORD);
+  return (await one(env, "SELECT valore FROM impostazioni WHERE chiave='ADMIN_HASH'"))?.valore || null;
+}
+async function firma(hash) {
+  const k = await crypto.subtle.importKey("raw", new TextEncoder().encode(hash), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return hex(await crypto.subtle.sign("HMAC", k, new TextEncoder().encode("momento-reel-sessione")));
+}
+async function autorizzato(req, env) {
+  const h = await hashPassword(env);
+  if (!h) return false;
+  const c = /(?:^|;\s*)mr_s=([a-f0-9]{64})/.exec(req.headers.get("cookie") || "");
+  return !!c && c[1] === await firma(h);
+}
+var cookie = (v, maxAge) => `mr_s=${v}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
+async function api(req, env, url) {
+  const p = url.pathname, m = req.method;
+  if (p === "/api/stato") return json2({ configurato: !!await hashPassword(env), dentro: await autorizzato(req, env) });
+  if (p === "/api/accedi" && m === "POST") {
+    const { password } = await req.json().catch(() => ({}));
+    if (!password || String(password).length < 6) return json2({ errore: "password di almeno 6 caratteri" }, 400);
+    let h = await hashPassword(env);
+    const nuovo = sha("momento-reel|" + password);
+    if (!h) {
+      h = await nuovo;
+      await run(env, "INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES ('ADMIN_HASH', ?)", h);
+    } else if (await nuovo !== h) return json2({ errore: "password errata" }, 401);
+    return json2({ ok: true }, 200, { "set-cookie": cookie(await firma(h), 60 * 60 * 24 * 60) });
+  }
+  if (p === "/api/esci") return json2({ ok: true }, 200, { "set-cookie": cookie("", 0) });
+  if (!await autorizzato(req, env)) return json2({ errore: "accesso richiesto" }, 401);
+  if (p === "/api/impostazioni" && m === "GET") {
+    const cfg = await configurazione(env);
+    const segreti = Object.fromEntries(CHIAVI_SEGRETE.map((k) => {
+      const v = cfg[k];
+      return [k, { impostata: !!v, da_cloudflare: cfg._env[k], anteprima: v ? "\u2022\u2022\u2022\u2022" + String(v).slice(-4) : "" }];
+    }));
+    const opzioni = Object.fromEntries(CHIAVI_OPZIONI.map((k) => [k, Array.isArray(cfg[k]) ? cfg[k].join(",") : cfg[k]]));
+    return json2({ segreti, opzioni });
+  }
+  if (p === "/api/impostazioni" && m === "POST") {
+    const d = await req.json().catch(() => ({}));
+    const stmt = [];
+    for (const k of [...CHIAVI_SEGRETE, ...CHIAVI_OPZIONI]) {
+      if (typeof d[k] !== "string") continue;
+      const v = d[k].trim();
+      stmt.push(v ? env.DB.prepare("INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES (?,?)").bind(k, v) : env.DB.prepare("DELETE FROM impostazioni WHERE chiave=?").bind(k));
+    }
+    if (stmt.length) await env.DB.batch(stmt);
+    return json2({ ok: true });
+  }
+  if (p === "/api/regia" && m === "GET") {
+    const [attivi, ultimi, feed, conti] = await Promise.all([
+      all(env, "SELECT id, prompt, fase, stato, blocco_fino, json_extract(piano, '$.settore') AS settore FROM lavori WHERE stato='in_corso' ORDER BY id"),
+      all(env, "SELECT r.agente, r.messaggio, r.livello, r.quando, r.lavoro_id FROM registro r JOIN (SELECT agente, MAX(id) AS mid FROM registro GROUP BY agente) u ON r.id = u.mid"),
+      all(env, "SELECT agente, messaggio, livello, quando, lavoro_id FROM registro ORDER BY id DESC LIMIT 30"),
+      all(env, "SELECT agente, COUNT(*) AS n FROM registro WHERE quando > ? GROUP BY agente", new Date(Date.now() - 7 * 864e5).toISOString())
+    ]);
+    const cfg = await configurazione(env);
+    const chiavi = { Claude: !!cfg.ANTHROPIC_API_KEY };
+    const riposo = cfg.APIFY_TOKEN ? [] : ["scout_tt", "scout_ig"];
+    return json2({ adesso: ora(), attivi, ultimi, feed, conti, chiavi, riposo, yt_web: !cfg.YOUTUBE_API_KEY });
+  }
+  const ag = p.match(/^\/api\/regia\/agente\/([a-z_]+)$/);
+  if (ag && m === "GET") {
+    return json2(await all(env, "SELECT messaggio, livello, quando, lavoro_id FROM registro WHERE agente=? ORDER BY id DESC LIMIT 40", ag[1]));
+  }
+  if (p === "/api/lavori" && m === "GET") {
+    const r = await all(env, "SELECT id, prompt, stato, fase, errore, creato, aggiornato, json_extract(scheda, '$.titolo_lavoro') AS titolo FROM lavori ORDER BY id DESC LIMIT 60");
+    return json2(r);
+  }
+  if (p === "/api/lavori" && m === "POST") {
+    const d = await req.json().catch(() => ({}));
+    const prompt = String(d.prompt || "").trim();
+    if (prompt.length < 10) return json2({ errore: "descrivi il reel in almeno una frase" }, 400);
+    const cfg = await configurazione(env);
+    const mancanti = [["ANTHROPIC_API_KEY", "Claude"]].filter(([k]) => !cfg[k]).map(([, n]) => n);
+    if (mancanti.length) return json2({ errore: `Prima inserisci le chiavi in \u2699\uFE0E Impostazioni (mancano: ${mancanti.join(", ")})` }, 400);
+    const pcloud = String(d.pcloud || "").trim() || null;
+    if (pcloud && !/code=/.test(pcloud)) return json2({ errore: 'il link pCloud deve essere il link pubblico della cartella (contiene "code=")' }, 400);
+    const link = String(d.link_rif || "").split(/\s+/).filter((l) => /^https?:\/\//.test(l)).slice(0, 10);
+    const r = await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, creato, aggiornato) VALUES (?,?,?,'pcloud',?,?) RETURNING id", prompt, pcloud, JSON.stringify(link), ora(), ora());
+    await log(env, r.id, "regia", "\u{1F3AC} nuovo lavoro in coda: il Direttore creativo parte entro un minuto");
+    return json2({ id: r.id });
+  }
+  const vv = p.match(/^\/api\/lavori\/(\d+)\/(reel\.mp4|anteprima\.jpg|copertina\.jpg)$/);
+  if (vv && m === "GET") {
+    if (!env.VIDEO) return json2({ errore: "archivio video non collegato" }, 404);
+    const { value, metadata } = await env.VIDEO.getWithMetadata(`lavoro-${vv[1]}/${vv[2]}`, { type: "arrayBuffer" });
+    if (!value) return json2({ errore: "non ancora pronto" }, 404);
+    const h = new Headers({ "content-type": metadata?.tipo || (vv[2] === "reel.mp4" ? "video/mp4" : "image/jpeg"), "accept-ranges": "bytes", "cache-control": "private, max-age=3600" });
+    if (url.searchParams.get("scarica")) h.set("content-disposition", `attachment; filename="${vv[2] === "reel.mp4" ? "reel" : "copertina"}-${vv[1]}.${vv[2].split(".")[1]}"`);
+    const tot = value.byteLength;
+    const rg = /bytes=(\d*)-(\d*)/.exec(req.headers.get("range") || "");
+    if (rg) {
+      let a = rg[1] === "" ? Math.max(0, tot - Number(rg[2])) : Number(rg[1]);
+      let b = rg[1] === "" || rg[2] === "" ? tot - 1 : Math.min(Number(rg[2]), tot - 1);
+      if (a > b || a >= tot) return new Response(null, { status: 416, headers: { "content-range": `bytes */${tot}` } });
+      h.set("content-range", `bytes ${a}-${b}/${tot}`);
+      h.set("content-length", String(b - a + 1));
+      return new Response(value.slice(a, b + 1), { status: 206, headers: h });
+    }
+    h.set("content-length", String(tot));
+    return new Response(value, { headers: h });
+  }
+  const mm = p.match(/^\/api\/lavori\/(\d+)(?:\/(riprova|registro|girato|rimonta))?$/);
+  if (mm) {
+    const id = Number(mm[1]);
+    if (!mm[2] && m === "GET") {
+      const L = await one(env, "SELECT * FROM lavori WHERE id=?", id);
+      if (!L) return json2({ errore: "non trovato" }, 404);
+      for (const k of ["piano", "riferimenti", "clip", "scheda", "link_rif", "montaggio"]) L[k] = J(L[k]);
+      delete L.candidati;
+      L.registro = await all(env, "SELECT agente, messaggio, livello, quando FROM registro WHERE lavoro_id=? ORDER BY id DESC LIMIT 200", id);
+      return json2(L);
+    }
+    if (!mm[2] && m === "DELETE") {
+      await env.DB.batch([env.DB.prepare("DELETE FROM lavori WHERE id=?").bind(id), env.DB.prepare("DELETE FROM registro WHERE lavoro_id=?").bind(id)]);
+      return json2({ ok: true });
+    }
+    if (mm[2] === "girato" && m === "POST") {
+      const d = await req.json().catch(() => ({}));
+      const pcloud = String(d.pcloud || "").trim();
+      if (!/code=/.test(pcloud)) return json2({ errore: 'serve il link pubblico della cartella pCloud (contiene "code=")' }, 400);
+      await run(env, "UPDATE lavori SET pcloud=?, fonte='pcloud', clip=NULL, montaggio=NULL, fase='clip', stato='in_corso', errore=NULL, tentativi=0, blocco_fino=NULL, motore_visto=NULL, motore_pass=NULL, motore_fino=NULL, aggiornato=? WHERE id=?", pcloud, ora(), id);
+      await log(env, id, "regia", "\u{1F4C1} girato collegato: Max lo scarica e lo misura, poi scheda, piano e montaggio");
+      return json2({ ok: true });
+    }
+    if (mm[2] === "rimonta" && m === "POST") {
+      const d = await req.json().catch(() => ({}));
+      const L = await one(env, "SELECT montaggio, clip FROM lavori WHERE id=?", id);
+      const mont = J(L?.montaggio, null);
+      if (!mont?.piano) return json2({ errore: "questo lavoro non ha ancora un montaggio da rifare" }, 400);
+      mont.indicazioni_rimonta = { testo: String(d.testo || "").slice(0, 800), look: d.look || null, durata: Number(d.durata) || null, ritmo: d.ritmo || null, formato: ["montaggio", "talking_head", "carosello"].includes(d.formato) ? d.formato : null };
+      await run(env, "UPDATE lavori SET montaggio=?, fase='regia', stato='in_corso', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(mont), ora(), id);
+      await log(env, id, "regia", `\u{1F3AC} rimontaggio richiesto${d.testo ? ": " + String(d.testo).slice(0, 120) : ""}`);
+      return json2({ ok: true });
+    }
+    if (mm[2] === "riprova" && m === "POST") {
+      const d = await req.json().catch(() => ({}));
+      const fase = ["piano", "ricerca", "riferimenti", "clip", "scheda", "regia", "montaggio"].includes(d.fase) ? d.fase : null;
+      const L = await one(env, "SELECT fase, riferimenti, clip FROM lavori WHERE id=?", id);
+      if (!L) return json2({ errore: "non trovato" }, 404);
+      const nuovaFase = fase || (L.fase === "fatto" ? "scheda" : L.fase);
+      const ripristina = (s) => JSON.stringify((J(s, []) || []).map((x) => x.stato === "saltato" ? { ...x, stato: "da_guardare", errore: void 0 } : x));
+      await run(
+        env,
+        "UPDATE lavori SET stato='in_corso', fase=?, errore=NULL, tentativi=0, blocco_fino=NULL, riferimenti=?, clip=?, aggiornato=? WHERE id=?",
+        nuovaFase,
+        L.riferimenti ? ripristina(L.riferimenti) : null,
+        L.clip ? ripristina(L.clip) : null,
+        ora(),
+        id
+      );
+      if (nuovaFase === "montaggio") await run(env, "UPDATE lavori SET montaggio=json_set(montaggio, '$.stato', 'da_fare', '$.tentativi', 0) WHERE id=? AND montaggio IS NOT NULL", id);
+      await log(env, id, "regia", `\u{1F501} riparto dalla fase "${nuovaFase}"`);
+      return json2({ ok: true });
+    }
+  }
+  return json2({ errore: "non trovato" }, 404);
+}
+var index_default = {
+  async fetch(req, env) {
+    await schema(env);
+    const url = new URL(req.url);
+    if (url.pathname.startsWith("/api/motore/")) {
+      try {
+        return await motoreApi(req, env, url);
+      } catch (e) {
+        return json2({ errore: String(e?.message || e).slice(0, 300) }, 500);
+      }
+    }
+    if (url.pathname.startsWith("/api/")) {
+      try {
+        return await api(req, env, url);
+      } catch (e) {
+        return json2({ errore: String(e?.message || e).slice(0, 300) }, 500);
+      }
+    }
+    return new Response(PAGINA, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
+  },
+  async scheduled(evento, env, ctx) {
+    await schema(env);
+    ctx.waitUntil(avanza(env));
+  }
+};
+export {
+  index_default as default
+};

@@ -483,12 +483,15 @@ class Montatore:
             self.ff(args + ["-filter_complex", ";".join(filt), "-map", "[aout]", "-vn", "-t", f"{totale:.3f}", "-c:a", "pcm_s16le", mixwav], "mix audio")
         else:
             self.ff(["-f", "lavfi", "-t", f"{totale:.3f}", "-i", "anullsrc=r=48000:cl=stereo", "-c:a", "pcm_s16le", mixwav], "silenzio")
-        # 2) volume a −14 LUFS con loudnorm a due passaggi (il passaggio singolo sbaglia sui mix con molte pause)
+        self.finale(video, ass, mixwav, totale, out)
+
+    def finale(self, video, ass, mixwav, totale, out, normalizza=True):
+        """Volume a −14 LUFS (loudnorm a due passaggi: il passaggio singolo sbaglia sui mix con molte pause), testi bruciati, encode finale."""
         norm = "anull"
         p = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", mixwav, "-af", "loudnorm=I=-14:TP=-1.5:LRA=11:print_format=json", "-f", "null", "-"],
                            capture_output=True, text=True)
         m = re.search(r"\{[^{}]*\"input_i\"[^{}]*\}", p.stderr)
-        if m:
+        if m and normalizza:
             mis = json.loads(m.group(0))
             if mis.get("input_i") not in ("-inf", None) and float(mis["input_i"]) > -60:
                 norm = (f"loudnorm=I=-14:TP=-1.5:LRA=11:measured_I={mis['input_i']}:measured_TP={mis['input_tp']}:measured_LRA={mis['input_lra']}:"
@@ -516,7 +519,7 @@ class Montatore:
             problemi.append("fotogrammi neri a " + ", ".join(f"{a:.1f}s" for a, _ in neri[:3]))
         lufs = re.findall(r"I:\s+(-?[\d.]+) LUFS", p.stderr)
         lufs = float(lufs[-1]) if lufs else None
-        if lufs is not None and lufs > -60 and abs(lufs + 14) > 2.5:
+        if lufs is not None and lufs > -60 and abs(lufs + 14) > 2.5 and not getattr(self, "senza_voce", False):
             problemi.append(f"volume {lufs:.1f} LUFS (atteso −14)")
         mb = os.path.getsize(out) / 1048576
         if mb > 24.5:

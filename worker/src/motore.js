@@ -139,7 +139,7 @@ export async function motoreApi(req, env, url) {
     const rif = tipo === 'riferimenti';
     const agente = rif ? 'occhi' : 'analista';
     const mis = d.misure;
-    await log(env, id, agente, `sto guardando ${rif ? el.video.piattaforma + ' · ' + (el.video.titolo || el.video.url).slice(0, 50) : el.nome} (${mis.tecnico?.risoluzione || '?'} · ${mis.tecnico?.fps || '?'} fps · ${mis.numero_tagli} tagli${mis.bpm_stimato ? ' · ' + mis.bpm_stimato + ' BPM' : ''})`);
+    await log(env, id, agente, `sto guardando ${rif ? el.video.piattaforma + ' · ' + (el.video.titolo || el.video.url).slice(0, 50) : el.nome} (${mis.tecnico?.tipo === 'immagine' ? 'foto ' + (mis.tecnico?.risoluzione || '') : `${mis.tecnico?.risoluzione || '?'} · ${mis.tecnico?.fps || '?'} fps · ${mis.numero_tagli} tagli${mis.bpm_stimato ? ' · ' + mis.bpm_stimato + ' BPM' : ''}`})`);
     try {
       const sistema = rif ? analisiRiferimento(J(L.piano, {}).settore || '') : analisiClip(L.prompt);
       const testo = `MISURE ESATTE (ffmpeg + Whisper):\n${JSON.stringify(mis)}\n\nRispondi SOLO con il JSON richiesto.`;

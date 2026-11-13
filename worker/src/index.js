@@ -151,7 +151,7 @@ async function api(req, env, url) {
       const L = await one(env, 'SELECT montaggio, clip FROM lavori WHERE id=?', id);
       const mont = J(L?.montaggio, null);
       if (!mont?.piano) return json({ errore: 'questo lavoro non ha ancora un montaggio da rifare' }, 400);
-      mont.indicazioni_rimonta = { testo: String(d.testo || '').slice(0, 800), look: d.look || null, durata: Number(d.durata) || null, ritmo: d.ritmo || null };
+      mont.indicazioni_rimonta = { testo: String(d.testo || '').slice(0, 800), look: d.look || null, durata: Number(d.durata) || null, ritmo: d.ritmo || null, formato: ['montaggio', 'talking_head', 'carosello'].includes(d.formato) ? d.formato : null };
       await run(env, "UPDATE lavori SET montaggio=?, fase='regia', stato='in_corso', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(mont), ora(), id);
       await log(env, id, 'regia', `🎬 rimontaggio richiesto${d.testo ? ': ' + String(d.testo).slice(0, 120) : ''}`);
       return json({ ok: true });

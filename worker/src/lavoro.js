@@ -3,7 +3,7 @@
 import { J, all, log, one, ora, run, configurazione } from './db.js';
 import { libreriaTesto } from './libreria.js';
 import * as S from './servizi.js';
-import { MANUALE_AUDIO, MANUALE_COPY, MANUALE_DIRETTORE, MANUALE_IRIS, MANUALE_PUBBLICAZIONE, MANUALE_REGISTA } from './manuali.js';
+import { MANUALE_AUDIO, MANUALE_COPY, MANUALE_DIRETTORE, MANUALE_FORMATI, MANUALE_IRIS, MANUALE_PUBBLICAZIONE, MANUALE_REGISTA } from './manuali.js';
 
 const FASI = ['piano', 'ricerca', 'riferimenti', 'clip', 'scheda', 'regia', 'montaggio', 'fatto'];
 const BLOCCO_MIN = 12;       // un lavoro "preso" resta riservato per 12 minuti
@@ -84,6 +84,8 @@ su 480 px: sotto ~40 tende a mosso/sfocato, sopra ~150 è nitido), luminosità 0
 movimento tra fotogrammi (alto = camera o soggetto che si muovono); parlato trascritto da Whisper.
 Usa le misure per qualità e problemi, i fotogrammi per contenuto e inquadrature. Non inventare.
 Sii sintetico: al massimo 8 momenti e 5 problemi, frasi brevi.
+Se è una FOTO o una SLIDE (tecnico.tipo = immagine): niente momenti né problemi di tempo; descrivi cosa mostra e trascrivi
+il testo che contiene (se è una slide di carosello) in "testo_nell_immagine".
 
 Contesto del lavoro: ${contesto}
 
@@ -97,7 +99,8 @@ Rispondi SOLO con JSON:
   "problemi": [{"da": n, "a": n, "tipo": "mosso|fuori_fuoco|sovraesposto|sottoesposto|rumore_audio|altro", "nota": "..."}],
   "parlato": {"presente": bool, "sintesi": "di cosa si parla, o null"},
   "adatta_al_verticale": "si|serve_reframe|solo_con_sfondo_sfocato",
-  "note_montaggio": "consigli pratici per usarla"
+  "note_montaggio": "consigli pratici per usarla",
+  "testo_nell_immagine": "solo per foto/slide: il testo scritto, o null"
 }`;
 
 const SISTEMA_SCHEDA = `Sei il Direttore creativo di Momento Produzione. Scrivi la SCHEDA TECNICA che guiderà
@@ -264,7 +267,7 @@ async function faseClip(env, cfg, L) {
   let clip = J(L.clip, null);
   if (!clip) {
     const lista = await fonte.elenca(L);
-    if (!lista.length) throw new Error('nella cartella pCloud non ci sono video');
+    if (!lista.length) throw new Error('nella cartella pCloud non ci sono né video né foto');
     clip = lista.map((c) => ({ ...c, stato: 'da_guardare' }));
     // le clip già viste in altri lavori non si riguardano (e non si pagano)
     let gia = 0;
@@ -302,6 +305,7 @@ const LOOKS = ['caldo_cinematico', 'pulito_commerciale', 'teal_orange', 'moody_s
 const TRANSIZIONI = ['taglio_netto', 'dissolvenza', 'flash_bianco', 'whip_pan', 'zoom', 'glitch', 'slide', 'fadenero'];
 const EFFETTI_PEZZO = ['punch_in', 'zoom_lento', 'zoom_out', 'shake', 'nessuno'];
 const EFFETTI_GLOBALI = ['grana', 'vignettatura', 'bande_cinema', 'light_leak'];
+const FORMATI_REEL = ['montaggio', 'talking_head', 'carosello'];
 
 const SISTEMA_REGISTA = `Sei il Regista e il Copy di Momento Produzione. Trasformi la SCHEDA TECNICA del Direttore creativo in un
 PIANO DI MONTAGGIO preciso che un montatore automatico eseguirà alla lettera. Scegli i pezzi migliori dalle clip analizzate
@@ -310,6 +314,8 @@ chiusura, alterna inquadrature (totale/dettaglio/primo piano), non ripetere lo s
 48 fps o più (rallenty_possibile). Testi brevi, in italiano corretto, niente formule abusate. Rispondi SOLO JSON.
 
 ${MANUALE_REGISTA}
+
+${MANUALE_FORMATI}
 
 ${MANUALE_COPY}
 
@@ -329,9 +335,11 @@ VALORI AMMESSI
 - effetto: ${EFFETTI_PEZZO.join(', ')}
 - effetti_globali: ${EFFETTI_GLOBALI.join(', ')}
 - stile testi: titolo_grande_centrale, etichetta_box, sottotitolo_classico; posizione: alto, centro, terzo_inferiore
+- formato: montaggio, talking_head, carosello (vedi FORMATI DEL MONTATORE)
 
-JSON:
+JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel formato):
 {
+  "formato": "montaggio|talking_head|carosello",
   "durata_target": n,
   "look": "...", "intensita_look": 0.6-1.0,
   "effetti_globali": ["..."],
@@ -342,7 +350,13 @@ JSON:
                 "transizione_in": "...", "audio": 0-1 (suono originale), "motivo": "perché questo pezzo qui",
                 "testo": {"testo": "...", "stile": "...", "posizione": "...", "evidenzia": "parola"} oppure null}],
   "sottotitoli": {"usare": bool, "stile": "parola_per_parola|karaoke_evidenziato|sottotitolo_classico", "posizione": "terzo_inferiore"},
-  "chiusura": {"testo": "...", "sottotesto": "cta breve", "evidenzia": "parola", "durata": 2-3, "colore": "#hex"} oppure null,
+  "chiusura": {"testo": "...", "sottotesto": "cta breve", "evidenzia": "parola", "durata": 2-3, "colore": "#hex"} oppure null (non per talking_head/carosello),
+  "gancio": {"testo": "solo carosello: frase breve sulla prima slide; talking_head: lascia null (usa la prima frase detta)", "evidenzia": ["parole del gancio da colorare"]},
+  "evidenzia": ["solo talking_head: 3-8 parole chiave del discorso da colorare nei sottotitoli"],
+  "correzioni": {"parola_sentita_male": "parola giusta"},
+  "broll": [{"clip": indice, "in": secondi, "durata": 1.5-3, "sulla_parola": "parola detta su cui entra", "rallenty": bool}],
+  "cta": {"testo": "solo talking_head/carosello: call to action breve (es. Scrivici ORTO in DM)"},
+  "slide": [{"clip": indice di una foto/slide, "durata": secondi}],
   "ganci_alternativi": [{"testo": "...", "meccanismo": "..."}],
   "loop": "come il finale si ricollega al primo pezzo",
   "copertina": {"clip": indice, "secondo": n, "testo": "testo grande della copertina (2-5 parole)"},
@@ -355,8 +369,10 @@ JSON:
 async function faseRegia(env, cfg, L) {
   const scheda = J(L.scheda, {});
   const clip = (J(L.clip, []) || []).map((c, i) => ({ c, i })).filter(({ c }) => c.stato === 'fatto').map(({ c, i }) => ({
-    indice: i, file: c.nome, tecnico: c.tecnico, descrizione: c.analisi?.descrizione, momenti: c.analisi?.momenti,
-    problemi: c.analisi?.problemi, parlato: c.analisi?.parlato, verticale: c.analisi?.adatta_al_verticale,
+    indice: i, file: c.nome, tipo: c.tipo === 'immagine' || c.tecnico?.tipo === 'immagine' ? 'immagine' : 'video', tecnico: c.tecnico,
+    descrizione: c.analisi?.descrizione, momenti: c.analisi?.momenti, problemi: c.analisi?.problemi, parlato: c.analisi?.parlato,
+    trascrizione: (c.analisi?.misure?.parlato?.trascrizione || []).slice(0, 60), testo_nell_immagine: c.analisi?.testo_nell_immagine || undefined,
+    verticale: c.analisi?.adatta_al_verticale,
   }));
   const prima = J(L.montaggio, null);
   if (!clip.length) {
@@ -378,10 +394,22 @@ JSON: {"riprese": [{"n": 1, "fase": "gancio|sviluppo|climax|chiusura", "inquadra
   const p = await S.claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda, clip) + extra, { maxTokens: 12000 });
   // controllo del piano: valori ammessi, clip esistenti, tempi dentro le clip
   const tutte = J(L.clip, []);
-  const seg = (p.segmenti || []).filter((s) => tutte[s.clip]?.stato === 'fatto').slice(0, 40).map((s, k) => {
+  const eImm = (c) => c?.tipo === 'immagine' || c?.tecnico?.tipo === 'immagine';
+  const sorg = (c) => ({ fileid: c.sorgente?.tipo === 'url' ? null : c.fileid, url: c.sorgente?.tipo === 'url' ? c.sorgente.url : null, nome: c.nome });
+  let formato = FORMATI_REEL.includes(indicazioni?.formato) ? indicazioni.formato : (FORMATI_REEL.includes(p.formato) ? p.formato : 'montaggio');
+  const slide = (p.slide || []).filter((s) => tutte[s.clip]?.stato === 'fatto' && eImm(tutte[s.clip])).slice(0, 20)
+    .map((s) => ({ clip: s.clip, ...sorg(tutte[s.clip]), durata: Math.min(Math.max(Number(s.durata) || 2.2, 1.8), 8) }));
+  if (formato === 'carosello' && slide.length < 2) {
+    const foto = tutte.map((c, i) => ({ c, i })).filter(({ c }) => c.stato === 'fatto' && eImm(c));
+    if (foto.length >= 2) slide.push(...foto.slice(0, 15).map(({ c, i }) => ({ clip: i, ...sorg(c), durata: 2.2 })));
+    else formato = 'montaggio';
+  }
+  const parla = (c) => c?.analisi?.misure?.parlato?.presente || c?.analisi?.parlato?.presente;
+  if (formato === 'talking_head' && !(p.segmenti || []).some((s) => parla(tutte[s.clip]))) formato = 'montaggio';
+  const seg = (p.segmenti || []).filter((s) => tutte[s.clip]?.stato === 'fatto' && !eImm(tutte[s.clip])).slice(0, formato === 'talking_head' ? 30 : 40).map((s, k) => {
     const c = tutte[s.clip];
     const durClip = Number(c.tecnico?.durata_sec) || 9999;
-    const durata = Math.min(Math.max(Number(s.durata) || 1.5, 0.4), 12);
+    const durata = Math.min(Math.max(Number(s.durata) || 1.5, 0.4), formato === 'talking_head' ? 90 : 12);
     const rallenty = !!s.rallenty;
     const serve = durata * (rallenty ? 0.5 : 1);
     return {
@@ -391,17 +419,25 @@ JSON: {"riprese": [{"n": 1, "fase": "gancio|sviluppo|climax|chiusura", "inquadra
       audio: Math.min(1, Math.max(0, Number(s.audio ?? 0.8))), motivo: s.motivo, testo: s.testo?.testo ? s.testo : null,
     };
   });
-  if (!seg.length) throw new Error('il piano del Regista non contiene pezzi validi');
+  if (!seg.length && formato !== 'carosello') throw new Error('il piano del Regista non contiene pezzi validi');
+  const broll = formato !== 'talking_head' ? [] : (p.broll || []).filter((b) => tutte[b.clip]?.stato === 'fatto' && !eImm(tutte[b.clip]) && b.sulla_parola).slice(0, 8).map((b) => {
+    const c = tutte[b.clip];
+    const durata = Math.min(Math.max(Number(b.durata) || 2, 1), 3.5);
+    return { clip: b.clip, ...sorg(c), in: Math.max(0, Math.min(Number(b.in) || 0, Math.max(0, (Number(c.tecnico?.durata_sec) || 9999) - durata * (b.rallenty ? 0.5 : 1) - 0.05))), durata, rallenty: !!b.rallenty, sulla_parola: String(b.sulla_parola).slice(0, 40) };
+  });
   const lookVoluto = indicazioni?.look && LOOKS.includes(indicazioni.look) ? indicazioni.look : null;
   const cop = p.copertina && tutte[p.copertina.clip]?.stato === 'fatto' ? { fileid: tutte[p.copertina.clip].fileid, url: tutte[p.copertina.clip].sorgente?.url || null, secondo: Math.max(0, Number(p.copertina.secondo) || 0), testo: String(p.copertina.testo || '').slice(0, 60) } : null;
   const piano = {
-    ...p, segmenti: seg, look: lookVoluto || (LOOKS.includes(p.look) ? p.look : (LOOKS.includes(scheda.colore?.look) ? scheda.colore.look : 'naturale_vivace')),
+    ...p, formato, segmenti: formato === 'carosello' ? [] : seg, broll, slide: formato === 'carosello' ? slide : [],
+    chiusura: formato === 'montaggio' ? p.chiusura : null, look: lookVoluto || (LOOKS.includes(p.look) ? p.look : (LOOKS.includes(scheda.colore?.look) ? scheda.colore.look : 'naturale_vivace')),
     effetti_globali: (p.effetti_globali || []).filter((e) => EFFETTI_GLOBALI.includes(e)), copertina: cop,
   };
   const versione = (prima?.versione || 0) + 1;
   await run(env, 'UPDATE lavori SET montaggio=? WHERE id=?', JSON.stringify({ stato: 'da_fare', piano, versione, creato: ora(), indicazioni: indicazioni || null }), L.id);
   const tot = seg.reduce((a, s) => a + s.durata, 0);
-  await log(env, L.id, 'regista', `piano pronto: ${seg.length} pezzi, ~${Math.round(tot + (piano.chiusura?.durata || 0))} s, look ${piano.look}`);
+  const nomeF = { montaggio: 'montaggio', talking_head: 'talking-head', carosello: 'carosello' }[formato];
+  await log(env, L.id, 'regista', formato === 'carosello' ? `piano pronto: formato carosello, ${slide.length} slide` :
+    `piano pronto: formato ${nomeF}, ${seg.length} ${formato === 'talking_head' ? 'tratti di parlato' : 'pezzi'}${broll.length ? ` + ${broll.length} b-roll` : ''}, ~${Math.round(tot + (piano.chiusura?.durata || 0))} s, look ${piano.look}`);
   if (seg.some((s) => s.testo) || piano.chiusura) await log(env, L.id, 'copy', `testi: ${[...seg.filter((s) => s.testo).map((s) => '"' + s.testo.testo + '"'), piano.chiusura?.testo ? '"' + piano.chiusura.testo + '"' : ''].filter(Boolean).join(' · ').slice(0, 300)}`);
   await log(env, L.id, 'motore', 'chiamo il motore GitHub per il montaggio');
   return true;

@@ -66,3 +66,19 @@ export const MANUALE_AUDIO = `REGOLE AUDIO (dalla skill ai-music-and-sound)
 - Per un brand mai musica protetta o "di tendenza" incorporata senza licenza (rischio silenziamento/rivendicazione).
 - Il brano di tendenza si aggiunge in app dalla libreria di Instagram; nel file si mettono solo suono originale ed effetti.
 - Il sound design (whoosh, impatti, riser sui tagli) nei video brevi conta spesso più del brano.`;
+
+export const MANUALE_FORMATI = `FORMATI DEL MONTATORE (scegli "formato" nel piano, in base al girato e alla scheda)
+- "montaggio": il reel classico da tante clip (b-roll, prodotto, luoghi, persone senza un discorso). Gancio → sviluppo →
+  climax → chiusura sul ritmo. È il formato di base.
+- "talking_head": una persona che PARLA IN CAMERA (clip con parlato presente e trascrizione). Il montatore toglie da solo
+  i silenzi, fa un punch zoom a ogni frase, scrive sottotitoli grandi (1-3 parole) sotto il mento con un riquadro colorato
+  che scorre di parola in parola, mette la prima frase come GANCIO grande sopra la testa con un "boom", e copre le parole
+  chiave con i b-roll che scegli. Tu scegli SOLO i tratti di parlato buoni (le prese migliori, niente ripetizioni o frasi
+  sbagliate), in ordine, con "in" e "durata" sui tempi della trascrizione; il primo tratto deve aprire con la frase più
+  forte (il gancio: un risultato, una promessa, una domanda). Correggi le parole che Whisper sente male in "correzioni".
+  B-roll: 2-5 inserti di 1,5-3 s sulle parole concrete (un piatto, una camera, il prodotto), mai durante il gancio.
+  Testi sempre fuori dal viso: non servono "testo" sui segmenti. Durata ideale 20-45 s.
+- "carosello": hai delle FOTO/SLIDE (tecnico.tipo = immagine) che formano un carosello o una sequenza: ogni slide resta
+  intera su uno sfondo sfocato di se stessa, con barre di avanzamento come le storie, push-in lento e transizioni a spinta
+  con whoosh. Slide ricche di testo: ~1 s ogni 8 parole, minimo 1,8 s. Gancio breve sulla prima slide, CTA sull'ultima.
+Se il girato non si presta al formato (es. talking_head senza parlato), usa "montaggio".`;

@@ -259,9 +259,11 @@ def analizza(lavoro, el, cartella):
     t0 = time.time()
     path = scarica(lavoro, el, cartella)
     mb = os.path.getsize(path) / 1048576
+    rif = lavoro["tipo"] == "riferimenti"
+    if not rif and (el.get("tipo") == "immagine" or re.search(r"\.(jpe?g|png|webp|heic)$", el.get("nome", ""), re.I)):
+        return analizza_immagine(el, path, mb, t0)
     tec = tecnico(path)
     durata = tec["durata_sec"] or 1
-    rif = lavoro["tipo"] == "riferimenti"
 
     cuts = tagli(path, 0.30 if rif else 0.45)
     bordi = [0.0] + [c for c in cuts if 0 < c < durata] + [durata]
@@ -326,6 +328,24 @@ def analizza(lavoro, el, cartella):
     return {"misure": misure, "immagini": [i for i in immagini if i["jpeg"]]}
 
 
+def analizza_immagine(el, path, mb, t0):
+    """Foto o slide di carosello: niente tempi né audio, solo l'immagine e le sue misure."""
+    try:
+        im = Image.open(path).convert("RGB")
+    except Exception:
+        im = fotogramma(path, 0)
+    if im is None:
+        raise RuntimeError("immagine non leggibile")
+    q, _ = qualita(im)
+    w, h = im.size
+    misure = {"tecnico": {"tipo": "immagine", "risoluzione": f"{w}x{h}", "orientamento": "verticale" if h > w else "orizzontale" if w > h else "quadrato",
+                          "durata_sec": 0, "audio": False}, "dimensione_mb": round(mb, 1), "qualita": q, "parlato": {"presente": False}}
+    im.thumbnail((1400, 1400))
+    os.remove(path)
+    log(f"{el['nome'][:50]}: immagine {w}x{h} · {time.time() - t0:.0f}s")
+    return {"misure": misure, "immagini": [{"cosa": "l'immagine (foto o slide di carosello)", "jpeg": tavola([("foto", im)], 1)}]}
+
+
 def lavora_elemento(lavoro, el, cartella):
     if FERMO["motivo"]:
         return
@@ -357,7 +377,8 @@ def invia_file(lavoro, azione, path, tipo_mime):
 
 def monta(lavoro):
     """Scarica le clip del piano da pCloud e monta il reel con il montatore."""
-    from montatore import Montatore, anteprima, copertina
+    from montatore import anteprima, copertina
+    from formati import montatore_per
     cartella = tempfile.mkdtemp(prefix="monta_")
     piano = dict(lavoro["piano"])
 
@@ -370,7 +391,8 @@ def monta(lavoro):
     try:
         chiave = lambda s: str(s.get("fileid") or s.get("url"))
         cop = piano.get("copertina") or {}
-        voci = {chiave(s): s for s in piano["segmenti"]}
+        voci = {chiave(s): s for s in (piano.get("segmenti") or []) + (piano.get("broll") or []) + (piano.get("slide") or [])
+                if s.get("fileid") or s.get("url")}
         if cop.get("fileid") or cop.get("url"):
             voci.setdefault(chiave(cop), cop)
         avvisa("motore", f"scarico {len(voci)} clip")
@@ -384,9 +406,13 @@ def monta(lavoro):
         with ThreadPoolExecutor(3) as ex:
             for k, dest in ex.map(prendi, list(voci)):
                 file_per_id[k] = dest
-        piano["segmenti"] = [dict(s, file=file_per_id[chiave(s)]) for s in piano["segmenti"]]
+        for campo in ("segmenti", "broll", "slide"):
+            if piano.get(campo):
+                piano[campo] = [dict(s, file=file_per_id[chiave(s)]) for s in piano[campo] if chiave(s) in file_per_id]
         out = os.path.join(cartella, "reel.mp4")
-        m = Montatore(piano, os.path.join(cartella, "lavoro"), avvisa=avvisa)
+        Classe = montatore_per(piano)
+        avvisa("motore", f"formato: {piano.get('formato') or 'montaggio'}")
+        m = Classe(piano, os.path.join(cartella, "lavoro"), avvisa=avvisa)
         rep = m.monta(out)
         prev = anteprima(out, os.path.join(cartella, "anteprima.jpg"))
         invia_file(lavoro, "video", out, "video/mp4")
@@ -394,7 +420,11 @@ def monta(lavoro):
         cop_ok = False
         try:
             sorg = file_per_id.get(chiave(cop)) if (cop.get("fileid") or cop.get("url")) else out
-            sec = float(cop.get("secondo", 0.6)) if sorg != out else 0.6
+            immagine = False
+            if not sorg and piano.get("slide"):
+                sorg, immagine = piano["slide"][0]["file"], True
+            sorg = sorg or out
+            sec = 0 if immagine else (float(cop.get("secondo", 0.6)) if sorg != out else 0.6)
             c = copertina(sorg, sec, cop.get("testo") or "", os.path.join(cartella, "copertina.jpg"), m.fontdir)
             invia_file(lavoro, "copertina", c, "image/jpeg")
             cop_ok = True
