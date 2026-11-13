@@ -170,7 +170,7 @@ export const Pannello: React.FC<PannelloProps> = (props) => {
   const inGrafico = Math.round((props.grafico_in ?? 0.6) * fps);
   const fineGrafico = inGrafico + Math.round((props.tipo === "steps" ? 0.5 : 1.5) * fps);
   const wGrafico = width - LATI * 2;
-  const hGrafico = height - ALTO - 270;
+  const hGrafico = height - ALTO - 320;
   return (
     <AbsoluteFill style={{ fontFamily }}>
       <div style={{ position: "absolute", left: 0, top: 0, width, height, transform: `translateY(${y}px)`,
