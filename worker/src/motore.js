@@ -1,12 +1,13 @@
-// Motore su GitHub Actions (repo johnhant91/momento-montaggio): si presenta con l'identità OIDC firmata da GitHub,
-// prende le clip da preparare, le scarica da pCloud, ne fa una copia leggera 720p con ffmpeg e la manda qui.
-// La regia la passa a Gemini (la chiave resta su Cloudflare: su GitHub non c'è nessuna chiave).
+// Motore "occhi" su GitHub Actions (repo johnhant91/momento-montaggio). Si presenta con l'identità OIDC firmata da GitHub,
+// prende i video da guardare (reel di riferimento o clip pCloud), li misura (ffmpeg, Whisper) ed estrae i fotogrammi chiave.
+// La regia manda misure + fotogrammi a Claude (la chiave resta su Cloudflare: su GitHub non c'è nessuna chiave).
 import { J, log, one, ora, run, configurazione } from './db.js';
-import { analisiClip, chiaveClip } from './lavoro.js';
+import { analisiClip, analisiRiferimento, chiaveClip, chiaveRif } from './lavoro.js';
 import * as S from './servizi.js';
 
 const REPO = 'johnhant91/momento-montaggio';
 const AUD = 'momento-reel';
+const COLONNA = { riferimenti: 'riferimenti', clip: 'clip' };
 const json = (d, status = 200) => new Response(JSON.stringify(d), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
 const b64u = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(s.length / 4) * 4, '=')), (c) => c.charCodeAt(0));
 
@@ -29,13 +30,22 @@ async function identitaGitHub(auth) {
 
 const codice = (link) => { try { return new URL(link).searchParams.get('code'); } catch { return null; } };
 
-// aggiorna UNA clip dentro l'elenco (json_set è atomico: le risposte in parallelo non si pestano i piedi)
-async function aggiornaClip(env, id, indice, clip) {
-  await run(env, 'UPDATE lavori SET clip=json_set(clip, ?, json(?)), motore_visto=? WHERE id=?', `$[${Math.trunc(indice)}]`, JSON.stringify(clip), ora(), id);
+// aggiorna UN elemento dentro l'elenco (json_set è atomico: le risposte in parallelo non si pestano i piedi)
+async function aggiorna(env, id, colonna, indice, el) {
+  await run(env, `UPDATE lavori SET ${colonna}=json_set(${colonna}, ?, json(?)), motore_visto=? WHERE id=?`, `$[${Math.trunc(indice)}]`, JSON.stringify(el), ora(), id);
 }
+
+const PENDENTE = (col) => `EXISTS (SELECT 1 FROM json_each(lavori.${col}) WHERE json_extract(value, '$.stato')='da_guardare')`;
 
 export async function motoreApi(req, env, url) {
   const p = url.pathname, m = req.method;
+
+  // 0) c'è qualcosa da guardare? (solo sì/no, senza dettagli: serve al motore per non installare niente se non serve)
+  if (p === '/api/motore/coda' && m === 'GET') {
+    const r = await one(env, `SELECT COUNT(*) AS n FROM lavori WHERE stato='in_corso' AND (
+      (fase='riferimenti' AND riferimenti IS NOT NULL AND ${PENDENTE('riferimenti')}) OR (fase='clip' AND clip IS NOT NULL AND ${PENDENTE('clip')}))`);
+    return json({ lavoro: (r?.n || 0) > 0 });
+  }
 
   // 1) il motore chiede lavoro
   if (p === '/api/motore/prossimo' && m === 'POST') {
@@ -43,78 +53,105 @@ export async function motoreApi(req, env, url) {
     const adesso = ora();
     const pass = [...crypto.getRandomValues(new Uint8Array(24))].map((b) => b.toString(16).padStart(2, '0')).join('');
     const L = await one(env, `UPDATE lavori SET motore_pass=?, motore_fino=?, motore_visto=? WHERE id = (
-        SELECT id FROM lavori WHERE stato='in_corso' AND fase='clip' AND clip IS NOT NULL
-          AND EXISTS (SELECT 1 FROM json_each(lavori.clip) WHERE json_extract(value, '$.stato')='da_guardare')
-          AND (motore_fino IS NULL OR motore_fino < ?) ORDER BY id LIMIT 1)
-      RETURNING id, prompt, pcloud, clip`, pass, new Date(Date.now() + 50 * 60e3).toISOString(), adesso, adesso);
+        SELECT id FROM lavori WHERE stato='in_corso' AND (motore_fino IS NULL OR motore_fino < ?) AND (
+          (fase='riferimenti' AND riferimenti IS NOT NULL AND ${PENDENTE('riferimenti')}) OR
+          (fase='clip' AND clip IS NOT NULL AND ${PENDENTE('clip')}))
+        ORDER BY id LIMIT 1)
+      RETURNING id, fase, pcloud, riferimenti, clip`, pass, new Date(Date.now() + 55 * 60e3).toISOString(), adesso, adesso);
     if (!L) return new Response(null, { status: 204 });
-    const clip = J(L.clip, []).map((c, i) => ({ indice: i, fileid: c.fileid, nome: c.nome, dimensione: c.dimensione, tentativi: c.tentativi || 0, stato: c.stato }))
-      .filter((c) => c.stato === 'da_guardare');
-    await log(env, L.id, 'motore', `⚙️ motore GitHub al lavoro: ${clip.length} clip da scaricare e alleggerire`);
-    return json({ id: L.id, pass, pcloud_code: codice(L.pcloud), pcloud_eu: /(^|\/\/)e\.|eapi/.test(L.pcloud), clip });
+    const tipo = L.fase;
+    const elenco = J(tipo === 'riferimenti' ? L.riferimenti : L.clip, []);
+    const elementi = elenco.map((x, i) => [x, i]).filter(([x]) => x.stato === 'da_guardare').map(([x, i]) => tipo === 'riferimenti'
+      ? { indice: i, nome: `${x.video.piattaforma} · ${(x.video.titolo || x.video.url || '').slice(0, 60)}`, url: x.video.url,
+          // i file di Apify li scarica la regia (ha il token), il motore passa da qui
+          video_url: x.video.video_url ? (x.video.video_url.includes('api.apify.com') ? `${url.origin}/api/motore/${L.id}/scarica?i=${i}&tipo=riferimenti&pass=${pass}` : x.video.video_url) : null }
+      : { indice: i, nome: x.nome, fileid: x.fileid, dimensione: x.dimensione });
+    await log(env, L.id, 'motore', `⚙️ motore GitHub al lavoro: ${elementi.length} ${tipo === 'riferimenti' ? 'reel da scaricare e misurare' : 'clip da scaricare e misurare'}`);
+    return json({ id: L.id, tipo, pass, pcloud_code: codice(L.pcloud), pcloud_eu: /(^|\/\/)e\.|eapi/.test(L.pcloud || ''), elementi });
   }
 
-  const mm = p.match(/^\/api\/motore\/(\d+)\/(clip|errore|fine)$/);
+  const mm = p.match(/^\/api\/motore\/(\d+)\/(elemento|errore|fine|scarica)$/);
   if (!mm) return json({ errore: 'non trovato' }, 404);
   const id = Number(mm[1]);
-  const L = await one(env, 'SELECT id, prompt, clip, motore_pass, motore_fino, stato FROM lavori WHERE id=?', id);
-  const pass = req.headers.get('x-pass') || '';
+  const L = await one(env, 'SELECT id, prompt, piano, fase, riferimenti, clip, motore_pass FROM lavori WHERE id=?', id);
+  const pass = req.headers.get('x-pass') || url.searchParams.get('pass') || '';
   if (!L || !L.motore_pass || pass.length < 32 || pass !== L.motore_pass) return json({ errore: 'lasciapassare non valido' }, 403);
-  const clip = J(L.clip, []);
+  const tipo = COLONNA[url.searchParams.get('tipo')] || (L.fase === 'riferimenti' ? 'riferimenti' : 'clip');
+  const elenco = J(L[tipo], []);
   const indice = Number(url.searchParams.get('i'));
-  const c = clip[indice];
+  const el = elenco[indice];
+  const nome = (x) => (tipo === 'riferimenti' ? `${x.video.piattaforma} ${x.video.id}` : x.nome);
 
-  // 2) arriva la copia leggera di una clip: la regia la passa a Gemini (Ada) e salva l'analisi
-  if (mm[2] === 'clip' && m === 'POST') {
-    if (!c) return json({ errore: 'clip sconosciuta' }, 400);
-    const lunghezza = Number(req.headers.get('content-length') || 0);
-    if (!lunghezza || lunghezza > 400 * 1024 * 1024) return json({ errore: 'dimensione non valida' }, 400);
-    let tecnico = {};
-    try { tecnico = JSON.parse(decodeURIComponent(req.headers.get('x-tecnico') || '{}')); } catch {}
+  // scaricamento dei video Apify (servono il token, che resta qui)
+  if (mm[2] === 'scarica' && m === 'GET') {
+    if (!el?.video?.video_url) return json({ errore: 'niente da scaricare' }, 404);
     const cfg = await configurazione(env);
-    c.tecnico = { ...(c.tecnico || {}), ...tecnico };
-    await log(env, id, 'analista', `sto guardando ${c.nome} (${c.tecnico.risoluzione || '?'} · ${c.tecnico.fps || '?'} fps · ${c.tecnico.durata_sec || '?'} s)`);
+    const r = await fetch(el.video.video_url, { headers: { authorization: `Bearer ${cfg.APIFY_TOKEN}` } });
+    return new Response(r.body, { status: r.status, headers: { 'content-type': r.headers.get('content-type') || 'video/mp4', ...(r.headers.get('content-length') ? { 'content-length': r.headers.get('content-length') } : {}) } });
+  }
+
+  // 2) arrivano misure + fotogrammi: Claude li guarda e scrive l'analisi
+  if (mm[2] === 'elemento' && m === 'POST') {
+    if (!el) return json({ errore: 'elemento sconosciuto' }, 400);
+    const d = await req.json().catch(() => null);
+    if (!d?.misure || !Array.isArray(d.immagini) || !d.immagini.length) return json({ errore: 'dati mancanti' }, 400);
+    const cfg = await configurazione(env);
+    const rif = tipo === 'riferimenti';
+    const agente = rif ? 'occhi' : 'analista';
+    const mis = d.misure;
+    await log(env, id, agente, `sto guardando ${rif ? el.video.piattaforma + ' · ' + (el.video.titolo || el.video.url).slice(0, 50) : el.nome} (${mis.tecnico?.risoluzione || '?'} · ${mis.tecnico?.fps || '?'} fps · ${mis.numero_tagli} tagli${mis.bpm_stimato ? ' · ' + mis.bpm_stimato + ' BPM' : ''})`);
     try {
-      const { readable, writable } = new FixedLengthStream(lunghezza);
-      req.body.pipeTo(writable).catch(() => {});
-      const analisi = await S.guardaCorpo(cfg, readable, lunghezza, c.nome, analisiClip(L.prompt), 1);
-      Object.assign(c, { stato: 'fatto', analisi, errore: undefined });
-      await env.DB.prepare('INSERT OR REPLACE INTO cache_analisi (chiave, dati, quando) VALUES (?,?,?)').bind(chiaveClip(c), JSON.stringify({ analisi, tecnico: c.tecnico }), ora()).run();
-      await aggiornaClip(env, id, indice, c);
-      await log(env, id, 'analista', `guardata: ${c.nome} — ${String(analisi.descrizione || '').slice(0, 120)}`);
-      return json({ ok: true });
+      const sistema = rif ? analisiRiferimento(J(L.piano, {}).settore || '') : analisiClip(L.prompt);
+      const testo = `MISURE ESATTE (ffmpeg + Whisper):\n${JSON.stringify(mis)}\n\nRispondi SOLO con il JSON richiesto.`;
+      const analisi = await S.claudeVisione(cfg, rif ? cfg.CLAUDE_MODEL : cfg.CLAUDE_MODEL_LIGHT, sistema, testo, d.immagini.slice(0, 3), rif ? 5000 : 3500);
+      if (rif) { // i numeri misurati vincono sempre sulle stime
+        Object.assign(analisi, { numero_tagli: mis.numero_tagli, durata_media_inquadratura_sec: mis.durata_media_inquadratura_sec, durata_sec: mis.tecnico?.durata_sec });
+        analisi.audio = { ...(analisi.audio || {}), bpm_stimato: mis.bpm_stimato ?? analisi.audio?.bpm_stimato ?? null, volume_lufs: mis.volume_lufs };
+        analisi.misure = { tagli_sec: mis.tagli_sec, piu_breve: mis.inquadratura_piu_breve_sec, piu_lunga: mis.inquadratura_piu_lunga_sec, tagli_sul_beat_indice: mis.tagli_sul_beat_indice, parlato: mis.parlato };
+        Object.assign(el, { stato: 'fatto', analisi, errore: undefined });
+        await env.DB.prepare('INSERT OR REPLACE INTO cache_analisi (chiave, dati, quando) VALUES (?,?,?)').bind(chiaveRif(el.video), JSON.stringify(analisi), ora()).run();
+      } else {
+        analisi.misure = { qualita: mis.qualita_fotogrammi, movimento: mis.movimento_tra_fotogrammi, tagli_interni_sec: mis.tagli_sec, volume_lufs: mis.volume_lufs, parlato: mis.parlato };
+        Object.assign(el, { stato: 'fatto', analisi, tecnico: { ...(el.tecnico || {}), ...mis.tecnico }, errore: undefined });
+        await env.DB.prepare('INSERT OR REPLACE INTO cache_analisi (chiave, dati, quando) VALUES (?,?,?)').bind(chiaveClip(el), JSON.stringify({ analisi, tecnico: el.tecnico }), ora()).run();
+      }
+      await aggiorna(env, id, tipo, indice, el);
+      await log(env, id, agente, `guardato: ${rif ? el.video.piattaforma : el.nome} — ${String(rif ? analisi.perche_funziona || analisi.gancio?.cosa_succede : analisi.descrizione || '').slice(0, 130)}`);
+      return json({ ok: true, uso: analisi._uso });
     } catch (e) {
       const errore = String(e?.message || e).slice(0, 300);
-      if (errore.startsWith('QUOTA_GEMINI')) { // non è colpa della clip: resta da guardare, il motore si ferma e riprova più tardi
-        await log(env, id, 'analista', errore.replace('QUOTA_GEMINI: ', '⏸ '), 'warn');
-        return json({ errore, quota: true }, 429);
+      if (errore.startsWith('LIMITE_CLAUDE')) { // non è colpa del video: resta da guardare e il motore si ferma
+        await log(env, id, agente, '⏸ Claude ha rifiutato per limite o credito esaurito: riprendo più tardi. ' + errore.slice(15, 160), 'warn');
+        return json({ errore }, 429);
       }
-      c.tentativi = (c.tentativi || 0) + 1;
-      c.errore = errore;
-      c.stato = c.tentativi < 3 && !/manca la chiave/.test(errore) ? 'da_guardare' : 'saltato';
-      await aggiornaClip(env, id, indice, c);
-      await log(env, id, 'analista', `${c.nome}: ${errore}${c.stato === 'saltato' ? ' — saltata' : ` — riprovo (${c.tentativi}/3)`}`, 'warn');
+      el.tentativi = (el.tentativi || 0) + 1;
+      el.errore = errore;
+      el.stato = el.tentativi < 3 ? 'da_guardare' : 'saltato';
+      await aggiorna(env, id, tipo, indice, el);
+      await log(env, id, agente, `${nome(el)}: ${errore}${el.stato === 'saltato' ? ' — saltato' : ` — riprovo (${el.tentativi}/3)`}`, 'warn');
       return json({ errore }, 502);
     }
   }
 
-  // 3) il motore non è riuscito a scaricare/convertire una clip
+  // 3) il motore non è riuscito a scaricare/misurare un video
   if (mm[2] === 'errore' && m === 'POST') {
-    if (!c) return json({ errore: 'clip sconosciuta' }, 400);
+    if (!el) return json({ errore: 'elemento sconosciuto' }, 400);
     const d = await req.json().catch(() => ({}));
-    c.tentativi = (c.tentativi || 0) + 1;
-    c.errore = String(d.errore || 'errore del motore').slice(0, 300);
-    c.stato = c.tentativi < 3 ? 'da_guardare' : 'saltato';
-    await aggiornaClip(env, id, indice, c);
-    await log(env, id, 'motore', `${c.nome}: ${c.errore}${c.stato === 'saltato' ? ' — saltata' : ' — riprovo'}`, 'warn');
+    el.tentativi = (el.tentativi || 0) + 1;
+    el.errore = String(d.errore || 'errore del motore').slice(0, 300);
+    // un video che non si scarica (es. YouTube che blocca) è inutile riprovarlo 3 volte
+    el.stato = el.tentativi < 3 && !/YouTube non ha lasciato|HTTP 4\d\d/.test(el.errore) ? 'da_guardare' : 'saltato';
+    await aggiorna(env, id, tipo, indice, el);
+    await log(env, id, 'motore', `${nome(el)}: ${el.errore}${el.stato === 'saltato' ? ' — saltato' : ' — riprovo'}`, 'warn');
     return json({ ok: true });
   }
 
-  // 4) giro finito: libera il lavoro (se restano clip da riprovare, il prossimo giro le riprende)
+  // 4) giro finito: libera il lavoro (se restano elementi da riprovare, il prossimo giro li riprende)
   if (mm[2] === 'fine' && m === 'POST') {
     await run(env, 'UPDATE lavori SET motore_pass=NULL, motore_fino=NULL, motore_visto=? WHERE id=?', ora(), id);
-    const fatte = clip.filter((x) => x.stato === 'fatto').length;
-    await log(env, id, 'motore', `giro del motore finito: ${fatte}/${clip.length} clip guardate da Ada`);
+    if ((await req.json().catch(() => ({}))).silenzioso) return json({ ok: true });
+    const fatti = elenco.filter((x) => x.stato === 'fatto').length;
+    await log(env, id, 'motore', `giro del motore finito: ${fatti}/${elenco.length} ${tipo === 'riferimenti' ? 'reel' : 'clip'} analizzati`);
     return json({ ok: true });
   }
   return json({ errore: 'metodo non consentito' }, 405);

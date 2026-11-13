@@ -32,8 +32,13 @@ JSON:
 }`;
 
 const analisiRiferimento = (settore) => `Sei un montatore video senior. Analizza questo reel come se dovessi rifarlo.
-È un riferimento per un reel del settore "${settore}". Misura, non inventare: se un dato non è verificabile
-scrivi null. Tempi in secondi.
+È un riferimento per un reel del settore "${settore}".
+Non vedi il video in movimento: ti do (1) una tavola con i primi 3 secondi (il gancio), (2) una tavola con un
+fotogramma per ogni inquadratura, con il tempo scritto in giallo, (3) MISURE ESATTE fatte con ffmpeg e Whisper
+(tagli, durate delle inquadrature, BPM, volume, parlato trascritto). Le misure sono vere: copiale così come sono.
+Il resto (testi a schermo, colore, inquadrature, effetti visibili) lo deduci dai fotogrammi. Quello che da
+fotogrammi fermi non si può sapere (es. come si animano i testi, effetti sonori) scrivilo null o "non verificabile".
+Non inventare. Tempi in secondi.
 
 Per gli elementi visivi usa, quando possibile, i nomi di questa libreria:
 ${libreriaTesto()}
@@ -62,9 +67,12 @@ Rispondi SOLO con JSON:
   "da_evitare": ["cosa non funziona o è già visto"]
 }`;
 
-const analisiClip = (contesto) => `Sei l'assistente al montaggio di un'agenzia video. Guarda e ascolta questa clip GREZZA
-e descrivi cosa contiene per chi dovrà montare un reel verticale 9:16. Tempi precisi in secondi.
-Non inventare: solo ciò che vedi e senti.
+const analisiClip = (contesto) => `Sei l'assistente al montaggio di un'agenzia video. Descrivi questa clip GREZZA
+per chi dovrà montare un reel verticale 9:16. Non vedi il video in movimento: ti do i fotogrammi in ordine di tempo
+(tempo in giallo) e MISURE ESATTE: fps, risoluzione, durata; per ogni fotogramma nitidezza (varianza del laplaciano
+su 480 px: sotto ~40 tende a mosso/sfocato, sopra ~150 è nitido), luminosità 0-255, % bruciato e % chiuso;
+movimento tra fotogrammi (alto = camera o soggetto che si muovono); parlato trascritto da Whisper.
+Usa le misure per qualità e problemi, i fotogrammi per contenuto e inquadrature. Non inventare.
 
 Contesto del lavoro: ${contesto}
 
@@ -76,10 +84,9 @@ Rispondi SOLO con JSON:
     "movimento_camera": "statico|panoramica|carrellata|gimbal|mano_libera|drone", "soggetti": ["..."],
     "qualita": 1-5, "uso_consigliato": "gancio|sviluppo|climax|chiusura|b_roll|scartare", "perche": "..."}],
   "problemi": [{"da": n, "a": n, "tipo": "mosso|fuori_fuoco|sovraesposto|sottoesposto|rumore_audio|altro", "nota": "..."}],
-  "parlato": {"presente": bool, "lingua": "...", "trascrizione": [{"da": n, "a": n, "testo": "..."}]},
-  "audio_ambiente": "suoni utili",
+  "parlato": {"presente": bool, "sintesi": "di cosa si parla, o null"},
   "adatta_al_verticale": "si|serve_reframe|solo_con_sfondo_sfocato",
-  "stima_fps_alti": "si|no|non_so"
+  "note_montaggio": "consigli pratici per usarla"
 }`;
 
 const SISTEMA_SCHEDA = `Sei il Direttore creativo di Momento Produzione. Scrivi la SCHEDA TECNICA che guiderà
@@ -185,45 +192,40 @@ async function faseRicerca(env, cfg, L) {
   scelti.splice(0, scelti.length, ...scelti.filter((v) => { const k = `${v.piattaforma}:${v.id}`; return !unici.has(k) && unici.add(k); }));
   if (!scelti.length) throw new Error('nessun video di riferimento trovato: controlla le chiavi in Impostazioni');
   const riferimenti = scelti.map((v) => ({ video: v, stato: 'da_guardare' }));
-  await run(env, 'UPDATE lavori SET candidati=?, riferimenti=? WHERE id=?', JSON.stringify(perFonte), JSON.stringify(riferimenti), L.id);
-  await log(env, L.id, 'direttore', `scelgo ${riferimenti.length} video da far guardare a Gemini`);
+  await run(env, 'UPDATE lavori SET candidati=?, riferimenti=?, motore_visto=NULL WHERE id=?', JSON.stringify(perFonte), JSON.stringify(riferimenti), L.id);
+  await log(env, L.id, 'direttore', `scelgo ${riferimenti.length} reel da far guardare a Iris`);
 }
 
-async function guardaRiferimento(env, cfg, L, r) {
-  const v = r.video;
-  const settore = J(L.piano, {}).settore || '';
-  if (!(await one(env, 'SELECT 1 FROM cache_analisi WHERE chiave=?', `rif:${v.piattaforma}:${v.id}`)))
-    await log(env, L.id, 'occhi', `sto guardando ${v.piattaforma} · ${(v.titolo || v.url).slice(0, 60)} (${(v.views || 0).toLocaleString('it-IT')} views)`);
-  const { dati, daCache } = await cache(env, `rif:${v.piattaforma}:${v.id}`, async () => {
-    if (v.piattaforma === 'youtube') return S.guardaYoutube(cfg, v.url, analisiRiferimento(settore));
-    if (!v.video_url) throw new Error('nessun file video scaricabile');
-    const h = v.video_url.includes('api.apify.com') ? { authorization: `Bearer ${cfg.APIFY_TOKEN}` } : {};
-    return S.guardaUrlVideo(cfg, v.video_url, `${v.piattaforma}_${v.id}`, analisiRiferimento(settore), null, h);
-  });
-  await log(env, L.id, 'occhi', `${daCache ? 'già visto' : 'guardato'}: ${v.piattaforma} · ${(v.titolo || v.url).slice(0, 60)}`);
-  return dati;
-}
-
-async function faseRiferimenti(env, cfg, L, scadenza) {
+// I video li guarda il motore su GitHub (misure + fotogrammi) e la regia li fa giudicare a Claude: vedi motore.js.
+// Qui si riempie dalla cache quello che è già stato visto e si aspetta il resto.
+async function faseRiferimenti(env, cfg, L) {
   const rif = J(L.riferimenti, []);
-  while (Date.now() < scadenza) {
-    const daFare = rif.filter((r) => r.stato === 'da_guardare').slice(0, PER_GIRO);
-    if (!daFare.length) break;
-    const esiti = await Promise.allSettled(daFare.map((r) => guardaRiferimento(env, cfg, L, r)));
-    esiti.forEach((e, i) => {
-      if (e.status === 'fulfilled') Object.assign(daFare[i], { stato: 'fatto', analisi: e.value });
-      else Object.assign(daFare[i], { stato: 'saltato', errore: String(e.reason?.message || e.reason).slice(0, 300) });
-    });
-    for (const [i, e] of esiti.entries()) if (e.status === 'rejected') await log(env, L.id, 'occhi', `saltato ${daFare[i].video.piattaforma} ${daFare[i].video.id}: ${daFare[i].errore}`, 'warn');
-    await run(env, 'UPDATE lavori SET riferimenti=? WHERE id=?', JSON.stringify(rif), L.id);
+  if (!L.motore_visto) {
+    let gia = 0;
+    for (const r of rif) {
+      if (r.stato !== 'da_guardare') continue;
+      const c = await one(env, 'SELECT dati FROM cache_analisi WHERE chiave=?', chiaveRif(r.video));
+      if (c) { Object.assign(r, { stato: 'fatto', analisi: J(c.dati, {}) }); gia++; }
+    }
+    await run(env, 'UPDATE lavori SET riferimenti=?, motore_visto=? WHERE id=?', JSON.stringify(rif), ora(), L.id);
+    if (gia) await log(env, L.id, 'occhi', `${gia} reel già visti in passato: non li riguardo`);
+    if (rif.some((r) => r.stato === 'da_guardare')) await log(env, L.id, 'motore', `chiamo il motore GitHub: scarico e misuro ${rif.filter((r) => r.stato === 'da_guardare').length} reel di riferimento`);
   }
-  if (rif.some((r) => r.stato === 'da_guardare')) return false; // continua al prossimo giro
-  if (!rif.some((r) => r.stato === 'fatto')) {
-    const chiave = rif.find((r) => /manca la chiave/.test(r.errore || ''));
-    throw new Error(chiave ? chiave.errore : 'Gemini non è riuscito a guardare nessun riferimento');
-  }
+  if (rif.some((r) => r.stato === 'da_guardare')) return avvisoMotore(env, L);
+  if (!rif.some((r) => r.stato === 'fatto')) throw new Error('nessun reel di riferimento è stato analizzato (vedi il registro)');
+  await run(env, 'UPDATE lavori SET motore_visto=NULL WHERE id=?', L.id); // la fase clip riparte da zero col suo controllo
   return true;
 }
+
+async function avvisoMotore(env, L) {
+  if (L.motore_visto && Date.now() - new Date(L.motore_visto) > 75 * 60e3 && !(L.motore_fino && L.motore_fino > ora())) {
+    await log(env, L.id, 'motore', 'il motore GitHub non si fa vivo da più di un\'ora: controlla GitHub → momento-montaggio → Actions', 'warn');
+    await run(env, 'UPDATE lavori SET motore_visto=? WHERE id=?', ora(), L.id);
+  }
+  return false;
+}
+
+export const chiaveRif = (v) => `rif2:${v.piattaforma}:${v.id}`;
 
 // Le clip le prepara il motore su GitHub Actions (download da pCloud + copia leggera 720p con ffmpeg)
 // e le manda alla regia, che le passa a Gemini: vedi motore.js. Qui si aspetta e si tiene il conto.
@@ -243,19 +245,14 @@ async function faseClip(env, cfg, L) {
     await run(env, 'UPDATE lavori SET clip=?, motore_visto=? WHERE id=?', JSON.stringify(clip), ora(), L.id);
     const peso = Math.round(clip.reduce((s, c) => s + (c.dimensione || 0), 0) / 1073741824 * 10) / 10;
     await log(env, L.id, 'analista', `${clip.length} clip trovate su pCloud (${peso} GB)${gia ? `, ${gia} già viste in passato` : ''}`);
-    if (clip.some((c) => c.stato === 'da_guardare')) await log(env, L.id, 'motore', 'chiamo il motore GitHub: scarico le clip e preparo le copie leggere per Ada');
+    if (clip.some((c) => c.stato === 'da_guardare')) await log(env, L.id, 'motore', 'chiamo il motore GitHub: scarico e misuro le clip per Ada');
   }
   if (!clip.some((c) => c.stato === 'da_guardare')) return true;
-  // se il motore non si fa vivo da 45 minuti lo segnalo (una volta)
-  if (L.motore_visto && Date.now() - new Date(L.motore_visto) > 45 * 60e3 && !(L.motore_fino && L.motore_fino > ora())) {
-    await log(env, L.id, 'motore', 'il motore GitHub non risponde da 45 minuti: controlla GitHub → momento-montaggio → Actions', 'warn');
-    await run(env, 'UPDATE lavori SET motore_visto=? WHERE id=?', ora(), L.id);
-  }
-  return false;
+  return avvisoMotore(env, L);
 }
 
-export const chiaveClip = (c) => `clip:${c.hash}:${c.dimensione}`;
-export { analisiClip };
+export const chiaveClip = (c) => `clip2:${c.hash}:${c.dimensione}`;
+export { analisiClip, analisiRiferimento };
 
 async function faseScheda(env, cfg, L) {
   await log(env, L.id, 'direttore', 'incrocio riferimenti e clip, scrivo la scheda tecnica');
@@ -276,7 +273,7 @@ async function lavora(env, cfg, L, scadenza) {
     let finita = true;
     if (L.fase === 'piano') await fasePiano(env, cfg, L);
     else if (L.fase === 'ricerca') await faseRicerca(env, cfg, L);
-    else if (L.fase === 'riferimenti') finita = await faseRiferimenti(env, cfg, L, scadenza);
+    else if (L.fase === 'riferimenti') finita = await faseRiferimenti(env, cfg, L);
     else if (L.fase === 'clip') finita = await faseClip(env, cfg, L);
     else if (L.fase === 'scheda') await faseScheda(env, cfg, L);
     if (!finita) return 'attesa';

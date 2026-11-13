@@ -50,7 +50,34 @@ export async function claude(cfg, sistema, messaggio, { maxTokens = 8000, json =
   return json ? estraiJson(testo) : testo;
 }
 
-// ------------------------------------------------------------------ Gemini (gli occhi)
+// Claude con immagini (tavole di fotogrammi preparate dal motore GitHub)
+export async function claudeVisione(cfg, modello, sistema, testo, immagini, maxTokens = 4000) {
+  if (!cfg.ANTHROPIC_API_KEY) throw new Error('manca la chiave Claude (Impostazioni)');
+  const content = [];
+  for (const im of immagini) {
+    content.push({ type: 'text', text: `Immagine: ${im.cosa}` });
+    content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: im.jpeg } });
+  }
+  content.push({ type: 'text', text: testo });
+  const r = await richiesta('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'x-api-key': cfg.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+    body: JSON.stringify({ model: modello, max_tokens: maxTokens, system: sistema, messages: [{ role: 'user', content }] }),
+  });
+  const t = await r.text();
+  if (r.status !== 200) {
+    // credito finito o limite: non è colpa del video, lo segnalo a parte
+    if (r.status === 429 || /credit balance|billing/i.test(t)) throw new Error('LIMITE_CLAUDE: ' + t.slice(0, 200));
+    throw new Error(`Claude ${r.status}: ${t.slice(0, 300)}`);
+  }
+  const d = JSON.parse(t);
+  if (d.stop_reason === 'max_tokens') throw new Error('risposta di Claude troncata');
+  const out = estraiJson((d.content || []).filter((b) => b.type === 'text').map((b) => b.text).join(''));
+  out._uso = d.usage ? { in: d.usage.input_tokens, out: d.usage.output_tokens, modello } : undefined;
+  return out;
+}
+
+// ------------------------------------------------------------------ Gemini (non più usato: lasciato per eventuale ritorno)
 const GBASE = 'https://generativelanguage.googleapis.com';
 
 async function geminiGenera(cfg, parti, { bassa = false } = {}) {

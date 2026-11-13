@@ -1,7 +1,8 @@
-# Motore clip di Momento Reel
-# Ogni 5 minuti chiede alla regia (Cloudflare) se ci sono clip da preparare.
+# Motore "occhi" di Momento Reel
+# Ogni 5 minuti (GitHub in pratica lo lancia circa ogni ora) chiede alla regia se ci sono video da guardare.
+# Scarica e misura i video (ffmpeg, Whisper) e manda misure + fotogrammi alla regia, che li fa guardare a Claude.
 # Si presenta con l'identità firmata da GitHub (OIDC): nessuna chiave salvata qui.
-name: clip
+name: occhi
 
 on:
   schedule:
@@ -16,23 +17,48 @@ permissions:
   contents: read
 
 concurrency:
-  group: motore-clip
+  group: motore-occhi
   cancel-in-progress: false
 
 env:
   REGIA: https://momento-reel.gestionalelcl.workers.dev
 
 jobs:
-  clip:
+  occhi:
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 58
     steps:
-      - uses: actions/checkout@v4
+      - name: C'è lavoro?
+        id: coda
+        run: |
+          r=$(curl -fsS "$REGIA/api/motore/coda" || echo '{}')
+          echo "$r"
+          echo "lavoro=$(echo "$r" | grep -q '"lavoro":true' && echo si || echo no)" >> "$GITHUB_OUTPUT"
 
-      - name: ffmpeg
+      - uses: actions/checkout@v4
+        if: steps.coda.outputs.lavoro == 'si'
+
+      - uses: actions/setup-python@v5
+        if: steps.coda.outputs.lavoro == 'si'
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: motore/requirements.txt
+
+      - name: Modello Whisper (in cache)
+        if: steps.coda.outputs.lavoro == 'si'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: whisper-small-v1
+
+      - name: Strumenti
+        if: steps.coda.outputs.lavoro == 'si'
         run: |
           command -v ffmpeg >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null; }
+          pip install -q -r motore/requirements.txt
           ffmpeg -version | head -1
 
-      - name: Prepara le clip
-        run: python3 motore/analizza.py
+      - name: Guarda i video
+        if: steps.coda.outputs.lavoro == 'si'
+        run: python motore/analizza.py

@@ -33,8 +33,8 @@ export async function log(env, lavoroId, agente, messaggio, livello = 'info') {
     lavoroId, agente, String(messaggio).slice(0, 600), livello, ora());
 }
 
-export const CHIAVI_SEGRETE = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'YOUTUBE_API_KEY', 'APIFY_TOKEN'];
-export const CHIAVI_OPZIONI = ['CLAUDE_MODEL', 'GEMINI_MODELS', 'APIFY_TIKTOK_ACTOR', 'APIFY_INSTAGRAM_ACTOR', 'NUM_RIFERIMENTI', 'DURATA_MAX', 'MESI_RICERCA', 'FPS_ANALISI'];
+export const CHIAVI_SEGRETE = ['ANTHROPIC_API_KEY', 'YOUTUBE_API_KEY', 'APIFY_TOKEN'];
+export const CHIAVI_OPZIONI = ['CLAUDE_MODEL', 'CLAUDE_MODEL_LIGHT', 'APIFY_TIKTOK_ACTOR', 'APIFY_INSTAGRAM_ACTOR', 'NUM_RIFERIMENTI', 'DURATA_MAX', 'MESI_RICERCA'];
 
 // configurazione: i segreti di Cloudflare hanno la precedenza su quelli salvati dalla pagina Impostazioni
 export async function configurazione(env) {
@@ -43,7 +43,7 @@ export async function configurazione(env) {
   return {
     ANTHROPIC_API_KEY: v('ANTHROPIC_API_KEY'), GEMINI_API_KEY: v('GEMINI_API_KEY'),
     YOUTUBE_API_KEY: v('YOUTUBE_API_KEY'), APIFY_TOKEN: v('APIFY_TOKEN'),
-    CLAUDE_MODEL: v('CLAUDE_MODEL', 'claude-sonnet-5-5'), WEB_SEARCH_TOOL: v('WEB_SEARCH_TOOL', 'web_search_20250305'),
+    CLAUDE_MODEL: v('CLAUDE_MODEL', 'claude-sonnet-5-5'), CLAUDE_MODEL_LIGHT: v('CLAUDE_MODEL_LIGHT', 'claude-haiku-5-5'), WEB_SEARCH_TOOL: v('WEB_SEARCH_TOOL', 'web_search_20250305'),
     GEMINI_MODELS: String(v('GEMINI_MODELS', 'gemini-3.6-flash,gemini-3-flash-preview,gemini-2.5-flash')).split(',').map((s) => s.trim()).filter(Boolean),
     APIFY_TIKTOK_ACTOR: v('APIFY_TIKTOK_ACTOR', 'clockworks/tiktok-scraper'),
     APIFY_INSTAGRAM_ACTOR: v('APIFY_INSTAGRAM_ACTOR', 'apify/instagram-scraper'),
