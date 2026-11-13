@@ -52,6 +52,20 @@ jobs:
           path: ~/.cache/huggingface
           key: whisper-small-v1
 
+      - uses: actions/setup-node@v4
+        if: steps.coda.outputs.lavoro == 'si'
+        with:
+          node-version: "20"
+
+      - name: Motore grafico (in cache)
+        if: steps.coda.outputs.lavoro == 'si'
+        uses: actions/cache@v4
+        with:
+          path: |
+            grafiche/node_modules
+            ~/.cache/remotion
+          key: remotion-${{ hashFiles('grafiche/package.json') }}
+
       - name: Strumenti
         if: steps.coda.outputs.lavoro == 'si'
         run: |

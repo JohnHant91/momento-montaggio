@@ -357,6 +357,8 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
   "broll": [{"clip": indice, "in": secondi, "durata": 1.5-3, "sulla_parola": "parola detta su cui entra", "rallenty": bool}],
   "cta": {"testo": "solo talking_head/carosello: call to action breve (es. Scrivici ORTO in DM)"},
   "slide": [{"clip": indice di una foto/slide, "durata": secondi}],
+  "pannello": {"chip": "TIP|DATO|COME FARE", "titolo": "max 6 parole", "tipo": "line|bar|steps", "punti": [{"etichetta": "...", "valore": n}],
+               "passi": ["solo per steps, 2-5 frasi brevi"], "unita": "€|%|...", "badge": "risultato chiave breve, es. 6x", "sulla_parola": "parola detta su cui entra", "tema": "dark|light"} oppure null,
   "ganci_alternativi": [{"testo": "...", "meccanismo": "..."}],
   "loop": "come il finale si ricollega al primo pezzo",
   "copertina": {"clip": indice, "secondo": n, "testo": "testo grande della copertina (2-5 parole)"},
@@ -427,8 +429,18 @@ JSON: {"riprese": [{"n": 1, "fase": "gancio|sviluppo|climax|chiusura", "inquadra
   });
   const lookVoluto = indicazioni?.look && LOOKS.includes(indicazioni.look) ? indicazioni.look : null;
   const cop = p.copertina && tutte[p.copertina.clip]?.stato === 'fatto' ? { fileid: tutte[p.copertina.clip].fileid, url: tutte[p.copertina.clip].sorgente?.url || null, secondo: Math.max(0, Number(p.copertina.secondo) || 0), testo: String(p.copertina.testo || '').slice(0, 60) } : null;
+  let pannello = null;
+  const pn = p.pannello;
+  if (formato === 'talking_head' && pn?.titolo && ['line', 'bar', 'steps'].includes(pn.tipo)) {
+    const punti = (pn.punti || []).filter((x) => x && Number.isFinite(Number(x.valore))).slice(0, 8).map((x) => ({ etichetta: String(x.etichetta || '').slice(0, 14), valore: Number(x.valore) }));
+    const passi = (pn.passi || []).map((x) => String(x).slice(0, 40)).filter(Boolean).slice(0, 5);
+    if ((pn.tipo === 'steps' && passi.length >= 2) || (pn.tipo !== 'steps' && punti.length >= 2)) {
+      pannello = { chip: String(pn.chip || 'TIP').slice(0, 14), titolo: String(pn.titolo).slice(0, 60), tipo: pn.tipo, punti, passi: passi.length ? passi : null,
+        unita: String(pn.unita || '').slice(0, 4), badge: pn.badge ? String(pn.badge).slice(0, 20) : null, sulla_parola: String(pn.sulla_parola || '').slice(0, 40), tema: pn.tema === 'light' ? 'light' : 'dark' };
+    }
+  }
   const piano = {
-    ...p, formato, segmenti: formato === 'carosello' ? [] : seg, broll, slide: formato === 'carosello' ? slide : [],
+    ...p, formato, pannello, segmenti: formato === 'carosello' ? [] : seg, broll, slide: formato === 'carosello' ? slide : [],
     chiusura: formato === 'montaggio' ? p.chiusura : null, look: lookVoluto || (LOOKS.includes(p.look) ? p.look : (LOOKS.includes(scheda.colore?.look) ? scheda.colore.look : 'naturale_vivace')),
     effetti_globali: (p.effetti_globali || []).filter((e) => EFFETTI_GLOBALI.includes(e)), copertina: cop,
   };
@@ -437,7 +449,7 @@ JSON: {"riprese": [{"n": 1, "fase": "gancio|sviluppo|climax|chiusura", "inquadra
   const tot = seg.reduce((a, s) => a + s.durata, 0);
   const nomeF = { montaggio: 'montaggio', talking_head: 'talking-head', carosello: 'carosello' }[formato];
   await log(env, L.id, 'regista', formato === 'carosello' ? `piano pronto: formato carosello, ${slide.length} slide` :
-    `piano pronto: formato ${nomeF}, ${seg.length} ${formato === 'talking_head' ? 'tratti di parlato' : 'pezzi'}${broll.length ? ` + ${broll.length} b-roll` : ''}, ~${Math.round(tot + (piano.chiusura?.durata || 0))} s, look ${piano.look}`);
+    `piano pronto: formato ${nomeF}, ${seg.length} ${formato === 'talking_head' ? 'tratti di parlato' : 'pezzi'}${broll.length ? ` + ${broll.length} b-roll` : ''}${pannello ? ` + pannello ${pannello.tipo}` : ''}, ~${Math.round(tot + (piano.chiusura?.durata || 0))} s, look ${piano.look}`);
   if (seg.some((s) => s.testo) || piano.chiusura) await log(env, L.id, 'copy', `testi: ${[...seg.filter((s) => s.testo).map((s) => '"' + s.testo.testo + '"'), piano.chiusura?.testo ? '"' + piano.chiusura.testo + '"' : ''].filter(Boolean).join(' · ').slice(0, 300)}`);
   await log(env, L.id, 'motore', 'chiamo il motore GitHub per il montaggio');
   return true;

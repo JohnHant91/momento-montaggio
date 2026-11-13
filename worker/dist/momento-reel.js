@@ -509,6 +509,10 @@ var MANUALE_FORMATI = `FORMATI DEL MONTATORE (scegli "formato" nel piano, in bas
   forte (il gancio: un risultato, una promessa, una domanda). Correggi le parole che Whisper sente male in "correzioni".
   B-roll: 2-5 inserti di 1,5-3 s sulle parole concrete (un piatto, una camera, il prodotto), mai durante il gancio.
   Testi sempre fuori dal viso: non servono "testo" sui segmenti. Durata ideale 20-45 s.
+  PANNELLO EXPLAINER (facoltativo, solo talking_head): se chi parla d\xE0 NUMERI (una crescita, un confronto, una
+  percentuale) o un PROCEDIMENTO a passi, aggiungi "pannello": scende sulla met\xE0 alta con un grafico animato che si
+  disegna (line = andamento nel tempo, bar = confronto, steps = passi numerati) e il viso si sposta in basso. Usa SOLO
+  numeri e passi detti davvero nella trascrizione: mai inventarli. Se non ci sono, niente pannello.
 - "carosello": hai delle FOTO/SLIDE (tecnico.tipo = immagine) che formano un carosello o una sequenza: ogni slide resta
   intera su uno sfondo sfocato di se stessa, con barre di avanzamento come le storie, push-in lento e transizioni a spinta
   con whoosh. Slide ricche di testo: ~1 s ogni 8 parole, minimo 1,8 s. Gancio breve sulla prima slide, CTA sull'ultima.
@@ -843,6 +847,8 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
   "broll": [{"clip": indice, "in": secondi, "durata": 1.5-3, "sulla_parola": "parola detta su cui entra", "rallenty": bool}],
   "cta": {"testo": "solo talking_head/carosello: call to action breve (es. Scrivici ORTO in DM)"},
   "slide": [{"clip": indice di una foto/slide, "durata": secondi}],
+  "pannello": {"chip": "TIP|DATO|COME FARE", "titolo": "max 6 parole", "tipo": "line|bar|steps", "punti": [{"etichetta": "...", "valore": n}],
+               "passi": ["solo per steps, 2-5 frasi brevi"], "unita": "\u20AC|%|...", "badge": "risultato chiave breve, es. 6x", "sulla_parola": "parola detta su cui entra", "tema": "dark|light"} oppure null,
   "ganci_alternativi": [{"testo": "...", "meccanismo": "..."}],
   "loop": "come il finale si ricollega al primo pezzo",
   "copertina": {"clip": indice, "secondo": n, "testo": "testo grande della copertina (2-5 parole)"},
@@ -931,9 +937,29 @@ Cambia davvero quello che chiede, il resto miglioralo se puoi.` : "";
   });
   const lookVoluto = indicazioni?.look && LOOKS.includes(indicazioni.look) ? indicazioni.look : null;
   const cop = p.copertina && tutte[p.copertina.clip]?.stato === "fatto" ? { fileid: tutte[p.copertina.clip].fileid, url: tutte[p.copertina.clip].sorgente?.url || null, secondo: Math.max(0, Number(p.copertina.secondo) || 0), testo: String(p.copertina.testo || "").slice(0, 60) } : null;
+  let pannello = null;
+  const pn = p.pannello;
+  if (formato === "talking_head" && pn?.titolo && ["line", "bar", "steps"].includes(pn.tipo)) {
+    const punti = (pn.punti || []).filter((x) => x && Number.isFinite(Number(x.valore))).slice(0, 8).map((x) => ({ etichetta: String(x.etichetta || "").slice(0, 14), valore: Number(x.valore) }));
+    const passi = (pn.passi || []).map((x) => String(x).slice(0, 40)).filter(Boolean).slice(0, 5);
+    if (pn.tipo === "steps" && passi.length >= 2 || pn.tipo !== "steps" && punti.length >= 2) {
+      pannello = {
+        chip: String(pn.chip || "TIP").slice(0, 14),
+        titolo: String(pn.titolo).slice(0, 60),
+        tipo: pn.tipo,
+        punti,
+        passi: passi.length ? passi : null,
+        unita: String(pn.unita || "").slice(0, 4),
+        badge: pn.badge ? String(pn.badge).slice(0, 20) : null,
+        sulla_parola: String(pn.sulla_parola || "").slice(0, 40),
+        tema: pn.tema === "light" ? "light" : "dark"
+      };
+    }
+  }
   const piano2 = {
     ...p,
     formato,
+    pannello,
     segmenti: formato === "carosello" ? [] : seg,
     broll,
     slide: formato === "carosello" ? slide : [],
@@ -946,7 +972,7 @@ Cambia davvero quello che chiede, il resto miglioralo se puoi.` : "";
   await run(env, "UPDATE lavori SET montaggio=? WHERE id=?", JSON.stringify({ stato: "da_fare", piano: piano2, versione, creato: ora(), indicazioni: indicazioni || null }), L.id);
   const tot = seg.reduce((a, s) => a + s.durata, 0);
   const nomeF = { montaggio: "montaggio", talking_head: "talking-head", carosello: "carosello" }[formato];
-  await log(env, L.id, "regista", formato === "carosello" ? `piano pronto: formato carosello, ${slide.length} slide` : `piano pronto: formato ${nomeF}, ${seg.length} ${formato === "talking_head" ? "tratti di parlato" : "pezzi"}${broll.length ? ` + ${broll.length} b-roll` : ""}, ~${Math.round(tot + (piano2.chiusura?.durata || 0))} s, look ${piano2.look}`);
+  await log(env, L.id, "regista", formato === "carosello" ? `piano pronto: formato carosello, ${slide.length} slide` : `piano pronto: formato ${nomeF}, ${seg.length} ${formato === "talking_head" ? "tratti di parlato" : "pezzi"}${broll.length ? ` + ${broll.length} b-roll` : ""}${pannello ? ` + pannello ${pannello.tipo}` : ""}, ~${Math.round(tot + (piano2.chiusura?.durata || 0))} s, look ${piano2.look}`);
   if (seg.some((s) => s.testo) || piano2.chiusura) await log(env, L.id, "copy", `testi: ${[...seg.filter((s) => s.testo).map((s) => '"' + s.testo.testo + '"'), piano2.chiusura?.testo ? '"' + piano2.chiusura.testo + '"' : ""].filter(Boolean).join(" \xB7 ").slice(0, 300)}`);
   await log(env, L.id, "motore", "chiamo il motore GitHub per il montaggio");
   return true;

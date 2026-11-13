@@ -65,7 +65,7 @@ const Linea: React.FC<{ punti: Punto[]; acc: string; t: (typeof temi)["dark"]; i
   const p = interpolate(f - inizio, [0, durata], [0, 1], { ...clamp, easing: ease.inOut });
   const vals = punti.map((x) => x.valore);
   const min = Math.min(0, ...vals), max = Math.max(...vals) || 1;
-  const xy = punti.map((x, i) => [24 + (i / Math.max(1, punti.length - 1)) * (w - 48), h - 50 - ((x.valore - min) / (max - min)) * (h - 120)]);
+  const xy = punti.map((x, i) => [24 + (i / Math.max(1, punti.length - 1)) * (w - 48), h - 50 - ((x.valore - min) / (max - min)) * (h - 175)]);
   const d = xy.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
   const lung = xy.reduce((s, [x, y], i) => (i ? s + Math.hypot(x - xy[i - 1][0], y - xy[i - 1][1]) : 0), 0);
   // punto che segue la testa della linea
@@ -77,11 +77,11 @@ const Linea: React.FC<{ punti: Punto[]; acc: string; t: (typeof temi)["dark"]; i
   const respiro = 1 + 0.08 * Math.sin((f / fps) * Math.PI * 2 * 0.8);
   return (
     <div style={{ position: "relative", width: w, height: h }}>
-      <div style={{ position: "absolute", right: 0, top: -6, fontWeight: 800, fontSize: 84, color: acc, opacity: interpolate(f - inizio, [0, 8], [0, 1], clamp) }}>
+      <div style={{ position: "absolute", left: 0, top: -14, fontWeight: 800, fontSize: 84, color: acc, opacity: interpolate(f - inizio, [0, 8], [0, 1], clamp) }}>
         {formatta(valore)}{unita}
       </div>
       <svg width={w} height={h} style={{ overflow: "visible" }}>
-        {[0.25, 0.5, 0.75, 1].map((g) => <line key={g} x1={0} x2={w} y1={h - 50 - g * (h - 120)} y2={h - 50 - g * (h - 120)} stroke={t.griglia} strokeWidth={2} />)}
+        {[0.25, 0.5, 0.75, 1].map((g) => <line key={g} x1={0} x2={w} y1={h - 50 - g * (h - 175)} y2={h - 50 - g * (h - 175)} stroke={t.griglia} strokeWidth={2} />)}
         <defs>
           <linearGradient id="area" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor={acc} stopOpacity={0.35} /><stop offset="1" stopColor={acc} stopOpacity={0} /></linearGradient>
           <clipPath id="taglio"><rect x={0} y={-50} width={testa[0] + 2} height={h + 100} /></clipPath>

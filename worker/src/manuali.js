@@ -78,6 +78,10 @@ export const MANUALE_FORMATI = `FORMATI DEL MONTATORE (scegli "formato" nel pian
   forte (il gancio: un risultato, una promessa, una domanda). Correggi le parole che Whisper sente male in "correzioni".
   B-roll: 2-5 inserti di 1,5-3 s sulle parole concrete (un piatto, una camera, il prodotto), mai durante il gancio.
   Testi sempre fuori dal viso: non servono "testo" sui segmenti. Durata ideale 20-45 s.
+  PANNELLO EXPLAINER (facoltativo, solo talking_head): se chi parla dà NUMERI (una crescita, un confronto, una
+  percentuale) o un PROCEDIMENTO a passi, aggiungi "pannello": scende sulla metà alta con un grafico animato che si
+  disegna (line = andamento nel tempo, bar = confronto, steps = passi numerati) e il viso si sposta in basso. Usa SOLO
+  numeri e passi detti davvero nella trascrizione: mai inventarli. Se non ci sono, niente pannello.
 - "carosello": hai delle FOTO/SLIDE (tecnico.tipo = immagine) che formano un carosello o una sequenza: ogni slide resta
   intera su uno sfondo sfocato di se stessa, con barre di avanzamento come le storie, push-in lento e transizioni a spinta
   con whoosh. Slide ricche di testo: ~1 s ogni 8 parole, minimo 1,8 s. Gancio breve sulla prima slide, CTA sull'ultima.
