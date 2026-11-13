@@ -406,8 +406,11 @@ class Montatore:
             if not s["_info"]["audio"] or s.get("audio", 1) <= 0 or abs(s["_vel"] - 1) > 0.01:
                 continue
             wav = os.path.join(self.tmp, f"voce_{id(s)}.wav")
-            self.ff(["-ss", f"{s['_in']:.3f}", "-t", f"{s['durata']:.3f}", "-i", s["file"], "-vn", "-ac", "1", "-ar", "16000", wav], "voce")
-            seg, _ = modello.transcribe(wav, word_timestamps=True, vad_filter=True)
+            self.ff(["-ss", f"{s['_in']:.3f}", "-t", f"{s['durata']:.3f}", "-i", s["file"], "-vn", "-ac", "1", "-ar", "16000", "-f", "s16le", wav + ".raw"], "voce")
+            y = np.fromfile(wav + ".raw", dtype=np.int16).astype(np.float32) / 32768.0 if os.path.exists(wav + ".raw") else None
+            if y is None or len(y) < 8000:
+                continue
+            seg, _ = modello.transcribe(y, word_timestamps=True, vad_filter=True)
             for x in seg:
                 for w in x.words or []:
                     if w.word.strip():

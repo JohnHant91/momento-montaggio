@@ -21,20 +21,24 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Controllo token
+        id: token
         env:
           T: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          if [ -z "$T" ]; then echo "::error::Manca il segreto CLOUDFLARE_API_TOKEN (Settings → Secrets and variables → Actions)"; exit 1; fi
+          if [ -z "$T" ]; then echo "::notice::Nessun CLOUDFLARE_API_TOKEN: la regia si pubblica dal connettore Cloudflare in chat"; echo "ok=no" >> "$GITHUB_OUTPUT"; else echo "ok=si" >> "$GITHUB_OUTPUT"; fi
 
       - uses: actions/setup-node@v4
+        if: steps.token.outputs.ok == 'si'
         with:
           node-version: "22"
 
       - name: Pubblica il Worker
+        if: steps.token.outputs.ok == 'si'
         working-directory: worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: npx -y wrangler@4 deploy
 
       - name: Prova
+        if: steps.token.outputs.ok == 'si'
         run: curl -fsS https://momento-reel.gestionalelcl.workers.dev/api/stato && echo

@@ -205,7 +205,10 @@ def volume(path):
     return float(m[-1]) if m else None
 
 
-def trascrivi(path):
+def trascrivi(y):
+    """Trascrizione da audio già decodificato (16 kHz mono): niente decodifica di faster-whisper/PyAV."""
+    if y is None or len(y) < 16000:
+        return {"presente": False}
     try:
         from faster_whisper import WhisperModel
     except ImportError:
@@ -213,7 +216,7 @@ def trascrivi(path):
     with _lock_whisper:  # un solo modello in memoria, una trascrizione alla volta
         if _whisper["m"] is None:
             _whisper["m"] = WhisperModel(WHISPER_MODELLO, device="cpu", compute_type="int8")
-        seg, info = _whisper["m"].transcribe(path, vad_filter=True, beam_size=1)
+        seg, info = _whisper["m"].transcribe(y, vad_filter=True, beam_size=1)
         righe = [{"da": round(s.start, 2), "a": round(s.end, 2), "testo": s.text.strip()} for s in seg if s.text.strip()]
     return {"presente": bool(righe), "lingua": info.language if righe else None, "trascrizione": righe[:80]}
 
@@ -300,7 +303,10 @@ def analizza(lavoro, el, cartella):
         periodo = 60 / tempo
         scarti = [min((c % periodo), periodo - (c % periodo)) / periodo for c in cuts]
         sul_beat = round(1 - 2 * float(np.mean(scarti)), 2)  # 1 = perfettamente sul beat, ~0 = a caso
-    parlato = trascrivi(path) if tec["audio"] else {"presente": False}
+    try:
+        parlato = trascrivi(y) if tec["audio"] else {"presente": False}
+    except Exception as e:  # la trascrizione non deve mai bloccare l'analisi
+        parlato = {"presente": None, "nota": f"trascrizione non riuscita: {str(e)[:120]}"}
 
     misure = {
         "tecnico": tec, "dimensione_mb": round(mb, 1),
