@@ -1,0 +1,40 @@
+# Scarica un reel di riferimento (qualsiasi link supportato da yt-dlp) e pubblica le tavole dei fotogrammi
+# sul ramo "studio-riferimento", per studiarne stile, testi, effetti e ritmo.
+name: studia-riferimento
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Link del reel"
+        required: true
+permissions:
+  contents: write
+jobs:
+  studia:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Strumenti
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+          pip install -q yt-dlp pillow
+      - name: Scarica e studia
+        env:
+          URL: ${{ inputs.url }}
+        run: |
+          mkdir -p /tmp/s && cd /tmp/s
+          yt-dlp -q -f "bv*+ba/b" --merge-output-format mp4 -o rif.mp4 "$URL" || yt-dlp -q -o rif.mp4 "$URL"
+          ffprobe -v error -show_entries format=duration:stream=codec_type,width,height,r_frame_rate -of compact rif.mp4 | tee info.txt
+          ffmpeg -hide_banner -nostats -i rif.mp4 -filter:v "select='gt(scene,0.25)',showinfo" -f null - 2>&1 | grep -o "pts_time:[0-9.]*" | cut -d: -f2 > tagli.txt || true
+          ffmpeg -hide_banner -nostats -i rif.mp4 -af ebur128 -f null - 2>&1 | grep -A1 "Integrated" | tail -1 >> info.txt || true
+          echo "tagli: $(wc -l < tagli.txt)" >> info.txt; cat tagli.txt | tr '\n' ' ' >> info.txt
+          # tavole: 4 fotogrammi al secondo, 6 colonne, una tavola ogni 6 secondi
+          D=$(ffprobe -v error -show_entries format=duration -of csv=p=0 rif.mp4)
+          ffmpeg -loglevel error -i rif.mp4 -vf "fps=4,scale=270:-2,drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:text='%{pts\:hms}':x=6:y=6:fontsize=18:fontcolor=yellow:box=1:boxcolor=black@0.6,tile=6x4" tavola_%02d.jpg
+          # fotogrammi grandi sui primi 3 secondi (il gancio)
+          ffmpeg -loglevel error -i rif.mp4 -t 3 -vf "fps=3,scale=540:-2,tile=3x3" gancio.jpg
+          ffmpeg -loglevel error -i rif.mp4 -vn -ac 1 -ar 22050 audio.mp3 || true
+          mkdir -p /tmp/pub && cp *.jpg info.txt tagli.txt /tmp/pub/ && cp audio.mp3 /tmp/pub/ 2>/dev/null || true
+          cd /tmp/pub && git init -q && git checkout -q -b studio-riferimento && git add . \
+            && git -c user.name=motore -c user.email=motore@momento commit -qm studio \
+            && git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" studio-riferimento
