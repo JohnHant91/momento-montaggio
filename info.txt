@@ -1,0 +1,6 @@
+stream|codec_type=video|width=720|height=1280|r_frame_rate=30/1
+stream|codec_type=audio|r_frame_rate=0/0
+format|duration=27.238005
+    I:         -14.7 LUFS
+tagli: 15
+3.03333 4.1 5.43333 7.26667 7.96667 9.76667 11.3333 12.5333 13.4333 14.6667 15.7667 17.2667 19.2333 23.4333 24.3667 
