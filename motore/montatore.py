@@ -269,14 +269,23 @@ class Montatore:
         args, fc = [], []
         for p in pezzi:
             args += ["-i", p]
-        inizi, totale, prev = [0.0], dur[0], "[0:v]"
+        # stessi parametri per tutti i pezzi (xfade si ferma in silenzio se time base o fps non coincidono)
+        for k in range(len(pezzi)):
+            fc.append(f"[{k}:v]fps={FPS},settb=1/{FPS},setpts=PTS-STARTPTS,scale={W}:{H},setsar=1,format=yuv420p[n{k}]")
+        inizi, totale, prev = [0.0], dur[0], "[n0]"
         for k in range(1, len(pezzi)):
             nome = segmenti[k].get("transizione_in") or "taglio_netto"
-            tr, td = self.TRANS.get(nome, self.TRANS["taglio_netto"])
-            td = min(td, dur[k] * 0.4, dur[k - 1] * 0.4)
-            fc.append(f"{prev}[{k}:v]xfade=transition={tr}:duration={td:.3f}:offset={totale - td:.3f}[x{k}]")
-            inizi.append(totale - td)
-            totale += dur[k] - td
+            if nome == "taglio_netto" or nome not in self.TRANS:
+                # taglio secco: concat (un xfade da un fotogramma tronca il video dopo il primo pezzo)
+                fc.append(f"{prev}[n{k}]concat=n=2:v=1:a=0,settb=1/{FPS}[x{k}]")
+                inizi.append(totale)
+                totale += dur[k]
+            else:
+                tr, td = self.TRANS[nome]
+                td = min(td, dur[k] * 0.4, dur[k - 1] * 0.4)
+                fc.append(f"{prev}[n{k}]xfade=transition={tr}:duration={td:.3f}:offset={totale - td:.3f},settb=1/{FPS}[x{k}]")
+                inizi.append(totale - td)
+                totale += dur[k] - td
             prev = f"[x{k}]"
         if len(pezzi) == 1:
             shutil.copy(pezzi[0], out)
@@ -511,6 +520,14 @@ class Montatore:
             problemi.append(f"durata {info['dur']:.1f}s lontana dal previsto ({target:.0f}s)")
         p = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", out, "-vf", "blackdetect=d=0.4:pix_th=0.06", "-af", "ebur128", "-f", "null", "-"],
                            capture_output=True, text=True)
+        q = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v", "-count_packets", "-show_entries", "stream=nb_read_packets",
+                            "-of", "csv=p=0", out], capture_output=True, text=True)
+        try:
+            dur_video = int(q.stdout.strip().split(",")[0]) / FPS
+        except ValueError:
+            dur_video = 0
+        if dur_video < info["dur"] - 0.5:
+            raise RuntimeError(f"il video finisce a {dur_video:.1f}s ma l'audio dura {info['dur']:.1f}s: montaggio incompleto, non lo consegno")
         neri = re.findall(r"black_start:([\d.]+) black_end:([\d.]+)", p.stderr)
         chiusura = self.p.get("chiusura") or {}
         fine_video = info["dur"] - (float(chiusura.get("durata", 0)) if chiusura else 0)
