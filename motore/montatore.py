@@ -79,6 +79,8 @@ class Montatore:
         "bn_contrasto":       (1.25, 0.00, (0.00, 0.00, 0.00), (0.00, 0.00, 0.00), 0.02, 1.00, True),
         "pastello_soft":      (0.90, 0.85, (0.03, 0.02, 0.04), (0.03, 0.02, 0.02), 0.08, 0.97, False),
         "vintage_film":       (0.96, 0.86, (0.02, 0.03, 0.04), (0.06, 0.03, -0.03), 0.08, 0.95, False),
+        # cinema low-key caldo (alla "Nomads"): ombre profonde ma morbide, alte luci ambrate, marroni ricchi, verdi spenti
+        "moody_caldo":        (1.14, 0.95, (0.015, 0.005, -0.005), (0.06, 0.025, -0.06), 0.015, 0.93, False),
     }
 
     def crea_lut(self, nome, intensita=1.0):
@@ -506,7 +508,7 @@ class Montatore:
                 norm = (f"loudnorm=I=-14:TP=-1.5:LRA=11:measured_I={mis['input_i']}:measured_TP={mis['input_tp']}:measured_LRA={mis['input_lra']}:"
                         f"measured_thresh={mis['input_thresh']}:offset={mis['target_offset']}:linear=true,aresample=48000")
         rate = max(3.0, min(12.0, 165 / max(totale, 1)))  # Mbit/s: il reel resta sotto ~22 MB (limite archivio 25 MB), IG ricomprime comunque
-        self.ff(["-i", video, "-i", mixwav, "-filter_complex", f"[0:v]ass='{ass}':fontsdir='{self.fontdir}'[vout];[1:a]{norm}[aout]",
+        self.ff(["-i", video, "-i", mixwav, "-filter_complex", f"[0:v]ass='{ass}':fontsdir='{self.fontdir}'[vout];[1:a]{norm}" + (f",afade=t=out:st={totale - getattr(self, 'fine_nero', 0) - 0.3:.3f}:d={getattr(self, 'fine_nero', 0) + 0.3:.3f}" if getattr(self, "fine_nero", 0) else "") + "[aout]",
                  "-map", "[vout]", "-map", "[aout]", "-t", f"{totale:.3f}",
                         "-c:v", "libx264", "-preset", "slow", "-crf", "19", "-profile:v", "high", "-maxrate", f"{rate:.1f}M", "-bufsize", f"{rate * 2:.1f}M",
                         "-pix_fmt", "yuv420p", "-r", str(FPS), "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out], "mix finale")
@@ -566,6 +568,13 @@ class Montatore:
         if "light_leak" in globali:
             momenti = [inizi[k] - 0.2 for k in range(1, len(segmenti)) if segmenti[k].get("transizione_in") in ("dissolvenza", "whip_pan", "zoom")] or [0.0]
             video = self.light_leak(video, totale, momenti[:5])
+        finale = (P.get("finale") or ("nero" if not P.get("chiusura") else "")).lower()
+        if finale == "nero":  # chiusura cinematografica: l'ultima immagine scende al nero
+            v2 = os.path.join(self.tmp, "video_finale.mp4")
+            dn = min(1.0, max(0.5, totale * 0.04))
+            self.ff(["-i", video, "-vf", f"fade=t=out:st={totale - dn:.3f}:d={dn:.3f}"] + X264_INT + [v2], "finale a nero")
+            video = v2
+            self.fine_nero = dn
         if "bande_cinema" in globali:
             v2 = os.path.join(self.tmp, "video_bande.mp4")
             bh = int(H * 0.07)

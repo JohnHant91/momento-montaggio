@@ -383,19 +383,30 @@ async function instagram(cfg, hashtags, perVoce = 15) {
   return { video: items.map(normInstagram).filter((v) => v.id && v._video && (!v.durata || v.durata <= cfg.DURATA_MAX)) };
 }
 async function linkDiretti(cfg, links) {
-  const yt = [], tt = [], ig = [];
+  const yt = [], tt = [], ig = [], altri = [];
   for (const l of links) {
     const y = /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([\w-]{11})/.exec(l);
     if (y) yt.push(y[1]);
-    else if (/tiktok\.com/.test(l)) tt.push(l);
-    else if (/instagram\.com/.test(l)) ig.push(l);
+    else if (/tiktok\.com/.test(l) && cfg.APIFY_TOKEN) tt.push(l);
+    else if (/instagram\.com/.test(l) && cfg.APIFY_TOKEN) ig.push(l);
+    else altri.push(l);
   }
-  const out = [];
+  const out = altri.map((url, i) => ({
+    piattaforma: /pinterest|pin\.it/.test(url) ? "pinterest" : /tiktok/.test(url) ? "tiktok" : /instagram/.test(url) ? "instagram" : /vimeo/.test(url) ? "vimeo" : "web",
+    id: "link" + i + "_" + url.replace(/\W+/g, "").slice(-24),
+    url,
+    titolo: "",
+    autore: "",
+    views: 0,
+    likes: 0,
+    commenti: 0,
+    condivisioni: 0,
+    durata: 0
+  }));
   if (yt.length) {
     if (cfg.YOUTUBE_API_KEY) out.push(...await youtubeDettagli(cfg, yt));
     else out.push(...yt.map((id) => ({ piattaforma: "youtube", id, url: `https://www.youtube.com/watch?v=${id}`, titolo: "", autore: "", views: 0, likes: 0, commenti: 0, condivisioni: 0, durata: 0 })));
   }
-  if ((tt.length || ig.length) && !cfg.APIFY_TOKEN) out.nota = `${tt.length + ig.length} link TikTok/Instagram non guardabili senza Apify`;
   if (tt.length && cfg.APIFY_TOKEN) out.push(...(await apify(cfg, cfg.APIFY_TIKTOK_ACTOR, { postURLs: tt, shouldDownloadVideos: true, resultsPerPage: 1 })).map(normTiktok));
   if (ig.length && cfg.APIFY_TOKEN) out.push(...(await apify(cfg, cfg.APIFY_INSTAGRAM_ACTOR, { directUrls: ig, resultsType: "posts", resultsLimit: 1 })).map(normInstagram));
   return { video: out.map((v) => ({ ...v, scelto_da_johnny: true })), nota: out.nota };
@@ -538,6 +549,20 @@ var MANUALE_FORMATI = `FORMATI DEL MONTATORE (scegli "formato" nel piano, in bas
   intera su uno sfondo sfocato di se stessa, con barre di avanzamento come le storie, push-in lento e transizioni a spinta
   con whoosh. Slide ricche di testo: ~1 s ogni 8 parole, minimo 1,8 s. Gancio breve sulla prima slide, CTA sull'ultima.
 Se il girato non si presta al formato (es. talking_head senza parlato), usa "montaggio".`;
+var MANUALE_MODELLO = `REEL MODELLO DI JOHNNY (regola che vince su tutte le altre)
+- I riferimenti "scelto_da_johnny" sono il MODELLO dello stile che Johnny vuole: replica il loro linguaggio, non la
+  media degli altri riferimenti. Copia struttura e grammatica (look, ritmo, tipo di tagli, uso o NON uso dei testi,
+  transizioni, finale), non i contenuti.
+- Testi a schermo: se il modello non ha testi in sovraimpressione, il reel NON ha testi (segmenti con "testo": null,
+  "chiusura": null, niente sottotitoli). Zero testi \xE8 una scelta valida e spesso la pi\xF9 premium: il racconto lo fanno
+  le immagini. La copertina pu\xF2 avere un titolo, il video no.
+- Stile cinematografico (il caso tipico dei modelli di Johnny): luce calda e bassa, profondit\xE0 di campo ridotta,
+  dettagli di mani e gesti, prodotto in macro. Tagli secchi sull'azione (match cut: il gesto inizia in un'inquadratura
+  e continua nella successiva), un'inquadratura ogni 1,5-2,5 s, rallenty solo dove c'\xE8 un gesto da gustare (gocce, chicchi
+  che cadono), niente zoom finti, niente grana pesante n\xE9 vignette se il modello non le ha, look "moody_caldo" o
+  "caldo_cinematico", finale con l'ultima immagine che scende al nero ("finale": "nero").
+- Racconto: dalla materia prima al gesto finale (es. chicco \u2192 tostatura \u2192 mani \u2192 estrazione \u2192 servizio \u2192 assaggio),
+  con un momento umano (persona di spalle, mani, sorriso) e una chiusura che lascia il desiderio.`;
 
 // src/lavoro.js
 var FASI = ["piano", "ricerca", "riferimenti", "clip", "scheda", "regia", "montaggio", "fatto"];
@@ -640,6 +665,8 @@ Sii denso e sintetico: frasi brevi, niente ripetizioni, cita solo le clip che us
 Rispondi SOLO JSON.
 
 ${MANUALE_DIRETTORE}
+
+${MANUALE_MODELLO}
 
 ${MANUALE_PUBBLICAZIONE}
 
@@ -840,7 +867,7 @@ async function faseScheda(env, cfg, L) {
   await run(env, "UPDATE lavori SET scheda=? WHERE id=?", JSON.stringify(s), L.id);
   await log(env, L.id, "direttore", `scheda pronta: ${s.titolo_lavoro || ""}`);
 }
-var LOOKS = ["caldo_cinematico", "pulito_commerciale", "teal_orange", "moody_scuro", "naturale_vivace", "bn_contrasto", "pastello_soft", "vintage_film"];
+var LOOKS = ["moody_caldo", "caldo_cinematico", "pulito_commerciale", "teal_orange", "moody_scuro", "naturale_vivace", "bn_contrasto", "pastello_soft", "vintage_film"];
 var TRANSIZIONI = ["taglio_netto", "dissolvenza", "flash_bianco", "whip_pan", "zoom", "glitch", "slide", "fadenero"];
 var EFFETTI_PEZZO = ["punch_in", "zoom_lento", "zoom_out", "shake", "nessuno"];
 var EFFETTI_GLOBALI = ["grana", "vignettatura", "bande_cinema", "light_leak"];
@@ -852,6 +879,8 @@ chiusura, alterna inquadrature (totale/dettaglio/primo piano), non ripetere lo s
 48 fps o pi\xF9 (rallenty_possibile). Testi brevi, in italiano corretto, niente formule abusate. Rispondi SOLO JSON.
 
 ${MANUALE_REGISTA}
+
+${MANUALE_MODELLO}
 
 ${MANUALE_FORMATI}
 
@@ -888,6 +917,7 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
                 "testo": {"testo": "...", "stile": "...", "posizione": "...", "evidenzia": "parola"} oppure null}],
   "sottotitoli": {"usare": bool, "stile": "parola_per_parola|karaoke_evidenziato|sottotitolo_classico", "posizione": "terzo_inferiore"},
   "chiusura": {"testo": "...", "sottotesto": "cta breve", "evidenzia": "parola", "durata": 2-3, "colore": "#hex"} oppure null (non per talking_head/carosello),
+  "finale": "nero (l'ultima immagine scende al nero, stile cinema) oppure null",
   "gancio": {"testo": "solo carosello: frase breve sulla prima slide; talking_head: lascia null (usa la prima frase detta)", "evidenzia": ["parole del gancio da colorare"]},
   "evidenzia": ["solo talking_head: 3-8 parole chiave del discorso da colorare nei sottotitoli"],
   "correzioni": {"parola_sentita_male": "parola giusta"},
@@ -1444,7 +1474,7 @@ function nuovo() {
     '<label>Fonte del girato</label><select id="fo"><option value="pcloud">Le mie clip (cartella pCloud)</option><option disabled>Video stock \u2014 in arrivo</option><option disabled>Generati con AI \u2014 in arrivo</option></select>' +
     '<label>Cartella delle clip su pCloud (facoltativo)</label><input id="pc" placeholder="https://e.pcloud.link/publink/show?code=\u2026">' +
     '<div class="aiuto">Su pCloud: tasto destro sulla cartella \u2192 Condividi \u2192 Link di condivisione \u2192 copia. Senza clip ottieni scheda e lista delle riprese, e il girato lo aggiungi dopo.</div>' +
-    '<label>Reel di riferimento che ti piacciono (facoltativo)</label><textarea id="lr" style="min-height:70px" placeholder="Un link per riga: YouTube, TikTok o Instagram"></textarea>' +
+    '<label>Reel MODELLO: lo stile che vuoi (facoltativo, ma fa la differenza)</label><textarea id="lr" style="min-height:70px" placeholder="Un link per riga: Instagram, TikTok, Pinterest, YouTube, Vimeo\u2026 La squadra copia il suo linguaggio (look, ritmo, testi s\xEC/no, finale), non i contenuti."></textarea>' +
     '<div style="margin-top:18px"><button id="go">Avvia la squadra</button></div><div id="er" class="err"></div>';
   $('#go').onclick = async () => {
     $('#go').disabled = true;

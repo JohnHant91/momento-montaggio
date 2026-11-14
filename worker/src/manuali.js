@@ -86,3 +86,18 @@ export const MANUALE_FORMATI = `FORMATI DEL MONTATORE (scegli "formato" nel pian
   intera su uno sfondo sfocato di se stessa, con barre di avanzamento come le storie, push-in lento e transizioni a spinta
   con whoosh. Slide ricche di testo: ~1 s ogni 8 parole, minimo 1,8 s. Gancio breve sulla prima slide, CTA sull'ultima.
 Se il girato non si presta al formato (es. talking_head senza parlato), usa "montaggio".`;
+
+export const MANUALE_MODELLO = `REEL MODELLO DI JOHNNY (regola che vince su tutte le altre)
+- I riferimenti "scelto_da_johnny" sono il MODELLO dello stile che Johnny vuole: replica il loro linguaggio, non la
+  media degli altri riferimenti. Copia struttura e grammatica (look, ritmo, tipo di tagli, uso o NON uso dei testi,
+  transizioni, finale), non i contenuti.
+- Testi a schermo: se il modello non ha testi in sovraimpressione, il reel NON ha testi (segmenti con "testo": null,
+  "chiusura": null, niente sottotitoli). Zero testi è una scelta valida e spesso la più premium: il racconto lo fanno
+  le immagini. La copertina può avere un titolo, il video no.
+- Stile cinematografico (il caso tipico dei modelli di Johnny): luce calda e bassa, profondità di campo ridotta,
+  dettagli di mani e gesti, prodotto in macro. Tagli secchi sull'azione (match cut: il gesto inizia in un'inquadratura
+  e continua nella successiva), un'inquadratura ogni 1,5-2,5 s, rallenty solo dove c'è un gesto da gustare (gocce, chicchi
+  che cadono), niente zoom finti, niente grana pesante né vignette se il modello non le ha, look "moody_caldo" o
+  "caldo_cinematico", finale con l'ultima immagine che scende al nero ("finale": "nero").
+- Racconto: dalla materia prima al gesto finale (es. chicco → tostatura → mani → estrazione → servizio → assaggio),
+  con un momento umano (persona di spalle, mani, sorriso) e una chiusura che lascia il desiderio.`;

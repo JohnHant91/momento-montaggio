@@ -3,7 +3,7 @@
 import { J, all, log, one, ora, run, configurazione } from './db.js';
 import { libreriaTesto } from './libreria.js';
 import * as S from './servizi.js';
-import { MANUALE_AUDIO, MANUALE_COPY, MANUALE_DIRETTORE, MANUALE_FORMATI, MANUALE_IRIS, MANUALE_PUBBLICAZIONE, MANUALE_REGISTA } from './manuali.js';
+import { MANUALE_AUDIO, MANUALE_COPY, MANUALE_DIRETTORE, MANUALE_FORMATI, MANUALE_IRIS, MANUALE_MODELLO, MANUALE_PUBBLICAZIONE, MANUALE_REGISTA } from './manuali.js';
 
 const FASI = ['piano', 'ricerca', 'riferimenti', 'clip', 'scheda', 'regia', 'montaggio', 'fatto'];
 const BLOCCO_MIN = 15;       // un lavoro "preso" resta riservato per 15 minuti (le risposte lunghe di Claude ci stanno)
@@ -112,6 +112,8 @@ Sii denso e sintetico: frasi brevi, niente ripetizioni, cita solo le clip che us
 Rispondi SOLO JSON.
 
 ${MANUALE_DIRETTORE}
+
+${MANUALE_MODELLO}
 
 ${MANUALE_PUBBLICAZIONE}
 
@@ -328,7 +330,7 @@ async function faseScheda(env, cfg, L) {
 
 // ------------------------------------------------------------------ motore
 // ------------------------------------------------------------------ Regista: dalla scheda al piano di montaggio
-const LOOKS = ['caldo_cinematico', 'pulito_commerciale', 'teal_orange', 'moody_scuro', 'naturale_vivace', 'bn_contrasto', 'pastello_soft', 'vintage_film'];
+const LOOKS = ['moody_caldo', 'caldo_cinematico', 'pulito_commerciale', 'teal_orange', 'moody_scuro', 'naturale_vivace', 'bn_contrasto', 'pastello_soft', 'vintage_film'];
 const TRANSIZIONI = ['taglio_netto', 'dissolvenza', 'flash_bianco', 'whip_pan', 'zoom', 'glitch', 'slide', 'fadenero'];
 const EFFETTI_PEZZO = ['punch_in', 'zoom_lento', 'zoom_out', 'shake', 'nessuno'];
 const EFFETTI_GLOBALI = ['grana', 'vignettatura', 'bande_cinema', 'light_leak'];
@@ -341,6 +343,8 @@ chiusura, alterna inquadrature (totale/dettaglio/primo piano), non ripetere lo s
 48 fps o più (rallenty_possibile). Testi brevi, in italiano corretto, niente formule abusate. Rispondi SOLO JSON.
 
 ${MANUALE_REGISTA}
+
+${MANUALE_MODELLO}
 
 ${MANUALE_FORMATI}
 
@@ -378,6 +382,7 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
                 "testo": {"testo": "...", "stile": "...", "posizione": "...", "evidenzia": "parola"} oppure null}],
   "sottotitoli": {"usare": bool, "stile": "parola_per_parola|karaoke_evidenziato|sottotitolo_classico", "posizione": "terzo_inferiore"},
   "chiusura": {"testo": "...", "sottotesto": "cta breve", "evidenzia": "parola", "durata": 2-3, "colore": "#hex"} oppure null (non per talking_head/carosello),
+  "finale": "nero (l'ultima immagine scende al nero, stile cinema) oppure null",
   "gancio": {"testo": "solo carosello: frase breve sulla prima slide; talking_head: lascia null (usa la prima frase detta)", "evidenzia": ["parole del gancio da colorare"]},
   "evidenzia": ["solo talking_head: 3-8 parole chiave del discorso da colorare nei sottotitoli"],
   "correzioni": {"parola_sentita_male": "parola giusta"},

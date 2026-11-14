@@ -350,17 +350,20 @@ export async function instagram(cfg, hashtags, perVoce = 15) {
 
 // link incollati da Johnny (YouTube / TikTok / Instagram)
 export async function linkDiretti(cfg, links) {
-  const yt = [], tt = [], ig = [];
+  const yt = [], tt = [], ig = [], altri = [];
   for (const l of links) {
     const y = /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([\w-]{11})/.exec(l);
-    if (y) yt.push(y[1]); else if (/tiktok\.com/.test(l)) tt.push(l); else if (/instagram\.com/.test(l)) ig.push(l);
+    if (y) yt.push(y[1]);
+    else if (/tiktok\.com/.test(l) && cfg.APIFY_TOKEN) tt.push(l);
+    else if (/instagram\.com/.test(l) && cfg.APIFY_TOKEN) ig.push(l);
+    else altri.push(l); // Pinterest, Vimeo, TikTok/Instagram senza Apify...: li scarica il motore con yt-dlp
   }
-  const out = [];
+  const out = altri.map((url, i) => ({ piattaforma: (/pinterest|pin\.it/.test(url) ? 'pinterest' : /tiktok/.test(url) ? 'tiktok' : /instagram/.test(url) ? 'instagram' : /vimeo/.test(url) ? 'vimeo' : 'web'),
+    id: 'link' + i + '_' + url.replace(/\W+/g, '').slice(-24), url, titolo: '', autore: '', views: 0, likes: 0, commenti: 0, condivisioni: 0, durata: 0 }));
   if (yt.length) {
     if (cfg.YOUTUBE_API_KEY) out.push(...await youtubeDettagli(cfg, yt));
     else out.push(...yt.map((id) => ({ piattaforma: 'youtube', id, url: `https://www.youtube.com/watch?v=${id}`, titolo: '', autore: '', views: 0, likes: 0, commenti: 0, condivisioni: 0, durata: 0 })));
   }
-  if ((tt.length || ig.length) && !cfg.APIFY_TOKEN) out.nota = `${tt.length + ig.length} link TikTok/Instagram non guardabili senza Apify`;
   if (tt.length && cfg.APIFY_TOKEN) out.push(...(await apify(cfg, cfg.APIFY_TIKTOK_ACTOR, { postURLs: tt, shouldDownloadVideos: true, resultsPerPage: 1 })).map(normTiktok));
   if (ig.length && cfg.APIFY_TOKEN) out.push(...(await apify(cfg, cfg.APIFY_INSTAGRAM_ACTOR, { directUrls: ig, resultsType: 'posts', resultsLimit: 1 })).map(normInstagram));
   return { video: out.map((v) => ({ ...v, scelto_da_johnny: true })), nota: out.nota };

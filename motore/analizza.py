@@ -101,14 +101,14 @@ def scarica(lavoro, el, cartella):
         scarica_url(link_pcloud(lavoro, el["fileid"]), dest)
     elif el.get("video_url"):
         scarica_url(el["video_url"], dest)
-    elif el.get("url") and re.search(r"youtu", el["url"]):
+    elif el.get("url"):
         if not shutil.which("yt-dlp"):
             raise RuntimeError("yt-dlp non installato")
         p = subprocess.run(["yt-dlp", "-q", "--no-playlist", "-f", "b[height<=1080][ext=mp4]/b[height<=1080]/b", "-o", dest + ".%(ext)s", el["url"]],
                            capture_output=True, text=True, timeout=600)
         trovati = [f for f in os.listdir(cartella) if f.startswith(f"v_{el['indice']}.")]
         if p.returncode != 0 or not trovati:
-            raise RuntimeError("YouTube non ha lasciato scaricare il video: " + (p.stderr.strip().splitlines() or ["?"])[-1][:200])
+            raise RuntimeError("il sito non ha lasciato scaricare il video: " + (p.stderr.strip().splitlines() or ["?"])[-1][:200])
         os.replace(os.path.join(cartella, trovati[0]), dest)
     else:
         raise RuntimeError("nessun video scaricabile")
