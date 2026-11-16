@@ -256,7 +256,10 @@ class Montatore:
         corr = self.correzione(quadri)
         filtri = []
         # stabilizzazione: misuro il movimento della camera (tremolio e spostamento) e scelgo come fermarla
-        stab = True if self.p.get("stabilizza_tutto") else s.get("stabilizza", "auto")
+        ferma = bool(self.p.get("camera_ferma"))
+        if ferma:  # stile "camera ferma": nessun movimento, né aggiunto né del girato
+            s["effetto"] = "nessuno"
+        stab = True if (self.p.get("stabilizza_tutto") or ferma) else s.get("stabilizza", "auto")
         cam = self.movimento_camera(src, t_in, sorgente)
         if stab == "auto":
             stab = cam["tremolio"] > 0.6 and s.get("effetto") not in ("shake",)
@@ -269,9 +272,9 @@ class Montatore:
             try:
                 self.ff(["-ss", f"{t_in:.3f}", "-t", f"{sorgente + 0.2:.3f}", "-i", src, "-vf",
                          f"vidstabdetect=shakiness=8:accuracy=15:stepsize=6:mincontrast=0.2:result={trf}", "-f", "null", "-"], "stabilizza")
-                if cam["deriva"] < 0.025:  # inquadratura nata ferma: la blocco come su un treppiede
+                if cam["deriva"] < 0.025 or ferma:  # inquadratura bloccata come su un treppiede
                     filtri.append(f"vidstabtransform=input={trf}:tripod=1:maxangle=0:optzoom=1:interpol=bicubic")
-                    modo = "bloccata come su treppiede"
+                    modo = "bloccata come su treppiede" + (f", la ripresa si spostava del {cam['deriva'] * 100:.0f}%" if cam["deriva"] >= 0.025 else "")
                 else:  # movimento voluto: lo tengo ma lo rendo morbido (finestra di ~1,2 s)
                     sm = int(min(80, max(20, info["fps"] * 1.2)))
                     filtri.append(f"vidstabtransform=input={trf}:smoothing={sm}:maxangle=0:optzoom=1:interpol=bicubic")

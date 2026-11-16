@@ -1082,6 +1082,7 @@ accenti; l'audio delle clip va basso (0-0.25) perch\xE9 comanda la musica; "rise
     pannello,
     logo: prima?.logo || null,
     stabilizza_tutto: !!(indicazioni?.stabilizza_tutto || prima?.piano?.stabilizza_tutto || p.stabilizza_tutto),
+    camera_ferma: !!(indicazioni?.camera_ferma || prima?.piano?.camera_ferma || p.camera_ferma),
     apertura: ["nero", "bianco"].includes(indicazioni?.apertura) ? indicazioni.apertura : ["nero", "bianco"].includes(p.apertura) ? p.apertura : null,
     finale: ["nero", "bianco"].includes(indicazioni?.finale) ? indicazioni.finale : ["nero", "bianco"].includes(p.finale) ? p.finale : null,
     musica: brano ? { fileid: brano.c.fileid, nome: brano.c.nome, durata: brano.c.tecnico?.durata_sec, bpm: mu?.bpm, battuta: mu?.battuta_sec, primo_battito: mu?.primo_battito, volume: 0.9 } : null,
