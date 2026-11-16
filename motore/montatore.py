@@ -80,6 +80,8 @@ class Montatore:
         "pastello_soft":      (0.90, 0.85, (0.03, 0.02, 0.04), (0.03, 0.02, 0.02), 0.08, 0.97, False),
         "vintage_film":       (0.96, 0.86, (0.02, 0.03, 0.04), (0.06, 0.03, -0.03), 0.08, 0.95, False),
         # cinema low-key caldo (alla "Nomads"): ombre profonde ma morbide, alte luci ambrate, marroni ricchi, verdi spenti
+        # spot di prodotto: neri profondi, contrasto pieno, colori naturali e ricchi, nessuna dominante
+        "spot_contrasto":     (1.20, 1.06, (0.00, 0.00, 0.01), (0.015, 0.005, -0.01), 0.00, 0.98, False),
         "moody_caldo":        (1.14, 0.95, (0.015, 0.005, -0.005), (0.06, 0.025, -0.06), 0.015, 0.93, False),
     }
 
@@ -177,6 +179,11 @@ class Montatore:
         tt = f"(on/{FPS})"
         def zoom(z):
             return f"zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={W}x{H}:fps={FPS}"
+        if effetto in ("slider_dx", "slider_sx"):  # carrello laterale lento, come una slitta
+            a, b = (0.15, 0.85) if effetto == "slider_dx" else (0.85, 0.15)
+            return (f"zoompan=z='1.10':x='(iw-iw/zoom)*({a}+({b - a})*min(1,{tt}/{d:.2f}))':y='ih/2-(ih/zoom/2)':d=1:s={W}x{H}:fps={FPS}")
+        if effetto == "dolly_in":  # avvicinamento morbido e continuo (spot di prodotto)
+            return zoom(f"1+0.06*{tt}/{d:.2f}")
         if effetto == "punch_in":
             return zoom(f"1+0.16*max(0,1-{tt}/0.22)+0.04*min(1,{tt}/{d:.2f})")
         if effetto == "zoom_lento":

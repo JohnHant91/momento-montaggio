@@ -566,6 +566,18 @@ var MANUALE_MODELLO = `REEL MODELLO DI JOHNNY (regola che vince su tutte le altr
   "caldo_cinematico", finale con l'ultima immagine che scende al nero ("finale": "nero").
 - Racconto: dalla materia prima al gesto finale (es. chicco \u2192 tostatura \u2192 mani \u2192 estrazione \u2192 servizio \u2192 assaggio),
   con un momento umano (persona di spalle, mani, sorriso) e una chiusura che lascia il desiderio.`;
+var MANUALE_SPOT = `STILE "SPOT DI PRODOTTO" (il riferimento preferito di Johnny per caff\xE8, food e artigianato)
+- \xC8 una sequenza di HERO SHOT: ogni inquadratura mostra UNA sola azione bella nel suo momento migliore (chicchi che
+  cadono, il getto dell'estrazione, la goccia, la crema che gira, la mano che versa) e dura 1,5-2,5 s, tagliata sul tempo.
+- Quasi tutto in RALLENTY (se il girato \xE8 a 50/60 fps \xE8 un rallenty vero): il movimento lento e fluido \xE8 la firma dello
+  stile. Le inquadrature ferme prendono un movimento di macchina morbido: "dolly_in" (avvicinamento) o "slider_dx"/"slider_sx"
+  (carrello laterale). Mai punch_in, shake o zoom veloci.
+- Racconto di processo, dal grezzo al risultato: materia prima \u2192 lavorazione \u2192 dettaglio tecnico \u2192 prodotto finito \u2192
+  gesto finale (es. chicchi \u2192 tostatura \u2192 macinatura \u2192 estrazione \u2192 tazza \u2192 mescolare/assaggiare).
+- Inquadrature: macro e dettagli, sfondi scuri o sfocati, niente totali piatti con luce piatta; scarta clip sovraesposte,
+  mosse o con persone che guardano in camera.
+- Look "spot_contrasto" (neri profondi, colori naturali e ricchi). Nessun testo durante il video; tagli secchi (al massimo
+  una dissolvenza verso la fine); finale al nero ("finale": "nero").`;
 
 // src/lavoro.js
 var FASI = ["piano", "ricerca", "riferimenti", "clip", "scheda", "regia", "montaggio", "fatto"];
@@ -870,9 +882,9 @@ async function faseScheda(env, cfg, L) {
   await run(env, "UPDATE lavori SET scheda=? WHERE id=?", JSON.stringify(s), L.id);
   await log(env, L.id, "direttore", `scheda pronta: ${s.titolo_lavoro || ""}`);
 }
-var LOOKS = ["moody_caldo", "caldo_cinematico", "pulito_commerciale", "teal_orange", "moody_scuro", "naturale_vivace", "bn_contrasto", "pastello_soft", "vintage_film"];
+var LOOKS = ["spot_contrasto", "moody_caldo", "caldo_cinematico", "pulito_commerciale", "teal_orange", "moody_scuro", "naturale_vivace", "bn_contrasto", "pastello_soft", "vintage_film"];
 var TRANSIZIONI = ["taglio_netto", "dissolvenza", "flash_bianco", "whip_pan", "zoom", "glitch", "slide", "fadenero"];
-var EFFETTI_PEZZO = ["punch_in", "zoom_lento", "zoom_out", "shake", "nessuno"];
+var EFFETTI_PEZZO = ["dolly_in", "slider_dx", "slider_sx", "punch_in", "zoom_lento", "zoom_out", "shake", "nessuno"];
 var EFFETTI_GLOBALI = ["grana", "vignettatura", "bande_cinema", "light_leak"];
 var FORMATI_REEL = ["montaggio", "talking_head", "carosello"];
 var SISTEMA_REGISTA = `Sei il Regista e il Copy di Momento Produzione. Trasformi la SCHEDA TECNICA del Direttore creativo in un
@@ -884,6 +896,8 @@ chiusura, alterna inquadrature (totale/dettaglio/primo piano), non ripetere lo s
 ${MANUALE_REGISTA}
 
 ${MANUALE_MODELLO}
+
+${MANUALE_SPOT}
 
 ${MANUALE_FORMATI}
 

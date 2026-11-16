@@ -101,3 +101,16 @@ export const MANUALE_MODELLO = `REEL MODELLO DI JOHNNY (regola che vince su tutt
   "caldo_cinematico", finale con l'ultima immagine che scende al nero ("finale": "nero").
 - Racconto: dalla materia prima al gesto finale (es. chicco → tostatura → mani → estrazione → servizio → assaggio),
   con un momento umano (persona di spalle, mani, sorriso) e una chiusura che lascia il desiderio.`;
+
+export const MANUALE_SPOT = `STILE "SPOT DI PRODOTTO" (il riferimento preferito di Johnny per caffè, food e artigianato)
+- È una sequenza di HERO SHOT: ogni inquadratura mostra UNA sola azione bella nel suo momento migliore (chicchi che
+  cadono, il getto dell'estrazione, la goccia, la crema che gira, la mano che versa) e dura 1,5-2,5 s, tagliata sul tempo.
+- Quasi tutto in RALLENTY (se il girato è a 50/60 fps è un rallenty vero): il movimento lento e fluido è la firma dello
+  stile. Le inquadrature ferme prendono un movimento di macchina morbido: "dolly_in" (avvicinamento) o "slider_dx"/"slider_sx"
+  (carrello laterale). Mai punch_in, shake o zoom veloci.
+- Racconto di processo, dal grezzo al risultato: materia prima → lavorazione → dettaglio tecnico → prodotto finito →
+  gesto finale (es. chicchi → tostatura → macinatura → estrazione → tazza → mescolare/assaggiare).
+- Inquadrature: macro e dettagli, sfondi scuri o sfocati, niente totali piatti con luce piatta; scarta clip sovraesposte,
+  mosse o con persone che guardano in camera.
+- Look "spot_contrasto" (neri profondi, colori naturali e ricchi). Nessun testo durante il video; tagli secchi (al massimo
+  una dissolvenza verso la fine); finale al nero ("finale": "nero").`;

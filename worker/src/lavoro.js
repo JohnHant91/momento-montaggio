@@ -3,7 +3,7 @@
 import { J, all, log, one, ora, run, configurazione } from './db.js';
 import { libreriaTesto } from './libreria.js';
 import * as S from './servizi.js';
-import { MANUALE_AUDIO, MANUALE_COPY, MANUALE_DIRETTORE, MANUALE_FORMATI, MANUALE_IRIS, MANUALE_MODELLO, MANUALE_PUBBLICAZIONE, MANUALE_REGISTA } from './manuali.js';
+import { MANUALE_AUDIO, MANUALE_COPY, MANUALE_DIRETTORE, MANUALE_FORMATI, MANUALE_IRIS, MANUALE_MODELLO, MANUALE_PUBBLICAZIONE, MANUALE_REGISTA, MANUALE_SPOT } from './manuali.js';
 
 const FASI = ['piano', 'ricerca', 'riferimenti', 'clip', 'scheda', 'regia', 'montaggio', 'fatto'];
 const BLOCCO_MIN = 15;       // un lavoro "preso" resta riservato per 15 minuti (le risposte lunghe di Claude ci stanno)
@@ -332,9 +332,9 @@ async function faseScheda(env, cfg, L) {
 
 // ------------------------------------------------------------------ motore
 // ------------------------------------------------------------------ Regista: dalla scheda al piano di montaggio
-const LOOKS = ['moody_caldo', 'caldo_cinematico', 'pulito_commerciale', 'teal_orange', 'moody_scuro', 'naturale_vivace', 'bn_contrasto', 'pastello_soft', 'vintage_film'];
+const LOOKS = ['spot_contrasto', 'moody_caldo', 'caldo_cinematico', 'pulito_commerciale', 'teal_orange', 'moody_scuro', 'naturale_vivace', 'bn_contrasto', 'pastello_soft', 'vintage_film'];
 const TRANSIZIONI = ['taglio_netto', 'dissolvenza', 'flash_bianco', 'whip_pan', 'zoom', 'glitch', 'slide', 'fadenero'];
-const EFFETTI_PEZZO = ['punch_in', 'zoom_lento', 'zoom_out', 'shake', 'nessuno'];
+const EFFETTI_PEZZO = ['dolly_in', 'slider_dx', 'slider_sx', 'punch_in', 'zoom_lento', 'zoom_out', 'shake', 'nessuno'];
 const EFFETTI_GLOBALI = ['grana', 'vignettatura', 'bande_cinema', 'light_leak'];
 const FORMATI_REEL = ['montaggio', 'talking_head', 'carosello'];
 
@@ -347,6 +347,8 @@ chiusura, alterna inquadrature (totale/dettaglio/primo piano), non ripetere lo s
 ${MANUALE_REGISTA}
 
 ${MANUALE_MODELLO}
+
+${MANUALE_SPOT}
 
 ${MANUALE_FORMATI}
 
