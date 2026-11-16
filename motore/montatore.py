@@ -640,6 +640,11 @@ class Montatore:
             momenti = [inizi[k] - 0.2 for k in range(1, len(segmenti)) if segmenti[k].get("transizione_in") in ("dissolvenza", "whip_pan", "zoom")] or [0.0]
             video = self.light_leak(video, totale, momenti[:5])
         finale = (P.get("finale") or ("nero" if not P.get("chiusura") else "")).lower()
+        apertura = (P.get("apertura") or ("bianco" if finale == "bianco" else "")).lower()
+        if apertura in ("bianco", "nero"):  # il reel nasce dal bianco (o dal nero), come si chiude
+            v2 = os.path.join(self.tmp, "video_apertura.mp4")
+            self.ff(["-i", video, "-vf", f"fade=t=in:st=0:d=0.6:color={'white' if apertura == 'bianco' else 'black'}"] + X264_INT + [v2], "apertura")
+            video = v2
         if finale == "bianco":
             video, totale = self.chiusura_bianca(video, totale)
         if finale == "nero":  # chiusura cinematografica: l'ultima immagine scende al nero
