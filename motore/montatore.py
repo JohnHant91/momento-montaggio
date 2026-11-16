@@ -256,7 +256,7 @@ class Montatore:
         corr = self.correzione(quadri)
         filtri = []
         # stabilizzazione: misuro il movimento della camera (tremolio e spostamento) e scelgo come fermarla
-        stab = s.get("stabilizza", "auto")
+        stab = True if self.p.get("stabilizza_tutto") else s.get("stabilizza", "auto")
         cam = self.movimento_camera(src, t_in, sorgente)
         if stab == "auto":
             stab = cam["tremolio"] > 0.6 and s.get("effetto") not in ("shake",)
