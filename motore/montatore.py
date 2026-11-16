@@ -292,6 +292,12 @@ class Montatore:
             durv = max(dur, 0.1)
             filtri.append(f"crop=w={int(cw) // 2 * 2}:h={sh}:x='{x0:.1f}+({x1 - x0:.1f})*min(1,t/{durv * vel:.3f})':y=0")
             self.report.append(f"pezzo {i + 1}: reframe {('fisso' if x0 == x1 else 'con panoramica')} sul soggetto")
+        zf = s.get("zoom_fisso") or {}
+        if float(zf.get("z") or 1) > 1.01:
+            # avvicinamento su un dettaglio (es. solo i chicchi): ritaglio a piena risoluzione del girato, prima di ridurre
+            z, cx, cy = float(zf["z"]), float(zf.get("cx", 0.5)), float(zf.get("cy", 0.5))
+            filtri.append(f"crop=w='trunc(iw/{z:.3f}/2)*2':h='trunc(ih/{z:.3f}/2)*2':x='max(0,min(iw-ow,iw*{cx:.3f}-ow/2))':y='max(0,min(ih-oh,ih*{cy:.3f}-oh/2))'")
+            self.report.append(f"pezzo {i + 1}: avvicinato {z:.1f}x sul dettaglio")
         filtri.append(f"scale={W}:{H}:force_original_aspect_ratio=increase:flags=lanczos,crop={W}:{H}")
         # velocità: rallenty vero se il girato è a 50/60 fps, altrimenti fotogrammi intermedi ricostruiti
         if abs(vel - 1) > 0.01:
