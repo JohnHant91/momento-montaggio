@@ -322,7 +322,9 @@ async function faseScheda(env, cfg, L) {
     piattaforma: r.video.piattaforma, url: r.video.url, views: r.video.views, likes: r.video.likes,
     scelto_da_johnny: !!r.video.scelto_da_johnny, analisi: r.analisi,
   }));
-  const clip = (J(L.clip, []) || []).filter((c) => c.stato === 'fatto').map((c) => ({ file: c.nome, tecnico: c.tecnico, ...c.analisi }));
+  const clip = (J(L.clip, []) || []).filter((c) => c.stato === 'fatto').map((c) => (c.tipo === 'musica' || c.tecnico?.tipo === 'musica'
+    ? { file: c.nome, tipo: 'MUSICA del reel (brano con licenza)', durata_sec: c.tecnico?.durata_sec, bpm: c.analisi?.musica?.bpm, parte_forte_da_sec: c.analisi?.musica?.entrata }
+    : { file: c.nome, tecnico: c.tecnico, ...c.analisi }));
   const s = await S.claude(cfg, SISTEMA_SCHEDA, scheda(L.prompt, J(L.piano, {}), rif, clip), { maxTokens: 24000 });
   await run(env, 'UPDATE lavori SET scheda=? WHERE id=?', JSON.stringify(s), L.id);
   await log(env, L.id, 'direttore', `scheda pronta: ${s.titolo_lavoro || ''}`);
@@ -402,7 +404,11 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
 
 async function faseRegia(env, cfg, L) {
   const scheda = J(L.scheda, {});
-  const clip = (J(L.clip, []) || []).map((c, i) => ({ c, i })).filter(({ c }) => c.stato === 'fatto').map(({ c, i }) => ({
+  const tutteC = J(L.clip, []) || [];
+  const eMus = (c) => c?.tipo === 'musica' || c?.tecnico?.tipo === 'musica';
+  const brani = tutteC.map((c, i) => ({ c, i })).filter(({ c }) => c.stato === 'fatto' && eMus(c));
+  const brano = brani.length ? brani[brani.length - 1] : null; // l'ultimo brano messo nella cartella
+  const clip = tutteC.map((c, i) => ({ c, i })).filter(({ c }) => c.stato === 'fatto' && !eMus(c)).map(({ c, i }) => ({
     indice: i, file: c.nome, tipo: c.tipo === 'immagine' || c.tecnico?.tipo === 'immagine' ? 'immagine' : 'video', tecnico: c.tecnico,
     descrizione: c.analisi?.descrizione, momenti: c.analisi?.momenti, problemi: c.analisi?.problemi, parlato: c.analisi?.parlato,
     trascrizione: (c.analisi?.misure?.parlato?.trascrizione || []).slice(0, 60), testo_nell_immagine: c.analisi?.testo_nell_immagine || undefined,
@@ -425,7 +431,16 @@ JSON: {"riprese": [{"n": 1, "fase": "gancio|sviluppo|climax|chiusura", "inquadra
   const indicazioni = prima?.indicazioni_rimonta;
   await log(env, L.id, 'regista', indicazioni ? `rimonto con le tue indicazioni: ${indicazioni.testo || ''}` : `scrivo il piano di montaggio da ${clip.length} clip`);
   const extra = indicazioni ? `\n\nQUESTO È UN NUOVO MONTAGGIO. Piano precedente:\n${JSON.stringify(prima.piano || {})}\n\nINDICAZIONI DI JOHNNY PER IL NUOVO MONTAGGIO (hanno la precedenza sulla scheda):\n${JSON.stringify(indicazioni)}\nCambia davvero quello che chiede, il resto miglioralo se puoi.` : '';
-  const p = await S.claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda, clip) + extra, { maxTokens: 12000 });
+  const mu = brano?.c.analisi?.musica;
+  const extraMusica = mu ? `\n\nMUSICA DEL REEL (brano con licenza scelto da Johnny: il montaggio si costruisce SU questa musica)
+- durata ${brano.c.tecnico?.durata_sec} s, ${mu.bpm} BPM, una battuta = ${mu.battuta_sec} s, primo battito a ${mu.primo_battito} s
+- volume per secondo (dB): ${JSON.stringify(mu.volume_al_secondo_db)}
+- la parte forte entra a ${mu.entrata ?? '?'} s; picchi/accenti (s): ${JSON.stringify((mu.picchi || []).slice(0, 50))}
+REGOLE: il reel dura quanto la musica o finisce su una frase musicale (durata_target = fine della frase scelta, non oltre ${brano.c.tecnico?.durata_sec} s);
+ogni pezzo dura un multiplo di mezza battuta (il montatore aggancia i tagli ai battiti); sull'intro piano usa inquadrature
+lente e d'atmosfera, all'entrata della parte forte metti il taglio più forte e accelera il ritmo; i rallenty sugli
+accenti; l'audio delle clip va basso (0-0.25) perché comanda la musica; "riser" a null e niente effetti sonori forti.` : '';
+  const p = await S.claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda, clip) + extraMusica + extra, { maxTokens: 12000 });
   // controllo del piano: valori ammessi, clip esistenti, tempi dentro le clip
   const tutte = J(L.clip, []);
   const eImm = (c) => c?.tipo === 'immagine' || c?.tecnico?.tipo === 'immagine';
@@ -472,7 +487,9 @@ JSON: {"riprese": [{"n": 1, "fase": "gancio|sviluppo|climax|chiusura", "inquadra
     }
   }
   const piano = {
-    ...p, formato, pannello, segmenti: formato === 'carosello' ? [] : seg, broll, slide: formato === 'carosello' ? slide : [],
+    ...p, formato, pannello,
+    musica: brano ? { fileid: brano.c.fileid, nome: brano.c.nome, durata: brano.c.tecnico?.durata_sec, bpm: mu?.bpm, battuta: mu?.battuta_sec, primo_battito: mu?.primo_battito, volume: 0.9 } : null,
+    sfx: brano ? false : p.sfx, segmenti: formato === 'carosello' ? [] : seg, broll, slide: formato === 'carosello' ? slide : [],
     chiusura: formato === 'montaggio' ? p.chiusura : null, look: lookVoluto || (LOOKS.includes(p.look) ? p.look : (LOOKS.includes(scheda.colore?.look) ? scheda.colore.look : 'naturale_vivace')),
     effetti_globali: (p.effetti_globali || []).filter((e) => EFFETTI_GLOBALI.includes(e)), copertina: cop,
   };

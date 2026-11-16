@@ -262,6 +262,8 @@ def analizza(lavoro, el, cartella):
     rif = lavoro["tipo"] == "riferimenti"
     if not rif and (el.get("tipo") == "immagine" or re.search(r"\.(jpe?g|png|webp|heic)$", el.get("nome", ""), re.I)):
         return analizza_immagine(el, path, mb, t0)
+    if not rif and (el.get("tipo") == "musica" or re.search(r"\.(mp3|m4a|wav|aac|flac|ogg)$", el.get("nome", ""), re.I)):
+        return analizza_musica(el, path, t0)
     tec = tecnico(path)
     durata = tec["durata_sec"] or 1
 
@@ -328,6 +330,39 @@ def analizza(lavoro, el, cartella):
     return {"misure": misure, "immagini": [i for i in immagini if i["jpeg"]]}
 
 
+def analizza_musica(el, path, t0):
+    """Brano: durata, tempo (BPM), griglia dei battiti, dove entra la parte forte, picchi. Serve al Regista per tagliare a tempo."""
+    raw = path + ".raw"
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", path, "-ac", "1", "-ar", "22050", "-f", "s16le", raw], check=True)
+    y = np.fromfile(raw, dtype=np.int16).astype(np.float32) / 32768.0
+    os.remove(raw)
+    sr, hop, n = 22050, 512, 1024
+    durata = len(y) / sr
+    fr = np.lib.stride_tricks.sliding_window_view(y, n)[::hop] * np.hanning(n)
+    S = np.log1p(np.abs(np.fft.rfft(fr, axis=1)))
+    flux = np.maximum(0, np.diff(S, axis=0)).sum(1)
+    flux = (flux - flux.mean()) / (flux.std() + 1e-9)
+    fps = sr / hop
+    ac = np.correlate(flux, flux, "full")[len(flux) - 1:]
+    lo, hi = int(fps * 60 / 180), int(fps * 60 / 70)
+    lag = lo + int(np.argmax(ac[lo:hi]))
+    bpm = 60 * fps / lag
+    # fase della griglia: lo spostamento che allinea meglio i battiti ai picchi
+    fasi = [flux[int(f)::lag].sum() for f in range(lag)]
+    primo = int(np.argmax(fasi)) / fps
+    battiti = [round(primo + i * 60 / bpm, 3) for i in range(int((durata - primo) * bpm / 60) + 1)]
+    sec = int(durata)
+    db = [round(20 * math.log10(math.sqrt(float((y[i * sr:(i + 1) * sr] ** 2).mean())) + 1e-9), 1) for i in range(sec)]
+    base = float(np.median(db[:4])) if len(db) > 4 else (db[0] if db else -30)
+    entrata = next((i for i, v in enumerate(db) if v > base + 4), None)
+    picchi = [round(i / fps, 2) for i in range(1, len(flux) - 1) if flux[i] > 3 and flux[i] >= flux[i - 1] and flux[i] >= flux[i + 1]][:80]
+    log(f"{el['nome'][:50]}: musica {durata:.1f}s · {bpm:.0f} BPM · parte forte a {entrata}s · {time.time() - t0:.0f}s")
+    os.remove(path)
+    return {"misure": {"tecnico": {"tipo": "musica", "durata_sec": round(durata, 2)},
+                       "musica": {"bpm": round(bpm, 1), "battuta_sec": round(60 / bpm, 3), "primo_battito": round(primo, 3), "battiti": battiti[:200],
+                                  "entrata": entrata, "volume_al_secondo_db": db, "picchi": picchi}}, "immagini": []}
+
+
 def analizza_immagine(el, path, mb, t0):
     """Foto o slide di carosello: niente tempi né audio, solo l'immagine e le sue misure."""
     try:
@@ -391,7 +426,7 @@ def monta(lavoro):
     try:
         chiave = lambda s: str(s.get("fileid") or s.get("url"))
         cop = piano.get("copertina") or {}
-        voci = {chiave(s): s for s in (piano.get("segmenti") or []) + (piano.get("broll") or []) + (piano.get("slide") or [])
+        voci = {chiave(s): s for s in (piano.get("segmenti") or []) + (piano.get("broll") or []) + (piano.get("slide") or []) + ([piano["musica"]] if piano.get("musica") else [])
                 if s.get("fileid") or s.get("url")}
         if cop.get("fileid") or cop.get("url"):
             voci.setdefault(chiave(cop), cop)
@@ -406,6 +441,8 @@ def monta(lavoro):
         with ThreadPoolExecutor(3) as ex:
             for k, dest in ex.map(prendi, list(voci)):
                 file_per_id[k] = dest
+        if piano.get("musica") and chiave(piano["musica"]) in file_per_id:
+            piano["musica"]["file"] = file_per_id[chiave(piano["musica"])]
         for campo in ("segmenti", "broll", "slide"):
             if piano.get(campo):
                 piano[campo] = [dict(s, file=file_per_id[chiave(s)]) for s in piano[campo] if chiave(s) in file_per_id]

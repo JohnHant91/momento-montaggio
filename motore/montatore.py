@@ -545,6 +545,31 @@ class Montatore:
             problemi.append(f"file troppo pesante per l'archivio ({mb:.0f} MB, max 25)")
         return {"durata": round(info["dur"], 2), "lufs": lufs, "mb": round(mb, 1), "problemi": problemi, "note": self.report}
 
+    def aggancia_ai_battiti(self, segmenti):
+        """Con una musica: ogni taglio cade su un battito (griglia a mezza battuta), dentro i limiti del girato."""
+        mus = self.p.get("musica") or {}
+        if not mus.get("battuta") or not mus.get("file"):
+            return
+        mezza = float(mus["battuta"]) / 2
+        primo = float(mus.get("primo_battito") or 0) % mezza
+        cum, spostati = 0.0, 0
+        for k, s in enumerate(segmenti):
+            vel = 0.5 if s.get("rallenty") else float(s.get("velocita", 1) or 1)
+            dispon = max(0.3, (s["_info"]["dur"] - 0.05) / vel)
+            target = cum + float(s["durata"])
+            passi = max(1, round((target - primo) / mezza))
+            fine = primo + passi * mezza
+            while fine - cum < max(0.6, mezza) and fine - cum < dispon:
+                fine += mezza
+            while fine - cum > dispon and fine - mezza - cum >= 0.4:
+                fine -= mezza
+            nuova = round(fine - cum, 3)
+            if abs(nuova - float(s["durata"])) > 0.02:
+                spostati += 1
+            s["durata"] = nuova
+            cum = fine
+        self.report.append(f"musica a {float(mus.get('bpm') or 0):.0f} BPM: {spostati} tagli spostati sul battito")
+
     # -------------------------------------------------------------- regia del montaggio
     def monta(self, out_finale):
         t0 = time.time()
@@ -552,6 +577,7 @@ class Montatore:
         segmenti = [dict(s) for s in P["segmenti"]]
         for s in segmenti:
             s["_info"] = self.probe(s["file"])
+        self.aggancia_ai_battiti(segmenti)
         self.avvisa("color", f"preparo il look {P.get('look', 'naturale_vivace')} e misuro bianco ed esposizione di {len(segmenti)} pezzi")
         lut = self.crea_lut(P.get("look", "naturale_vivace"), float(P.get("intensita_look", 1.0)))
         globali = set(P.get("effetti_globali") or [])

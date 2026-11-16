@@ -419,6 +419,7 @@ function punteggio(v) {
 }
 var VIDEO_EXT = /\.(mp4|mov|m4v|mkv|avi|mts|mxf|webm)$/i;
 var FOTO_EXT = /\.(jpe?g|png|webp)$/i;
+var AUDIO_EXT = /\.(mp3|m4a|wav|aac|flac|ogg)$/i;
 function codicePcloud(link) {
   try {
     return new URL(link).searchParams.get("code");
@@ -446,7 +447,9 @@ async function pcloudClip(link) {
   const out = [];
   const visita = (m, cartella = "") => {
     if (m.isfolder) (m.contents || []).forEach((c) => visita(c, cartella ? `${cartella}/${m.name}` : m.name));
-    else if ((m.category === 1 || FOTO_EXT.test(m.name)) && FOTO_EXT.test(m.name)) {
+    else if (AUDIO_EXT.test(m.name)) {
+      out.push({ fileid: m.fileid, nome: m.name, cartella, dimensione: m.size, hash: String(m.hash || m.fileid), tipo: "musica", tecnico: { tipo: "musica" } });
+    } else if ((m.category === 1 || FOTO_EXT.test(m.name)) && FOTO_EXT.test(m.name)) {
       out.push({
         fileid: m.fileid,
         nome: m.name,
@@ -862,7 +865,7 @@ async function faseScheda(env, cfg, L) {
     scelto_da_johnny: !!r.video.scelto_da_johnny,
     analisi: r.analisi
   }));
-  const clip = (J(L.clip, []) || []).filter((c) => c.stato === "fatto").map((c) => ({ file: c.nome, tecnico: c.tecnico, ...c.analisi }));
+  const clip = (J(L.clip, []) || []).filter((c) => c.stato === "fatto").map((c) => c.tipo === "musica" || c.tecnico?.tipo === "musica" ? { file: c.nome, tipo: "MUSICA del reel (brano con licenza)", durata_sec: c.tecnico?.durata_sec, bpm: c.analisi?.musica?.bpm, parte_forte_da_sec: c.analisi?.musica?.entrata } : { file: c.nome, tecnico: c.tecnico, ...c.analisi });
   const s = await claude(cfg, SISTEMA_SCHEDA, scheda(L.prompt, J(L.piano, {}), rif, clip), { maxTokens: 24e3 });
   await run(env, "UPDATE lavori SET scheda=? WHERE id=?", JSON.stringify(s), L.id);
   await log(env, L.id, "direttore", `scheda pronta: ${s.titolo_lavoro || ""}`);
@@ -936,7 +939,11 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
 }`;
 async function faseRegia(env, cfg, L) {
   const scheda2 = J(L.scheda, {});
-  const clip = (J(L.clip, []) || []).map((c, i) => ({ c, i })).filter(({ c }) => c.stato === "fatto").map(({ c, i }) => ({
+  const tutteC = J(L.clip, []) || [];
+  const eMus = (c) => c?.tipo === "musica" || c?.tecnico?.tipo === "musica";
+  const brani = tutteC.map((c, i) => ({ c, i })).filter(({ c }) => c.stato === "fatto" && eMus(c));
+  const brano = brani.length ? brani[brani.length - 1] : null;
+  const clip = tutteC.map((c, i) => ({ c, i })).filter(({ c }) => c.stato === "fatto" && !eMus(c)).map(({ c, i }) => ({
     indice: i,
     file: c.nome,
     tipo: c.tipo === "immagine" || c.tecnico?.tipo === "immagine" ? "immagine" : "video",
@@ -972,7 +979,18 @@ ${JSON.stringify(prima.piano || {})}
 INDICAZIONI DI JOHNNY PER IL NUOVO MONTAGGIO (hanno la precedenza sulla scheda):
 ${JSON.stringify(indicazioni)}
 Cambia davvero quello che chiede, il resto miglioralo se puoi.` : "";
-  const p = await claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda2, clip) + extra, { maxTokens: 12e3 });
+  const mu = brano?.c.analisi?.musica;
+  const extraMusica = mu ? `
+
+MUSICA DEL REEL (brano con licenza scelto da Johnny: il montaggio si costruisce SU questa musica)
+- durata ${brano.c.tecnico?.durata_sec} s, ${mu.bpm} BPM, una battuta = ${mu.battuta_sec} s, primo battito a ${mu.primo_battito} s
+- volume per secondo (dB): ${JSON.stringify(mu.volume_al_secondo_db)}
+- la parte forte entra a ${mu.entrata ?? "?"} s; picchi/accenti (s): ${JSON.stringify((mu.picchi || []).slice(0, 50))}
+REGOLE: il reel dura quanto la musica o finisce su una frase musicale (durata_target = fine della frase scelta, non oltre ${brano.c.tecnico?.durata_sec} s);
+ogni pezzo dura un multiplo di mezza battuta (il montatore aggancia i tagli ai battiti); sull'intro piano usa inquadrature
+lente e d'atmosfera, all'entrata della parte forte metti il taglio pi\xF9 forte e accelera il ritmo; i rallenty sugli
+accenti; l'audio delle clip va basso (0-0.25) perch\xE9 comanda la musica; "riser" a null e niente effetti sonori forti.` : "";
+  const p = await claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda2, clip) + extraMusica + extra, { maxTokens: 12e3 });
   const tutte = J(L.clip, []);
   const eImm = (c) => c?.tipo === "immagine" || c?.tecnico?.tipo === "immagine";
   const sorg = (c) => ({ fileid: c.sorgente?.tipo === "url" ? null : c.fileid, url: c.sorgente?.tipo === "url" ? c.sorgente.url : null, nome: c.nome });
@@ -1037,6 +1055,8 @@ Cambia davvero quello che chiede, il resto miglioralo se puoi.` : "";
     ...p,
     formato,
     pannello,
+    musica: brano ? { fileid: brano.c.fileid, nome: brano.c.nome, durata: brano.c.tecnico?.durata_sec, bpm: mu?.bpm, battuta: mu?.battuta_sec, primo_battito: mu?.primo_battito, volume: 0.9 } : null,
+    sfx: brano ? false : p.sfx,
     segmenti: formato === "carosello" ? [] : seg,
     broll,
     slide: formato === "carosello" ? slide : [],
@@ -1240,6 +1260,15 @@ async function motoreApi(req, env, url) {
   if (mm[2] === "elemento" && m === "POST") {
     if (!el) return json({ errore: "elemento sconosciuto" }, 400);
     const d = await req.json().catch(() => null);
+    if (d?.misure?.tecnico?.tipo === "musica" && tipo === "clip") {
+      const mis2 = d.misure;
+      const analisi = { descrizione: `musica: ${Math.round(mis2.tecnico.durata_sec)} s, ${mis2.bpm || "?"} BPM`, musica: mis2.musica, misure: {} };
+      Object.assign(el, { stato: "fatto", analisi, tecnico: { ...el.tecnico || {}, ...mis2.tecnico }, errore: void 0 });
+      await env.DB.prepare("INSERT OR REPLACE INTO cache_analisi (chiave, dati, quando) VALUES (?,?,?)").bind(chiaveClip(el), JSON.stringify({ analisi, tecnico: el.tecnico }), ora()).run();
+      await aggiorna(env, id, tipo, indice, el);
+      await log(env, id, "audio", `\u{1F3B5} musica ascoltata: ${el.nome} \u2014 ${Math.round(mis2.tecnico.durata_sec)} s, ${mis2.musica?.bpm || "?"} BPM, la parte forte entra a ${mis2.musica?.entrata ?? "?"} s`);
+      return json({ ok: true });
+    }
     if (!d?.misure || !Array.isArray(d.immagini) || !d.immagini.length) return json({ errore: "dati mancanti" }, 400);
     const cfg = await configurazione(env);
     const rif = tipo === "riferimenti";

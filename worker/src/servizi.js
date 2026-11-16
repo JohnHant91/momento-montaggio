@@ -379,6 +379,7 @@ export function punteggio(v) {
 // ------------------------------------------------------------------ pCloud (link pubblico della cartella)
 const VIDEO_EXT = /\.(mp4|mov|m4v|mkv|avi|mts|mxf|webm)$/i;
 const FOTO_EXT = /\.(jpe?g|png|webp)$/i;
+const AUDIO_EXT = /\.(mp3|m4a|wav|aac|flac|ogg)$/i;
 
 function codicePcloud(link) {
   try { return new URL(link).searchParams.get('code'); } catch { return null; }
@@ -405,7 +406,10 @@ export async function pcloudClip(link) {
   const out = [];
   const visita = (m, cartella = '') => {
     if (m.isfolder) (m.contents || []).forEach((c) => visita(c, cartella ? `${cartella}/${m.name}` : m.name));
-    else if ((m.category === 1 || FOTO_EXT.test(m.name)) && FOTO_EXT.test(m.name)) {
+    else if (AUDIO_EXT.test(m.name)) {
+      // brano musicale (con licenza) messo nella cartella: diventa la musica del reel
+      out.push({ fileid: m.fileid, nome: m.name, cartella, dimensione: m.size, hash: String(m.hash || m.fileid), tipo: 'musica', tecnico: { tipo: 'musica' } });
+    } else if ((m.category === 1 || FOTO_EXT.test(m.name)) && FOTO_EXT.test(m.name)) {
       // foto e slide di carosello (per il formato carosello e come immagini nel montaggio)
       out.push({ fileid: m.fileid, nome: m.name, cartella, dimensione: m.size, hash: String(m.hash || m.fileid), tipo: 'immagine',
         tecnico: { tipo: 'immagine', durata_sec: 0, risoluzione: m.width ? `${m.width}x${m.height}` : null, orientamento: m.width ? (m.height > m.width ? 'verticale' : m.width > m.height ? 'orizzontale' : 'quadrato') : null } });

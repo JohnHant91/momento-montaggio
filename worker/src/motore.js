@@ -134,6 +134,15 @@ export async function motoreApi(req, env, url) {
   if (mm[2] === 'elemento' && m === 'POST') {
     if (!el) return json({ errore: 'elemento sconosciuto' }, 400);
     const d = await req.json().catch(() => null);
+    if (d?.misure?.tecnico?.tipo === 'musica' && tipo === 'clip') {
+      const mis = d.misure;
+      const analisi = { descrizione: `musica: ${Math.round(mis.tecnico.durata_sec)} s, ${mis.bpm || '?'} BPM`, musica: mis.musica, misure: {} };
+      Object.assign(el, { stato: 'fatto', analisi, tecnico: { ...(el.tecnico || {}), ...mis.tecnico }, errore: undefined });
+      await env.DB.prepare('INSERT OR REPLACE INTO cache_analisi (chiave, dati, quando) VALUES (?,?,?)').bind(chiaveClip(el), JSON.stringify({ analisi, tecnico: el.tecnico }), ora()).run();
+      await aggiorna(env, id, tipo, indice, el);
+      await log(env, id, 'audio', `🎵 musica ascoltata: ${el.nome} — ${Math.round(mis.tecnico.durata_sec)} s, ${mis.musica?.bpm || '?'} BPM, la parte forte entra a ${mis.musica?.entrata ?? '?'} s`);
+      return json({ ok: true });
+    }
     if (!d?.misure || !Array.isArray(d.immagini) || !d.immagini.length) return json({ errore: 'dati mancanti' }, 400);
     const cfg = await configurazione(env);
     const rif = tipo === 'riferimenti';
