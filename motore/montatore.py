@@ -139,6 +139,36 @@ class Montatore:
             filtro += f",curves=all='{min(p2 - 10, 40) / 255:.3f}/0 1/1'"
         return filtro
 
+    def movimento_camera(self, src, t_in, durata):
+        """Tremolio (scatti ad alta frequenza, in px su 160 di larghezza) e deriva (spostamento totale / larghezza)."""
+        info = self.probe(src)
+        w = 160
+        h = int(round(w * info["h"] / max(1, info["w"]) / 2) * 2) if info["w"] else 284
+        p = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-ss", f"{t_in:.3f}", "-t", f"{max(durata, 0.3):.3f}", "-i", src,
+                            "-vf", f"fps=15,scale={w}:{h},format=gray", "-f", "rawvideo", "-"], capture_output=True)
+        dati = np.frombuffer(p.stdout, dtype=np.uint8)
+        nf = dati.size // (w * h)
+        if nf < 4:
+            return {"tremolio": 0.0, "deriva": 0.0}
+        g = list(dati[: nf * w * h].reshape(nf, h, w).astype(np.float32))
+        fin = np.outer(np.hanning(h), np.hanning(w))
+        spost = []
+        for a, b in zip(g, g[1:]):
+            A = np.fft.fft2((a - a.mean()) * fin)
+            B = np.fft.fft2((b - b.mean()) * fin)
+            R = A * np.conj(B)
+            r = np.abs(np.fft.ifft2(R / (np.abs(R) + 1e-6)))
+            y, x = np.unravel_index(np.argmax(r), r.shape)
+            spost.append((x if x < w // 2 else x - w, y if y < h // 2 else y - h))
+        s = np.array(spost, dtype=np.float32)
+        if len(s) >= 3:
+            liscio = np.array([s[max(0, k - 1):k + 2].mean(axis=0) for k in range(len(s))])
+            tremolio = float(np.abs(s - liscio).mean())
+        else:
+            tremolio = 0.0
+        deriva = float(np.hypot(*s.sum(axis=0)) / w)
+        return {"tremolio": tremolio, "deriva": deriva}
+
     # -------------------------------------------------------------- editor: reframe intelligente
     _volti = None
 
@@ -225,16 +255,28 @@ class Montatore:
         quadri = self.fotogrammi(src, t_in, max(sorgente, 0.2), 6)
         corr = self.correzione(quadri)
         filtri = []
-        # stabilizzazione (solo se la clip si muove molto e il regista non l'ha esclusa)
+        # stabilizzazione: misuro il movimento della camera (tremolio e spostamento) e scelgo come fermarla
         stab = s.get("stabilizza", "auto")
-        if stab == "auto" and len(quadri) > 2:
-            diff = np.mean([np.abs(quadri[k + 1][1].astype(np.int16) - quadri[k][1].astype(np.int16)).mean() for k in range(len(quadri) - 1)])
-            stab = diff > 18 and s.get("effetto") not in ("shake",)
+        cam = self.movimento_camera(src, t_in, sorgente)
+        if stab == "auto":
+            stab = cam["tremolio"] > 0.35 and s.get("effetto") not in ("shake",)
+        if (cam["tremolio"] > 0.35 or (cam["deriva"] > 0.06 and cam["tremolio"] > 0.2)) and s.get("effetto") in ("dolly_in", "slider_dx", "slider_sx", "zoom_lento", "zoom_out"):
+            # camera a mano: un movimento finto sopra lo renderebbe scattoso
+            self.report.append(f"pezzo {i + 1}: niente movimento aggiunto (camera a mano)")
+            s["effetto"] = "nessuno"
         trf = os.path.join(self.tmp, f"stab_{i}.trf")
         if stab is True:
             try:
-                self.ff(["-ss", f"{t_in:.3f}", "-t", f"{sorgente:.3f}", "-i", src, "-vf", f"vidstabdetect=shakiness=6:accuracy=12:result={trf}", "-f", "null", "-"], "stabilizza")
-                filtri.append(f"vidstabtransform=input={trf}:smoothing=18:zoom=4:optzoom=0")
+                self.ff(["-ss", f"{t_in:.3f}", "-t", f"{sorgente + 0.2:.3f}", "-i", src, "-vf",
+                         f"vidstabdetect=shakiness=8:accuracy=15:stepsize=6:mincontrast=0.2:result={trf}", "-f", "null", "-"], "stabilizza")
+                if cam["deriva"] < 0.025:  # inquadratura nata ferma: la blocco come su un treppiede
+                    filtri.append(f"vidstabtransform=input={trf}:tripod=1:optzoom=1:zoomspeed=0.2:interpol=bicubic")
+                    modo = "bloccata come su treppiede"
+                else:  # movimento voluto: lo tengo ma lo rendo morbido (finestra di ~1,2 s)
+                    sm = int(min(80, max(20, info["fps"] * 1.2)))
+                    filtri.append(f"vidstabtransform=input={trf}:smoothing={sm}:optzoom=1:zoomspeed=0.2:interpol=bicubic")
+                    modo = "movimento ammorbidito"
+                self.report.append(f"pezzo {i + 1}: stabilizzato ({modo}, tremolio {cam['tremolio']:.2f})")
             except RuntimeError:
                 pass
         # reframe 9:16 che segue il soggetto (panoramica lineare dentro il pezzo)

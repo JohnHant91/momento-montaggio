@@ -570,7 +570,8 @@ var MANUALE_SPOT = `STILE "SPOT DI PRODOTTO" (il riferimento preferito di Johnny
 - \xC8 una sequenza di HERO SHOT: ogni inquadratura mostra UNA sola azione bella nel suo momento migliore (chicchi che
   cadono, il getto dell'estrazione, la goccia, la crema che gira, la mano che versa) e dura 1,5-2,5 s, tagliata sul tempo.
 - Quasi tutto in RALLENTY (se il girato \xE8 a 50/60 fps \xE8 un rallenty vero): il movimento lento e fluido \xE8 la firma dello
-  stile. Le inquadrature ferme prendono un movimento di macchina morbido: "dolly_in" (avvicinamento) o "slider_dx"/"slider_sx"
+  stile. Scegli tratti girati fermi o con movimenti lenti e regolari: scarta i tratti con scatti, strappi o
+  correzioni di inquadratura (Ada li segnala nei problemi). Solo le inquadrature girate FERME (cavalletto) prendono un movimento di macchina morbido: "dolly_in" (avvicinamento) o "slider_dx"/"slider_sx"
   (carrello laterale). Mai punch_in, shake o zoom veloci.
 - Racconto di processo, dal grezzo al risultato: materia prima \u2192 lavorazione \u2192 dettaglio tecnico \u2192 prodotto finito \u2192
   gesto finale (es. chicchi \u2192 tostatura \u2192 macinatura \u2192 estrazione \u2192 tazza \u2192 mescolare/assaggiare).
