@@ -259,7 +259,7 @@ class Montatore:
         stab = s.get("stabilizza", "auto")
         cam = self.movimento_camera(src, t_in, sorgente)
         if stab == "auto":
-            stab = cam["tremolio"] > 0.35 and s.get("effetto") not in ("shake",)
+            stab = cam["tremolio"] > 0.6 and s.get("effetto") not in ("shake",)
         if (cam["tremolio"] > 0.35 or (cam["deriva"] > 0.06 and cam["tremolio"] > 0.2)) and s.get("effetto") in ("dolly_in", "slider_dx", "slider_sx", "zoom_lento", "zoom_out"):
             # camera a mano: un movimento finto sopra lo renderebbe scattoso
             self.report.append(f"pezzo {i + 1}: niente movimento aggiunto (camera a mano)")
@@ -270,11 +270,11 @@ class Montatore:
                 self.ff(["-ss", f"{t_in:.3f}", "-t", f"{sorgente + 0.2:.3f}", "-i", src, "-vf",
                          f"vidstabdetect=shakiness=8:accuracy=15:stepsize=6:mincontrast=0.2:result={trf}", "-f", "null", "-"], "stabilizza")
                 if cam["deriva"] < 0.025:  # inquadratura nata ferma: la blocco come su un treppiede
-                    filtri.append(f"vidstabtransform=input={trf}:tripod=1:optzoom=1:zoomspeed=0.2:interpol=bicubic")
+                    filtri.append(f"vidstabtransform=input={trf}:tripod=1:maxangle=0:optzoom=1:interpol=bicubic")
                     modo = "bloccata come su treppiede"
                 else:  # movimento voluto: lo tengo ma lo rendo morbido (finestra di ~1,2 s)
                     sm = int(min(80, max(20, info["fps"] * 1.2)))
-                    filtri.append(f"vidstabtransform=input={trf}:smoothing={sm}:optzoom=1:zoomspeed=0.2:interpol=bicubic")
+                    filtri.append(f"vidstabtransform=input={trf}:smoothing={sm}:maxangle=0:optzoom=1:interpol=bicubic")
                     modo = "movimento ammorbidito"
                 self.report.append(f"pezzo {i + 1}: stabilizzato ({modo}, tremolio {cam['tremolio']:.2f})")
             except RuntimeError:
