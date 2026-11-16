@@ -441,6 +441,13 @@ def monta(lavoro):
         with ThreadPoolExecutor(3) as ex:
             for k, dest in ex.map(prendi, list(voci)):
                 file_per_id[k] = dest
+        if (piano.get("logo") or {}).get("kv"):
+            try:
+                dest = os.path.join(cartella, "logo.png")
+                scarica_url(f"{REGIA}/api/motore/{lavoro['id']}/logo?pass={lavoro['pass']}", dest)
+                piano["logo"]["file"] = dest
+            except Exception as e:
+                avvisa("motore", f"logo non scaricato: {e}", "warn")
         if piano.get("musica") and chiave(piano["musica"]) in file_per_id:
             piano["musica"]["file"] = file_per_id[chiave(piano["musica"])]
         for campo in ("segmenti", "broll", "slide"):

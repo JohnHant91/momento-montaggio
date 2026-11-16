@@ -934,7 +934,7 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
                 "testo": {"testo": "...", "stile": "...", "posizione": "...", "evidenzia": "parola"} oppure null}],
   "sottotitoli": {"usare": bool, "stile": "parola_per_parola|karaoke_evidenziato|sottotitolo_classico", "posizione": "terzo_inferiore"},
   "chiusura": {"testo": "...", "sottotesto": "cta breve", "evidenzia": "parola", "durata": 2-3, "colore": "#hex"} oppure null (non per talking_head/carosello),
-  "finale": "nero (l'ultima immagine scende al nero, stile cinema) oppure null",
+  "finale": "nero (l'ultima immagine scende al nero) | bianco (sfuma al bianco e compare il logo del cliente, se c'\xE8) | null",
   "gancio": {"testo": "solo carosello: frase breve sulla prima slide; talking_head: lascia null (usa la prima frase detta)", "evidenzia": ["parole del gancio da colorare"]},
   "evidenzia": ["solo talking_head: 3-8 parole chiave del discorso da colorare nei sottotitoli"],
   "correzioni": {"parola_sentita_male": "parola giusta"},
@@ -1022,13 +1022,21 @@ accenti; l'audio delle clip va basso (0-0.25) perch\xE9 comanda la musica; "rise
     const durClip = Number(c.tecnico?.durata_sec) || 9999;
     const durata = Math.min(Math.max(Number(s.durata) || 1.5, 0.4), formato === "talking_head" ? 90 : 12);
     const rallenty = !!s.rallenty;
-    const serve = durata * (rallenty ? 0.5 : 1);
+    const serve = durata * (rallenty ? 0.6 : 1);
+    let inizio = Math.max(0, Math.min(Number(s.in) || 0, Math.max(0, durClip - serve - 0.05)));
+    const interni = (c.analisi?.misure?.tagli_interni_sec || []).map(Number).filter((x) => x > 0.1 && x < durClip - 0.1).sort((a, b) => a - b);
+    const dentro = (a) => interni.find((x) => x > a + 0.05 && x < a + serve - 0.05);
+    if (dentro(inizio) !== void 0) {
+      const dopo = interni.map((x) => x + 0.12).find((a) => a + serve < durClip - 0.05 && dentro(a) === void 0);
+      const prima2 = [...interni].reverse().map((x) => x - serve - 0.12).find((a) => a >= 0 && dentro(a) === void 0);
+      inizio = dopo ?? prima2 ?? inizio;
+    }
     return {
       clip: s.clip,
       fileid: c.sorgente?.tipo === "url" ? null : c.fileid,
       url: c.sorgente?.tipo === "url" ? c.sorgente.url : null,
       nome: c.nome,
-      in: Math.max(0, Math.min(Number(s.in) || 0, Math.max(0, durClip - serve - 0.05))),
+      in: inizio,
       durata,
       rallenty,
       effetto: EFFETTI_PEZZO.includes(s.effetto) ? s.effetto : "nessuno",
@@ -1069,6 +1077,8 @@ accenti; l'audio delle clip va basso (0-0.25) perch\xE9 comanda la musica; "rise
     ...p,
     formato,
     pannello,
+    logo: prima?.logo || null,
+    finale: ["nero", "bianco"].includes(indicazioni?.finale) ? indicazioni.finale : ["nero", "bianco"].includes(p.finale) ? p.finale : null,
     musica: brano ? { fileid: brano.c.fileid, nome: brano.c.nome, durata: brano.c.tecnico?.durata_sec, bpm: mu?.bpm, battuta: mu?.battuta_sec, primo_battito: mu?.primo_battito, volume: 0.9 } : null,
     sfx: brano ? false : p.sfx,
     segmenti: formato === "carosello" ? [] : seg,
@@ -1224,7 +1234,7 @@ async function motoreApi(req, env, url) {
     await log(env, L2.id, "motore", `\u2699\uFE0F motore GitHub al lavoro: ${elementi.length} ${tipo2 === "riferimenti" ? "reel da scaricare e misurare" : "clip da scaricare e misurare"}`);
     return json({ id: L2.id, tipo: tipo2, pass: pass2, pcloud_code: codice(L2.pcloud), pcloud_eu: /(^|\/\/)e\.|eapi/.test(L2.pcloud || ""), elementi });
   }
-  const mm = p.match(/^\/api\/motore\/(\d+)\/(elemento|errore|fine|scarica|log|video|anteprima|copertina|esito)$/);
+  const mm = p.match(/^\/api\/motore\/(\d+)\/(elemento|errore|fine|scarica|log|video|anteprima|copertina|esito|logo)$/);
   if (!mm) return json({ errore: "non trovato" }, 404);
   const id = Number(mm[1]);
   const L = await one(env, "SELECT id, prompt, piano, fase, riferimenti, clip, montaggio, motore_pass FROM lavori WHERE id=?", id);
@@ -1264,6 +1274,12 @@ async function motoreApi(req, env, url) {
     }
     await run(env, "UPDATE lavori SET montaggio=?, motore_pass=NULL, motore_fino=NULL, motore_visto=? WHERE id=?", JSON.stringify(mont), ora(), id);
     return json({ ok: true });
+  }
+  if (mm[2] === "logo" && m === "GET") {
+    const chiave = J(L.montaggio, {})?.piano?.logo?.kv;
+    const dati = chiave ? await env.VIDEO.get(chiave, "arrayBuffer") : null;
+    if (!dati) return json({ errore: "logo non trovato" }, 404);
+    return new Response(dati, { headers: { "content-type": "image/png" } });
   }
   if (mm[2] === "scarica" && m === "GET") {
     if (!el?.video?.video_url) return json({ errore: "niente da scaricare" }, 404);

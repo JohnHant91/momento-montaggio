@@ -77,7 +77,7 @@ export async function motoreApi(req, env, url) {
     return json({ id: L.id, tipo, pass, pcloud_code: codice(L.pcloud), pcloud_eu: /(^|\/\/)e\.|eapi/.test(L.pcloud || ''), elementi });
   }
 
-  const mm = p.match(/^\/api\/motore\/(\d+)\/(elemento|errore|fine|scarica|log|video|anteprima|copertina|esito)$/);
+  const mm = p.match(/^\/api\/motore\/(\d+)\/(elemento|errore|fine|scarica|log|video|anteprima|copertina|esito|logo)$/);
   if (!mm) return json({ errore: 'non trovato' }, 404);
   const id = Number(mm[1]);
   const L = await one(env, 'SELECT id, prompt, piano, fase, riferimenti, clip, montaggio, motore_pass FROM lavori WHERE id=?', id);
@@ -120,6 +120,14 @@ export async function motoreApi(req, env, url) {
     }
     await run(env, 'UPDATE lavori SET montaggio=?, motore_pass=NULL, motore_fino=NULL, motore_visto=? WHERE id=?', JSON.stringify(mont), ora(), id);
     return json({ ok: true });
+  }
+
+  // logo del cliente per la chiusura (salvato nell'archivio dalla Regia)
+  if (mm[2] === 'logo' && m === 'GET') {
+    const chiave = J(L.montaggio, {})?.piano?.logo?.kv;
+    const dati = chiave ? await env.VIDEO.get(chiave, 'arrayBuffer') : null;
+    if (!dati) return json({ errore: 'logo non trovato' }, 404);
+    return new Response(dati, { headers: { 'content-type': 'image/png' } });
   }
 
   // scaricamento dei video Apify (servono il token, che resta qui)

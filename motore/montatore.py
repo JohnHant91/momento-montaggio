@@ -124,9 +124,20 @@ class Montatore:
         gain = np.clip(grigio / np.maximum(m, 1), 0.88, 1.12)
         gain = 1 + (gain - 1) * 0.7  # correzione delicata: non deve ammazzare il look naturale della luce
         y = float(np.median(lum))
-        gamma = float(np.clip(math.log(118 / 255) / math.log(max(y, 5) / 255), 0.8, 1.25)) if 25 < y < 230 else 1.0
-        gamma = 1 + (gamma - 1) * 0.6
-        return f"colorchannelmixer=rr={gain[0]:.3f}:gg={gain[1]:.3f}:bb={gain[2]:.3f},eq=gamma={gamma:.3f}"
+        gamma = float(np.clip(math.log(118 / 255) / math.log(max(y, 5) / 255), 0.75, 1.25)) if 25 < y < 240 else 1.0
+        gamma = 1 + (gamma - 1) * 0.7
+        filtro = f"colorchannelmixer=rr={gain[0]:.3f}:gg={gain[1]:.3f}:bb={gain[2]:.3f},eq=gamma={gamma:.3f}"
+        # sovraesposizione: tante zone quasi bianche o immagine troppo chiara -> curva che recupera le alte luci
+        bruciati = float((lum > 240).mean())
+        p98 = float(np.percentile(lum, 98))
+        if bruciati > 0.015 or p98 > 248 or y > 150:
+            k = float(np.clip(max(bruciati * 2.5, (y - 130) / 400, (p98 - 235) / 150), 0.04, 0.18))
+            filtro += (f",curves=all='0/0 0.25/{0.25 - k * 0.3:.3f} 0.5/{0.5 - k * 0.8:.3f} 0.75/{0.75 - k:.3f} 0.9/{0.88 - k:.3f} 1/{0.96 - k * 0.5:.3f}'")
+        # neri lavati: un po' di profondità
+        p2 = float(np.percentile(lum, 2))
+        if p2 > 28:
+            filtro += f",curves=all='{min(p2 - 10, 40) / 255:.3f}/0 1/1'"
+        return filtro
 
     # -------------------------------------------------------------- editor: reframe intelligente
     _volti = None
@@ -177,11 +188,13 @@ class Montatore:
         """Movimenti di macchina con zoompan a un fotogramma per volta (stabile; scale per-frame fa crashare ffmpeg 6)."""
         d = max(dur, 0.3)
         tt = f"(on/{FPS})"
+        su = f"scale={W * 2}:{H * 2}:flags=bicubic,"  # zoompan arrotonda ai pixel: lavorare al doppio elimina gli scatti
+
         def zoom(z):
-            return f"zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={W}x{H}:fps={FPS}"
+            return su + f"zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={W}x{H}:fps={FPS}"
         if effetto in ("slider_dx", "slider_sx"):  # carrello laterale lento, come una slitta
             a, b = (0.15, 0.85) if effetto == "slider_dx" else (0.85, 0.15)
-            return (f"zoompan=z='1.10':x='(iw-iw/zoom)*({a}+({b - a})*min(1,{tt}/{d:.2f}))':y='ih/2-(ih/zoom/2)':d=1:s={W}x{H}:fps={FPS}")
+            return su + (f"zoompan=z='1.10':x='(iw-iw/zoom)*({a}+({b - a})*min(1,{tt}/{d:.2f}))':y='ih/2-(ih/zoom/2)':d=1:s={W}x{H}:fps={FPS}")
         if effetto == "dolly_in":  # avvicinamento morbido e continuo (spot di prodotto)
             return zoom(f"1+0.06*{tt}/{d:.2f}")
         if effetto == "punch_in":
@@ -203,7 +216,8 @@ class Montatore:
         vel = float(s.get("velocita", 1) or 1)
         rallenty = bool(s.get("rallenty"))
         if rallenty:
-            vel = min(vel, 0.5)
+            # 50 fps a 0,6x = 30 fps veri (a 0,5x sarebbero 25 fps e il 30 fps duplicherebbe fotogrammi: scatti)
+            vel = min(vel, max(0.5, FPS / info["fps"])) if info["fps"] >= 45 else min(vel, 0.5)
         sorgente = dur * vel  # secondi di girato che servono
         t_in = max(0.0, min(float(s.get("in", 0)), max(0.0, info["dur"] - sorgente - 0.05)))
         out = os.path.join(self.tmp, f"pezzo_{i:02d}.mp4")
@@ -552,6 +566,30 @@ class Montatore:
             problemi.append(f"file troppo pesante per l'archivio ({mb:.0f} MB, max 25)")
         return {"durata": round(info["dur"], 2), "lufs": lufs, "mb": round(mb, 1), "problemi": problemi, "note": self.report}
 
+    def chiusura_bianca(self, video, totale):
+        """L'ultima immagine sfuma nel bianco, poi compare piano il logo del cliente (se c'è)."""
+        logo = (self.p.get("logo") or {}).get("file")
+        mus = self.p.get("musica") or {}
+        resto = float(mus.get("durata") or 0) - totale if mus.get("file") else 0
+        dc = float(np.clip(resto, 2.4, 4.0)) if resto > 0 else 3.0  # la chiusura usa la musica che avanza
+        df = 0.9
+        v1 = os.path.join(self.tmp, "verso_bianco.mp4")
+        self.ff(["-i", video, "-vf", f"fade=t=out:st={totale - df:.3f}:d={df:.3f}:color=white"] + X264_INT + [v1], "sfumo al bianco")
+        card = os.path.join(self.tmp, "card_logo.mp4")
+        if logo:
+            self.ff(["-f", "lavfi", "-i", f"color=c=white:s={W}x{H}:r={FPS}:d={dc:.3f}", "-loop", "1", "-t", f"{dc:.3f}", "-i", logo,
+                     "-filter_complex", f"[1:v]scale=640:-1,format=rgba,fade=t=in:st=0.35:d=1.0:alpha=1[l];[0:v][l]overlay=(W-w)/2:(H-h)/2-40:format=auto,format=yuv420p[v]",
+                     "-map", "[v]", "-t", f"{dc:.3f}"] + X264_INT + [card], "logo")
+        else:
+            self.ff(["-f", "lavfi", "-i", f"color=c=white:s={W}x{H}:r={FPS}:d={dc:.3f}", "-vf", "format=yuv420p"] + X264_INT + [card], "bianco")
+        lista = os.path.join(self.tmp, "fine.txt")
+        with open(lista, "w") as f:
+            f.write(f"file '{v1}'\nfile '{card}'\n")
+        out = os.path.join(self.tmp, "video_chiusura.mp4")
+        self.ff(["-f", "concat", "-safe", "0", "-i", lista, "-c", "copy", out], "chiusura")
+        self.report.append("chiusura: sfumato al bianco" + (" con il logo" if logo else " (logo non trovato)"))
+        return out, totale + dc
+
     def aggancia_ai_battiti(self, segmenti):
         """Con una musica: ogni taglio cade su un battito (griglia a mezza battuta), dentro i limiti del girato."""
         mus = self.p.get("musica") or {}
@@ -602,6 +640,8 @@ class Montatore:
             momenti = [inizi[k] - 0.2 for k in range(1, len(segmenti)) if segmenti[k].get("transizione_in") in ("dissolvenza", "whip_pan", "zoom")] or [0.0]
             video = self.light_leak(video, totale, momenti[:5])
         finale = (P.get("finale") or ("nero" if not P.get("chiusura") else "")).lower()
+        if finale == "bianco":
+            video, totale = self.chiusura_bianca(video, totale)
         if finale == "nero":  # chiusura cinematografica: l'ultima immagine scende al nero
             v2 = os.path.join(self.tmp, "video_finale.mp4")
             dn = min(1.0, max(0.5, totale * 0.04))

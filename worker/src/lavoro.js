@@ -386,7 +386,7 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
                 "testo": {"testo": "...", "stile": "...", "posizione": "...", "evidenzia": "parola"} oppure null}],
   "sottotitoli": {"usare": bool, "stile": "parola_per_parola|karaoke_evidenziato|sottotitolo_classico", "posizione": "terzo_inferiore"},
   "chiusura": {"testo": "...", "sottotesto": "cta breve", "evidenzia": "parola", "durata": 2-3, "colore": "#hex"} oppure null (non per talking_head/carosello),
-  "finale": "nero (l'ultima immagine scende al nero, stile cinema) oppure null",
+  "finale": "nero (l'ultima immagine scende al nero) | bianco (sfuma al bianco e compare il logo del cliente, se c'è) | null",
   "gancio": {"testo": "solo carosello: frase breve sulla prima slide; talking_head: lascia null (usa la prima frase detta)", "evidenzia": ["parole del gancio da colorare"]},
   "evidenzia": ["solo talking_head: 3-8 parole chiave del discorso da colorare nei sottotitoli"],
   "correzioni": {"parola_sentita_male": "parola giusta"},
@@ -462,9 +462,18 @@ accenti; l'audio delle clip va basso (0-0.25) perché comanda la musica; "riser"
     const durClip = Number(c.tecnico?.durata_sec) || 9999;
     const durata = Math.min(Math.max(Number(s.durata) || 1.5, 0.4), formato === 'talking_head' ? 90 : 12);
     const rallenty = !!s.rallenty;
-    const serve = durata * (rallenty ? 0.5 : 1);
+    const serve = durata * (rallenty ? 0.6 : 1);
+    let inizio = Math.max(0, Math.min(Number(s.in) || 0, Math.max(0, durClip - serve - 0.05)));
+    // niente tagli o transizioni già presenti dentro la clip (montaggi della camera, clip già editate)
+    const interni = (c.analisi?.misure?.tagli_interni_sec || []).map(Number).filter((x) => x > 0.1 && x < durClip - 0.1).sort((a, b) => a - b);
+    const dentro = (a) => interni.find((x) => x > a + 0.05 && x < a + serve - 0.05);
+    if (dentro(inizio) !== undefined) {
+      const dopo = interni.map((x) => x + 0.12).find((a) => a + serve < durClip - 0.05 && dentro(a) === undefined);
+      const prima = [...interni].reverse().map((x) => x - serve - 0.12).find((a) => a >= 0 && dentro(a) === undefined);
+      inizio = dopo ?? prima ?? inizio;
+    }
     return {
-      clip: s.clip, fileid: c.sorgente?.tipo === 'url' ? null : c.fileid, url: c.sorgente?.tipo === 'url' ? c.sorgente.url : null, nome: c.nome, in: Math.max(0, Math.min(Number(s.in) || 0, Math.max(0, durClip - serve - 0.05))), durata, rallenty,
+      clip: s.clip, fileid: c.sorgente?.tipo === 'url' ? null : c.fileid, url: c.sorgente?.tipo === 'url' ? c.sorgente.url : null, nome: c.nome, in: inizio, durata, rallenty,
       effetto: EFFETTI_PEZZO.includes(s.effetto) ? s.effetto : 'nessuno',
       transizione_in: k === 0 ? null : (TRANSIZIONI.includes(s.transizione_in) ? s.transizione_in : 'taglio_netto'),
       audio: Math.min(1, Math.max(0, Number(s.audio ?? 0.8))), motivo: s.motivo, testo: s.testo?.testo ? s.testo : null,
@@ -490,6 +499,8 @@ accenti; l'audio delle clip va basso (0-0.25) perché comanda la musica; "riser"
   }
   const piano = {
     ...p, formato, pannello,
+    logo: prima?.logo || null,
+    finale: ['nero', 'bianco'].includes(indicazioni?.finale) ? indicazioni.finale : (['nero', 'bianco'].includes(p.finale) ? p.finale : null),
     musica: brano ? { fileid: brano.c.fileid, nome: brano.c.nome, durata: brano.c.tecnico?.durata_sec, bpm: mu?.bpm, battuta: mu?.battuta_sec, primo_battito: mu?.primo_battito, volume: 0.9 } : null,
     sfx: brano ? false : p.sfx, segmenti: formato === 'carosello' ? [] : seg, broll, slide: formato === 'carosello' ? slide : [],
     chiusura: formato === 'montaggio' ? p.chiusura : null, look: lookVoluto || (LOOKS.includes(p.look) ? p.look : (LOOKS.includes(scheda.colore?.look) ? scheda.colore.look : 'naturale_vivace')),
