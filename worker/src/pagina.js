@@ -63,8 +63,17 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 .pannello{position:fixed;inset:auto 0 0 0;max-height:78vh;background:#fff;border-top:1px solid var(--line);border-radius:22px 22px 0 0;padding:16px 18px 24px;overflow:auto;z-index:40;box-shadow:0 -20px 60px rgba(0,0,0,.15);max-width:760px;margin:auto}
 .velo{position:fixed;inset:0;background:rgba(20,20,22,.25);z-index:39}
 /* ---------- la sala: l'agenzia vista dall'alto ---------- */
+.et-ag.pillola{background:rgba(20,20,22,.9);color:#fff;border-radius:999px;padding:5px 10px 5px 8px;font:600 12px/1 Inter,system-ui;display:flex;gap:6px;align-items:center;white-space:nowrap;box-shadow:0 6px 16px -6px rgba(0,0,0,.45);cursor:pointer;flex-direction:row}
+.et-ag.pillola .pt{width:7px;height:7px;border-radius:50%;background:#9a968f}
+.et-ag.carta{background:#fff;border-radius:14px;padding:9px 11px;min-width:150px;max-width:220px;box-shadow:0 12px 30px -12px rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.05);display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;cursor:pointer;font-family:Inter,system-ui}
+.et-ag.carta b{font-size:13px;color:#141416;grid-column:1}.et-ag.carta span{font-size:11px;color:#77736b;grid-column:1;line-height:1.3}.et-ag.carta i{grid-column:2;grid-row:1/3;font-style:normal;background:#141416;color:#fff;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:600;white-space:nowrap}
+.et-ag.carta.coda i{background:#f3efe7;color:#8a6a1f}.et-ag.carta.scelto{box-shadow:0 0 0 2px var(--teal),0 12px 30px -12px rgba(0,0,0,.35)}
+.etichette:not(.vicino) .et-ag.pillola{display:none}
+.filtri{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 0 0}.filtri button{background:#fff;color:#4d4b46;border:1px solid var(--line);padding:6px 12px;font-size:13px;font-weight:500;white-space:nowrap}.filtri button.on{background:var(--nero);color:#fff;border-color:var(--nero)}
+.scrivi textarea{min-height:70px;margin-top:6px}.scrivi .riga{margin-top:8px}
+
 .sala-canvas{position:absolute;inset:0;width:100%!important;height:100%!important;display:block;touch-action:none;cursor:grab}.sala-canvas:active{cursor:grabbing}
-.etichette{position:absolute;inset:0;pointer-events:none;overflow:hidden}.etichette:not(.vicino) .et-ag:not(.lavora):not(.coda):not(.errore):not(.scelto){display:none}.etichette:not(.vicino) .et-ag:not(.scelto) .et-msg{display:none}.etichette>div{position:absolute;left:0;top:0;pointer-events:auto;will-change:transform}
+.etichette{position:absolute;inset:0;pointer-events:none;overflow:hidden}.etichette>div{position:absolute;left:0;top:0;pointer-events:auto;will-change:transform}
 .et-ag{display:flex;flex-direction:column;align-items:center;gap:6px;transform-origin:50% 100%}
 .et-nome{background:rgba(20,20,22,.92);color:#fff;border-radius:999px;padding:5px 10px 5px 8px;font:600 12px/1 Inter,system-ui;display:flex;gap:6px;align-items:center;white-space:nowrap;box-shadow:0 6px 16px -6px rgba(0,0,0,.45);cursor:pointer}
 .et-nome .pt{width:7px;height:7px;border-radius:50%;background:#9a968f}.lavora .et-nome .pt{background:#3ddc84;box-shadow:0 0 0 3px rgba(61,220,132,.25)}.coda .et-nome .pt{background:#ffb020}.errore .et-nome .pt{background:#ff5a5f}
@@ -541,7 +550,7 @@ function datiSala(R) {
   const { st, cosa, ultimo } = statiAgenti(R);
   SALA.info = { st, cosa, ultimo };
   const agenti = [];
-  for (const [u] of PIANTA) for (const a of agentiUfficio(R, u)) { const A = AGENTI[a]; if (A) agenti.push({ id: a, n: A.n, c: A.c || '#888888', u, stato: st[a] || '', msg: cosa[a]?.testo || ultimo[a]?.messaggio || '' }); }
+  for (const [u] of PIANTA) for (const a of agentiUfficio(R, u)) { const A = AGENTI[a]; if (A) agenti.push({ id: a, n: A.n, r: A.r, c: A.c || '#888888', u, stato: st[a] || '', msg: cosa[a]?.testo || ultimo[a]?.messaggio || '' }); }
   return { uffici: PIANTA.map(([id, nome, x, y, w, h, col]) => ({ id, nome, x, y, w, h, col })), agenti };
 }
 let SALA3D = null;
@@ -564,9 +573,21 @@ async function apriLato(a) {
     ora + '<p style="font-size:14px;line-height:1.5;color:#4d4b46">' + e(A.d || '') + '</p>' +
     ((A.skill || []).length ? '<div style="margin:8px 0 14px">' + A.skill.map((k) => '<span class="chip">' + e(k) + '</span>').join('') + '</div>' : '') +
     '<div class="riga">' + azione + '</div>' +
+    '<div class="scrivi"><h2>Scrivi a ' + e(A.n) + '</h2><textarea id="lato_t" placeholder="Cosa deve fare? Es. ' + (A.chat ? 'segnami uno shooting il 12' : 'prepara 3 idee per il weekend') + '"></textarea><div class="riga"><button id="lato_go">Manda</button><span class="mut" id="lato_r"></span></div></div>' +
     (miei.length ? '<h2>Ultime attività</h2><div class="log" style="max-height:none">' + miei.map((r) => '<div class="' + r.livello + '"><span class="mut">' + new Date(r.quando).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) + '</span> ' + e(r.messaggio) + '</div>').join('') + '</div>' : '');
   $('#lato').classList.add('aperto');
   $('#lato_x').onclick = () => { chiudiLato(); SALA.sel = null; if (SALA.ufficio) entraUfficio(SALA.ufficio); else grandangolo(); };
+  $('#lato_go').onclick = async () => {
+    const testo = $('#lato_t').value.trim(); if (!testo) return;
+    $('#lato_go').disabled = true; $('#lato_r').textContent = 'invio…';
+    try {
+      if (A.chat) { const r = await chiama('/api/chat/' + a, { method: 'POST', body: { testo } }); $('#lato_r').textContent = r.risposta.slice(0, 160); }
+      else if (R.squadra[a]) { const r = await chiama('/api/incarichi', { method: 'POST', body: { agente: a, titolo: testo.slice(0, 120), brief: testo } }); $('#lato_r').innerHTML = 'Ricevuto: <a href="#/incarico/' + r.id + '">incarico #' + r.id + '</a>'; }
+      else { const r = await chiama('/api/capo', { method: 'POST', body: { testo: 'Per ' + A.n + ' (' + A.r + '): ' + testo } }); $('#lato_r').textContent = r.risposta.slice(0, 160); }
+      $('#lato_t').value = '';
+    } catch (x) { $('#lato_r').textContent = x.message; }
+    $('#lato_go').disabled = false;
+  };
 }
 
 function apriCervello() {
@@ -611,10 +632,11 @@ async function azienda() {
     ...R.recenti.slice(0, 4).map((I) => ({ t: (AGENTI[I.agente]?.n || I.agente) + ' · ' + (ST_INC[I.stato] || I.stato), b: I.titolo, link: '#/incarico/' + I.id, img: null, i: AGENTI[I.agente]?.i || '📄' }))];
   $('#app').innerHTML = '<div id="saluto">' + saluto + '</div>' +
     '<div class="chiedi"><span>🧭</span><input id="k_t" placeholder="Chiedi all’agenzia… es. 6 post per dicembre per A’ Villetta, romantici">' + C + '<button id="k_go">Invia</button></div><div id="k_r"></div>' +
+    '<div class="filtri" id="filtri"><button class="on" data-f="">Tutto</button>' + PIANTA.map(([u, n]) => '<button data-f="' + u + '">' + e(n.split(' · ')[0]) + '</button>').join('') + '</div>' +
     '<div class="sala" id="sala"><div class="comandi"><button class="sec" id="torna" style="display:none">← Tutta l’agenzia</button></div>' +
     '<div class="carico" id="carico">Accendo le luci dell’ufficio…</div>' +
     '<div class="legenda"><span style="color:#22A55B">●</span> al lavoro &nbsp; <span style="color:#E8930C">●</span> in coda &nbsp; <span style="color:#8b8780">●</span> libero</div></div>' +
-    '<h2>Il tuo lavoro</h2><div class="lavori">' + (recenti.map((x) => '<a class="lavoro-card" href="' + x.link + '"><div class="min" style="' + (x.img ? 'background-image:url(' + x.img + ')' : '') + '">' + (x.img ? '' : x.i) + '</div><div style="min-width:0"><small>' + e(x.t) + '</small><b>' + e(x.b) + '</b><span class="btn" style="padding:5px 12px;font-size:12px">Guarda ▸</span></div></a>').join('') || '<p class="mut">Ancora niente.</p>') + '</div>' +
+    '<h2>Tocca a te</h2><div class="lavori">' + (recenti.map((x) => '<a class="lavoro-card" href="' + x.link + '"><div class="min" style="' + (x.img ? 'background-image:url(' + x.img + ')' : '') + '">' + (x.img ? '' : x.i) + '</div><div style="min-width:0"><small>' + e(x.t) + '</small><b>' + e(x.b) + '</b><span class="btn" style="padding:5px 12px;font-size:12px">Guarda ▸</span></div></a>').join('') || '<p class="mut">Ancora niente.</p>') + '</div>' +
     '<h2>In diretta</h2><div class="log">' + (R.feed.slice(0, 25).map((r) => { const A = AGENTI[AGID(r.agente)] || AGENTI.regia; return '<div class="' + r.livello + '"><span class="mut">' + new Date(r.quando).toLocaleTimeString('it-IT') + '</span> ' + A.i + ' <b>' + e(A.n) + '</b> ' + e(r.messaggio) + '</div>'; }).join('') || '<div class="mut">ancora niente</div>') + '</div>' +
     '<div class="lato" id="lato"></div>';
   const D = datiSala(R);
@@ -629,6 +651,10 @@ async function azienda() {
     });
     $('#carico').remove();
   }).catch((x) => { $('#carico').textContent = 'La sala 3D non si è caricata (' + x.message + '). Ricarica la pagina.'; });
+  document.querySelectorAll('#filtri button').forEach((b) => b.onclick = () => {
+    document.querySelectorAll('#filtri button').forEach((x) => x.classList.toggle('on', x === b));
+    if (b.dataset.f) entraUfficio(b.dataset.f); else grandangolo();
+  });
   $('#torna').onclick = () => { if (SALA.sel && SALA.ufficio) { SALA.sel = null; chiudiLato(); entraUfficio(SALA.ufficio); } else grandangolo(); };
   $('#k_go').onclick = async () => {
     const t = $('#k_t').value.trim(); if (!t) return;
