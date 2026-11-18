@@ -14,7 +14,7 @@ async def main(out):
             pg.on('pageerror', lambda e: errs.append(str(e)))
             pg.on('console', lambda m: errs.append('console: ' + m.text) if m.type == 'error' else None)
             await pg.goto('http://localhost:8765/index.html')
-            await pg.wait_for_timeout(12000)
+            await pg.wait_for_timeout(40000)
             if az:
                 await pg.evaluate(az)
                 await pg.wait_for_timeout(6500 if nome.startswith('8') else 2500)

@@ -12,7 +12,7 @@ const az = { adesso: ora, uffici: UFFICI, squadra: SQUADRA,
   reel: [{ id: 2, fase: 'montaggio', blocco_fino: fra }], piani: [], gestionale: true,
   feed: [{ agente: 'editor', messaggio: 'monto 22 pezzi: reframe, stabilizzazione, rallenty', livello: 'info', quando: ora }, { agente: 'copywriter', messaggio: '✍️ inizio #7: 6 post di dicembre', livello: 'info', quando: ora }] };
 const fake = { '/api/stato': { configurato: true, dentro: true }, '/api/azienda': az, '/api/lavori': [{ id: 2, prompt: 'Reel Torretta', titolo: 'Tostatura caffè · Torretta', stato: 'in_corso' }], '/api/clienti': [] };
-const stub = '<script>const __F=' + JSON.stringify(fake) + ';const __of=window.fetch;window.fetch=async(u,o)=>{const k=String(u).split("?")[0];if(__F[k]!==undefined)return new Response(JSON.stringify(__F[k]),{headers:{"content-type":"application/json"}});return __of(u,o);};</script>';
+const stub = '<script>const __F=' + JSON.stringify(fake) + ';const __of=window.fetch;window.fetch=async(u,o)=>{const k=String(u).split("?")[0];if(__F[k]!==undefined)return new Response(JSON.stringify(__F[k]),{headers:{"content-type":"application/json"}});if(k.startsWith("/persone/"))return __of("https://momento-reel.gestionalelcl.workers.dev"+k,o);return __of(u,o);};</script>';
 const dir = process.argv[2] || '/tmp/sala';
 mkdirSync(dir, { recursive: true });
 writeFileSync(dir + '/index.html', html.replace('<title>', stub + '<title>'));

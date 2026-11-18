@@ -6,7 +6,7 @@ const j = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: 
 
 async function salva(env, chiave, buf, tipo) {
   const tot = buf.byteLength, n = Math.max(1, Math.ceil(tot / P));
-  for (let k = 0; k < n; k++) await env.VIDEO.put(k ? chiave + '#' + k : chiave, buf.slice(k * P, (k + 1) * P), { metadata: { parti: n, totale: tot, tipo } });
+  for (let k = 0; k < n; k++) await env.VIDEO.put(k ? chiave + '#' + k : chiave, new Uint8Array(buf, k * P, Math.min(P, tot - k * P)), { metadata: { parti: n, totale: tot, tipo } });
   return tot;
 }
 async function leggi(env, chiave) {
@@ -33,7 +33,7 @@ export async function persone(req, env, url) {
   if (url.pathname === '/persone/prendi' && req.method === 'POST') {
     const { nome, url: sorgente } = JSON.parse(await req.text());
     if (!/^[A-Za-z0-9_]+$/.test(nome) || !/^https:\/\/mixamo-storage-prod\.s3[.-][a-z0-9.-]*amazonaws\.com\//.test(sorgente)) return j({ errore: 'dati non validi' }, 400);
-    const r = await fetch(sorgente); if (!r.ok) return j({ errore: 'S3 ' + r.status }, 502);
+    const r = await fetch(sorgente); if (!r.ok) return j({ errore: 'S3 ' + r.status + ' ' + (await r.text()).slice(0, 200) }, 502);
     const tot = await salva(env, 'persone/fbx/' + nome, await r.arrayBuffer(), 'application/octet-stream');
     const el = new Set(JSON.parse((await env.VIDEO.get('persone/fbx-elenco')) || '[]')); el.add(nome);
     await env.VIDEO.put('persone/fbx-elenco', JSON.stringify([...el]));
@@ -67,11 +67,11 @@ window.addEventListener('message', async (e) => {
   if (fatto || e.origin !== 'https://www.mixamo.com' || !e.data || !e.data.mixamo) return;
   fatto = true; e.source.postMessage({ ricevuto: true }, e.origin);
   for (const [nome, u] of Object.entries(e.data.mixamo)) {
-    try { const j = await (await fetch('/persone/prendi?t=' + t, { method: 'POST', body: JSON.stringify({ nome, url: u }) })).json(); scrivi(nome + ': ' + (j.ok ? (j.byte / 1e6).toFixed(1) + ' MB' : j.errore)); }
+    try { const rr = await fetch('/persone/prendi?t=' + t, { method: 'POST', body: JSON.stringify({ nome, url: u }) }); const tx = await rr.text(); let j; try { j = JSON.parse(tx); } catch (_) { j = { errore: rr.status + ' ' + tx.slice(0, 150) }; } scrivi(nome + ': ' + (j.ok ? (j.byte / 1e6).toFixed(1) + ' MB' : j.errore)); }
     catch (x) { scrivi(nome + ': ' + x.message); }
   }
   scrivi('Ricevuti. Passo alla conversione…');
-  setTimeout(() => { location.href = '/persone/converti?t=' + t; }, 1500);
+  if (new URLSearchParams(location.search).get('poi') !== 'no') setTimeout(() => { location.href = '/persone/converti?t=' + t; }, 1500);
 });
 if (window.opener) window.opener.postMessage({ pronto: true }, 'https://www.mixamo.com');
 </script></body></html>`;

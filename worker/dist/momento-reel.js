@@ -4,7 +4,7 @@ var CORS = { "access-control-allow-origin": "*", "access-control-allow-methods":
 var j = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { "content-type": "application/json", ...CORS } });
 async function salva(env, chiave, buf, tipo) {
   const tot = buf.byteLength, n = Math.max(1, Math.ceil(tot / P));
-  for (let k = 0; k < n; k++) await env.VIDEO.put(k ? chiave + "#" + k : chiave, buf.slice(k * P, (k + 1) * P), { metadata: { parti: n, totale: tot, tipo } });
+  for (let k = 0; k < n; k++) await env.VIDEO.put(k ? chiave + "#" + k : chiave, new Uint8Array(buf, k * P, Math.min(P, tot - k * P)), { metadata: { parti: n, totale: tot, tipo } });
   return tot;
 }
 async function leggi(env, chiave) {
@@ -32,7 +32,7 @@ async function persone(req, env, url) {
     const { nome, url: sorgente } = JSON.parse(await req.text());
     if (!/^[A-Za-z0-9_]+$/.test(nome) || !/^https:\/\/mixamo-storage-prod\.s3[.-][a-z0-9.-]*amazonaws\.com\//.test(sorgente)) return j({ errore: "dati non validi" }, 400);
     const r = await fetch(sorgente);
-    if (!r.ok) return j({ errore: "S3 " + r.status }, 502);
+    if (!r.ok) return j({ errore: "S3 " + r.status + " " + (await r.text()).slice(0, 200) }, 502);
     const tot = await salva(env, "persone/fbx/" + nome, await r.arrayBuffer(), "application/octet-stream");
     const el = new Set(JSON.parse(await env.VIDEO.get("persone/fbx-elenco") || "[]"));
     el.add(nome);
@@ -73,11 +73,11 @@ window.addEventListener('message', async (e) => {
   if (fatto || e.origin !== 'https://www.mixamo.com' || !e.data || !e.data.mixamo) return;
   fatto = true; e.source.postMessage({ ricevuto: true }, e.origin);
   for (const [nome, u] of Object.entries(e.data.mixamo)) {
-    try { const j = await (await fetch('/persone/prendi?t=' + t, { method: 'POST', body: JSON.stringify({ nome, url: u }) })).json(); scrivi(nome + ': ' + (j.ok ? (j.byte / 1e6).toFixed(1) + ' MB' : j.errore)); }
+    try { const rr = await fetch('/persone/prendi?t=' + t, { method: 'POST', body: JSON.stringify({ nome, url: u }) }); const tx = await rr.text(); let j; try { j = JSON.parse(tx); } catch (_) { j = { errore: rr.status + ' ' + tx.slice(0, 150) }; } scrivi(nome + ': ' + (j.ok ? (j.byte / 1e6).toFixed(1) + ' MB' : j.errore)); }
     catch (x) { scrivi(nome + ': ' + x.message); }
   }
   scrivi('Ricevuti. Passo alla conversione\u2026');
-  setTimeout(() => { location.href = '/persone/converti?t=' + t; }, 1500);
+  if (new URLSearchParams(location.search).get('poi') !== 'no') setTimeout(() => { location.href = '/persone/converti?t=' + t; }, 1500);
 });
 if (window.opener) window.opener.postMessage({ pronto: true }, 'https://www.mixamo.com');
 <\/script></body></html>`;
@@ -4511,102 +4511,56 @@ function umano(id) {
 }
 
 // pose: seduto alla scrivania (guarda verso -z), in cammino, in piedi
-// ---------------------------------------------------------------- persone vere (modelli 3D animati, scheletro Mixamo)
-// Michelle per le donne, il soldato di three.js rivestito per gli uomini; colori dei vestiti e pelle diversi per ognuno.
-// Se i modelli non si caricano restano le figure disegnate a mano.
-const PERSONE_VERE = false; // si accende quando ci sono i personaggi Mixamo
-const MODELLI = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/models/gltf/';
-const PELLE_K = [1.0, 0.86, 0.72, 0.58, 1.06, 0.93];
-const qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), va = new THREE.Vector3(), vb = new THREE.Vector3();
-function tingi(m, tinta, pelle) {
-  const n = m.clone();
-  n.onBeforeCompile = (sh) => {
-    sh.uniforms.uTinta = { value: new THREE.Color(tinta) }; sh.uniforms.uPelle = { value: pelle };
-    sh.fragmentShader = 'uniform vec3 uTinta;\\nuniform float uPelle;\\n' + sh.fragmentShader.replace('#include <map_fragment>', \`#include <map_fragment>
-      { vec3 c = diffuseColor.rgb; float mx = max(c.r, max(c.g, c.b)), mn = min(c.r, min(c.g, c.b)); float sat = (mx - mn) / (mx + 1e-4);
-        float lum = dot(c, vec3(0.299, 0.587, 0.114));
-        bool pel = c.r > c.g && c.g > c.b && sat > 0.22 && sat < 0.75 && mx > 0.16 && (c.r - c.b) > 0.08;
-        if (pel) diffuseColor.rgb = c * uPelle;
-        else if (lum > 0.045) diffuseColor.rgb = mix(c, uTinta * (0.45 + lum * 1.4), 0.8); }\`);
-  };
-  n.customProgramCacheKey = () => 'tinta-persona';
-  return n;
-}
-const nomeOsso = (o) => o.name.replace(/[:]/g, '').replace(/^mixamorig/, '');
-function ruota(G, n, ang) { // ruota un osso attorno all'asse "destra" del personaggio (positivo = in avanti)
-  const b = G.ossa[n]; if (!b) return;
-  const pw = b.parent.getWorldQuaternion(qa);
-  qb.setFromAxisAngle(G.asse, ang);
-  const loc = pw.clone().invert().multiply(qb).multiply(pw);
-  b.quaternion.premultiply(loc); b.updateMatrixWorld(true);
-}
+// ---------------------------------------------------------------- persone vere (personaggi Mixamo convertiti, serviti da /persone/*.glb)
+// 4 uomini e 4 donne; animazioni vere: seduto che scrive, seduto fermo, camminata (maschile/femminile), in piedi.
+// Finch\xE9 non sono caricati restano le figure disegnate a mano.
+const UOMINI = ['Remy', 'Leonard', 'James', 'Brian'], DONNE_M = ['Kate', 'Megan', 'Jody', 'Louise'];
+const ALTEZZA = 1.72;
+const va = new THREE.Vector3();
 function creaGLB(id, M) {
-  const h = hash(id), donna = DONNE.has(id), base = donna ? M.donna : M.uomo;
+  const h = hash(id), donna = DONNE.has(id);
+  const lista = (donna ? DONNE_M : UOMINI).filter((n) => M.corpi[n]);
+  const base = M.corpi[lista[h % lista.length]] || Object.values(M.corpi)[0];
   const modello = SkeletonUtils.clone(base.scene);
+  modello.scale.setScalar(base.scala);
+  modello.traverse((m) => { if (m.isMesh) { m.castShadow = true; m.frustumCulled = false; } });
   const o = new THREE.Group(), w = new THREE.Group(); w.add(modello); o.add(w);
-  const tinta = MAGLIE[(h >> 5) % MAGLIE.length], pelle = PELLE_K[h % PELLE_K.length];
-  modello.traverse((m) => {
-    if (m.isMesh) { m.castShadow = true; m.receiveShadow = false; m.frustumCulled = false; if (/visor/i.test(m.name)) m.visible = false; else m.material = tingi(m.material, tinta, pelle); }
-  });
-  const ossa = {}; modello.traverse((b) => { if (b.isBone) ossa[nomeOsso(b)] = b; });
+  w.rotation.y = Math.PI; // i personaggi Mixamo guardano +z, la scrivania \xE8 verso -z
   const mixer = new THREE.AnimationMixer(modello);
-  const az = { Walk: mixer.clipAction(donna ? M.walkD : M.walk), Idle: mixer.clipAction(donna ? M.idleD : M.idle) };
-  az.Idle.play(); mixer.update(0);
-  const G = { o, w, modello, ossa, mixer, az, hips: ossa.Hips, asse: new THREE.Vector3() };
-  // la posa di riposo va presa PRIMA di fermare l'azione: fermandola il mixer rimette la posa a T
-  G.riposo = new Map(); modello.traverse((b) => { if (b.isBone) G.riposo.set(b, b.quaternion.clone()); });
-  G.hipsPos = G.hips.position.clone();
-  az.Idle.stop();
-  // verso dove guarda (dal tallone alla punta del piede) e lo giro verso -z, cio\xE8 verso la scrivania
-  o.updateMatrixWorld(true);
-  const f = (ossa.LeftToeBase || ossa.LeftToe_End).getWorldPosition(va).sub(ossa.LeftFoot.getWorldPosition(vb)); f.y = 0; f.normalize();
-  w.rotation.y = Math.PI - Math.atan2(f.x, f.z);
-  o.userData.persona = true;
-  glbSiedi(G);
-  return G;
+  const az = {
+    scrive: mixer.clipAction(M.clip.Typing), fermo: mixer.clipAction(M.clip.SittingIdle || M.clip.Typing),
+    Walk: mixer.clipAction((donna && M.clip.FemaleWalk) || M.clip.StandardWalk), Idle: mixer.clipAction(M.clip.StandingIdle),
+  };
+  for (const a of Object.values(az)) a.time = Math.random() * 3;
+  return { o, w, modello, mixer, az, corrente: null, seduto: true };
 }
-function aggiornaAsse(G) { // asse destra = (-Y) x avanti, nel mondo
-  G.o.updateMatrixWorld(true);
-  const avanti = va.set(0, 0, -1).applyQuaternion(G.o.getWorldQuaternion(qa));
-  G.asse.set(0, -1, 0).cross(avanti).normalize();
+function glbVai(G, nome, dissolvi = 0.4) {
+  if (G.corrente === nome) return;
+  const nuova = G.az[nome]; nuova.enabled = true; nuova.setEffectiveWeight(1); nuova.play();
+  if (G.corrente) G.az[G.corrente].crossFadeTo(nuova, dissolvi, false); else nuova.reset().play();
+  G.corrente = nome;
 }
-function glbRiposo(G) { for (const [b, q] of G.riposo) b.quaternion.copy(q); G.hips.position.copy(G.hipsPos); G.modello.position.y = 0; }
-function glbSiedi(G) {
-  G.mixer.stopAllAction(); G.corrente = null;
-  glbRiposo(G); aggiornaAsse(G);
-  for (const l of ['Left', 'Right']) { ruota(G, l + 'UpLeg', 1.5); ruota(G, l + 'Leg', -1.45); ruota(G, l + 'Arm', 0.5); ruota(G, l + 'ForeArm', 0.95); }
-  ruota(G, 'Spine1', 0.06);
-  G.o.updateMatrixWorld(true);
-  const y = G.hips.getWorldPosition(va).y - G.o.position.y;
-  G.modello.position.y = 0.6 - y;
-  G.base = { L: G.ossa.LeftForeArm?.quaternion.clone(), R: G.ossa.RightForeArm?.quaternion.clone(), T: G.ossa.Head?.quaternion.clone() };
-  G.seduto = true;
-}
-function glbSeduto(G, t, lavora) {
-  if (!G.seduto) glbSiedi(G);
-  if (!G.base.L) return;
-  const fa = G.ossa.LeftForeArm, fb = G.ossa.RightForeArm, te = G.ossa.Head;
-  fa.quaternion.copy(G.base.L); fb.quaternion.copy(G.base.R); te.quaternion.copy(G.base.T);
-  if (!lavora) { te.rotateY(Math.sin(t * 0.3 + G.o.position.x) * 0.25); return; }
-  ruota(G, 'LeftForeArm', Math.sin(t * 13 + G.o.position.x) * 0.05); ruota(G, 'RightForeArm', Math.cos(t * 12 + G.o.position.x) * 0.05);
-  te.rotateY(Math.sin(t * 0.7) * 0.08);
-}
-function glbMuovi(G, nome, dt) {
-  if (G.seduto) { glbRiposo(G); G.seduto = false; }
-  if (G.corrente !== nome) {
-    const nuova = G.az[nome].reset().play();
-    if (G.corrente) G.az[G.corrente].crossFadeTo(nuova, 0.35, false);
-    G.corrente = nome;
-  }
-  G.mixer.update(dt);
-}
+function glbSiedi(G) { G.seduto = true; G.w.position.set(0, 0, G.dz || 0); }
+function glbSeduto(G, t, lavora, dt) { if (!G.seduto) glbSiedi(G); glbVai(G, lavora ? 'scrive' : 'fermo'); G.mixer.update(dt); }
+function glbMuovi(G, nome, dt) { if (G.seduto) { G.seduto = false; G.w.position.set(0, 0, 0); } glbVai(G, nome, 0.3); G.mixer.update(dt); }
 async function caricaPersone() {
+  const pronti = await (await fetch('/persone/elenco.json')).json();
+  const anim = ['Typing', 'SittingIdle', 'StandardWalk', 'FemaleWalk', 'StandingIdle'].filter((n) => pronti.includes('anim_' + n));
+  if (!anim.includes('Typing') || !anim.includes('StandardWalk') || !anim.includes('StandingIdle')) return;
+  const piccolo = innerWidth < 700; // da telefono: un uomo e una donna soli, per non appesantire
+  const corpi = [...UOMINI.slice(0, piccolo ? 1 : 4), ...DONNE_M.slice(0, piccolo ? 1 : 4)].filter((n) => pronti.includes(n));
+  if (!corpi.length) return;
   const L = new GLTFLoader();
-  const [donna, uomo] = await Promise.all(['Michelle.glb', 'Soldier.glb'].map((f) => L.loadAsync(MODELLI + f)));
-  const clip = (n) => uomo.animations.find((a) => a.name === n);
-  // Michelle ha l'armatura orientata in un altro modo: alle sue copie tolgo il bacino, il resto del corpo va uguale
-  const senzaBacino = (c) => new THREE.AnimationClip(c.name, c.duration, c.tracks.filter((t) => !/Hips\\./.test(t.name)));
-  const M = { donna, uomo, walk: clip('Walk'), idle: clip('Idle'), walkD: senzaBacino(clip('Walk')), idleD: senzaBacino(clip('Idle')) };
+  const M = { corpi: {}, clip: {} };
+  await Promise.all([
+    ...anim.map(async (n) => { const g = await L.loadAsync('/persone/anim_' + n + '.glb'); M.clip[n] = g.animations[0]; }),
+    ...corpi.map(async (n) => {
+      const g = await L.loadAsync('/persone/' + n + '.glb');
+      const b = new THREE.Box3().setFromObject(g.scene);
+      g.scala = ALTEZZA / Math.max(1e-3, b.max.y - b.min.y);
+      M.corpi[n] = g;
+    }),
+  ]);
   if (!S) return;
   for (const id in S.agenti) {
     const P = S.agenti[id];
@@ -4615,10 +4569,11 @@ async function caricaPersone() {
     G.o.traverse((m) => { m.userData.ag = id; });
     S.scena.remove(P.U.o); S.scena.add(G.o);
     P.G = G; P.U = { o: G.o };
-    if (P.cammino) glbMuovi(G, 'Walk', 0); else glbSiedi(G);
+    if (P.cammino) glbMuovi(G, 'Walk', 0); else glbSeduto(G, 0, P.stato === 'lavora', 0);
   }
+  S.personeVere = true;
 }
-const poseSeduto = (P, s, lav) => (P.G ? glbSeduto(P.G, s, lav) : posaSeduto(P.U, s, lav));
+const poseSeduto = (P, s, lav, dt) => (P.G ? glbSeduto(P.G, s, lav, dt) : posaSeduto(P.U, s, lav));
 
 function posaSeduto(U, t, lavora) {
   U.fianchi.position.y = 0.52; U.busto.rotation.x = 0.06;
@@ -4939,6 +4894,7 @@ export function prova(cosa, a) {
   if (cosa === 'vista') { S.volo = null; S.controls.target.set(a[3], a[4], a[5]); S.camera.position.set(a[0], a[1], a[2]); S.camera.lookAt(S.controls.target); }
   if (cosa === 'cammina') { const P = S.agenti[a]; P.cammino = percorso(P); P.seduto = false; P.fase = 0; }
   if (cosa === 'persone') return Object.values(S.agenti).filter((P) => P.G).length;
+  if (cosa === 'sposta') { for (const P of Object.values(S.agenti)) if (P.G) { P.G.dz = a; P.G.w.position.z = a; } }
   if (cosa === 'dove') { const P = S.agenti[a]; return [P.U.o.position.x, P.U.o.position.z]; }
 }
 
@@ -4958,7 +4914,7 @@ function anima(t) {
   for (const id in S.agenti) {
     const P = S.agenti[id];
     if (P.cammino) muovi(P, s, dt);
-    else poseSeduto(P, s, P.stato === 'lavora');
+    else poseSeduto(P, s, P.stato === 'lavora', dt);
     if (P.stato === 'lavora' && s - (P.ts || 0) > 0.12) { P.ts = s; disegnaSchermo(P, s); P.sm.emissiveIntensity = 0.8 + Math.sin(s * 3 + P.x) * 0.1; }
   }
   passeggiate(s);
@@ -5013,7 +4969,7 @@ export function avvia(cont, dati, cb) {
   S.ridim = () => { if (S) ridimensiona(); }; addEventListener('resize', S.ridim);
   ridimensiona();
   costruisci(dati);
-  if (PERSONE_VERE) caricaPersone().catch((e) => console.warn("persone 3D non caricate", e));
+  caricaPersone().catch((e) => console.warn("persone 3D non caricate", e));
   grandangolo(true);
   const ray = new THREE.Raycaster(), pt = new THREE.Vector2(); let giu = null;
   renderer.domElement.addEventListener('pointerdown', (ev) => { giu = [ev.clientX, ev.clientY]; S.volo = null; });
