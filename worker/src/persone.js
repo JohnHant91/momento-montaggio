@@ -87,7 +87,9 @@ import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 const t = new URLSearchParams(location.search).get('t');
 const ul = document.getElementById('l'), log = [];
 const scrivi = (s) => { log.push(s); const li = document.createElement('li'); li.textContent = s; ul.appendChild(li); fetch('/persone/log?t=' + t, { method: 'POST', body: log.join('\\n') }); };
-const elenco = await (await fetch('/persone/fbx-elenco?t=' + t)).json();
+const tutti = await (await fetch('/persone/fbx-elenco?t=' + t)).json();
+const solo = new URLSearchParams(location.search).get('solo');
+const elenco = solo ? tutti.filter((n) => solo.split(',').includes(n)) : tutti;
 for (const nome of elenco) {
   try {
     const anim = nome.startsWith('anim_');
@@ -101,15 +103,14 @@ for (const nome of elenco) {
       if (anim) { togli.push(m); return; }
       const mats = Array.isArray(m.material) ? m.material : [m.material];
       const nuovi = mats.map((p) => {
-        const s = new THREE.MeshStandardMaterial({ name: p.name, color: p.color, map: p.map || null, normalMap: p.normalMap || null, roughness: 0.8, metalness: 0, transparent: !!p.transparent, alphaTest: p.alphaTest || 0, side: p.side });
+        const s = new THREE.MeshStandardMaterial({ name: p.name, color: p.color, map: p.map || null, roughness: 0.8, metalness: 0, transparent: !!p.transparent, alphaTest: p.alphaTest || 0, side: p.side });
         if (s.map) s.map.userData.mimeType = 'image/jpeg';
-        if (s.normalMap) s.normalMap.userData.mimeType = 'image/jpeg';
         return s;
       });
       m.material = Array.isArray(m.material) ? nuovi : nuovi[0];
     });
     togli.forEach((m) => m.parent.remove(m));
-    const glb = await new GLTFExporter().parseAsync(o, { binary: true, maxTextureSize: 1024, animations: o.animations, onlyVisible: false });
+    const glb = await new GLTFExporter().parseAsync(o, { binary: true, maxTextureSize: 512, animations: o.animations, onlyVisible: false });
     const r = await (await fetch('/persone/glb/' + nome + '?t=' + t, { method: 'POST', body: glb })).json();
     scrivi('✓ ' + nome + ': ' + (buf.byteLength / 1e6).toFixed(1) + ' MB FBX → ' + (glb.byteLength / 1e6).toFixed(1) + ' MB GLB, animazioni ' + o.animations.map((a) => a.name + ' ' + a.duration.toFixed(1) + 's').join(', ') + (r.ok ? '' : ' ERRORE ' + JSON.stringify(r)));
   } catch (e) { scrivi('✗ ' + nome + ': ' + e.message); }
