@@ -51,9 +51,30 @@ export async function persone(req, env, url) {
   }
   if (url.pathname === '/persone/log' && req.method === 'POST') { await env.VIDEO.put('persone/log', await req.text()); return j({ ok: true }); }
   if (url.pathname === '/persone/log') return new Response((await env.VIDEO.get('persone/log')) || '', { headers: CORS });
+  if (url.pathname === '/persone/ricevi') return new Response(PAGINA_RICEVI, { headers: { 'content-type': 'text/html; charset=utf-8' } });
   if (url.pathname === '/persone/converti') return new Response(PAGINA_CONVERTI, { headers: { 'content-type': 'text/html; charset=utf-8' } });
   return j({ errore: 'non trovato' }, 404);
 }
+
+const PAGINA_RICEVI = `<!doctype html><html><head><meta charset="utf-8"><title>Ricevo i personaggi</title><style>body{font:15px system-ui;padding:24px}</style></head><body>
+<h2>Ricevo i personaggi da Mixamo…</h2><ul id="l"></ul>
+<script>
+const t = new URLSearchParams(location.search).get('t');
+const ul = document.getElementById('l');
+const scrivi = (s) => { const li = document.createElement('li'); li.textContent = s; ul.appendChild(li); };
+let fatto = false;
+window.addEventListener('message', async (e) => {
+  if (fatto || e.origin !== 'https://www.mixamo.com' || !e.data || !e.data.mixamo) return;
+  fatto = true; e.source.postMessage({ ricevuto: true }, e.origin);
+  for (const [nome, u] of Object.entries(e.data.mixamo)) {
+    try { const j = await (await fetch('/persone/prendi?t=' + t, { method: 'POST', body: JSON.stringify({ nome, url: u }) })).json(); scrivi(nome + ': ' + (j.ok ? (j.byte / 1e6).toFixed(1) + ' MB' : j.errore)); }
+    catch (x) { scrivi(nome + ': ' + x.message); }
+  }
+  scrivi('Ricevuti. Passo alla conversione…');
+  setTimeout(() => { location.href = '/persone/converti?t=' + t; }, 1500);
+});
+if (window.opener) window.opener.postMessage({ pronto: true }, 'https://www.mixamo.com');
+</script></body></html>`;
 
 const PAGINA_CONVERTI = `<!doctype html><html><head><meta charset="utf-8"><title>Conversione personaggi</title>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
