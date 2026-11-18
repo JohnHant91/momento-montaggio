@@ -6,6 +6,7 @@ export const PAGINA = `<!DOCTYPE html>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#F4F2EE">
 <title>AGENZIA MOMENTO AI</title>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <style>
 @media print{header,.noprint,button{display:none!important}body{background:#fff;color:#000}.card{border-color:#ccc;background:#fff}.mut{color:#555}a{color:#000}}
 details.copione summary{cursor:pointer;list-style:none}details.copione[open]{border-color:var(--teal)}
@@ -62,12 +63,22 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 .pannello{position:fixed;inset:auto 0 0 0;max-height:78vh;background:#fff;border-top:1px solid var(--line);border-radius:22px 22px 0 0;padding:16px 18px 24px;overflow:auto;z-index:40;box-shadow:0 -20px 60px rgba(0,0,0,.15);max-width:760px;margin:auto}
 .velo{position:fixed;inset:0;background:rgba(20,20,22,.25);z-index:39}
 /* ---------- la sala: l'agenzia vista dall'alto ---------- */
+.sala-canvas{position:absolute;inset:0;width:100%!important;height:100%!important;display:block;touch-action:none;cursor:grab}.sala-canvas:active{cursor:grabbing}
+.etichette{position:absolute;inset:0;pointer-events:none;overflow:hidden}.etichette>div{position:absolute;left:0;top:0;pointer-events:auto;will-change:transform}
+.et-ag{display:flex;flex-direction:column;align-items:center;gap:6px;transform-origin:50% 100%}
+.et-nome{background:rgba(20,20,22,.92);color:#fff;border-radius:999px;padding:5px 10px 5px 8px;font:600 12px/1 Inter,system-ui;display:flex;gap:6px;align-items:center;white-space:nowrap;box-shadow:0 6px 16px -6px rgba(0,0,0,.45);cursor:pointer}
+.et-nome .pt{width:7px;height:7px;border-radius:50%;background:#9a968f}.lavora .et-nome .pt{background:#3ddc84;box-shadow:0 0 0 3px rgba(61,220,132,.25)}.coda .et-nome .pt{background:#ffb020}.errore .et-nome .pt{background:#ff5a5f}
+.et-nome .gu{background:#fff;color:#111;border-radius:999px;padding:3px 7px;font-size:11px}.scelto .et-nome{background:var(--teal)}
+.et-msg{background:#fff;color:#2a2a2a;border-radius:12px;padding:6px 9px;font:500 11px/1.35 Inter,system-ui;width:max-content;max-width:190px;box-shadow:0 8px 20px -10px rgba(0,0,0,.35)}
+.et-uff{font:700 12px/1 Inter,system-ui;letter-spacing:1.6px;text-transform:uppercase;color:#8c8578;background:rgba(255,255,255,.75);backdrop-filter:blur(6px);padding:6px 10px;border-radius:999px;cursor:pointer;white-space:nowrap}
+.carico{position:absolute;inset:0;display:grid;place-items:center;color:var(--mut);font-size:14px}
+
 .bb>*{position:absolute}.bb>.omino{left:-32px;top:-84px}.etichetta-stanza{cursor:pointer}.bb>.cervello{left:-35px;top:-70px}.bb>.pianta{left:-13px;top:-40px}.bb>.etichetta-stanza{left:0;top:-18px}
 
 .saluto h1{font-size:30px;margin:0}.saluto p{margin:6px 0 0;color:#5f5c56;font-size:14px;line-height:1.5}.saluto b.n{font-weight:600}
 .chiedi{display:flex;gap:8px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 6px 6px 16px;margin:16px 0 4px;box-shadow:0 8px 30px -18px rgba(0,0,0,.25)}
 .chiedi input{border:0;padding:8px 0;outline:none!important;background:transparent}.chiedi select{width:auto;max-width:170px;border:0;background:#f4f2ee;border-radius:999px;padding:8px 10px;font-size:13px}
-.sala{position:relative;height:min(68vh,720px);min-height:420px;margin:14px -22px 0;overflow:hidden;cursor:grab;touch-action:none;background:radial-gradient(120% 90% at 50% 40%,#fbfaf7 0%,#efebe3 70%,#e7e2d8 100%);border-top:1px solid var(--line);border-bottom:1px solid var(--line);user-select:none;-webkit-user-select:none}
+.sala{position:relative;height:min(70vh,760px);min-height:440px;margin:14px -22px 0;overflow:hidden;touch-action:none;background:radial-gradient(120% 90% at 50% 40%,#fbfaf7 0%,#efebe3 70%,#e7e2d8 100%);border-top:1px solid var(--line);border-bottom:1px solid var(--line);user-select:none;-webkit-user-select:none}
 .camera{position:absolute;left:0;top:0;transform-origin:0 0;transition:transform .9s cubic-bezier(.2,.75,.2,1)}
 .pavimento{position:relative;width:1440px;height:1000px;transform:rotateX(57deg) rotateZ(-38deg);transform-style:preserve-3d}
 .stanza3d{position:absolute;border-radius:22px;background:#f8f5ef;box-shadow:inset 0 0 0 2px #e4dccd,0 30px 40px -30px rgba(80,60,30,.25);transform-style:preserve-3d;cursor:pointer;transition:background .3s}
@@ -504,18 +515,6 @@ const PIANTA = [
 const VIDEO_TEAM = ['direttore', 'stella', 'scout_yt', 'scout_tt', 'scout_ig', 'occhi', 'analista', 'motore', 'regista', 'copy', 'editor', 'vfx', 'color', 'audio', 'sottotitoli', 'revisore'];
 let SALA = { s: 1, x: 0, y: 0, dati: null, sel: null, ufficio: null };
 
-function omino(c) {
-  // personaggio stilizzato visto in 3/4: sedia, corpo col colore dell'agente, testa, capelli
-  return '<svg viewBox="0 0 64 84"><ellipse cx="32" cy="80" rx="20" ry="5" fill="rgba(60,40,10,.18)"/>' +
-    '<rect x="14" y="46" width="36" height="30" rx="10" fill="#2b2b30"/>' +
-    '<path d="M18 74 C18 52 24 44 32 44 C40 44 46 52 46 74 Z" fill="' + c + '"/>' +
-    '<rect x="25" y="40" width="14" height="8" rx="4" fill="#f1c7a3"/>' +
-    '<circle cx="32" cy="30" r="13" fill="#f6d2b1"/>' +
-    '<path d="M19 29 C19 16 45 14 45 29 C45 22 38 19 32 19 C26 19 21 22 19 29 Z" fill="#2a211c"/>' +
-    '<circle cx="27" cy="31" r="1.6" fill="#2a211c"/><circle cx="37" cy="31" r="1.6" fill="#2a211c"/>' +
-    '<path d="M28 36 Q32 39 36 36" stroke="#c0876b" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>';
-}
-
 function statiAgenti(R) {
   const st = {}, cosa = {}, ultimo = {};
   for (const r of R.feed) { const a = AGID(r.agente); if (!ultimo[a]) ultimo[a] = r; }
@@ -538,93 +537,18 @@ function agentiUfficio(R, u) {
   return u === 'direzione' ? ids.concat(['idee']) : ids;
 }
 
-// proiezione di un punto del pavimento (coordinate della pianta) sul piano della camera
-let PROIEZIONE = null;
-function proietta(x, y) {
-  if (!PROIEZIONE) PROIEZIONE = new DOMMatrix().translate(720, 500).rotateAxisAngle(1, 0, 0, 57).rotate(0, 0, -38).translate(-720, -500);
-  const q = PROIEZIONE.transformPoint(new DOMPoint(x, y, 0));
-  return [q.x, q.y];
-}
-function attore(x, y, html, cls, u, c) {
-  const [px, py] = proietta(x, y);
-  return '<div class="bb ' + (cls || '') + '" data-uff="' + (u || '') + '" style="left:' + px.toFixed(1) + 'px;top:' + py.toFixed(1) + 'px;z-index:' + Math.round(py + 1000) + (c ? ';--c:' + c : '') + '">' + html + '</div>';
-}
-function disegnaSala(R) {
+function datiSala(R) {
   const { st, cosa, ultimo } = statiAgenti(R);
   SALA.info = { st, cosa, ultimo };
-  let pav = '', att = '';
-  for (const [u, nome, x, y, w, hh, col] of PIANTA) {
-    const ids = agentiUfficio(R, u);
-    const cols = Math.max(1, Math.floor((w - 60) / 150)), passoX = (w - 40) / cols;
-    const righe = Math.max(1, Math.ceil(ids.length / cols)), passoY = Math.min(150, (hh - 70) / righe);
-    const X = x + 8, Y = y + 8;
-    let dentro = '<div class="tappeto" style="background:' + col + '"></div>';
-    att += attore(X + w / 2, Y + hh - 26, '<div class="etichetta-stanza" data-uff="' + u + '">' + e(nome) + '</div>', '', u);
-    ids.forEach((a, k) => {
-      const A = AGENTI[a]; if (!A) return;
-      const cx = 20 + passoX * (k % cols) + passoX / 2, cy = 60 + passoY * Math.floor(k / cols);
-      const s = st[a] || '';
-      const msg = cosa[a]?.testo || ultimo[a]?.messaggio || '';
-      dentro += '<div class="' + s + '" style="--c:' + (A.c || '#888') + '"><div class="banco" style="left:' + (cx - 48) + 'px;top:' + (cy - 8) + 'px"><div class="monitor"><i></i></div></div></div>';
-      att += attore(X + cx, Y + cy + 44, '<div class="omino" data-ag="' + a + '">' + omino(A.c || '#888') +
-        '<div class="nome" data-ag="' + a + '"><span class="pt"></span>' + e(A.n) + (s === 'lavora' ? ' <span class="gu">Guarda ▸</span>' : '') + '</div>' +
-        (msg ? '<div class="fumetto">' + e(msg.slice(0, 90)) + '</div>' : '') + '</div>', s, u, A.c);
-    });
-    if (u === 'direzione') att += attore(X + w - 90, Y + hh - 70, '<div class="cervello" id="cervello" title="Cervello condiviso"></div>', '', u);
-    att += attore(X + w - 40, Y + 40, '<svg class="pianta" viewBox="0 0 26 40"><rect x="7" y="26" width="12" height="13" rx="3" fill="#d8cdb8"/><path d="M13 27 C4 20 5 8 13 2 C21 8 22 20 13 27Z" fill="#7fb07a"/><path d="M13 27 C8 22 2 18 3 12 C9 14 12 20 13 27Z" fill="#5f9a5c"/></svg>', '', u);
-    pav += '<div class="stanza3d" data-uff="' + u + '" style="left:' + X + 'px;top:' + Y + 'px;width:' + (w - 16) + 'px;height:' + (hh - 16) + 'px">' + dentro + '</div>';
-  }
-  return { pav, att };
+  const agenti = [];
+  for (const [u] of PIANTA) for (const a of agentiUfficio(R, u)) { const A = AGENTI[a]; if (A) agenti.push({ id: a, n: A.n, c: A.c || '#888888', u, stato: st[a] || '', msg: cosa[a]?.testo || ultimo[a]?.messaggio || '' }); }
+  return { uffici: PIANTA.map(([id, nome, x, y, w, h, col]) => ({ id, nome, x, y, w, h, col })), agenti };
 }
+let SALA3D = null;
+function vaiAgente(a) { if (SALA3D) SALA3D.vaiAgente(a); }
+function entraUfficio(u) { if (SALA3D) SALA3D.entraUfficio(u); }
+function grandangolo() { if (SALA3D) SALA3D.grandangolo(); }
 
-function camera(s, x, y, subito) {
-  SALA.s = s; SALA.x = x; SALA.y = y;
-  const c = $('#camera'); if (!c) return;
-  if (subito) c.style.transition = 'none';
-  c.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + s + ')';
-  const at = $('#attori'); if (at) at.style.setProperty('--inv', String(Math.min(1.6, Math.max(0.45, 0.85 / s))));
-  if (subito) { c.offsetHeight; c.style.transition = ''; }
-}
-function inquadra(el, margine, maxS) {
-  // porta l'elemento al centro della sala, ingrandito quanto basta
-  const sala = $('#sala').getBoundingClientRect(), r = el.getBoundingClientRect();
-  const lx = (r.left - sala.left - SALA.x) / SALA.s, ly = (r.top - sala.top - SALA.y) / SALA.s, lw = r.width / SALA.s, lh = r.height / SALA.s;
-  const s = Math.min(maxS || 3, Math.min(sala.width / (lw * margine), sala.height / (lh * margine)));
-  camera(s, sala.width / 2 - (lx + lw / 2) * s, sala.height / 2 - (ly + lh / 2) * s);
-}
-function grandangolo(subito) {
-  const pav = $('#pavimento'); if (!pav) return;
-  camera(1, 0, 0, true);
-  inquadra(pav, innerWidth < 700 ? 0.55 : 1.04, 2);
-  if (subito) { const c = $('#camera'); c.style.transition = 'none'; c.offsetHeight; c.style.transition = ''; }
-  SALA.ufficio = null; SALA.sel = null;
-  $('#sala').classList.remove('vicino');
-  document.querySelectorAll('.stanza3d.sel').forEach((x) => x.classList.remove('sel'));
-  $('#torna').style.display = 'none';
-  chiudiLato();
-}
-function entraUfficio(u) {
-  const el = document.querySelector('.stanza3d[data-uff="' + u + '"]'); if (!el) return;
-  document.querySelectorAll('.stanza3d.sel').forEach((x) => x.classList.remove('sel'));
-  el.classList.add('sel');
-  SALA.ufficio = u; SALA.sel = null;
-  document.querySelectorAll('.bb.scelto').forEach((x) => x.classList.remove('scelto'));
-  $('#sala').classList.add('vicino');
-  inquadra(el, 1.08, 2.6);
-  $('#torna').style.display = '';
-}
-function vaiAgente(a) {
-  const el = document.querySelector('.omino[data-ag="' + a + '"]'); if (!el) return;
-  const u = el.closest('.bb')?.dataset.uff, st = u && document.querySelector('.stanza3d[data-uff="' + u + '"]');
-  if (st) { document.querySelectorAll('.stanza3d.sel').forEach((x) => x.classList.remove('sel')); st.classList.add('sel'); SALA.ufficio = u; }
-  SALA.sel = a;
-  $('#sala').classList.add('vicino');
-  document.querySelectorAll('.bb.scelto').forEach((x) => x.classList.remove('scelto'));
-  el.closest('.bb').classList.add('scelto');
-  inquadra(el, 2.6, 2.4);
-  $('#torna').style.display = '';
-  apriLato(a);
-}
 function chiudiLato() { const l = $('#lato'); if (l) l.classList.remove('aperto'); }
 
 async function apriLato(a) {
@@ -642,7 +566,7 @@ async function apriLato(a) {
     '<div class="riga">' + azione + '</div>' +
     (miei.length ? '<h2>Ultime attività</h2><div class="log" style="max-height:none">' + miei.map((r) => '<div class="' + r.livello + '"><span class="mut">' + new Date(r.quando).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) + '</span> ' + e(r.messaggio) + '</div>').join('') + '</div>' : '');
   $('#lato').classList.add('aperto');
-  $('#lato_x').onclick = () => { chiudiLato(); if (SALA.ufficio) entraUfficio(SALA.ufficio); };
+  $('#lato_x').onclick = () => { chiudiLato(); SALA.sel = null; if (SALA.ufficio) entraUfficio(SALA.ufficio); else grandangolo(); };
 }
 
 function apriCervello() {
@@ -677,27 +601,34 @@ async function azienda() {
   const saluto = '<div class="saluto"><h1>' + (h < 13 ? 'Buongiorno' : h < 18 ? 'Buon pomeriggio' : 'Buonasera') + ', Johnny</h1><p>' + frase + '</p></div>';
   if (!prima) {
     $('#saluto').innerHTML = saluto;
-    const D = disegnaSala(R);
-    $('#pavimento').innerHTML = D.pav; $('#attori').innerHTML = D.att;
-    agganciaSala();
+    if (SALA3D) SALA3D.aggiorna(datiSala(R)); else datiSala(R);
     if (SALA.sel && $('#lato').classList.contains('aperto')) apriLato(SALA.sel);
     timer = setTimeout(rotta, R.attivi.length || R.reel.length ? 5000 : 15000);
     return;
   }
   const C = await clientiSel('k_cli', '', 'cliente: lo capisce Alba');
-  const D0 = disegnaSala(R);
   const recenti = [...lavori.slice(0, 4).map((L) => ({ t: 'REEL · ' + (L.stato === 'pronto' ? 'pronto' : L.stato === 'errore' ? 'errore' : 'in lavorazione'), b: (L.titolo || L.prompt || '').slice(0, 60), link: '#/lavoro/' + L.id, img: L.stato === 'pronto' ? '/api/lavori/' + L.id + '/anteprima.jpg' : null, i: '🎬' })),
     ...R.recenti.slice(0, 4).map((I) => ({ t: (AGENTI[I.agente]?.n || I.agente) + ' · ' + (ST_INC[I.stato] || I.stato), b: I.titolo, link: '#/incarico/' + I.id, img: null, i: AGENTI[I.agente]?.i || '📄' }))];
   $('#app').innerHTML = '<div id="saluto">' + saluto + '</div>' +
     '<div class="chiedi"><span>🧭</span><input id="k_t" placeholder="Chiedi all’agenzia… es. 6 post per dicembre per A’ Villetta, romantici">' + C + '<button id="k_go">Invia</button></div><div id="k_r"></div>' +
     '<div class="sala" id="sala"><div class="comandi"><button class="sec" id="torna" style="display:none">← Tutta l’agenzia</button></div>' +
-    '<div class="camera" id="camera"><div class="pavimento" id="pavimento">' + D0.pav + '</div><div class="attori" id="attori">' + D0.att + '</div></div>' +
+    '<div class="carico" id="carico">Accendo le luci dell’ufficio…</div>' +
     '<div class="legenda"><span style="color:#22A55B">●</span> al lavoro &nbsp; <span style="color:#E8930C">●</span> in coda &nbsp; <span style="color:#8b8780">●</span> libero</div></div>' +
     '<h2>Il tuo lavoro</h2><div class="lavori">' + (recenti.map((x) => '<a class="lavoro-card" href="' + x.link + '"><div class="min" style="' + (x.img ? 'background-image:url(' + x.img + ')' : '') + '">' + (x.img ? '' : x.i) + '</div><div style="min-width:0"><small>' + e(x.t) + '</small><b>' + e(x.b) + '</b><span class="btn" style="padding:5px 12px;font-size:12px">Guarda ▸</span></div></a>').join('') || '<p class="mut">Ancora niente.</p>') + '</div>' +
     '<h2>In diretta</h2><div class="log">' + (R.feed.slice(0, 25).map((r) => { const A = AGENTI[AGID(r.agente)] || AGENTI.regia; return '<div class="' + r.livello + '"><span class="mut">' + new Date(r.quando).toLocaleTimeString('it-IT') + '</span> ' + A.i + ' <b>' + e(A.n) + '</b> ' + e(r.messaggio) + '</div>'; }).join('') || '<div class="mut">ancora niente</div>') + '</div>' +
     '<div class="lato" id="lato"></div>';
-  requestAnimationFrame(() => grandangolo(true));
-  agganciaSala();
+  const D = datiSala(R);
+  import('/sala3d.js').then((m) => {
+    if (!$('#sala')) return;
+    SALA3D = m;
+    m.avvia($('#sala'), D, {
+      agente: (a) => { SALA.sel = a; $('#torna').style.display = ''; apriLato(a); },
+      ufficio: (u) => { SALA.ufficio = u; SALA.sel = null; chiudiLato(); $('#torna').style.display = ''; },
+      vista: () => { SALA.ufficio = null; SALA.sel = null; chiudiLato(); $('#torna').style.display = 'none'; },
+      cervello: apriCervello,
+    });
+    $('#carico').remove();
+  }).catch((x) => { $('#carico').textContent = 'La sala 3D non si è caricata (' + x.message + '). Ricarica la pagina.'; });
   $('#torna').onclick = () => { if (SALA.sel && SALA.ufficio) { SALA.sel = null; chiudiLato(); entraUfficio(SALA.ufficio); } else grandangolo(); };
   $('#k_go').onclick = async () => {
     const t = $('#k_t').value.trim(); if (!t) return;
@@ -709,56 +640,7 @@ async function azienda() {
     } catch (x) { $('#k_r').innerHTML = '<div class="err">' + e(x.message) + '</div>'; }
     $('#k_go').disabled = false;
   };
-  if (!window.__salaResize) window.__salaResize = addEventListener('resize', () => { if (!$('#sala')) return; if (SALA.sel) vaiAgente(SALA.sel); else if (SALA.ufficio) entraUfficio(SALA.ufficio); else grandangolo(true); });
   timer = setTimeout(rotta, R.attivi.length || R.reel.length ? 5000 : 15000);
-}
-
-function trascinaSala() {
-  const sala = $('#sala'); if (!sala || sala.__ok) return; sala.__ok = true;
-  const dita = new Map(); let inizio = null, mosso = false, pz = null;
-  sala.addEventListener('pointerdown', (ev) => {
-    dita.set(ev.pointerId, [ev.clientX, ev.clientY]);
-    if (dita.size === 1) { inizio = { x: ev.clientX, y: ev.clientY, cx: SALA.x, cy: SALA.y }; mosso = false; }
-    if (dita.size === 2) { const [a, b] = [...dita.values()]; pz = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), s: SALA.s, x: SALA.x, y: SALA.y, mx: (a[0] + b[0]) / 2, my: (a[1] + b[1]) / 2 }; }
-  });
-  sala.addEventListener('pointermove', (ev) => {
-    if (!dita.has(ev.pointerId)) return;
-    dita.set(ev.pointerId, [ev.clientX, ev.clientY]);
-    const c = $('#camera'), r = sala.getBoundingClientRect();
-    if (dita.size === 2 && pz) {
-      const [a, b] = [...dita.values()];
-      const s = Math.min(4, Math.max(0.2, pz.s * Math.hypot(a[0] - b[0], a[1] - b[1]) / pz.d));
-      const mx = pz.mx - r.left, my = pz.my - r.top;
-      c.style.transition = 'none'; camera(s, mx - (mx - pz.x) * s / pz.s, my - (my - pz.y) * s / pz.s); mosso = true; return;
-    }
-    if (!inizio) return;
-    const dx = ev.clientX - inizio.x, dy = ev.clientY - inizio.y;
-    if (!mosso && Math.hypot(dx, dy) < 6) return;
-    mosso = true; c.style.transition = 'none';
-    camera(SALA.s, inizio.cx + dx, inizio.cy + dy);
-  });
-  const fine = (ev) => { dita.delete(ev.pointerId); if (dita.size < 2) pz = null; if (!dita.size) { inizio = null; $('#camera').style.transition = ''; } };
-  sala.addEventListener('pointerup', fine); sala.addEventListener('pointercancel', fine);
-  sala.addEventListener('click', (ev) => { if (mosso) { ev.stopPropagation(); ev.preventDefault(); mosso = false; } }, true);
-  sala.addEventListener('wheel', (ev) => {
-    ev.preventDefault();
-    const r = sala.getBoundingClientRect(), mx = ev.clientX - r.left, my = ev.clientY - r.top;
-    const s = Math.min(4, Math.max(0.2, SALA.s * Math.exp(-ev.deltaY * 0.0015)));
-    $('#camera').style.transition = 'none';
-    camera(s, mx - (mx - SALA.x) * s / SALA.s, my - (my - SALA.y) * s / SALA.s);
-    clearTimeout(sala.__w); sala.__w = setTimeout(() => { $('#camera').style.transition = ''; }, 120);
-  }, { passive: false });
-}
-
-function agganciaSala() {
-  trascinaSala();
-  document.querySelectorAll('.etichetta-stanza').forEach((x) => x.onclick = () => entraUfficio(x.dataset.uff));
-  document.querySelectorAll('.stanza3d').forEach((st) => st.onclick = (ev) => {
-    if (ev.target.closest('[data-ag]') || ev.target.closest('#cervello')) return;
-    entraUfficio(st.dataset.uff);
-  });
-  document.querySelectorAll('.sala [data-ag]').forEach((el) => el.onclick = (ev) => { ev.stopPropagation(); vaiAgente(el.dataset.ag); });
-  const cv = $('#cervello'); if (cv) cv.onclick = (ev) => { ev.stopPropagation(); apriCervello(); };
 }
 
 async function agentePagina(id) {

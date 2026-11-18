@@ -3371,6 +3371,7 @@ var PAGINA = `<!DOCTYPE html>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#F4F2EE">
 <title>AGENZIA MOMENTO AI</title>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}<\/script>
 <style>
 @media print{header,.noprint,button{display:none!important}body{background:#fff;color:#000}.card{border-color:#ccc;background:#fff}.mut{color:#555}a{color:#000}}
 details.copione summary{cursor:pointer;list-style:none}details.copione[open]{border-color:var(--teal)}
@@ -3427,12 +3428,22 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 .pannello{position:fixed;inset:auto 0 0 0;max-height:78vh;background:#fff;border-top:1px solid var(--line);border-radius:22px 22px 0 0;padding:16px 18px 24px;overflow:auto;z-index:40;box-shadow:0 -20px 60px rgba(0,0,0,.15);max-width:760px;margin:auto}
 .velo{position:fixed;inset:0;background:rgba(20,20,22,.25);z-index:39}
 /* ---------- la sala: l'agenzia vista dall'alto ---------- */
+.sala-canvas{position:absolute;inset:0;width:100%!important;height:100%!important;display:block;touch-action:none;cursor:grab}.sala-canvas:active{cursor:grabbing}
+.etichette{position:absolute;inset:0;pointer-events:none;overflow:hidden}.etichette>div{position:absolute;left:0;top:0;pointer-events:auto;will-change:transform}
+.et-ag{display:flex;flex-direction:column;align-items:center;gap:6px;transform-origin:50% 100%}
+.et-nome{background:rgba(20,20,22,.92);color:#fff;border-radius:999px;padding:5px 10px 5px 8px;font:600 12px/1 Inter,system-ui;display:flex;gap:6px;align-items:center;white-space:nowrap;box-shadow:0 6px 16px -6px rgba(0,0,0,.45);cursor:pointer}
+.et-nome .pt{width:7px;height:7px;border-radius:50%;background:#9a968f}.lavora .et-nome .pt{background:#3ddc84;box-shadow:0 0 0 3px rgba(61,220,132,.25)}.coda .et-nome .pt{background:#ffb020}.errore .et-nome .pt{background:#ff5a5f}
+.et-nome .gu{background:#fff;color:#111;border-radius:999px;padding:3px 7px;font-size:11px}.scelto .et-nome{background:var(--teal)}
+.et-msg{background:#fff;color:#2a2a2a;border-radius:12px;padding:6px 9px;font:500 11px/1.35 Inter,system-ui;width:max-content;max-width:190px;box-shadow:0 8px 20px -10px rgba(0,0,0,.35)}
+.et-uff{font:700 12px/1 Inter,system-ui;letter-spacing:1.6px;text-transform:uppercase;color:#8c8578;background:rgba(255,255,255,.75);backdrop-filter:blur(6px);padding:6px 10px;border-radius:999px;cursor:pointer;white-space:nowrap}
+.carico{position:absolute;inset:0;display:grid;place-items:center;color:var(--mut);font-size:14px}
+
 .bb>*{position:absolute}.bb>.omino{left:-32px;top:-84px}.etichetta-stanza{cursor:pointer}.bb>.cervello{left:-35px;top:-70px}.bb>.pianta{left:-13px;top:-40px}.bb>.etichetta-stanza{left:0;top:-18px}
 
 .saluto h1{font-size:30px;margin:0}.saluto p{margin:6px 0 0;color:#5f5c56;font-size:14px;line-height:1.5}.saluto b.n{font-weight:600}
 .chiedi{display:flex;gap:8px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 6px 6px 16px;margin:16px 0 4px;box-shadow:0 8px 30px -18px rgba(0,0,0,.25)}
 .chiedi input{border:0;padding:8px 0;outline:none!important;background:transparent}.chiedi select{width:auto;max-width:170px;border:0;background:#f4f2ee;border-radius:999px;padding:8px 10px;font-size:13px}
-.sala{position:relative;height:min(68vh,720px);min-height:420px;margin:14px -22px 0;overflow:hidden;cursor:grab;touch-action:none;background:radial-gradient(120% 90% at 50% 40%,#fbfaf7 0%,#efebe3 70%,#e7e2d8 100%);border-top:1px solid var(--line);border-bottom:1px solid var(--line);user-select:none;-webkit-user-select:none}
+.sala{position:relative;height:min(70vh,760px);min-height:440px;margin:14px -22px 0;overflow:hidden;touch-action:none;background:radial-gradient(120% 90% at 50% 40%,#fbfaf7 0%,#efebe3 70%,#e7e2d8 100%);border-top:1px solid var(--line);border-bottom:1px solid var(--line);user-select:none;-webkit-user-select:none}
 .camera{position:absolute;left:0;top:0;transform-origin:0 0;transition:transform .9s cubic-bezier(.2,.75,.2,1)}
 .pavimento{position:relative;width:1440px;height:1000px;transform:rotateX(57deg) rotateZ(-38deg);transform-style:preserve-3d}
 .stanza3d{position:absolute;border-radius:22px;background:#f8f5ef;box-shadow:inset 0 0 0 2px #e4dccd,0 30px 40px -30px rgba(80,60,30,.25);transform-style:preserve-3d;cursor:pointer;transition:background .3s}
@@ -3869,18 +3880,6 @@ const PIANTA = [
 const VIDEO_TEAM = ['direttore', 'stella', 'scout_yt', 'scout_tt', 'scout_ig', 'occhi', 'analista', 'motore', 'regista', 'copy', 'editor', 'vfx', 'color', 'audio', 'sottotitoli', 'revisore'];
 let SALA = { s: 1, x: 0, y: 0, dati: null, sel: null, ufficio: null };
 
-function omino(c) {
-  // personaggio stilizzato visto in 3/4: sedia, corpo col colore dell'agente, testa, capelli
-  return '<svg viewBox="0 0 64 84"><ellipse cx="32" cy="80" rx="20" ry="5" fill="rgba(60,40,10,.18)"/>' +
-    '<rect x="14" y="46" width="36" height="30" rx="10" fill="#2b2b30"/>' +
-    '<path d="M18 74 C18 52 24 44 32 44 C40 44 46 52 46 74 Z" fill="' + c + '"/>' +
-    '<rect x="25" y="40" width="14" height="8" rx="4" fill="#f1c7a3"/>' +
-    '<circle cx="32" cy="30" r="13" fill="#f6d2b1"/>' +
-    '<path d="M19 29 C19 16 45 14 45 29 C45 22 38 19 32 19 C26 19 21 22 19 29 Z" fill="#2a211c"/>' +
-    '<circle cx="27" cy="31" r="1.6" fill="#2a211c"/><circle cx="37" cy="31" r="1.6" fill="#2a211c"/>' +
-    '<path d="M28 36 Q32 39 36 36" stroke="#c0876b" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>';
-}
-
 function statiAgenti(R) {
   const st = {}, cosa = {}, ultimo = {};
   for (const r of R.feed) { const a = AGID(r.agente); if (!ultimo[a]) ultimo[a] = r; }
@@ -3903,93 +3902,18 @@ function agentiUfficio(R, u) {
   return u === 'direzione' ? ids.concat(['idee']) : ids;
 }
 
-// proiezione di un punto del pavimento (coordinate della pianta) sul piano della camera
-let PROIEZIONE = null;
-function proietta(x, y) {
-  if (!PROIEZIONE) PROIEZIONE = new DOMMatrix().translate(720, 500).rotateAxisAngle(1, 0, 0, 57).rotate(0, 0, -38).translate(-720, -500);
-  const q = PROIEZIONE.transformPoint(new DOMPoint(x, y, 0));
-  return [q.x, q.y];
-}
-function attore(x, y, html, cls, u, c) {
-  const [px, py] = proietta(x, y);
-  return '<div class="bb ' + (cls || '') + '" data-uff="' + (u || '') + '" style="left:' + px.toFixed(1) + 'px;top:' + py.toFixed(1) + 'px;z-index:' + Math.round(py + 1000) + (c ? ';--c:' + c : '') + '">' + html + '</div>';
-}
-function disegnaSala(R) {
+function datiSala(R) {
   const { st, cosa, ultimo } = statiAgenti(R);
   SALA.info = { st, cosa, ultimo };
-  let pav = '', att = '';
-  for (const [u, nome, x, y, w, hh, col] of PIANTA) {
-    const ids = agentiUfficio(R, u);
-    const cols = Math.max(1, Math.floor((w - 60) / 150)), passoX = (w - 40) / cols;
-    const righe = Math.max(1, Math.ceil(ids.length / cols)), passoY = Math.min(150, (hh - 70) / righe);
-    const X = x + 8, Y = y + 8;
-    let dentro = '<div class="tappeto" style="background:' + col + '"></div>';
-    att += attore(X + w / 2, Y + hh - 26, '<div class="etichetta-stanza" data-uff="' + u + '">' + e(nome) + '</div>', '', u);
-    ids.forEach((a, k) => {
-      const A = AGENTI[a]; if (!A) return;
-      const cx = 20 + passoX * (k % cols) + passoX / 2, cy = 60 + passoY * Math.floor(k / cols);
-      const s = st[a] || '';
-      const msg = cosa[a]?.testo || ultimo[a]?.messaggio || '';
-      dentro += '<div class="' + s + '" style="--c:' + (A.c || '#888') + '"><div class="banco" style="left:' + (cx - 48) + 'px;top:' + (cy - 8) + 'px"><div class="monitor"><i></i></div></div></div>';
-      att += attore(X + cx, Y + cy + 44, '<div class="omino" data-ag="' + a + '">' + omino(A.c || '#888') +
-        '<div class="nome" data-ag="' + a + '"><span class="pt"></span>' + e(A.n) + (s === 'lavora' ? ' <span class="gu">Guarda \u25B8</span>' : '') + '</div>' +
-        (msg ? '<div class="fumetto">' + e(msg.slice(0, 90)) + '</div>' : '') + '</div>', s, u, A.c);
-    });
-    if (u === 'direzione') att += attore(X + w - 90, Y + hh - 70, '<div class="cervello" id="cervello" title="Cervello condiviso"></div>', '', u);
-    att += attore(X + w - 40, Y + 40, '<svg class="pianta" viewBox="0 0 26 40"><rect x="7" y="26" width="12" height="13" rx="3" fill="#d8cdb8"/><path d="M13 27 C4 20 5 8 13 2 C21 8 22 20 13 27Z" fill="#7fb07a"/><path d="M13 27 C8 22 2 18 3 12 C9 14 12 20 13 27Z" fill="#5f9a5c"/></svg>', '', u);
-    pav += '<div class="stanza3d" data-uff="' + u + '" style="left:' + X + 'px;top:' + Y + 'px;width:' + (w - 16) + 'px;height:' + (hh - 16) + 'px">' + dentro + '</div>';
-  }
-  return { pav, att };
+  const agenti = [];
+  for (const [u] of PIANTA) for (const a of agentiUfficio(R, u)) { const A = AGENTI[a]; if (A) agenti.push({ id: a, n: A.n, c: A.c || '#888888', u, stato: st[a] || '', msg: cosa[a]?.testo || ultimo[a]?.messaggio || '' }); }
+  return { uffici: PIANTA.map(([id, nome, x, y, w, h, col]) => ({ id, nome, x, y, w, h, col })), agenti };
 }
+let SALA3D = null;
+function vaiAgente(a) { if (SALA3D) SALA3D.vaiAgente(a); }
+function entraUfficio(u) { if (SALA3D) SALA3D.entraUfficio(u); }
+function grandangolo() { if (SALA3D) SALA3D.grandangolo(); }
 
-function camera(s, x, y, subito) {
-  SALA.s = s; SALA.x = x; SALA.y = y;
-  const c = $('#camera'); if (!c) return;
-  if (subito) c.style.transition = 'none';
-  c.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + s + ')';
-  const at = $('#attori'); if (at) at.style.setProperty('--inv', String(Math.min(1.6, Math.max(0.45, 0.85 / s))));
-  if (subito) { c.offsetHeight; c.style.transition = ''; }
-}
-function inquadra(el, margine, maxS) {
-  // porta l'elemento al centro della sala, ingrandito quanto basta
-  const sala = $('#sala').getBoundingClientRect(), r = el.getBoundingClientRect();
-  const lx = (r.left - sala.left - SALA.x) / SALA.s, ly = (r.top - sala.top - SALA.y) / SALA.s, lw = r.width / SALA.s, lh = r.height / SALA.s;
-  const s = Math.min(maxS || 3, Math.min(sala.width / (lw * margine), sala.height / (lh * margine)));
-  camera(s, sala.width / 2 - (lx + lw / 2) * s, sala.height / 2 - (ly + lh / 2) * s);
-}
-function grandangolo(subito) {
-  const pav = $('#pavimento'); if (!pav) return;
-  camera(1, 0, 0, true);
-  inquadra(pav, innerWidth < 700 ? 0.55 : 1.04, 2);
-  if (subito) { const c = $('#camera'); c.style.transition = 'none'; c.offsetHeight; c.style.transition = ''; }
-  SALA.ufficio = null; SALA.sel = null;
-  $('#sala').classList.remove('vicino');
-  document.querySelectorAll('.stanza3d.sel').forEach((x) => x.classList.remove('sel'));
-  $('#torna').style.display = 'none';
-  chiudiLato();
-}
-function entraUfficio(u) {
-  const el = document.querySelector('.stanza3d[data-uff="' + u + '"]'); if (!el) return;
-  document.querySelectorAll('.stanza3d.sel').forEach((x) => x.classList.remove('sel'));
-  el.classList.add('sel');
-  SALA.ufficio = u; SALA.sel = null;
-  document.querySelectorAll('.bb.scelto').forEach((x) => x.classList.remove('scelto'));
-  $('#sala').classList.add('vicino');
-  inquadra(el, 1.08, 2.6);
-  $('#torna').style.display = '';
-}
-function vaiAgente(a) {
-  const el = document.querySelector('.omino[data-ag="' + a + '"]'); if (!el) return;
-  const u = el.closest('.bb')?.dataset.uff, st = u && document.querySelector('.stanza3d[data-uff="' + u + '"]');
-  if (st) { document.querySelectorAll('.stanza3d.sel').forEach((x) => x.classList.remove('sel')); st.classList.add('sel'); SALA.ufficio = u; }
-  SALA.sel = a;
-  $('#sala').classList.add('vicino');
-  document.querySelectorAll('.bb.scelto').forEach((x) => x.classList.remove('scelto'));
-  el.closest('.bb').classList.add('scelto');
-  inquadra(el, 2.6, 2.4);
-  $('#torna').style.display = '';
-  apriLato(a);
-}
 function chiudiLato() { const l = $('#lato'); if (l) l.classList.remove('aperto'); }
 
 async function apriLato(a) {
@@ -4007,7 +3931,7 @@ async function apriLato(a) {
     '<div class="riga">' + azione + '</div>' +
     (miei.length ? '<h2>Ultime attivit\xE0</h2><div class="log" style="max-height:none">' + miei.map((r) => '<div class="' + r.livello + '"><span class="mut">' + new Date(r.quando).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) + '</span> ' + e(r.messaggio) + '</div>').join('') + '</div>' : '');
   $('#lato').classList.add('aperto');
-  $('#lato_x').onclick = () => { chiudiLato(); if (SALA.ufficio) entraUfficio(SALA.ufficio); };
+  $('#lato_x').onclick = () => { chiudiLato(); SALA.sel = null; if (SALA.ufficio) entraUfficio(SALA.ufficio); else grandangolo(); };
 }
 
 function apriCervello() {
@@ -4042,27 +3966,34 @@ async function azienda() {
   const saluto = '<div class="saluto"><h1>' + (h < 13 ? 'Buongiorno' : h < 18 ? 'Buon pomeriggio' : 'Buonasera') + ', Johnny</h1><p>' + frase + '</p></div>';
   if (!prima) {
     $('#saluto').innerHTML = saluto;
-    const D = disegnaSala(R);
-    $('#pavimento').innerHTML = D.pav; $('#attori').innerHTML = D.att;
-    agganciaSala();
+    if (SALA3D) SALA3D.aggiorna(datiSala(R)); else datiSala(R);
     if (SALA.sel && $('#lato').classList.contains('aperto')) apriLato(SALA.sel);
     timer = setTimeout(rotta, R.attivi.length || R.reel.length ? 5000 : 15000);
     return;
   }
   const C = await clientiSel('k_cli', '', 'cliente: lo capisce Alba');
-  const D0 = disegnaSala(R);
   const recenti = [...lavori.slice(0, 4).map((L) => ({ t: 'REEL \xB7 ' + (L.stato === 'pronto' ? 'pronto' : L.stato === 'errore' ? 'errore' : 'in lavorazione'), b: (L.titolo || L.prompt || '').slice(0, 60), link: '#/lavoro/' + L.id, img: L.stato === 'pronto' ? '/api/lavori/' + L.id + '/anteprima.jpg' : null, i: '\u{1F3AC}' })),
     ...R.recenti.slice(0, 4).map((I) => ({ t: (AGENTI[I.agente]?.n || I.agente) + ' \xB7 ' + (ST_INC[I.stato] || I.stato), b: I.titolo, link: '#/incarico/' + I.id, img: null, i: AGENTI[I.agente]?.i || '\u{1F4C4}' }))];
   $('#app').innerHTML = '<div id="saluto">' + saluto + '</div>' +
     '<div class="chiedi"><span>\u{1F9ED}</span><input id="k_t" placeholder="Chiedi all\u2019agenzia\u2026 es. 6 post per dicembre per A\u2019 Villetta, romantici">' + C + '<button id="k_go">Invia</button></div><div id="k_r"></div>' +
     '<div class="sala" id="sala"><div class="comandi"><button class="sec" id="torna" style="display:none">\u2190 Tutta l\u2019agenzia</button></div>' +
-    '<div class="camera" id="camera"><div class="pavimento" id="pavimento">' + D0.pav + '</div><div class="attori" id="attori">' + D0.att + '</div></div>' +
+    '<div class="carico" id="carico">Accendo le luci dell\u2019ufficio\u2026</div>' +
     '<div class="legenda"><span style="color:#22A55B">\u25CF</span> al lavoro &nbsp; <span style="color:#E8930C">\u25CF</span> in coda &nbsp; <span style="color:#8b8780">\u25CF</span> libero</div></div>' +
     '<h2>Il tuo lavoro</h2><div class="lavori">' + (recenti.map((x) => '<a class="lavoro-card" href="' + x.link + '"><div class="min" style="' + (x.img ? 'background-image:url(' + x.img + ')' : '') + '">' + (x.img ? '' : x.i) + '</div><div style="min-width:0"><small>' + e(x.t) + '</small><b>' + e(x.b) + '</b><span class="btn" style="padding:5px 12px;font-size:12px">Guarda \u25B8</span></div></a>').join('') || '<p class="mut">Ancora niente.</p>') + '</div>' +
     '<h2>In diretta</h2><div class="log">' + (R.feed.slice(0, 25).map((r) => { const A = AGENTI[AGID(r.agente)] || AGENTI.regia; return '<div class="' + r.livello + '"><span class="mut">' + new Date(r.quando).toLocaleTimeString('it-IT') + '</span> ' + A.i + ' <b>' + e(A.n) + '</b> ' + e(r.messaggio) + '</div>'; }).join('') || '<div class="mut">ancora niente</div>') + '</div>' +
     '<div class="lato" id="lato"></div>';
-  requestAnimationFrame(() => grandangolo(true));
-  agganciaSala();
+  const D = datiSala(R);
+  import('/sala3d.js').then((m) => {
+    if (!$('#sala')) return;
+    SALA3D = m;
+    m.avvia($('#sala'), D, {
+      agente: (a) => { SALA.sel = a; $('#torna').style.display = ''; apriLato(a); },
+      ufficio: (u) => { SALA.ufficio = u; SALA.sel = null; chiudiLato(); $('#torna').style.display = ''; },
+      vista: () => { SALA.ufficio = null; SALA.sel = null; chiudiLato(); $('#torna').style.display = 'none'; },
+      cervello: apriCervello,
+    });
+    $('#carico').remove();
+  }).catch((x) => { $('#carico').textContent = 'La sala 3D non si \xE8 caricata (' + x.message + '). Ricarica la pagina.'; });
   $('#torna').onclick = () => { if (SALA.sel && SALA.ufficio) { SALA.sel = null; chiudiLato(); entraUfficio(SALA.ufficio); } else grandangolo(); };
   $('#k_go').onclick = async () => {
     const t = $('#k_t').value.trim(); if (!t) return;
@@ -4074,56 +4005,7 @@ async function azienda() {
     } catch (x) { $('#k_r').innerHTML = '<div class="err">' + e(x.message) + '</div>'; }
     $('#k_go').disabled = false;
   };
-  if (!window.__salaResize) window.__salaResize = addEventListener('resize', () => { if (!$('#sala')) return; if (SALA.sel) vaiAgente(SALA.sel); else if (SALA.ufficio) entraUfficio(SALA.ufficio); else grandangolo(true); });
   timer = setTimeout(rotta, R.attivi.length || R.reel.length ? 5000 : 15000);
-}
-
-function trascinaSala() {
-  const sala = $('#sala'); if (!sala || sala.__ok) return; sala.__ok = true;
-  const dita = new Map(); let inizio = null, mosso = false, pz = null;
-  sala.addEventListener('pointerdown', (ev) => {
-    dita.set(ev.pointerId, [ev.clientX, ev.clientY]);
-    if (dita.size === 1) { inizio = { x: ev.clientX, y: ev.clientY, cx: SALA.x, cy: SALA.y }; mosso = false; }
-    if (dita.size === 2) { const [a, b] = [...dita.values()]; pz = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), s: SALA.s, x: SALA.x, y: SALA.y, mx: (a[0] + b[0]) / 2, my: (a[1] + b[1]) / 2 }; }
-  });
-  sala.addEventListener('pointermove', (ev) => {
-    if (!dita.has(ev.pointerId)) return;
-    dita.set(ev.pointerId, [ev.clientX, ev.clientY]);
-    const c = $('#camera'), r = sala.getBoundingClientRect();
-    if (dita.size === 2 && pz) {
-      const [a, b] = [...dita.values()];
-      const s = Math.min(4, Math.max(0.2, pz.s * Math.hypot(a[0] - b[0], a[1] - b[1]) / pz.d));
-      const mx = pz.mx - r.left, my = pz.my - r.top;
-      c.style.transition = 'none'; camera(s, mx - (mx - pz.x) * s / pz.s, my - (my - pz.y) * s / pz.s); mosso = true; return;
-    }
-    if (!inizio) return;
-    const dx = ev.clientX - inizio.x, dy = ev.clientY - inizio.y;
-    if (!mosso && Math.hypot(dx, dy) < 6) return;
-    mosso = true; c.style.transition = 'none';
-    camera(SALA.s, inizio.cx + dx, inizio.cy + dy);
-  });
-  const fine = (ev) => { dita.delete(ev.pointerId); if (dita.size < 2) pz = null; if (!dita.size) { inizio = null; $('#camera').style.transition = ''; } };
-  sala.addEventListener('pointerup', fine); sala.addEventListener('pointercancel', fine);
-  sala.addEventListener('click', (ev) => { if (mosso) { ev.stopPropagation(); ev.preventDefault(); mosso = false; } }, true);
-  sala.addEventListener('wheel', (ev) => {
-    ev.preventDefault();
-    const r = sala.getBoundingClientRect(), mx = ev.clientX - r.left, my = ev.clientY - r.top;
-    const s = Math.min(4, Math.max(0.2, SALA.s * Math.exp(-ev.deltaY * 0.0015)));
-    $('#camera').style.transition = 'none';
-    camera(s, mx - (mx - SALA.x) * s / SALA.s, my - (my - SALA.y) * s / SALA.s);
-    clearTimeout(sala.__w); sala.__w = setTimeout(() => { $('#camera').style.transition = ''; }, 120);
-  }, { passive: false });
-}
-
-function agganciaSala() {
-  trascinaSala();
-  document.querySelectorAll('.etichetta-stanza').forEach((x) => x.onclick = () => entraUfficio(x.dataset.uff));
-  document.querySelectorAll('.stanza3d').forEach((st) => st.onclick = (ev) => {
-    if (ev.target.closest('[data-ag]') || ev.target.closest('#cervello')) return;
-    entraUfficio(st.dataset.uff);
-  });
-  document.querySelectorAll('.sala [data-ag]').forEach((el) => el.onclick = (ev) => { ev.stopPropagation(); vaiAgente(el.dataset.ag); });
-  const cv = $('#cervello'); if (cv) cv.onclick = (ev) => { ev.stopPropagation(); apriCervello(); };
 }
 
 async function agentePagina(id) {
@@ -4278,6 +4160,343 @@ async function rotta() {
 addEventListener('hashchange', rotta);
 rotta();
 <\/script></body></html>`;
+
+// src/sala3d.txt
+var sala3d_default = `// Sala 3D dell'agenzia (three.js): ufficio realistico visto dall'alto, con luci e ombre morbide.
+// La pagina chiama avvia(contenitore, dati, callback) e poi aggiorna(dati) a ogni giro.
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+let S = null;
+const M = 0.01; // 1 px della pianta = 1 cm
+
+function texLegno() {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 128;
+  const g = c.getContext('2d');
+  const gr = g.createLinearGradient(0, 0, 0, 128); gr.addColorStop(0, '#d9b98d'); gr.addColorStop(1, '#c9a372');
+  g.fillStyle = gr; g.fillRect(0, 0, 512, 128);
+  for (let i = 0; i < 70; i++) {
+    g.strokeStyle = 'rgba(120,80,40,' + (0.04 + Math.random() * 0.08) + ')'; g.lineWidth = 1 + Math.random() * 2;
+    g.beginPath(); const y = Math.random() * 128; g.moveTo(0, y);
+    for (let x = 0; x <= 512; x += 32) g.lineTo(x, y + Math.sin(x / 60 + i) * 3 + (Math.random() - 0.5) * 2);
+    g.stroke();
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+}
+function texPavimento() {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d'); g.fillStyle = '#f3f1ec'; g.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 2500; i++) { g.fillStyle = 'rgba(0,0,0,' + Math.random() * 0.025 + ')'; g.fillRect(Math.random() * 256, Math.random() * 256, 1, 1); }
+  g.strokeStyle = 'rgba(0,0,0,0.035)'; g.lineWidth = 2; g.strokeRect(0, 0, 256, 256);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(24, 24); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function texSchermo(colore, acceso) {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 160;
+  const g = c.getContext('2d');
+  g.fillStyle = acceso ? '#0f1422' : '#15171c'; g.fillRect(0, 0, 256, 160);
+  if (acceso) {
+    g.fillStyle = colore; g.globalAlpha = 0.9; g.fillRect(0, 0, 256, 18);
+    g.globalAlpha = 1;
+    for (let i = 0; i < 6; i++) { g.fillStyle = i % 2 ? '#2b3550' : '#3b4a72'; g.fillRect(14, 30 + i * 20, 80 + Math.random() * 130, 9); }
+    g.fillStyle = colore; g.globalAlpha = 0.6; g.fillRect(170, 34, 70, 110); g.globalAlpha = 1;
+  } else { g.fillStyle = '#20232b'; g.fillRect(10, 10, 236, 140); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
+function materiali() {
+  return {
+    legno: new THREE.MeshStandardMaterial({ map: texLegno(), roughness: 0.55, metalness: 0 }),
+    metallo: new THREE.MeshStandardMaterial({ color: 0x2a2a2e, roughness: 0.35, metalness: 0.6 }),
+    nero: new THREE.MeshStandardMaterial({ color: 0x1b1b1f, roughness: 0.6 }),
+    sedia: new THREE.MeshStandardMaterial({ color: 0x232327, roughness: 0.75 }),
+    pelle: new THREE.MeshStandardMaterial({ color: 0xf0c7a4, roughness: 0.6 }),
+    capelli: new THREE.MeshStandardMaterial({ color: 0x2b211b, roughness: 0.8 }),
+    pantaloni: new THREE.MeshStandardMaterial({ color: 0x2f3440, roughness: 0.8 }),
+    muro: new THREE.MeshStandardMaterial({ color: 0xfbfaf7, roughness: 0.9 }),
+    vaso: new THREE.MeshStandardMaterial({ color: 0xe9e3d8, roughness: 0.7 }),
+    foglia: new THREE.MeshStandardMaterial({ color: 0x5f9a5c, roughness: 0.7 }),
+    foglia2: new THREE.MeshStandardMaterial({ color: 0x7db37a, roughness: 0.7 }),
+  };
+}
+
+function ombra(m) { m.castShadow = true; m.receiveShadow = true; return m; }
+
+// una postazione: scrivania, monitor, sedia e persona seduta che guarda il monitor
+function postazione(A, mat) {
+  const g = new THREE.Group();
+  const piano = ombra(new THREE.Mesh(new RoundedBoxGeometry(1.4, 0.04, 0.72, 2, 0.015), mat.legno)); piano.position.y = 0.75; g.add(piano);
+  for (const [x, z] of [[-0.64, -0.3], [0.64, -0.3], [-0.64, 0.3], [0.64, 0.3]]) { const l = ombra(new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.73, 8), mat.metallo)); l.position.set(x, 0.365, z); g.add(l); }
+  // monitor
+  const mon = new THREE.Group(); mon.position.set(0, 0.77, -0.2);
+  const piede = ombra(new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.012, 0.14), mat.metallo)); mon.add(piede);
+  const asta = ombra(new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.2, 0.03), mat.metallo)); asta.position.y = 0.1; mon.add(asta);
+  const corpo = ombra(new THREE.Mesh(new RoundedBoxGeometry(0.62, 0.38, 0.03, 2, 0.01), mat.nero)); corpo.position.y = 0.38; mon.add(corpo);
+  const schermoMat = new THREE.MeshStandardMaterial({ map: texSchermo(A.c, false), emissive: 0xffffff, emissiveMap: null, emissiveIntensity: 0, roughness: 0.25 });
+  const schermo = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.34), schermoMat); schermo.position.set(0, 0.38, 0.016); mon.add(schermo);
+  g.add(mon);
+  // tastiera e tazza
+  const tast = ombra(new THREE.Mesh(new RoundedBoxGeometry(0.42, 0.015, 0.14, 1, 0.005), mat.nero)); tast.position.set(0, 0.775, 0.08); g.add(tast);
+  const tazza = ombra(new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.03, 0.09, 16), mat.vaso)); tazza.position.set(0.5, 0.815, 0.1); g.add(tazza);
+  // sedia
+  const sedia = new THREE.Group(); sedia.position.set(0, 0, 0.72);
+  const seduta = ombra(new THREE.Mesh(new RoundedBoxGeometry(0.5, 0.08, 0.48, 2, 0.03), mat.sedia)); seduta.position.y = 0.46; sedia.add(seduta);
+  const schienale = ombra(new THREE.Mesh(new RoundedBoxGeometry(0.48, 0.55, 0.07, 2, 0.03), mat.sedia)); schienale.position.set(0, 0.8, 0.24); schienale.rotation.x = -0.12; sedia.add(schienale);
+  const stelo = ombra(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.4, 10), mat.metallo)); stelo.position.y = 0.22; sedia.add(stelo);
+  const base = ombra(new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.03, 5), mat.metallo)); base.position.y = 0.03; sedia.add(base);
+  g.add(sedia);
+  // persona seduta
+  const p = new THREE.Group(); p.position.set(0, 0, 0.66);
+  const maglia = new THREE.MeshStandardMaterial({ color: new THREE.Color(A.c).lerp(new THREE.Color('#ffffff'), 0.08), roughness: 0.8 });
+  const busto = ombra(new THREE.Mesh(new THREE.CapsuleGeometry(0.17, 0.26, 6, 16), maglia)); busto.scale.set(1.15, 1, 0.8); busto.position.y = 0.86; p.add(busto);
+  const collo = ombra(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.08, 10), mat.pelle)); collo.position.y = 1.13; p.add(collo);
+  const testa = ombra(new THREE.Mesh(new THREE.SphereGeometry(0.13, 24, 18), mat.pelle)); testa.scale.set(1, 1.08, 1); testa.position.y = 1.27; p.add(testa);
+  const capelli = ombra(new THREE.Mesh(new THREE.SphereGeometry(0.138, 24, 18, 0, Math.PI * 2, 0, Math.PI * 0.55), mat.capelli)); capelli.position.y = 1.285; capelli.rotation.x = -0.35; p.add(capelli);
+  const cosce = ombra(new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.32, 4, 10), mat.pantaloni)); cosce.rotation.x = Math.PI / 2; cosce.position.set(-0.1, 0.55, -0.16); p.add(cosce);
+  const cosce2 = cosce.clone(); cosce2.position.x = 0.1; p.add(cosce2);
+  const braccia = [];
+  for (const lato of [-1, 1]) {
+    const b = new THREE.Group(); b.position.set(0.22 * lato, 1.0, 0);
+    const br = ombra(new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.3, 4, 10), maglia)); br.position.y = -0.15; b.add(br);
+    const mano = ombra(new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), mat.pelle)); mano.position.y = -0.33; b.add(mano);
+    b.rotation.x = 1.15; b.rotation.z = -0.15 * lato; p.add(b); braccia.push(b);
+  }
+  g.add(p);
+  g.traverse((o) => { o.userData.ag = A.id; });
+  return { g, schermo, schermoMat, braccia, testa: p, colore: A.c };
+}
+
+function pianta(mat, scala = 1) {
+  const g = new THREE.Group();
+  const vaso = ombra(new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.12, 0.3, 18), mat.vaso)); vaso.position.y = 0.15; g.add(vaso);
+  for (let i = 0; i < 9; i++) {
+    const f = ombra(new THREE.Mesh(new THREE.SphereGeometry(0.12 + Math.random() * 0.06, 10, 8), i % 2 ? mat.foglia : mat.foglia2));
+    const a = (i / 9) * Math.PI * 2; f.position.set(Math.cos(a) * 0.12, 0.42 + Math.random() * 0.35, Math.sin(a) * 0.12); f.scale.y = 1.3; g.add(f);
+  }
+  g.scale.setScalar(scala);
+  return g;
+}
+
+function costruisci(dati) {
+  const { scena, mat } = S;
+  // pavimento generale
+  const pav = new THREE.Mesh(new THREE.PlaneGeometry(40, 30), new THREE.MeshStandardMaterial({ map: texPavimento(), roughness: 0.95 }));
+  pav.rotation.x = -Math.PI / 2; pav.position.set(7.2, 0, 5); pav.receiveShadow = true; scena.add(pav);
+  S.uffici = {}; S.agenti = {}; S.etichetteUff = [];
+  for (const U of dati.uffici) {
+    const x = U.x * M, z = U.y * M, w = U.w * M, d = U.h * M, cx = x + w / 2, cz = z + d / 2;
+    const g = new THREE.Group(); scena.add(g);
+    // pedana dell'ufficio: leggermente rialzata, col colore dell'area
+    const ped = new THREE.Mesh(new RoundedBoxGeometry(w - 0.24, 0.04, d - 0.24, 2, 0.02), new THREE.MeshStandardMaterial({ color: new THREE.Color(U.col).lerp(new THREE.Color('#ffffff'), 0.35), roughness: 0.9 }));
+    ped.position.set(cx, 0.02, cz); ped.receiveShadow = true; ped.userData.uff = U.id; g.add(ped);
+    // pareti basse su tre lati (il lato verso chi guarda resta aperto)
+    const h = 0.42, sp = 0.08;
+    for (const [px, pz, lx, lz] of [[cx, z + 0.12, w - 0.24, sp], [x + 0.12, cz, sp, d - 0.24], [x + w - 0.12, cz, sp, d - 0.24]]) {
+      const m = ombra(new THREE.Mesh(new RoundedBoxGeometry(lx, h, lz, 1, 0.02), S.mat.muro)); m.position.set(px, h / 2, pz); m.userData.uff = U.id; g.add(m);
+    }
+    S.uffici[U.id] = { cx, cz, w, d, g };
+    S.etichetteUff.push({ id: U.id, nome: U.nome, pos: new THREE.Vector3(cx, 0.05, z + d - 0.3) });
+    // postazioni in righe
+    const ags = dati.agenti.filter((a) => a.u === U.id);
+    const cols = Math.max(1, Math.floor((w - 0.6) / 1.9)), passoX = (w - 0.6) / cols;
+    const righe = Math.max(1, Math.ceil(ags.length / cols)), passoZ = Math.min(2.1, (d - 0.9) / righe);
+    ags.forEach((A, k) => {
+      const post = postazione(A, S.mat);
+      post.g.position.set(x + 0.3 + passoX * (k % cols) + passoX / 2, 0.04, z + 0.55 + passoZ * Math.floor(k / cols));
+      scena.add(post.g);
+      S.agenti[A.id] = { ...post, A };
+    });
+    // piante negli angoli
+    const p1 = pianta(S.mat, 1.1); p1.position.set(x + w - 0.45, 0.04, z + 0.45); scena.add(p1);
+    if (d > 3) { const p2 = pianta(S.mat, 0.9); p2.position.set(x + 0.45, 0.04, z + d - 0.5); scena.add(p2); }
+    // il cervello condiviso in direzione
+    if (U.id === 'direzione') {
+      const sfera = new THREE.Mesh(new THREE.SphereGeometry(0.32, 32, 24), new THREE.MeshStandardMaterial({ color: 0x9fb4ff, emissive: 0x2b59ff, emissiveIntensity: 0.9, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.92 }));
+      sfera.position.set(x + w - 0.9, 0.9, z + d - 0.9); sfera.userData.cervello = true; sfera.castShadow = true; scena.add(sfera);
+      const supp = ombra(new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 0.5, 24), S.mat.muro)); supp.position.set(sfera.position.x, 0.29, sfera.position.z); supp.userData.cervello = true; scena.add(supp);
+      const punti = new THREE.Points(new THREE.SphereGeometry(0.5, 18, 12), new THREE.PointsMaterial({ color: 0x5b7cff, size: 0.035 }));
+      punti.position.copy(sfera.position); scena.add(punti);
+      S.cervello = { sfera, punti };
+    }
+  }
+  aggiorna(dati);
+}
+
+export function aggiorna(dati) {
+  if (!S) return;
+  S.dati = dati;
+  for (const A of dati.agenti) {
+    const P = S.agenti[A.id]; if (!P) continue;
+    const acceso = A.stato === 'lavora' || A.stato === 'coda';
+    if (P.acceso !== acceso) {
+      P.acceso = acceso;
+      P.schermoMat.map = texSchermo(A.c, acceso); P.schermoMat.emissiveMap = acceso ? P.schermoMat.map : null;
+      P.schermoMat.emissiveIntensity = acceso ? 0.9 : 0; P.schermoMat.needsUpdate = true;
+    }
+    P.stato = A.stato; P.msg = A.msg;
+  }
+  disegnaEtichette();
+}
+
+function disegnaEtichette() {
+  const box = S.etichette; let h = '';
+  for (const E of S.etichetteUff) h += '<div class="et-uff" data-uff="' + E.id + '">' + E.nome + '</div>';
+  for (const A of S.dati.agenti) {
+    if (!S.agenti[A.id]) continue;
+    h += '<div class="et-ag ' + (A.stato || '') + (S.scelto === A.id ? ' scelto' : '') + '" data-ag="' + A.id + '">' +
+      (A.msg && (A.stato === 'lavora' || S.scelto === A.id) ? '<div class="et-msg">' + A.msg.replace(/</g, '&lt;').slice(0, 90) + '</div>' : '') +
+      '<div class="et-nome"><span class="pt"></span>' + A.n + (A.stato === 'lavora' ? ' <span class="gu">Guarda \u25B8</span>' : '') + '</div></div>';
+  }
+  box.innerHTML = h;
+  box.querySelectorAll('[data-ag]').forEach((el) => el.onclick = (ev) => { ev.stopPropagation(); vaiAgente(el.dataset.ag); });
+  box.querySelectorAll('[data-uff]').forEach((el) => el.onclick = (ev) => { ev.stopPropagation(); entraUfficio(el.dataset.uff); });
+  S.nodiAg = [...box.querySelectorAll('.et-ag')]; S.nodiUff = [...box.querySelectorAll('.et-uff')];
+}
+
+const tmp = new THREE.Vector3();
+function posiziona() {
+  const r = S.renderer.domElement.getBoundingClientRect(), W = r.width, H = r.height;
+  const scala = Math.min(1.15, Math.max(0.72, Math.sqrt(S.camera.zoom) / 2.4));
+  for (const el of S.nodiAg || []) {
+    const P = S.agenti[el.dataset.ag]; if (!P) continue;
+    P.g.localToWorld(tmp.set(0, 1.62, 0.66)); tmp.project(S.camera);
+    el.style.transform = 'translate(' + ((tmp.x + 1) / 2 * W).toFixed(1) + 'px,' + ((1 - tmp.y) / 2 * H).toFixed(1) + 'px) translate(-50%,-100%) scale(' + scala.toFixed(3) + ')';
+    el.style.zIndex = String(1000 + Math.round((1 - tmp.y) * 500));
+  }
+  S.etichetteUff.forEach((E, i) => {
+    const el = S.nodiUff[i]; if (!el) return;
+    tmp.copy(E.pos).project(S.camera);
+    el.style.transform = 'translate(' + ((tmp.x + 1) / 2 * W).toFixed(1) + 'px,' + ((1 - tmp.y) / 2 * H).toFixed(1) + 'px) translate(-50%,-50%)';
+  });
+}
+
+// ---------------------------------------------------------------- camera
+function zoomPer(w, d, cx, cz) {
+  // zoom che fa entrare la zona (proietto gli angoli con l'inclinazione attuale della camera)
+  const off = S.camera.position.clone().sub(S.controls.target);
+  const cam = S.camera.clone(); cam.zoom = 1;
+  cam.position.set(cx, 0, cz).add(off); cam.lookAt(cx, 0, cz); cam.updateProjectionMatrix(); cam.updateMatrixWorld();
+  let x0 = 9, x1 = -9, y0 = 9, y1 = -9;
+  for (const [x, z] of [[cx - w / 2, cz - d / 2], [cx + w / 2, cz - d / 2], [cx - w / 2, cz + d / 2], [cx + w / 2, cz + d / 2]]) for (const y of [0, 1.7]) {
+    tmp.set(x, y, z).project(cam); x0 = Math.min(x0, tmp.x); x1 = Math.max(x1, tmp.x); y0 = Math.min(y0, tmp.y); y1 = Math.max(y1, tmp.y);
+  }
+  return Math.min(2 / (x1 - x0), 2 / (y1 - y0)) * 0.94;
+}
+function vola(target, zoom, ms = 900) {
+  S.volo = { t0: performance.now(), ms, da: S.controls.target.clone(), a: target.clone(), z0: S.camera.zoom, z1: zoom, off: S.camera.position.clone().sub(S.controls.target) };
+}
+export function grandangolo(subito) {
+  S.scelto = null; S.ufficio = null; disegnaEtichette();
+  const z = zoomPer(14.4, 10, 7.2, 5);
+  if (subito) { S.controls.target.set(7.2, 0, 5); S.camera.position.copy(S.offset).add(S.controls.target); S.camera.zoom = z; S.camera.updateProjectionMatrix(); }
+  else vola(new THREE.Vector3(7.2, 0, 5), z);
+  S.cb.vista && S.cb.vista('tutto');
+}
+export function entraUfficio(u) {
+  const U = S.uffici[u]; if (!U) return;
+  S.ufficio = u; S.scelto = null; disegnaEtichette();
+  vola(new THREE.Vector3(U.cx, 0.4, U.cz), zoomPer(U.w, U.d, U.cx, U.cz));
+  S.cb.ufficio && S.cb.ufficio(u);
+}
+export function vaiAgente(a) {
+  const P = S.agenti[a]; if (!P) return;
+  S.scelto = a; disegnaEtichette();
+  const p = P.g.position.clone(); p.y = 0.9; p.z += 0.3;
+  vola(p, Math.max(zoomPer(3.2, 2.6, p.x, p.z), S.camera.zoom));
+  S.cb.agente && S.cb.agente(a);
+}
+
+function anima(t) {
+  if (!S) return;
+  if (!document.body.contains(S.renderer.domElement)) { ferma(); return; }
+  S.raf = requestAnimationFrame(anima);
+  if (S.volo) {
+    const v = S.volo, k = Math.min(1, (t - v.t0) / v.ms), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+    S.controls.target.lerpVectors(v.da, v.a, e);
+    S.camera.position.copy(S.controls.target).add(v.off);
+    S.camera.zoom = v.z0 + (v.z1 - v.z0) * e; S.camera.updateProjectionMatrix();
+    if (k >= 1) S.volo = null;
+  }
+  S.controls.update();
+  const s = t / 1000;
+  for (const id in S.agenti) {
+    const P = S.agenti[id];
+    if (P.stato === 'lavora') { P.braccia[0].rotation.x = 1.15 + Math.sin(s * 14) * 0.06; P.braccia[1].rotation.x = 1.15 + Math.cos(s * 13) * 0.06; P.schermoMat.emissiveIntensity = 0.75 + Math.sin(s * 3) * 0.15; }
+  }
+  if (S.cervello) { S.cervello.punti.rotation.y = s * 0.4; S.cervello.punti.rotation.x = s * 0.15; S.cervello.sfera.material.emissiveIntensity = 0.8 + Math.sin(s * 2) * 0.25; }
+  S.renderer.render(S.scena, S.camera);
+  posiziona();
+}
+
+export function ferma() {
+  if (!S) return;
+  cancelAnimationFrame(S.raf);
+  S.renderer.dispose(); S.controls.dispose();
+  removeEventListener('resize', S.ridim);
+  S = null;
+}
+
+function ridimensiona() {
+  const r = S.cont.getBoundingClientRect(), W = r.width, H = r.height, a = W / H, f = 10;
+  S.camera.left = -f * a / 2; S.camera.right = f * a / 2; S.camera.top = f / 2; S.camera.bottom = -f / 2;
+  S.renderer.setSize(W, H, false); S.camera.updateProjectionMatrix();
+}
+
+export function avvia(cont, dati, cb) {
+  if (S) ferma();
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.domElement.className = 'sala-canvas';
+  cont.prepend(renderer.domElement);
+  const scena = new THREE.Scene();
+  scena.background = new THREE.Color('#ece9e3');
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scena.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+  const camera = new THREE.OrthographicCamera(-5, 5, 5, -5, 0.1, 200);
+  const offset = new THREE.Vector3(18, 22, 18);
+  camera.position.copy(offset).add(new THREE.Vector3(7.2, 0, 5));
+  // luci: cielo morbido + sole con ombre morbide
+  scena.add(new THREE.HemisphereLight(0xffffff, 0xd9d2c5, 0.55));
+  const sole = new THREE.DirectionalLight(0xfff4e6, 1.7);
+  sole.position.set(4, 16, 9); sole.target.position.set(7.2, 0, 5);
+  sole.castShadow = true; sole.shadow.mapSize.set(2048, 2048); sole.shadow.bias = -0.0004; sole.shadow.normalBias = 0.02; sole.shadow.radius = 4;
+  Object.assign(sole.shadow.camera, { left: -12, right: 12, top: 12, bottom: -12, near: 1, far: 50 });
+  scena.add(sole, sole.target);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true; controls.dampingFactor = 0.1; controls.screenSpacePanning = true;
+  controls.minZoom = 0.3; controls.maxZoom = 12; controls.zoomSpeed = 1.1;
+  controls.minPolarAngle = 0.5; controls.maxPolarAngle = 1.05; controls.minAzimuthAngle = 0.25; controls.maxAzimuthAngle = 1.35;
+  controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+  controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
+  controls.target.set(7.2, 0, 5);
+  const etichette = document.createElement('div'); etichette.className = 'etichette'; cont.appendChild(etichette);
+  S = { renderer, scena, camera, controls, offset, cont, cb: cb || {}, etichette, mat: materiali() };
+  S.ridim = () => { if (S) { ridimensiona(); } }; addEventListener('resize', S.ridim);
+  ridimensiona();
+  costruisci(dati);
+  grandangolo(true);
+  // clic su agenti, uffici e cervello (non se si stava trascinando)
+  const ray = new THREE.Raycaster(), pt = new THREE.Vector2(); let giu = null;
+  renderer.domElement.addEventListener('pointerdown', (ev) => { giu = [ev.clientX, ev.clientY]; S.volo = null; });
+  renderer.domElement.addEventListener('pointerup', (ev) => {
+    if (!giu || Math.hypot(ev.clientX - giu[0], ev.clientY - giu[1]) > 6) return;
+    const r = renderer.domElement.getBoundingClientRect();
+    pt.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(pt, camera);
+    const hit = ray.intersectObjects(scena.children, true).find((h) => h.object.userData.ag || h.object.userData.uff || h.object.userData.cervello);
+    if (!hit) return;
+    if (hit.object.userData.cervello) S.cb.cervello && S.cb.cervello();
+    else if (hit.object.userData.ag) vaiAgente(hit.object.userData.ag);
+    else entraUfficio(hit.object.userData.uff);
+  });
+  S.raf = requestAnimationFrame(anima);
+  return true;
+}
+`;
 
 // src/index.js
 var json2 = (d, status = 200, extra = {}) => new Response(JSON.stringify(d), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...extra } });
@@ -4494,6 +4713,7 @@ var index_default = {
     await schemaPiani(env);
     await schemaAgenzia(env);
     const url = new URL(req.url);
+    if (url.pathname === "/sala3d.js") return new Response(sala3d_default, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=300" } });
     if (url.pathname.startsWith("/api/motore/")) {
       try {
         return await motoreApi(req, env, url);

@@ -1,0 +1,29 @@
+# Fotografa la sala 3D con dati finti (desktop e telefono) e pubblica le immagini sul ramo prove-sala.
+name: prova-sala
+on:
+  workflow_dispatch: {}
+  push:
+    paths: ['worker/src/sala3d.txt', 'worker/src/pagina.js', 'worker/prove/**', '.github/workflows/prova-sala.yml']
+permissions:
+  contents: write
+jobs:
+  prova:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Pagina di prova
+        run: cd worker && node prove/sala.mjs /tmp/sala
+      - name: Foto
+        run: |
+          pip install -q playwright
+          cd /tmp/sala && (python3 -m http.server 8765 > /dev/null 2>&1 &) && sleep 1
+          mkdir -p /tmp/pub && python3 $GITHUB_WORKSPACE/worker/prove/foto_sala.py /tmp/pub | tee /tmp/pub/log.txt
+      - name: Pubblica
+        run: |
+          cd /tmp/pub && git init -q && git checkout -q -b prove-sala && git add .
+          git -c user.name=motore -c user.email=motore@momento commit -qm prova
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" prove-sala

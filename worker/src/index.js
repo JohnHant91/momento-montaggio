@@ -6,6 +6,7 @@ import { apiPiani, avanzaPiani, schemaPiani } from './copioni.js';
 import { apiAgenzia, avanzaUffici, schemaAgenzia } from './agenzia.js';
 import { motoreApi } from './motore.js';
 import { PAGINA } from './pagina.js';
+import SALA3D_JS from './sala3d.txt';
 
 const json = (d, status = 200, extra = {}) => new Response(JSON.stringify(d), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...extra } });
 const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -227,6 +228,7 @@ export default {
     await schemaPiani(env);
     await schemaAgenzia(env);
     const url = new URL(req.url);
+    if (url.pathname === '/sala3d.js') return new Response(SALA3D_JS, { headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'public, max-age=300' } });
     if (url.pathname.startsWith('/api/motore/')) {
       try { return await motoreApi(req, env, url); }
       catch (e) { return json({ errore: String(e?.message || e).slice(0, 300) }, 500); }
