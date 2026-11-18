@@ -38,7 +38,7 @@ const squadraTesto = () => CAPI.map(([u, id, n, r]) => {
 export async function chiediDirettrice(env, testo, clienteId) {
   await run(env, 'INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)', 'capo', 'user', testo, ora());
   const r = await one(env, `INSERT INTO riunioni (tipo, stato, richiesta, cliente_id, partecipanti, titolo, creato, aggiornato) VALUES ('richiesta','in_corso',?,?,?,?,?,?) RETURNING id`,
-    testo, clienteId || null, JSON.stringify(PER_RICHIESTA), testo.slice(0, 80), ora(), ora());
+    testo, clienteId || null, JSON.stringify(PER_RICHIESTA), testo.split('\n')[0].slice(0, 80), ora(), ora());
   const risposta = 'Ricevuto. Convoco subito i capireparto in sala meeting: tra qualche minuto ti porto le proposte e scegli tu come procedere.';
   await run(env, 'INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)', 'capo', 'assistant', risposta, ora());
   await log(env, null, 'capo', `🗣️ riunione #${r.id} in sala meeting: ${testo.slice(0, 80)}`);

@@ -370,9 +370,12 @@ function arredaMeeting(R) {
   // schermo a parete con l'argomento della riunione
   const cv = document.createElement('canvas'); cv.width = 512; cv.height = 288;
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
-  const tv = box(0.06, 1.15, 2.0, mat.nero, 0.02); tv.position.set(R.x + R.w - 0.1, 1.45, cz); scena.add(tv);
+  const zt = cz - 3.0; // schermo su un supporto in fondo al tavolo, rivolto verso chi guarda la sala
+  const tv = box(2.0, 1.15, 0.06, mat.nero, 0.02); tv.position.set(cx + 0.9, 1.35, zt); scena.add(tv);
+  const piede = box(0.08, 0.8, 0.08, mat.metallo, 0.01); piede.position.set(cx + 0.9, 0.4, zt); scena.add(piede);
+  const base = box(0.7, 0.04, 0.4, mat.metallo, 0.01); base.position.set(cx + 0.9, 0.02, zt); scena.add(base);
   const sc = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 1.07), new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.6 }));
-  sc.position.set(R.x + R.w - 0.135, 1.45, cz); sc.rotation.y = -Math.PI / 2; scena.add(sc);
+  sc.position.set(cx + 0.9, 1.35, zt + 0.035); scena.add(sc);
   S.schermoMeeting = { cv, tex };
   disegnaSchermoMeeting(null);
 }

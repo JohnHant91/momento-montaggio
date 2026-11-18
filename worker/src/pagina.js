@@ -573,13 +573,15 @@ async function apriLato(a) {
   const miei = R.feed.filter((r) => AGID(r.agente) === a).slice(0, 8);
   const ora = I.cosa[a] ? '<div class="ora"><b>Sta facendo</b>' + e(I.cosa[a].testo) + (I.ultimo[a] ? '<div class="mut" style="margin-top:6px">' + e(I.ultimo[a].messaggio) + '</div>' : '') + '<div style="margin-top:10px"><a class="btn" href="' + I.cosa[a].link + '">Guarda il lavoro ▸</a></div></div>' :
     '<div class="ora"><b>Adesso</b>' + (I.ultimo[a] ? 'Ultima cosa fatta: ' + e(I.ultimo[a].messaggio) + ' <span class="mut">(' + fa(I.ultimo[a].quando) + ')</span>' : 'Libero, aspetta un lavoro.') + '</div>';
-  const azione = A.chat ? '<a class="btn" href="#/chat/' + a + '">Scrivi a ' + e(A.n) + '</a>' : R.squadra[a] ? '<a class="btn" href="#/agente/' + a + '">Dagli un incarico</a>' : a === 'idee' ? '<a class="btn" href="#/copioni/nuovo">Nuovo piano copioni</a>' : '<a class="btn" href="#/nuovo">+ Nuovo reel</a>';
+  // Johnny parla solo con la Direttrice: a chiunque scriva, il messaggio arriva ad Alba che convoca la riunione
+  const azione = a === 'capo' ? '<a class="btn" href="#/riunioni">Riunioni e proposte</a>' : A.chat ? '<a class="btn" href="#/chat/' + a + '">Scrivi a ' + e(A.n) + '</a>' : R.squadra[a] ? '<a class="btn sec" href="#/agente/' + a + '">I suoi lavori</a>' : a === 'idee' ? '<a class="btn sec" href="#/copioni">I suoi piani</a>' : '<a class="btn sec" href="#/reel">Comparto Reel</a>';
+  const via = a === 'capo' || A.chat ? '' : '<div class="mut" style="font-size:13px;margin-bottom:6px">Il messaggio arriva ad Alba: i capireparto ne parlano in riunione e ti portano le proposte.</div>';
   $('#lato').style.setProperty('--c', A.c || '#888');
   $('#lato').innerHTML = '<button class="sec x" id="lato_x">✕</button><div class="riga"><div class="faccia">' + A.i + '</div><div><h1 style="font-size:21px">' + e(A.n) + '</h1><div class="mut">' + e(A.r) + ' · <b style="color:' + (s === 'lavora' ? 'var(--ok)' : s === 'errore' ? 'var(--err)' : 'var(--mut)') + '">' + testoStato + '</b></div></div></div>' +
     ora + '<p style="font-size:14px;line-height:1.5;color:#4d4b46">' + e(A.d || '') + '</p>' +
     ((A.skill || []).length ? '<div style="margin:8px 0 14px">' + A.skill.map((k) => '<span class="chip">' + e(k) + '</span>').join('') + '</div>' : '') +
     '<div class="riga">' + azione + '</div>' +
-    '<div class="scrivi"><h2>Scrivi a ' + e(A.n) + '</h2><textarea id="lato_t" placeholder="Cosa deve fare? Es. ' + (A.chat ? 'segnami uno shooting il 12' : 'prepara 3 idee per il weekend') + '"></textarea><div class="riga"><button id="lato_go">Manda</button><span class="mut" id="lato_r"></span></div></div>' +
+    '<div class="scrivi"><h2>' + (a === 'capo' || A.chat ? 'Scrivi a ' + e(A.n) : 'Chiedi qualcosa a ' + e(A.n)) + '</h2>' + via + '<textarea id="lato_t" placeholder="Cosa deve fare? Es. ' + (A.chat ? 'segnami uno shooting il 12' : 'prepara 3 idee per il weekend') + '"></textarea><div class="riga"><button id="lato_go">Manda</button><span class="mut" id="lato_r"></span></div></div>' +
     (miei.length ? '<h2>Ultime attività</h2><div class="log" style="max-height:none">' + miei.map((r) => '<div class="' + r.livello + '"><span class="mut">' + new Date(r.quando).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) + '</span> ' + e(r.messaggio) + '</div>').join('') + '</div>' : '');
   $('#lato').classList.add('aperto');
   $('#lato_x').onclick = () => { chiudiLato(); SALA.sel = null; if (SALA.ufficio) entraUfficio(SALA.ufficio); else grandangolo(); };
@@ -588,8 +590,7 @@ async function apriLato(a) {
     $('#lato_go').disabled = true; $('#lato_r').textContent = 'invio…';
     try {
       if (A.chat) { const r = await chiama('/api/chat/' + a, { method: 'POST', body: { testo } }); $('#lato_r').textContent = r.risposta.slice(0, 160); }
-      else if (R.squadra[a]) { const r = await chiama('/api/incarichi', { method: 'POST', body: { agente: a, titolo: testo.slice(0, 120), brief: testo } }); $('#lato_r').innerHTML = 'Ricevuto: <a href="#/incarico/' + r.id + '">incarico #' + r.id + '</a>'; }
-      else { const r = await chiama('/api/capo', { method: 'POST', body: { testo: 'Per ' + A.n + ' (' + A.r + '): ' + testo } }); $('#lato_r').textContent = r.risposta.slice(0, 160); }
+      else { const r = await chiama('/api/capo', { method: 'POST', body: { testo: a === 'capo' ? testo : 'Per ' + A.n + ' (' + A.r + '): ' + testo } }); $('#lato_r').innerHTML = e(r.risposta.slice(0, 160)) + (r.riunione ? ' <a href="#/riunione/' + r.riunione + '">Segui la riunione ▸</a>' : ''); }
       $('#lato_t').value = '';
     } catch (x) { $('#lato_r').textContent = x.message; }
     $('#lato_go').disabled = false;
@@ -684,10 +685,11 @@ async function agentePagina(id) {
   const L = await chiama('/api/incarichi?agente=' + id);
   const C = await clientiSel('a_cli', '');
   $('#app').innerHTML = '<a class="mut" href="#/">← Agenzia</a><div class="riga" style="margin-top:8px"><div class="av" style="font-size:34px">' + A.i + '</div><div><h1>' + e(A.n) + ' · ' + e(A.r) + '</h1><div class="mut">' + e(A.d) + '</div><div class="mut">Metodo: ' + (A.skill || []).join(', ') + '</div></div></div>' +
-    '<h2>Dagli un incarico</h2><div class="card"><label>Cliente</label>' + C + '<label>Cosa deve fare</label><input id="a_ti" placeholder="Es. 6 post per dicembre"><label>Dettagli (facoltativo)</label><textarea id="a_br" placeholder="Tutto quello che deve sapere: obiettivo, date, prodotti, vincoli…"></textarea><div style="margin-top:12px"><button id="a_go">Assegna</button></div><div id="a_er" class="err"></div></div>' +
+    '<h2>Chiedi qualcosa a ' + e(A.n) + '</h2><div class="card"><p class="mut" style="margin-top:0">Passa da Alba: i capireparto ne parlano in riunione e ti portano le proposte da scegliere.</p><label>Cliente</label>' + C + '<label>Cosa deve fare</label><input id="a_ti" placeholder="Es. 6 post per dicembre"><label>Dettagli (facoltativo)</label><textarea id="a_br" placeholder="Tutto quello che deve sapere: obiettivo, date, prodotti, vincoli…"></textarea><div style="margin-top:12px"><button id="a_go">Manda ad Alba</button></div><div id="a_er" class="err"></div></div>' +
     '<h2>I suoi incarichi</h2>' + (L.map((I) => '<a class="card lav" href="#/incarico/' + I.id + '"><div class="riga"><b style="flex:1">#' + I.id + ' · ' + e(I.titolo) + '</b><span class="pill">' + (ST_INC[I.stato] || I.stato) + '</span></div><div class="mut">' + (I.cliente ? e(I.cliente) + ' · ' : '') + fa(I.aggiornato) + '</div></a>').join('') || '<p class="mut">Nessuno.</p>');
   $('#a_go').onclick = async () => {
-    try { const r = await chiama('/api/incarichi', { method: 'POST', body: { agente: id, cliente_id: $('#a_cli').value || null, titolo: $('#a_ti').value, brief: $('#a_br').value } }); location.hash = '#/incarico/' + r.id; }
+    const ti = $('#a_ti').value.trim(); if (!ti) { $('#a_er').textContent = 'scrivi cosa deve fare'; return; }
+    try { const r = await chiama('/api/capo', { method: 'POST', body: { testo: 'Per ' + A.n + ' (' + A.r + '): ' + ti + ($('#a_br').value.trim() ? '\\n' + $('#a_br').value.trim() : ''), cliente_id: $('#a_cli').value || null } }); location.hash = '#/riunione/' + r.riunione; }
     catch (x) { $('#a_er').textContent = x.message; }
   };
 }
