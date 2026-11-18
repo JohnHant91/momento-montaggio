@@ -190,7 +190,7 @@ class Montatore:
             try:
                 import lut as LUTLIB
                 L = self.p["lut"]
-                f = LUTLIB.filtro(L.get("nome"), L.get("intensita"), L.get("pacchetto"), L.get("file"))
+                f = LUTLIB.filtro(L.get("nome"), L.get("intensita"), L.get("pacchetto"), L.get("file"), L.get("bn"))
                 if f:
                     if not getattr(self, "_lut_detta", False):
                         self._lut_detta = True

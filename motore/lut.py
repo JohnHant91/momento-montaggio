@@ -25,15 +25,19 @@ def file_lut(nome=None, pacchetto=None, file=None):
     return None
 
 
-def filtro(nome=None, intensita=None, pacchetto=None, file=None):
+def filtro(nome=None, intensita=None, pacchetto=None, file=None, bn=None):
     """Filtro ffmpeg: la LUT mescolata all'immagine con l'intensità voluta."""
     p = file_lut(nome, pacchetto, file)
     if not p:
         return None
     k = float(intensita if intensita is not None else CATALOGO.get(nome or "", {}).get("intensita", 0.7))
     esc = p.replace("'", "\\'")
+    bn = bn if bn is not None else CATALOGO.get(nome or "", {}).get("bn")
+    pre = "hue=s=0," if bn else ""  # le CLUT b/n lavorano sul tono: tolgo prima il colore
+    if bn:
+        k = 1.0
     if k >= 0.98:
-        return f"lut3d=file='{esc}':interp=tetrahedral"
+        return f"{pre}lut3d=file='{esc}':interp=tetrahedral"
     return f"split[lua][lub];[lub]lut3d=file='{esc}':interp=tetrahedral[luc];[lua][luc]blend=all_mode=normal:all_opacity={k:.2f}"
 
 

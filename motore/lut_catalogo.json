@@ -2,42 +2,42 @@
  "kodak_portra_400": {
   "pacchetto": "negative_new",
   "file": "kodak_portra_400",
-  "intensita": 0.85
+  "intensita": 1
  },
  "kodak_portra_160": {
   "pacchetto": "negative_new",
   "file": "kodak_portra_160",
-  "intensita": 0.85
+  "intensita": 1
  },
  "kodak_portra_800": {
   "pacchetto": "negative_new",
   "file": "kodak_portra_800",
-  "intensita": 0.8
+  "intensita": 1
  },
  "fuji_400h": {
   "pacchetto": "negative_new",
   "file": "fuji_400h",
-  "intensita": 0.85
+  "intensita": 1
  },
  "fuji_160c": {
   "pacchetto": "negative_new",
   "file": "fuji_160c",
-  "intensita": 0.8
+  "intensita": 1
  },
  "kodak_ektar_100": {
   "pacchetto": "negative_color",
   "file": "kodak_ektar_100",
-  "intensita": 0.75
+  "intensita": 1
  },
  "fuji_superia_200": {
   "pacchetto": "negative_color",
   "file": "fuji_superia_200",
-  "intensita": 0.8
+  "intensita": 1
  },
  "agfa_vista_200": {
   "pacchetto": "negative_color",
   "file": "agfa_vista_200",
-  "intensita": 0.8
+  "intensita": 1
  },
  "kodak_elite_color_400": {
   "pacchetto": "negative_color",
@@ -62,22 +62,26 @@
  "ilford_hp_5": {
   "pacchetto": "negative_new",
   "file": "ilford_hp_5",
-  "intensita": 0.95
+  "intensita": 1,
+  "bn": true
  },
  "kodak_tri_x_400": {
   "pacchetto": "negative_new",
   "file": "kodak_tri-x_400",
-  "intensita": 0.95
+  "intensita": 1,
+  "bn": true
  },
  "fuji_neopan_acros_100": {
   "pacchetto": "bw",
   "file": "fuji_neopan_acros_100",
-  "intensita": 0.95
+  "intensita": 1,
+  "bn": true
  },
  "ilford_delta_3200": {
   "pacchetto": "bw",
   "file": "ilford_delta_3200",
-  "intensita": 0.95
+  "intensita": 1,
+  "bn": true
  },
  "polaroid_690_warm": {
   "pacchetto": "instant_pro",
@@ -92,7 +96,7 @@
  "polaroid_time_zero_expired": {
   "pacchetto": "instant_consumer",
   "file": "polaroid_time_zero_expired",
-  "intensita": 0.6
+  "intensita": 0.45
  },
  "fuji_fp_100c": {
   "pacchetto": "instant_pro",
@@ -102,7 +106,7 @@
  "bleach_bypass": {
   "pacchetto": "others",
   "file": "bleach_bypass",
-  "intensita": 0.7
+  "intensita": 0.6
  },
  "cinematic_01": {
   "pacchetto": "others",
@@ -142,7 +146,7 @@
  "super_warm": {
   "pacchetto": "others",
   "file": "super_warm",
-  "intensita": 0.6
+  "intensita": 0.5
  },
  "warm_highlight": {
   "pacchetto": "others",
@@ -172,7 +176,7 @@
  "light_blown": {
   "pacchetto": "others",
   "file": "light_blown",
-  "intensita": 0.6
+  "intensita": 0.45
  },
  "summer": {
   "pacchetto": "others",
@@ -187,7 +191,7 @@
  "color_rich": {
   "pacchetto": "others",
   "file": "color_rich",
-  "intensita": 0.65
+  "intensita": 1
  },
  "nostalgic": {
   "pacchetto": "others",
@@ -202,27 +206,22 @@
  "cinematic_lady_bird": {
   "pacchetto": "pixlsus",
   "file": "cinematic_lady_bird",
-  "intensita": 0.75
+  "intensita": 1
  },
  "cinematic_mexico": {
   "pacchetto": "pixlsus",
   "file": "cinematic_mexico",
   "intensita": 0.6
  },
- "metropolis": {
-  "pacchetto": "pixlsus",
-  "file": "metropolis",
-  "intensita": 0.7
- },
  "street": {
   "pacchetto": "pixlsus",
   "file": "street",
-  "intensita": 0.75
+  "intensita": 1
  },
  "modern_film": {
   "pacchetto": "pixlsus",
   "file": "modern_film",
-  "intensita": 0.75
+  "intensita": 1
  },
  "faded_print": {
   "pacchetto": "pixlsus",
@@ -232,17 +231,17 @@
  "autumn": {
   "pacchetto": "pixlsus",
   "file": "autumn",
-  "intensita": 0.75
+  "intensita": 1
  },
  "taiga": {
   "pacchetto": "pixlsus",
   "file": "taiga",
-  "intensita": 0.7
+  "intensita": 1
  },
  "night_spy": {
   "pacchetto": "pixlsus",
   "file": "night_spy",
-  "intensita": 0.6
+  "intensita": 0.4
  },
  "seventies_magazine": {
   "pacchetto": "pixlsus",
@@ -257,7 +256,7 @@
  "whiter_whites": {
   "pacchetto": "pixlsus",
   "file": "whiter_whites",
-  "intensita": 0.75
+  "intensita": 1
  },
  "delicatessen": {
   "pacchetto": "pixlsus",
@@ -287,12 +286,12 @@
  "vintage_mob": {
   "pacchetto": "inavision",
   "file": "vintage_mob",
-  "intensita": 0.65
+  "intensita": 0.5
  },
  "cineblue": {
   "pacchetto": "berat",
   "file": "cineblue",
-  "intensita": 0.65
+  "intensita": 0.45
  },
  "goldentime": {
   "pacchetto": "berat",
@@ -327,7 +326,7 @@
  "nostalgiahoney": {
   "pacchetto": "jtsemple",
   "file": "nostalgiahoney",
-  "intensita": 0.7
+  "intensita": 1
  },
  "lushgreensummer": {
   "pacchetto": "jtsemple",
@@ -352,7 +351,7 @@
  "retro_summer_3": {
   "pacchetto": "ohadperetz",
   "file": "retro_summer_3",
-  "intensita": 0.7
+  "intensita": 0.55
  },
  "vintage_warmth_1": {
   "pacchetto": "ohadperetz",
@@ -362,6 +361,6 @@
  "true_colors_8": {
   "pacchetto": "ohadperetz",
   "file": "true_colors_8",
-  "intensita": 0.7
+  "intensita": 0.55
  }
 }
