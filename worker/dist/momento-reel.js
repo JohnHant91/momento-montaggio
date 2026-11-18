@@ -511,7 +511,25 @@ var MANUALE_REGISTA = `MANUALE DEL REGISTA (dalle skill capcut + short-form-vide
 - Primo pezzo = l'immagine pi\xF9 forte di tutto il girato (mai un'inquadratura di apertura lenta, mai il logo all'inizio).
 - Alterna i piani (totale, dettaglio, primo piano) e i movimenti; non ripetere lo stesso momento.
 - Il finale deve poter "chiudere il cerchio" con l'inizio (stessa inquadratura, stesso gesto o movimento che riparte).
-- Ogni clip deve stare in piedi da sola nel suo pezzo, con il soggetto inquadrato nel 9:16.`;
+- Ogni clip deve stare in piedi da sola nel suo pezzo, con il soggetto inquadrato nel 9:16.
+REGOLE DA MONTATORE PROFESSIONISTA (valgono sempre):
+- Taglia SULL'AZIONE: il taglio cade a met\xE0 di un gesto (mano che versa, porta che si apre, tazza che si alza) e il
+  pezzo dopo continua lo stesso movimento da un'altra inquadratura. \xC8 il taglio che non si vede.
+- Mai due pezzi di fila con la stessa inquadratura e lo stesso soggetto (jump cut): cambia piano (totale \u2192 medio \u2192
+  dettaglio) o angolo di almeno 30\xB0. Rispetta la direzione: se una cosa si muove verso destra, nel pezzo dopo continua
+  verso destra.
+- Match cut quando puoi: forma, colore o movimento simile che lega due pezzi diversi (cerchio della tazza \u2192 cerchio
+  della tostatrice). Sono i momenti che fanno dire "che montaggio".
+- "in" di ogni pezzo: scegli il tratto dove la camera \xE8 ferma o il movimento \xE8 pulito e costante; mai entrare o uscire
+  durante uno scatto, una messa a fuoco che cerca o un cambio di esposizione. Se un momento esatto conta (il chicco
+  che cade, il sorriso), metti "in_preciso": true e il montatore non lo sposta.
+- Durate: dettagli e macro 1-2 s, piani medi 2-3 s, il "momento eroe" (la scena pi\xF9 bella) pu\xF2 tenere 3-4 s e merita il
+  rallenty. Il ritmo cresce verso il climax e respira nel finale.
+- Rallenty solo su gesti che lo meritano (liquidi, polvere, chicchi, capelli, acqua) e solo se il girato \xE8 a 50/60 fps.
+- Transizioni: il 90% sono tagli netti. Dissolvenze solo per salti di tempo o luogo, mai effetti a caso.
+- Il color lo uniforma il montatore (stessa luce per tutte le clip): tu scegli un solo look coerente col brand.
+- Evita clip sovraesposte, mosse, sfocate o con persone tagliate male: se un pezzo non \xE8 all'altezza, toglilo e accorcia
+  il reel. Meglio 25 secondi perfetti che 45 con due clip brutte.`;
 var MANUALE_COPY = `MANUALE DEL COPY (dalle skill hook-writer + caption-writer + instagram-seo + hashtag-strategy)
 - Il gancio funziona aprendo un vuoto che chi guarda deve chiudere. Meccanismi: curiosit\xE0, contrario, posta in gioco/costo,
   numero specifico, identit\xE0 ("se sei..."), storia gi\xE0 in corso, errore, trasformazione prima\u2192dopo, domanda, attualit\xE0.
@@ -953,7 +971,8 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
   "segmenti": [{"clip": indice, "in": secondi nella clip, "durata": secondi nel reel, "rallenty": bool, "effetto": "...",
                 "transizione_in": "...", "audio": 0-1 (suono originale), "motivo": "perch\xE9 questo pezzo qui",
                 "testo": {"testo": "...", "stile": "...", "posizione": "...", "evidenzia": "parola"} oppure null,
-                "zoom_fisso": {"z": 1.2-2.5, "cx": 0-1, "cy": 0-1} oppure null (avvicina su un dettaglio dell'inquadratura)}],
+                "zoom_fisso": {"z": 1.2-2.5, "cx": 0-1, "cy": 0-1} oppure null (avvicina su un dettaglio dell'inquadratura),
+                "in_preciso": true se il momento esatto conta (il montatore altrimenti pu\xF2 spostare l'inizio di \xB10,8 s sul tratto pi\xF9 fermo)}],
   "sottotitoli": {"usare": bool, "stile": "parola_per_parola|karaoke_evidenziato|sottotitolo_classico", "posizione": "terzo_inferiore"},
   "chiusura": {"testo": "...", "sottotesto": "cta breve", "evidenzia": "parola", "durata": 2-3, "colore": "#hex"} oppure null (non per talking_head/carosello),
   "finale": "nero (l'ultima immagine scende al nero) | bianco (sfuma al bianco e compare il logo del cliente, se c'\xE8) | null",
@@ -1066,6 +1085,7 @@ accenti; l'audio delle clip va basso (0-0.25) perch\xE9 comanda la musica; "rise
       audio: Math.min(1, Math.max(0, Number(s.audio ?? 0.8))),
       motivo: s.motivo,
       testo: s.testo?.testo ? s.testo : null,
+      in_preciso: s.in_preciso === true || void 0,
       zoom_fisso: s.zoom_fisso?.z > 1 ? { z: Math.min(2.5, Number(s.zoom_fisso.z)), cx: Math.min(1, Math.max(0, Number(s.zoom_fisso.cx ?? 0.5))), cy: Math.min(1, Math.max(0, Number(s.zoom_fisso.cy ?? 0.5))) } : void 0
     };
   });
@@ -2256,8 +2276,11 @@ async function motoreApi(req, env, url) {
     const lunghezza = Number(req.headers.get("content-length") || 0);
     if (!lunghezza || lunghezza > 25 * 1024 * 1024) return json({ errore: `file di ${Math.round(lunghezza / 1048576)} MB: oltre il limite di 25 MB` }, 400);
     const chiave = `lavoro-${id}/${mm[2] === "video" ? "reel.mp4" : mm[2] + ".jpg"}`;
-    await env.VIDEO.put(chiave, await req.arrayBuffer(), { metadata: { tipo: mm[2] === "video" ? "video/mp4" : "image/jpeg" } });
-    return json({ ok: true, chiave });
+    const tipo2 = mm[2] === "video" ? "video/mp4" : "image/jpeg";
+    const parte = Number(url.searchParams.get("parte") || 0), parti = Number(url.searchParams.get("parti") || 1);
+    const k = parte ? `${chiave}#${parte}` : chiave;
+    await env.VIDEO.put(k, await req.arrayBuffer(), { metadata: parte ? { tipo: tipo2 } : { tipo: tipo2, parti, totale: Number(url.searchParams.get("totale") || lunghezza), parte_mb: 20 } });
+    return json({ ok: true, chiave, parte, parti });
   }
   if (mm[2] === "esito" && m === "POST") {
     const d = await req.json().catch(() => ({}));
@@ -2997,6 +3020,36 @@ async function autorizzato(req, env) {
   return !!c && c[1] === await firma(h);
 }
 var cookie = (v, maxAge) => `mr_s=${v}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
+async function videoAPezzi(env, req, url, chiave, primo2, md, vv) {
+  const P = 20 * 1024 * 1024, tot = md.totale, n = md.parti;
+  const h = new Headers({ "content-type": md.tipo || "video/mp4", "accept-ranges": "bytes", "cache-control": "private, max-age=3600" });
+  if (url.searchParams.get("scarica")) h.set("content-disposition", `attachment; filename="reel-${vv[1]}.mp4"`);
+  const rg = /bytes=(\d*)-(\d*)/.exec(req.headers.get("range") || "");
+  let a = 0, b = tot - 1, status = 200;
+  if (rg) {
+    a = rg[1] === "" ? Math.max(0, tot - Number(rg[2])) : Number(rg[1]);
+    b = rg[1] === "" || rg[2] === "" ? tot - 1 : Math.min(Number(rg[2]), tot - 1);
+    if (a > b || a >= tot) return new Response(null, { status: 416, headers: { "content-range": `bytes */${tot}` } });
+    if (rg[2] === "" && b - a + 1 > P) b = Math.min(tot - 1, (Math.floor(a / P) + 1) * P - 1);
+    h.set("content-range", `bytes ${a}-${b}/${tot}`);
+    status = 206;
+  }
+  h.set("content-length", String(b - a + 1));
+  const { readable, writable } = new TransformStream();
+  (async () => {
+    const w = writable.getWriter();
+    try {
+      for (let k = Math.floor(a / P); k <= Math.floor(b / P) && k < n; k++) {
+        const buf = k === 0 ? primo2 : await env.VIDEO.get(`${chiave}#${k}`, "arrayBuffer");
+        const da = Math.max(a - k * P, 0), fino = Math.min(b - k * P + 1, buf.byteLength);
+        await w.write(new Uint8Array(buf.slice(da, fino)));
+      }
+    } finally {
+      await w.close();
+    }
+  })();
+  return new Response(readable, { status, headers: h });
+}
 async function api(req, env, url) {
   const p = url.pathname, m = req.method;
   if (p === "/api/stato") return json2({ configurato: !!await hashPassword(env), dentro: await autorizzato(req, env) });
@@ -3071,8 +3124,10 @@ async function api(req, env, url) {
   const vv = p.match(/^\/api\/lavori\/(\d+)\/(reel\.mp4|anteprima\.jpg|copertina\.jpg)$/);
   if (vv && m === "GET") {
     if (!env.VIDEO) return json2({ errore: "archivio video non collegato" }, 404);
-    const { value, metadata } = await env.VIDEO.getWithMetadata(`lavoro-${vv[1]}/${vv[2]}`, { type: "arrayBuffer" });
+    const chiave = `lavoro-${vv[1]}/${vv[2]}`;
+    const { value, metadata } = await env.VIDEO.getWithMetadata(chiave, { type: "arrayBuffer" });
     if (!value) return json2({ errore: "non ancora pronto" }, 404);
+    if ((metadata?.parti || 1) > 1) return videoAPezzi(env, req, url, chiave, value, metadata, vv);
     const h = new Headers({ "content-type": metadata?.tipo || (vv[2] === "reel.mp4" ? "video/mp4" : "image/jpeg"), "accept-ranges": "bytes", "cache-control": "private, max-age=3600" });
     if (url.searchParams.get("scarica")) h.set("content-disposition", `attachment; filename="${vv[2] === "reel.mp4" ? "reel" : "copertina"}-${vv[1]}.${vv[2].split(".")[1]}"`);
     const tot = value.byteLength;

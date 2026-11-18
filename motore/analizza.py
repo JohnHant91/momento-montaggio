@@ -403,7 +403,21 @@ def lavora_elemento(lavoro, el, cartella):
             log("errore non comunicato:", e2)
 
 
+PARTE = 20 * 1024 * 1024  # l'archivio tiene max 25 MB a voce: i master di qualità vanno a pezzi
+
+
 def invia_file(lavoro, azione, path, tipo_mime):
+    tot = os.path.getsize(path)
+    if tot > PARTE:
+        n = -(-tot // PARTE)
+        esito = {}
+        with open(path, "rb") as f:
+            for k in range(n):
+                blocco = f.read(PARTE)
+                with http(f"{REGIA}/api/motore/{lavoro['id']}/{azione}?parte={k}&parti={n}&totale={tot}", data=blocco, timeout=900, headers={
+                        "x-pass": lavoro["pass"], "content-type": tipo_mime, "content-length": str(len(blocco))}) as r:
+                    esito = json.loads(r.read() or b"{}")
+        return esito
     with open(path, "rb") as f:
         with http(f"{REGIA}/api/motore/{lavoro['id']}/{azione}", data=f, timeout=900, headers={
                 "x-pass": lavoro["pass"], "content-type": tipo_mime, "content-length": str(os.path.getsize(path))}) as r:

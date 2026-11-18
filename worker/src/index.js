@@ -26,6 +26,35 @@ async function autorizzato(req, env) {
 }
 const cookie = (v, maxAge) => `mr_s=${v}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
 
+// master a pezzi (oltre 20 MB): ricompongo al volo, anche per le richieste a intervalli di Safari
+async function videoAPezzi(env, req, url, chiave, primo, md, vv) {
+  const P = 20 * 1024 * 1024, tot = md.totale, n = md.parti;
+  const h = new Headers({ 'content-type': md.tipo || 'video/mp4', 'accept-ranges': 'bytes', 'cache-control': 'private, max-age=3600' });
+  if (url.searchParams.get('scarica')) h.set('content-disposition', `attachment; filename="reel-${vv[1]}.mp4"`);
+  const rg = /bytes=(\d*)-(\d*)/.exec(req.headers.get('range') || '');
+  let a = 0, b = tot - 1, status = 200;
+  if (rg) {
+    a = rg[1] === '' ? Math.max(0, tot - Number(rg[2])) : Number(rg[1]);
+    b = rg[1] === '' || rg[2] === '' ? tot - 1 : Math.min(Number(rg[2]), tot - 1);
+    if (a > b || a >= tot) return new Response(null, { status: 416, headers: { 'content-range': `bytes */${tot}` } });
+    if (rg[2] === '' && b - a + 1 > P) b = Math.min(tot - 1, (Math.floor(a / P) + 1) * P - 1); // una parte per richiesta
+    h.set('content-range', `bytes ${a}-${b}/${tot}`); status = 206;
+  }
+  h.set('content-length', String(b - a + 1));
+  const { readable, writable } = new TransformStream();
+  (async () => {
+    const w = writable.getWriter();
+    try {
+      for (let k = Math.floor(a / P); k <= Math.floor(b / P) && k < n; k++) {
+        const buf = k === 0 ? primo : await env.VIDEO.get(`${chiave}#${k}`, 'arrayBuffer');
+        const da = Math.max(a - k * P, 0), fino = Math.min(b - k * P + 1, buf.byteLength);
+        await w.write(new Uint8Array(buf.slice(da, fino)));
+      }
+    } finally { await w.close(); }
+  })();
+  return new Response(readable, { status, headers: h });
+}
+
 async function api(req, env, url) {
   const p = url.pathname, m = req.method;
 
@@ -108,8 +137,10 @@ async function api(req, env, url) {
   const vv = p.match(/^\/api\/lavori\/(\d+)\/(reel\.mp4|anteprima\.jpg|copertina\.jpg)$/);
   if (vv && m === 'GET') {
     if (!env.VIDEO) return json({ errore: 'archivio video non collegato' }, 404);
-    const { value, metadata } = await env.VIDEO.getWithMetadata(`lavoro-${vv[1]}/${vv[2]}`, { type: 'arrayBuffer' });
+    const chiave = `lavoro-${vv[1]}/${vv[2]}`;
+    const { value, metadata } = await env.VIDEO.getWithMetadata(chiave, { type: 'arrayBuffer' });
     if (!value) return json({ errore: 'non ancora pronto' }, 404);
+    if ((metadata?.parti || 1) > 1) return videoAPezzi(env, req, url, chiave, value, metadata, vv);
     const h = new Headers({ 'content-type': metadata?.tipo || (vv[2] === 'reel.mp4' ? 'video/mp4' : 'image/jpeg'), 'accept-ranges': 'bytes', 'cache-control': 'private, max-age=3600' });
     if (url.searchParams.get('scarica')) h.set('content-disposition', `attachment; filename="${vv[2] === 'reel.mp4' ? 'reel' : 'copertina'}-${vv[1]}.${vv[2].split('.')[1]}"`);
     const tot = value.byteLength;

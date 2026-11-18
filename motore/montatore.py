@@ -29,6 +29,7 @@ class Montatore:
         os.makedirs(self.fontdir, exist_ok=True)
         self.avvisa = avvisa or (lambda agente, msg: print(f"[{agente}] {msg}", flush=True))
         self.report = []
+        self.qc = []
 
     # -------------------------------------------------------------- utilità
     def ff(self, args, cosa=""):
@@ -110,8 +111,36 @@ class Montatore:
         return path
 
     @staticmethod
-    def correzione(quadri):
-        """Bilanciamento del bianco (gray-world, limitato) ed esposizione misurati sui fotogrammi del pezzo."""
+    def statistiche(quadri):
+        """Colore medio dei toni medi (normalizzato) e luminosità mediana dei fotogrammi."""
+        if not quadri:
+            return None
+        px = np.concatenate([q.reshape(-1, 3).astype(np.float32) for _, q in quadri])
+        lum = px.mean(axis=1)
+        medi = px[(lum > 20) & (lum < 235)]
+        if len(medi) < 100:
+            return None
+        m = medi.mean(axis=0)
+        return {"rgb": m / max(m.mean(), 1), "y": float(np.median(lum))}
+
+    def riferimento(self, segmenti):
+        """Shot matching: il colore e l'esposizione di riferimento sono la mediana di tutti i pezzi, così le clip
+        sembrano girate nella stessa luce (prima ognuna veniva neutralizzata per conto suo e il reel 'saltava')."""
+        def misura(s):
+            vel = 0.5 if s.get("rallenty") else float(s.get("velocita", 1) or 1)
+            q = self.fotogrammi(s["file"], float(s.get("in", 0)), max(0.3, float(s["durata"]) * vel), 3)
+            return self.statistiche(q)
+        with ThreadPoolExecutor(PARALLELO) as ex:
+            st = [x for x in ex.map(misura, segmenti) if x]
+        if len(st) < 2:
+            return None
+        rgb = np.median(np.array([x["rgb"] for x in st]), axis=0)
+        y = float(np.clip(np.median([x["y"] for x in st]), 105, 132))
+        self.report.append(f"color: riferimento comune per {len(st)} pezzi (luminosità {y:.0f}, dominante R{rgb[0]:.2f} G{rgb[1]:.2f} B{rgb[2]:.2f})")
+        return {"rgb": rgb, "y": y}
+
+    def correzione(self, quadri):
+        """Bianco ed esposizione del pezzo portati verso il riferimento comune (o, senza riferimento, gray-world delicato)."""
         if not quadri:
             return ""
         px = np.concatenate([q.reshape(-1, 3).astype(np.float32) for _, q in quadri])
@@ -120,12 +149,18 @@ class Montatore:
         if len(medi) < 100:
             return ""
         m = medi.mean(axis=0)
-        grigio = m.mean()
-        gain = np.clip(grigio / np.maximum(m, 1), 0.88, 1.12)
-        gain = 1 + (gain - 1) * 0.7  # correzione delicata: non deve ammazzare il look naturale della luce
+        rif = getattr(self, "rif_colore", None)
+        if rif is not None:
+            gain = np.clip(rif["rgb"] / np.maximum(m / max(m.mean(), 1), 0.01), 0.86, 1.14)
+            gain = 1 + (gain - 1) * 0.85
+            y_target = rif["y"]
+        else:
+            gain = np.clip(m.mean() / np.maximum(m, 1), 0.88, 1.12)
+            gain = 1 + (gain - 1) * 0.7  # correzione delicata: non deve ammazzare il look naturale della luce
+            y_target = 118
         y = float(np.median(lum))
-        gamma = float(np.clip(math.log(118 / 255) / math.log(max(y, 5) / 255), 0.75, 1.25)) if 25 < y < 240 else 1.0
-        gamma = 1 + (gamma - 1) * 0.7
+        gamma = float(np.clip(math.log(y_target / 255) / math.log(max(y, 5) / 255), 0.75, 1.25)) if 25 < y < 240 else 1.0
+        gamma = 1 + (gamma - 1) * 0.8
         filtro = f"colorchannelmixer=rr={gain[0]:.3f}:gg={gain[1]:.3f}:bb={gain[2]:.3f},eq=gamma={gamma:.3f}"
         # sovraesposizione: tante zone quasi bianche o immagine troppo chiara -> curva che recupera le alte luci
         bruciati = float((lum > 240).mean())
@@ -251,6 +286,9 @@ class Montatore:
         sorgente = dur * vel  # secondi di girato che servono
         t_in = max(0.0, min(float(s.get("in", 0)), max(0.0, info["dur"] - sorgente - 0.05)))
         out = os.path.join(self.tmp, f"pezzo_{i:02d}.mp4")
+        # cerco nei dintorni il tratto di girato più fermo (i tagli non devono cadere su uno scatto di camera)
+        if not s.get("in_preciso") and not s.get("zoom_fisso") and info["dur"] - sorgente > 0.6:
+            t_in = self.finestra_stabile(i, src, t_in, sorgente, info["dur"])
 
         quadri = self.fotogrammi(src, t_in, max(sorgente, 0.2), 6)
         corr = self.correzione(quadri)
@@ -314,8 +352,12 @@ class Montatore:
         if corr:
             filtri.append(corr)
         filtri.append(f"lut3d='{lut}'")
+        # rifinitura da consegna: nitidezza leggera per lo schermo del telefono + grana finissima contro le bande nei cieli/sfumature
+        filtri.append("unsharp=5:5:0.35:5:5:0")
         if "grana" in globali:
             filtri.append("noise=alls=6:allf=t")
+        else:
+            filtri.append("noise=alls=2:allf=t")
         if "vignettatura" in globali:
             filtri.append("vignette=PI/5")
         filtri.append(f"trim=duration={dur:.3f},setpts=PTS-STARTPTS,setsar=1,format=yuv420p")
@@ -330,7 +372,33 @@ class Montatore:
                 if k == len(tentativi) - 1:
                     raise
         s.update({"_in": t_in, "_vel": vel, "_out": out, "_stab": stab is True})
+        # controllo qualità del pezzo montato: se trema ancora lo segnalo al revisore
+        try:
+            dopo = self.movimento_camera(out, 0, dur)
+            if dopo["tremolio"] > 0.6 and s.get("effetto") != "shake":
+                self.qc.append(f"pezzo {i + 1} trema ancora (tremolio {dopo['tremolio']:.2f}): meglio un'altra clip")
+        except Exception:
+            pass
+        if dur < 0.35:
+            self.qc.append(f"pezzo {i + 1} dura solo {dur:.2f}s (sembra un errore di taglio)")
         return out
+
+    def finestra_stabile(self, i, src, t_in, sorgente, durata_clip):
+        """Prova il tratto richiesto e quelli spostati di ±0,4/0,8 s: tiene il più fermo, solo se è nettamente meglio."""
+        def punteggio(t):
+            m = self.movimento_camera(src, t, sorgente)
+            return m["tremolio"] + 8 * m["deriva"]
+        candidati = [t_in] + [t_in + d for d in (-0.4, 0.4, -0.8, 0.8) if 0 <= t_in + d <= durata_clip - sorgente - 0.05]
+        try:
+            punti = [(punteggio(t), t) for t in candidati]
+        except Exception:
+            return t_in
+        base = punti[0][0]
+        migliore = min(punti)
+        if migliore[1] != t_in and migliore[0] < base * 0.7 and base > 0.25:
+            self.report.append(f"pezzo {i + 1}: spostato di {migliore[1] - t_in:+.1f}s sul tratto più fermo")
+            return migliore[1]
+        return t_in
 
     # -------------------------------------------------------------- VFX: assemblaggio con transizioni
     TRANS = {"taglio_netto": ("fade", 1 / FPS), "dissolvenza": ("fade", 0.45), "flash_bianco": ("fadewhite", 0.16),
@@ -579,10 +647,10 @@ class Montatore:
             if mis.get("input_i") not in ("-inf", None) and float(mis["input_i"]) > -60:
                 norm = (f"loudnorm=I=-14:TP=-1.5:LRA=11:measured_I={mis['input_i']}:measured_TP={mis['input_tp']}:measured_LRA={mis['input_lra']}:"
                         f"measured_thresh={mis['input_thresh']}:offset={mis['target_offset']}:linear=true,aresample=48000")
-        rate = max(3.0, min(12.0, 165 / max(totale, 1)))  # Mbit/s: il reel resta sotto ~22 MB (limite archivio 25 MB), IG ricomprime comunque
+        rate = max(8.0, min(16.0, 560 / max(totale, 1)))  # Mbit/s: master di qualità (IG ricomprime: più parte pulito, meglio esce); resta sotto ~75 MB
         self.ff(["-i", video, "-i", mixwav, "-filter_complex", f"[0:v]ass='{ass}':fontsdir='{self.fontdir}'[vout];[1:a]{norm}" + (f",afade=t=out:st={totale - getattr(self, 'fine_nero', 0) - 0.3:.3f}:d={getattr(self, 'fine_nero', 0) + 0.3:.3f}" if getattr(self, "fine_nero", 0) else "") + "[aout]",
                  "-map", "[vout]", "-map", "[aout]", "-t", f"{totale:.3f}",
-                        "-c:v", "libx264", "-preset", "slow", "-crf", "19", "-profile:v", "high", "-maxrate", f"{rate:.1f}M", "-bufsize", f"{rate * 2:.1f}M",
+                        "-c:v", "libx264", "-preset", "slow", "-crf", "16", "-tune", "film", "-x264-params", "aq-mode=3", "-profile:v", "high", "-maxrate", f"{rate:.1f}M", "-bufsize", f"{rate * 2:.1f}M",
                         "-pix_fmt", "yuv420p", "-r", str(FPS), "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out], "mix finale")
 
     # -------------------------------------------------------------- revisore
@@ -613,8 +681,19 @@ class Montatore:
         if lufs is not None and lufs > -60 and abs(lufs + 14) > 2.5 and not getattr(self, "senza_voce", False):
             problemi.append(f"volume {lufs:.1f} LUFS (atteso −14)")
         mb = os.path.getsize(out) / 1048576
-        if mb > 24.5:
-            problemi.append(f"file troppo pesante per l'archivio ({mb:.0f} MB, max 25)")
+        if mb > 95:
+            problemi.append(f"file troppo pesante per l'archivio ({mb:.0f} MB, max 95)")
+        # alte luci bruciate dopo il color (8 fotogrammi campione)
+        try:
+            coda = 3.0 if (self.p.get("finale") or "").lower() == "bianco" else float((self.p.get("chiusura") or {}).get("durata", 0) or 0) + 0.3
+            q = self.fotogrammi(out, 0.3, max(0.5, info["dur"] - coda - 0.3), 8)
+            brucia = [(tt, float((qq.mean(axis=2) > 250).mean())) for tt, qq in q]
+            peggio = [f"{tt:.1f}s" for tt, b in brucia if b > 0.04]
+            if peggio:
+                problemi.append("alte luci bruciate a " + ", ".join(peggio[:3]))
+        except Exception:
+            pass
+        problemi += getattr(self, "qc", [])
         return {"durata": round(info["dur"], 2), "lufs": lufs, "mb": round(mb, 1), "problemi": problemi, "note": self.report}
 
     def chiusura_bianca(self, video, totale):
@@ -664,6 +743,20 @@ class Montatore:
                 spostati += 1
             s["durata"] = nuova
             cum = fine
+        # il reel finisce a fine battuta (4 tempi): la musica chiude la frase invece di essere tagliata a metà
+        batt = float(mus["battuta"]) * 4
+        p0 = float(mus.get("primo_battito") or 0)
+        if segmenti and batt > 0:
+            s = segmenti[-1]
+            vel = 0.5 if s.get("rallenty") else float(s.get("velocita", 1) or 1)
+            dispon = max(0.3, (s["_info"]["dur"] - 0.05) / vel)
+            inizio_ult = cum - float(s["durata"])
+            for fine in sorted([p0 + k * batt for k in (math.floor((cum - p0) / batt), math.ceil((cum - p0) / batt))], key=lambda f: abs(f - cum)):
+                if 0.8 <= fine - inizio_ult <= dispon:
+                    if abs(fine - cum) > 0.02:
+                        s["durata"] = round(fine - inizio_ult, 3)
+                        self.report.append(f"finale allineato alla fine della battuta musicale ({fine:.2f}s)")
+                    break
         self.report.append(f"musica a {float(mus.get('bpm') or 0):.0f} BPM: {spostati} tagli spostati sul battito")
 
     # -------------------------------------------------------------- regia del montaggio
@@ -674,7 +767,12 @@ class Montatore:
         for s in segmenti:
             s["_info"] = self.probe(s["file"])
         self.aggancia_ai_battiti(segmenti)
-        self.avvisa("color", f"preparo il look {P.get('look', 'naturale_vivace')} e misuro bianco ed esposizione di {len(segmenti)} pezzi")
+        self.qc = []
+        self.avvisa("color", f"preparo il look {P.get('look', 'naturale_vivace')} e porto i {len(segmenti)} pezzi alla stessa luce (shot matching)")
+        try:
+            self.rif_colore = self.riferimento(segmenti)
+        except Exception:
+            self.rif_colore = None
         lut = self.crea_lut(P.get("look", "naturale_vivace"), float(P.get("intensita_look", 1.0)))
         globali = set(P.get("effetti_globali") or [])
         self.avvisa("editor", f"monto {len(segmenti)} pezzi in parallelo: reframe sul soggetto, stabilizzazione, rallenty")

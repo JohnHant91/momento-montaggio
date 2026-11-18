@@ -103,8 +103,12 @@ export async function motoreApi(req, env, url) {
     // archivio: KV (max 25 MB a file: un reel a 1080p di 30-60 s sta sui 10-20 MB)
     if (!lunghezza || lunghezza > 25 * 1024 * 1024) return json({ errore: `file di ${Math.round(lunghezza / 1048576)} MB: oltre il limite di 25 MB` }, 400);
     const chiave = `lavoro-${id}/${mm[2] === 'video' ? 'reel.mp4' : mm[2] + '.jpg'}`;
-    await env.VIDEO.put(chiave, await req.arrayBuffer(), { metadata: { tipo: mm[2] === 'video' ? 'video/mp4' : 'image/jpeg' } });
-    return json({ ok: true, chiave });
+    const tipo = mm[2] === 'video' ? 'video/mp4' : 'image/jpeg';
+    // master oltre 20 MB: arriva a pezzi (parte 0 = chiave principale con i dati del file intero)
+    const parte = Number(url.searchParams.get('parte') || 0), parti = Number(url.searchParams.get('parti') || 1);
+    const k = parte ? `${chiave}#${parte}` : chiave;
+    await env.VIDEO.put(k, await req.arrayBuffer(), { metadata: parte ? { tipo } : { tipo, parti, totale: Number(url.searchParams.get('totale') || lunghezza), parte_mb: 20 } });
+    return json({ ok: true, chiave, parte, parti });
   }
   if (mm[2] === 'esito' && m === 'POST') {
     const d = await req.json().catch(() => ({}));

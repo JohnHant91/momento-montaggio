@@ -41,7 +41,25 @@ export const MANUALE_REGISTA = `MANUALE DEL REGISTA (dalle skill capcut + short-
 - Primo pezzo = l'immagine più forte di tutto il girato (mai un'inquadratura di apertura lenta, mai il logo all'inizio).
 - Alterna i piani (totale, dettaglio, primo piano) e i movimenti; non ripetere lo stesso momento.
 - Il finale deve poter "chiudere il cerchio" con l'inizio (stessa inquadratura, stesso gesto o movimento che riparte).
-- Ogni clip deve stare in piedi da sola nel suo pezzo, con il soggetto inquadrato nel 9:16.`;
+- Ogni clip deve stare in piedi da sola nel suo pezzo, con il soggetto inquadrato nel 9:16.
+REGOLE DA MONTATORE PROFESSIONISTA (valgono sempre):
+- Taglia SULL'AZIONE: il taglio cade a metà di un gesto (mano che versa, porta che si apre, tazza che si alza) e il
+  pezzo dopo continua lo stesso movimento da un'altra inquadratura. È il taglio che non si vede.
+- Mai due pezzi di fila con la stessa inquadratura e lo stesso soggetto (jump cut): cambia piano (totale → medio →
+  dettaglio) o angolo di almeno 30°. Rispetta la direzione: se una cosa si muove verso destra, nel pezzo dopo continua
+  verso destra.
+- Match cut quando puoi: forma, colore o movimento simile che lega due pezzi diversi (cerchio della tazza → cerchio
+  della tostatrice). Sono i momenti che fanno dire "che montaggio".
+- "in" di ogni pezzo: scegli il tratto dove la camera è ferma o il movimento è pulito e costante; mai entrare o uscire
+  durante uno scatto, una messa a fuoco che cerca o un cambio di esposizione. Se un momento esatto conta (il chicco
+  che cade, il sorriso), metti "in_preciso": true e il montatore non lo sposta.
+- Durate: dettagli e macro 1-2 s, piani medi 2-3 s, il "momento eroe" (la scena più bella) può tenere 3-4 s e merita il
+  rallenty. Il ritmo cresce verso il climax e respira nel finale.
+- Rallenty solo su gesti che lo meritano (liquidi, polvere, chicchi, capelli, acqua) e solo se il girato è a 50/60 fps.
+- Transizioni: il 90% sono tagli netti. Dissolvenze solo per salti di tempo o luogo, mai effetti a caso.
+- Il color lo uniforma il montatore (stessa luce per tutte le clip): tu scegli un solo look coerente col brand.
+- Evita clip sovraesposte, mosse, sfocate o con persone tagliate male: se un pezzo non è all'altezza, toglilo e accorcia
+  il reel. Meglio 25 secondi perfetti che 45 con due clip brutte.`;
 
 export const MANUALE_COPY = `MANUALE DEL COPY (dalle skill hook-writer + caption-writer + instagram-seo + hashtag-strategy)
 - Il gancio funziona aprendo un vuoto che chi guarda deve chiudere. Meccanismi: curiosità, contrario, posta in gioco/costo,
