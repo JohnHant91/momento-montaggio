@@ -4677,6 +4677,14 @@ function muovi(P, s, dt) {
   P.fase += dt * 9; posaCammino(P.U, P.fase);
 }
 
+// solo per le prove automatiche: inquadra un punto e fa camminare qualcuno
+export function prova(cosa, a) {
+  if (!S) return;
+  if (cosa === 'vista') { S.volo = null; S.controls.target.set(a[3], a[4], a[5]); S.camera.position.set(a[0], a[1], a[2]); S.camera.lookAt(S.controls.target); }
+  if (cosa === 'cammina') { const P = S.agenti[a]; P.cammino = percorso(P); P.seduto = false; P.fase = 0; }
+  if (cosa === 'dove') { const P = S.agenti[a]; return [P.U.o.position.x, P.U.o.position.z]; }
+}
+
 function anima(t) {
   if (!S) return;
   if (!document.body.contains(S.renderer.domElement)) { ferma(); return; }
