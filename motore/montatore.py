@@ -90,6 +90,10 @@ class Montatore:
         "romantico_soft":     (0.92, 0.92, (0.03, 0.015, 0.02), (0.05, 0.03, 0.00), 0.07, 0.98, False),
         "amichevole_solare":  (1.06, 1.20, (0.00, 0.00, 0.00), (0.04, 0.02, -0.02), 0.00, 1.00, False),
         "natalizio_caldo":    (1.10, 1.08, (0.02, 0.00, -0.01), (0.08, 0.04, -0.05), 0.03, 0.97, False),
+        "neon_notte":         (1.16, 1.15, (0.04, -0.02, 0.07), (0.05, -0.01, 0.06), 0.02, 0.97, False),
+        "estate_luminosa":    (1.05, 1.22, (0.00, 0.01, 0.02), (0.05, 0.03, -0.03), 0.00, 1.00, False),
+        "autunno_caldo":      (1.08, 0.92, (0.02, 0.01, -0.02), (0.08, 0.03, -0.06), 0.03, 0.96, False),
+        "inverno_freddo":     (1.08, 0.88, (-0.01, 0.01, 0.05), (-0.01, 0.01, 0.04), 0.02, 0.98, False),
     }
 
     def crea_lut(self, nome, intensita=1.0):
@@ -363,9 +367,11 @@ class Montatore:
         filtri.append("unsharp=5:5:0.35:5:5:0")
         if "glow" in globali:  # alone luminoso morbido (romantico, natalizio)
             filtri.append("split[ga][gb];[gb]gblur=sigma=22[gg];[ga][gg]blend=all_mode=screen:all_opacity=0.18")
+        if "vhs" in globali:  # videocassetta: colori sbavati, morbidezza, rumore e leggero tremolio di righe
+            filtri.append("rgbashift=rh=4:bh=-4,gblur=sigma=0.8,noise=alls=10:allf=t+u,eq=saturation=1.15:contrast=0.95")
         if "grana" in globali:
             filtri.append("noise=alls=6:allf=t")
-        else:
+        elif "vhs" not in globali:
             filtri.append("noise=alls=2:allf=t")
         if "vignettatura" in globali:
             filtri.append("vignette=PI/5")

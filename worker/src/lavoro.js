@@ -32,7 +32,9 @@ JSON:
   "youtube_query": ["3-4 ricerche"],
   "tiktok_query": ["2-3 ricerche"],
   "tiktok_hashtag": ["2-3 hashtag senza #"],
-  "instagram_hashtag": ["3 hashtag senza #"]
+  "instagram_hashtag": ["3 hashtag senza #"],
+  "stile_montaggio": {"descrizione": "lo stile/mood di montaggio che Johnny chiede, con parole sue (es. street emozionale) o null se non lo dice",
+                      "ricerca_en": ["2 ricerche in inglese per trovare reel MONTATI in quello stile, anche fuori settore (es. emotional street cinematic edit)"]}
 }`;
 
 const analisiRiferimento = (settore) => `Sei un montatore video senior. Analizza questo reel come se dovessi rifarlo.
@@ -178,7 +180,11 @@ async function fasePiano(env, cfg, L) {
   await log(env, L.id, 'direttore', 'leggo la richiesta e preparo la ricerca');
   const p = await S.claude(cfg, SISTEMA_PIANO, piano(L.prompt), { maxTokens: 1500 });
   // Stella: se Johnny ha chiesto uno stile (street, emozionale, natalizio…) metà della ricerca va su reel montati in quello stile
-  const stile = J(L.stile, null) || rilevaStile(L.prompt);
+  let stile = J(L.stile, null) || rilevaStile(L.prompt);
+  // stile che non è nel catalogo (es. "wes anderson", "documentario anni 70"): Stella lo ricava solo dai riferimenti
+  const sm = p.stile_montaggio;
+  if (sm?.descrizione && (!stile || (!stile.genere && !stile.mood?.length))) stile = { genere: null, mood: [], libero: String(sm.descrizione).slice(0, 120), ricerca: (sm.ricerca_en || []).slice(0, 2) };
+  else if (stile && sm?.ricerca_en?.length && !stile.ricerca) stile.ricerca = sm.ricerca_en.slice(0, 2);
   if (stile) {
     const q = ricercaStile(stile, p.settore), R = ricetta(stile);
     p.youtube_query = [...q.yt, ...(p.youtube_query || [])].slice(0, 4);
@@ -345,10 +351,10 @@ async function faseScheda(env, cfg, L) {
 
 // ------------------------------------------------------------------ motore
 // ------------------------------------------------------------------ Regista: dalla scheda al piano di montaggio
-const LOOKS = ['street_urbano', 'emozionale_film', 'romantico_soft', 'amichevole_solare', 'natalizio_caldo', 'spot_contrasto', 'moody_caldo', 'caldo_cinematico', 'pulito_commerciale', 'teal_orange', 'moody_scuro', 'naturale_vivace', 'bn_contrasto', 'pastello_soft', 'vintage_film'];
+const LOOKS = ['neon_notte', 'estate_luminosa', 'autunno_caldo', 'inverno_freddo', 'street_urbano', 'emozionale_film', 'romantico_soft', 'amichevole_solare', 'natalizio_caldo', 'spot_contrasto', 'moody_caldo', 'caldo_cinematico', 'pulito_commerciale', 'teal_orange', 'moody_scuro', 'naturale_vivace', 'bn_contrasto', 'pastello_soft', 'vintage_film'];
 const TRANSIZIONI = ['taglio_netto', 'dissolvenza', 'flash_bianco', 'whip_pan', 'zoom', 'glitch', 'slide', 'fadenero'];
 const EFFETTI_PEZZO = ['dolly_in', 'slider_dx', 'slider_sx', 'punch_in', 'zoom_lento', 'zoom_out', 'shake', 'nessuno'];
-const EFFETTI_GLOBALI = ['grana', 'vignettatura', 'bande_cinema', 'light_leak', 'glow'];
+const EFFETTI_GLOBALI = ['grana', 'vignettatura', 'bande_cinema', 'light_leak', 'glow', 'vhs'];
 const FORMATI_REEL = ['montaggio', 'talking_head', 'carosello'];
 
 const SISTEMA_REGISTA = `Sei il Regista e il Copy di Momento Produzione. Trasformi la SCHEDA TECNICA del Direttore creativo in un

@@ -1,3 +1,4 @@
+import { ELENCO_STILI } from './stili.js';
 // Pagina della regia (una sola pagina, funziona da telefono e da PC).
 export const PAGINA = `<!DOCTYPE html>
 <html lang="it"><head><meta charset="utf-8">
@@ -169,8 +170,8 @@ async function lista() {
 }
 const stato = (l) => l.stato === 'pronto' ? 'pronto' : l.stato === 'errore' ? 'errore' : (FASI.find((f) => f[0] === l.fase) || [0, l.fase])[1] + '…';
 
-const GENERI_UI = { broll: 'B-roll / atmosfera', street: 'Street', spot: 'Spot di prodotto', evento: 'Evento / festa', food: 'Food', viaggio: 'Viaggio / luogo', immobiliare: 'Immobiliare / struttura', moda: 'Moda', racconto: 'Racconto / documentario' };
-const MOOD_UI = { emozionale: 'Emozionale', romantico: 'Romantico', amichevole: 'Amichevole', energico: 'Energico', elegante: 'Elegante / lusso', natalizio: 'Natalizio', nostalgico: 'Nostalgico / vintage' };
+const STILI_UI = ${JSON.stringify(ELENCO_STILI)};
+const GENERI_UI = STILI_UI.generi, MOOD_UI = STILI_UI.mood;
 function nuovo() {
   $('#app').innerHTML = '<h1>Nuovo reel</h1><p class="mut">Il Direttore creativo cerca i video che funzionano nel settore su YouTube, TikTok e Instagram, il motore li misura, Iris li studia, l\\'Analista studia le tue clip e alla fine ricevi la scheda tecnica.</p>' +
     '<label>Cosa deve essere il reel</label><textarea id="pr" placeholder="Es. Reel per la pizzeria Da Gino a Salerno, 30 secondi, clip in cucina e in sala. Deve far venire fame e portare prenotazioni. Target 25-40 anni, tono giovane ma non volgare."></textarea>' +
@@ -219,7 +220,7 @@ function vistaScheda(s) {
     '<h2>Caption</h2><div class="card"><p style="white-space:pre-wrap">' + e(s.caption) + '</p><p class="mut">' + e((s.hashtag || []).map((h) => '#' + String(h).replace(/^#/, '')).join(' ')) + '</p></div>';
 }
 
-const LOOKS_UI = [['', 'come prima'], ['street_urbano', 'Street urbano'], ['emozionale_film', 'Emozionale film'], ['romantico_soft', 'Romantico soft'], ['amichevole_solare', 'Amichevole solare'], ['natalizio_caldo', 'Natalizio caldo'], ['caldo_cinematico', 'Caldo cinematico'], ['pulito_commerciale', 'Pulito commerciale'], ['teal_orange', 'Teal & orange'], ['moody_scuro', 'Moody scuro'], ['naturale_vivace', 'Naturale vivace'], ['bn_contrasto', 'Bianco e nero'], ['pastello_soft', 'Pastello'], ['vintage_film', 'Vintage film']];
+const LOOKS_UI = [['', 'come prima'], ['neon_notte', 'Neon notte'], ['estate_luminosa', 'Estate luminosa'], ['autunno_caldo', 'Autunno caldo'], ['inverno_freddo', 'Inverno freddo'], ['street_urbano', 'Street urbano'], ['emozionale_film', 'Emozionale film'], ['romantico_soft', 'Romantico soft'], ['amichevole_solare', 'Amichevole solare'], ['natalizio_caldo', 'Natalizio caldo'], ['caldo_cinematico', 'Caldo cinematico'], ['pulito_commerciale', 'Pulito commerciale'], ['teal_orange', 'Teal & orange'], ['moody_scuro', 'Moody scuro'], ['naturale_vivace', 'Naturale vivace'], ['bn_contrasto', 'Bianco e nero'], ['pastello_soft', 'Pastello'], ['vintage_film', 'Vintage film']];
 
 function boxGirato(L) {
   return '<div class="card"><b>Aggiungi il girato</b><p class="mut">Link pubblico della cartella pCloud con le clip: Max le scarica e le misura, poi scheda, piano e montaggio.</p>' +
