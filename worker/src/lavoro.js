@@ -555,26 +555,29 @@ export async function avanza(env) {
   const cfg = await configurazione(env);
   const adesso = ora();
   const libero = new Date(Date.now() + BLOCCO_MIN * 60e3).toISOString();
-  // prende un lavoro alla volta, riservandolo (così due giri del cron non lo fanno insieme)
-  for (let giri = 0; giri < 5 && Date.now() - inizio < BUDGET_MS - 60e3; giri++) {
-    const presi = await all(env, `UPDATE lavori SET blocco_fino=?, tentativi=tentativi+1, aggiornato=?
-      WHERE id = (SELECT id FROM lavori WHERE stato='in_corso' AND (blocco_fino IS NULL OR blocco_fino < ?) ORDER BY id LIMIT 1)
-      RETURNING *`, libero, adesso, adesso);
-    if (!presi.length) return;
-    const L = presi[0];
-    try {
-      const esito = await lavora(env, cfg, L, inizio + BUDGET_MS);
-      // in attesa (es. del motore GitHub): lo rimetto in fila tra un minuto, senza contarlo come tentativo
-      if (esito === 'attesa') await run(env, 'UPDATE lavori SET blocco_fino=?, tentativi=0 WHERE id=?', new Date(Date.now() + 50e3).toISOString(), L.id);
-      else await run(env, 'UPDATE lavori SET blocco_fino=NULL WHERE id=?', L.id);
-    } catch (e) {
-      const msg = String(e?.message || e).slice(0, 500);
-      const stop = L.tentativi >= 3 || /manca la chiave/.test(msg); // senza chiave è inutile riprovare
-      // pausa di 2 minuti prima del nuovo tentativo (prima ripartiva subito e bruciava i 3 tentativi in un secondo)
-      const pausa = new Date(Date.now() + 2 * 60e3).toISOString();
-      await run(env, 'UPDATE lavori SET stato=?, errore=?, blocco_fino=?, aggiornato=? WHERE id=?', stop ? 'errore' : 'in_corso', msg, stop ? null : pausa, ora(), L.id);
-      const fase = (await one(env, 'SELECT fase FROM lavori WHERE id=?', L.id))?.fase || L.fase;
-      await log(env, L.id, 'regia', `${stop ? '❌ fermo' : '⚠️ riprovo tra 2 minuti'} (fase ${fase}): ${msg}`, stop ? 'errore' : 'warn');
+  // 3 corsie in parallelo: più reel avanzano insieme. Ogni lavoro è riservato (due corsie non prendono lo stesso)
+  const corsia = async () => {
+    for (let giri = 0; giri < 5 && Date.now() - inizio < BUDGET_MS - 60e3; giri++) {
+      const presi = await all(env, `UPDATE lavori SET blocco_fino=?, tentativi=tentativi+1, aggiornato=?
+        WHERE id = (SELECT id FROM lavori WHERE stato='in_corso' AND (blocco_fino IS NULL OR blocco_fino < ?) ORDER BY id LIMIT 1)
+        RETURNING *`, libero, adesso, adesso);
+      if (!presi.length) return;
+      const L = presi[0];
+      try {
+        const esito = await lavora(env, cfg, L, inizio + BUDGET_MS);
+        // in attesa (es. del motore GitHub): lo rimetto in fila tra un minuto, senza contarlo come tentativo
+        if (esito === 'attesa') await run(env, 'UPDATE lavori SET blocco_fino=?, tentativi=0 WHERE id=?', new Date(Date.now() + 50e3).toISOString(), L.id);
+        else await run(env, 'UPDATE lavori SET blocco_fino=NULL WHERE id=?', L.id);
+      } catch (e) {
+        const msg = String(e?.message || e).slice(0, 500);
+        const stop = L.tentativi >= 3 || /manca la chiave/.test(msg); // senza chiave è inutile riprovare
+        // pausa di 2 minuti prima del nuovo tentativo (prima ripartiva subito e bruciava i 3 tentativi in un secondo)
+        const pausa = new Date(Date.now() + 2 * 60e3).toISOString();
+        await run(env, 'UPDATE lavori SET stato=?, errore=?, blocco_fino=?, aggiornato=? WHERE id=?', stop ? 'errore' : 'in_corso', msg, stop ? null : pausa, ora(), L.id);
+        const fase = (await one(env, 'SELECT fase FROM lavori WHERE id=?', L.id))?.fase || L.fase;
+        await log(env, L.id, 'regia', `${stop ? '❌ fermo' : '⚠️ riprovo tra 2 minuti'} (fase ${fase}): ${msg}`, stop ? 'errore' : 'warn');
+      }
     }
-  }
+  };
+  await Promise.all([corsia(), corsia(), corsia()]);
 }

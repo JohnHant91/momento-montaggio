@@ -2,6 +2,7 @@
 import { CHIAVI_OPZIONI, CHIAVI_SEGRETE, J, all, configurazione, log, one, ora, run, schema } from './db.js';
 import { avanza } from './lavoro.js';
 import { apiPiani, avanzaPiani, schemaPiani } from './copioni.js';
+import { apiAgenzia, avanzaUffici, schemaAgenzia } from './agenzia.js';
 import { motoreApi } from './motore.js';
 import { PAGINA } from './pagina.js';
 
@@ -173,6 +174,10 @@ async function api(req, env, url) {
       return json({ ok: true });
     }
   }
+  if (/^\/api\/(azienda|capo|chat|incarichi|contenuti|clienti|gestionale)/.test(p)) {
+    const r = await apiAgenzia(req, env, p, m, json);
+    if (r) return r;
+  }
   if (p.startsWith('/api/piani')) {
     const r = await apiPiani(req, env, p, m, json);
     if (r) return r;
@@ -184,6 +189,7 @@ export default {
   async fetch(req, env) {
     await schema(env);
     await schemaPiani(env);
+    await schemaAgenzia(env);
     const url = new URL(req.url);
     if (url.pathname.startsWith('/api/motore/')) {
       try { return await motoreApi(req, env, url); }
@@ -198,6 +204,7 @@ export default {
   async scheduled(evento, env, ctx) {
     await schema(env);
     await schemaPiani(env);
-    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env)]));
+    await schemaAgenzia(env);
+    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env)]));
   },
 };
