@@ -2,27 +2,27 @@
  "kodak_portra_400": {
   "pacchetto": "negative_new",
   "file": "kodak_portra_400",
-  "intensita": 1
+  "intensita": 0.8
  },
  "kodak_portra_160": {
   "pacchetto": "negative_new",
   "file": "kodak_portra_160",
-  "intensita": 1
+  "intensita": 0.8
  },
  "kodak_portra_800": {
   "pacchetto": "negative_new",
   "file": "kodak_portra_800",
-  "intensita": 1
+  "intensita": 0.8
  },
  "fuji_400h": {
   "pacchetto": "negative_new",
   "file": "fuji_400h",
-  "intensita": 1
+  "intensita": 0.8
  },
  "fuji_160c": {
   "pacchetto": "negative_new",
   "file": "fuji_160c",
-  "intensita": 1
+  "intensita": 0.8
  },
  "kodak_ektar_100": {
   "pacchetto": "negative_color",
@@ -32,7 +32,7 @@
  "fuji_superia_200": {
   "pacchetto": "negative_color",
   "file": "fuji_superia_200",
-  "intensita": 1
+  "intensita": 0.8
  },
  "agfa_vista_200": {
   "pacchetto": "negative_color",
@@ -91,7 +91,7 @@
  "polaroid_px_70_cold": {
   "pacchetto": "instant_consumer",
   "file": "polaroid_px-70_cold",
-  "intensita": 0.7
+  "intensita": 0.4
  },
  "polaroid_time_zero_expired": {
   "pacchetto": "instant_consumer",
@@ -106,7 +106,7 @@
  "bleach_bypass": {
   "pacchetto": "others",
   "file": "bleach_bypass",
-  "intensita": 0.6
+  "intensita": 0.4
  },
  "cinematic_01": {
   "pacchetto": "others",
@@ -121,7 +121,7 @@
  "cinematic_03": {
   "pacchetto": "others",
   "file": "cinematic_03",
-  "intensita": 0.7
+  "intensita": 0.55
  },
  "hong_kong": {
   "pacchetto": "others",
@@ -146,12 +146,12 @@
  "super_warm": {
   "pacchetto": "others",
   "file": "super_warm",
-  "intensita": 0.5
+  "intensita": 0.35
  },
  "warm_highlight": {
   "pacchetto": "others",
   "file": "warm_highlight",
-  "intensita": 0.7
+  "intensita": 0.5
  },
  "natural_vivid": {
   "pacchetto": "others",
@@ -166,7 +166,7 @@
  "faded_analog": {
   "pacchetto": "others",
   "file": "faded_analog",
-  "intensita": 0.7
+  "intensita": 0.45
  },
  "muted_fade": {
   "pacchetto": "others",
@@ -186,7 +186,7 @@
  "sunny_warm": {
   "pacchetto": "others",
   "file": "sunny_warm",
-  "intensita": 0.7
+  "intensita": 0.5
  },
  "color_rich": {
   "pacchetto": "others",
@@ -201,7 +201,7 @@
  "60s_faded": {
   "pacchetto": "others",
   "file": "60s_faded",
-  "intensita": 0.7
+  "intensita": 0.45
  },
  "cinematic_lady_bird": {
   "pacchetto": "pixlsus",
@@ -296,7 +296,7 @@
  "goldentime": {
   "pacchetto": "berat",
   "file": "goldentime",
-  "intensita": 0.7
+  "intensita": 0.55
  },
  "green_and_orange": {
   "pacchetto": "berat",
@@ -306,7 +306,7 @@
  "western": {
   "pacchetto": "berat",
   "file": "western",
-  "intensita": 0.65
+  "intensita": 0.5
  },
  "crispromance": {
   "pacchetto": "jtsemple",
@@ -341,7 +341,7 @@
  "justpeachy": {
   "pacchetto": "jtsemple",
   "file": "justpeachy",
-  "intensita": 0.7
+  "intensita": 0.5
  },
  "teal_moonlight": {
   "pacchetto": "ohadperetz",
@@ -351,7 +351,7 @@
  "retro_summer_3": {
   "pacchetto": "ohadperetz",
   "file": "retro_summer_3",
-  "intensita": 0.55
+  "intensita": 0.45
  },
  "vintage_warmth_1": {
   "pacchetto": "ohadperetz",
@@ -361,6 +361,6 @@
  "true_colors_8": {
   "pacchetto": "ohadperetz",
   "file": "true_colors_8",
-  "intensita": 0.55
+  "intensita": 0.45
  }
 }
