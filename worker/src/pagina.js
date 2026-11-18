@@ -550,7 +550,10 @@ function datiSala(R) {
   const { st, cosa, ultimo } = statiAgenti(R);
   SALA.info = { st, cosa, ultimo };
   const agenti = [];
-  for (const [u] of PIANTA) for (const a of agentiUfficio(R, u)) { const A = AGENTI[a]; if (A) agenti.push({ id: a, n: A.n, r: A.r, c: A.c || '#888888', u, stato: st[a] || '', msg: cosa[a]?.testo || ultimo[a]?.messaggio || '' }); }
+  const registro = {};
+  for (const r of R.feed) { const a = AGID(r.agente); (registro[a] ||= []).length < 4 && registro[a].push(r.messaggio); }
+  const reelImg = (a) => { const L = R.reel.find((x) => (FASE_AGENTI[x.fase] || []).includes(a)); return L && L.fase === 'fatto' ? '/api/lavori/' + L.id + '/anteprima.jpg' : null; };
+  for (const [u] of PIANTA) for (const a of agentiUfficio(R, u)) { const A = AGENTI[a]; if (A) agenti.push({ id: a, n: A.n, r: A.r, c: A.c || '#888888', u, stato: st[a] || '', msg: cosa[a]?.testo || ultimo[a]?.messaggio || '', log: registro[a] || [], img: reelImg(a) }); }
   return { uffici: PIANTA.map(([id, nome, x, y, w, h, col]) => ({ id, nome, x, y, w, h, col })), agenti };
 }
 let SALA3D = null;
