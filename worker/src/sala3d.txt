@@ -197,7 +197,7 @@ function umano(id) {
 // 4 uomini e 4 donne; animazioni vere: seduto che scrive, seduto fermo, camminata (maschile/femminile), in piedi.
 // Finché non sono caricati restano le figure disegnate a mano.
 const UOMINI = ['Remy', 'Leonard', 'James', 'Brian'], DONNE_M = ['Kate', 'Megan', 'Jody', 'Louise'];
-const ALTEZZA = 1.72, SEDUTA_DZ = 0.45;
+const ALTEZZA = 1.72, SEDUTA_DZ = 0.32;
 // ogni personaggio Mixamo ha il suo prefisso sulle ossa (mixamorig, mixamorig1, mixamorig9…): rinomino le tracce delle animazioni
 function clipPer(M, prefisso) {
   if (M.perPrefisso[prefisso]) return M.perPrefisso[prefisso];
@@ -250,10 +250,15 @@ async function caricaPersone() {
     ...anim.map(async (n) => { const g = await L.loadAsync('/persone/anim_' + n + '.glb'); M.clip[n] = g.animations[0]; }),
     ...corpi.map(async (n) => {
       const g = await L.loadAsync('/persone/' + n + '.glb');
-      const b = new THREE.Box3().setFromObject(g.scene);
-      g.scala = ALTEZZA / Math.max(1e-3, b.max.y - b.min.y);
       g.scene.traverse((o) => { if (o.isBone && /Hips$/.test(o.name) && !g.prefisso) g.prefisso = o.name.slice(0, -4); });
       g.prefisso ||= 'mixamorig';
+      // altezza dalle ossa (testa - piede): il riquadro delle mesh a volte è sballato
+      g.scene.updateMatrixWorld(true);
+      const osso = (n) => g.scene.getObjectByName(g.prefisso + n);
+      const testa = osso('HeadTop_End') || osso('Head'), piede = osso('LeftToeBase') || osso('LeftFoot');
+      let alto = testa && piede ? testa.getWorldPosition(new THREE.Vector3()).y - piede.getWorldPosition(new THREE.Vector3()).y + 0.06 * (testa.getWorldPosition(new THREE.Vector3()).y) : 0;
+      if (!(alto > 0)) { const b = new THREE.Box3().setFromObject(g.scene); alto = b.max.y - b.min.y; }
+      g.scala = ALTEZZA / Math.max(1e-3, alto);
       M.corpi[n] = g;
     }),
   ]);
