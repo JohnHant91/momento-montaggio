@@ -4412,7 +4412,7 @@ async function azienda() {
   const D = datiSala(R);
   import('/sala3d.js').then((m) => {
     if (!$('#sala')) return;
-    SALA3D = m;
+    SALA3D = m; window.__sala = m;
     m.avvia($('#sala'), D, {
       agente: (a) => { SALA.sel = a; $('#torna').style.display = ''; apriLato(a); },
       ufficio: (u) => { SALA.ufficio = u; SALA.sel = null; chiudiLato(); $('#torna').style.display = ''; },
@@ -5669,6 +5669,12 @@ async function api(req, env, url) {
   }
   return json2({ errore: "non trovato" }, 404);
 }
+var VERSIONE_SALA = (() => {
+  let h = 2166136261;
+  for (let i = 0; i < sala3d_default.length; i++) h = Math.imul(h ^ sala3d_default.charCodeAt(i), 16777619);
+  return (h >>> 0).toString(36);
+})();
+var PAGINA_V = PAGINA.split("import('/sala3d.js')").join("import('/sala3d.js?v=" + VERSIONE_SALA + "')");
 var index_default = {
   async fetch(req, env) {
     await schema(env);
@@ -5682,7 +5688,7 @@ var index_default = {
         return json2({ errore: String(e?.message || e).slice(0, 300) }, 500);
       }
     }
-    if (url.pathname === "/sala3d.js") return new Response(sala3d_default, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=300" } });
+    if (url.pathname === "/sala3d.js") return new Response(sala3d_default, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": url.searchParams.get("v") === VERSIONE_SALA ? "public, max-age=31536000, immutable" : "no-cache" } });
     if (url.pathname.startsWith("/api/motore/")) {
       try {
         return await motoreApi(req, env, url);
@@ -5697,7 +5703,7 @@ var index_default = {
         return json2({ errore: String(e?.message || e).slice(0, 300) }, 500);
       }
     }
-    return new Response(PAGINA, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
+    return new Response(PAGINA_V, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
   },
   async scheduled(evento, env, ctx) {
     await schema(env);

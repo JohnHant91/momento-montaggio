@@ -228,6 +228,10 @@ async function api(req, env, url) {
   return json({ errore: 'non trovato' }, 404);
 }
 
+// la pagina chiede la sala 3D con la versione nell'indirizzo: dopo ogni pubblicazione il browser prende quella nuova
+const VERSIONE_SALA = (() => { let h = 2166136261; for (let i = 0; i < SALA3D_JS.length; i++) h = Math.imul(h ^ SALA3D_JS.charCodeAt(i), 16777619); return (h >>> 0).toString(36); })();
+const PAGINA_V = PAGINA.split("import('/sala3d.js')").join("import('/sala3d.js?v=" + VERSIONE_SALA + "')");
+
 export default {
   async fetch(req, env) {
     await schema(env);
@@ -238,7 +242,7 @@ export default {
       try { return await persone(req, env, url); }
       catch (e) { return json({ errore: String(e?.message || e).slice(0, 300) }, 500); }
     }
-    if (url.pathname === '/sala3d.js') return new Response(SALA3D_JS, { headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'public, max-age=300' } });
+    if (url.pathname === '/sala3d.js') return new Response(SALA3D_JS, { headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': url.searchParams.get('v') === VERSIONE_SALA ? 'public, max-age=31536000, immutable' : 'no-cache' } });
     if (url.pathname.startsWith('/api/motore/')) {
       try { return await motoreApi(req, env, url); }
       catch (e) { return json({ errore: String(e?.message || e).slice(0, 300) }, 500); }
@@ -247,7 +251,7 @@ export default {
       try { return await api(req, env, url); }
       catch (e) { return json({ errore: String(e?.message || e).slice(0, 300) }, 500); }
     }
-    return new Response(PAGINA, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
+    return new Response(PAGINA_V, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
   },
   async scheduled(evento, env, ctx) {
     await schema(env);

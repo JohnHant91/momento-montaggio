@@ -651,7 +651,7 @@ async function azienda() {
   const D = datiSala(R);
   import('/sala3d.js').then((m) => {
     if (!$('#sala')) return;
-    SALA3D = m;
+    SALA3D = m; window.__sala = m;
     m.avvia($('#sala'), D, {
       agente: (a) => { SALA.sel = a; $('#torna').style.display = ''; apriLato(a); },
       ufficio: (u) => { SALA.ufficio = u; SALA.sel = null; chiudiLato(); $('#torna').style.display = ''; },
