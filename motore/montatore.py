@@ -184,6 +184,23 @@ class Montatore:
             filtro += f",curves=all='{min(p2 - 10, 40) / 255:.3f}/0 1/1'"
         return filtro
 
+    def filtro_colore(self, lut):
+        """LUT da pellicola/grading scelta dal colorist (libreria G'MIC) al posto del look generato, se c'è."""
+        if self.p.get("lut"):
+            try:
+                import lut as LUTLIB
+                L = self.p["lut"]
+                f = LUTLIB.filtro(L.get("nome"), L.get("intensita"), L.get("pacchetto"), L.get("file"))
+                if f:
+                    if not getattr(self, "_lut_detta", False):
+                        self._lut_detta = True
+                        self.report.append(f"color: LUT {L.get('nome')} al {float(L.get('intensita') or 0.7) * 100:.0f}%")
+                    return f
+            except Exception as e:
+                self.report.append(f"LUT {self.p['lut'].get('nome')} non disponibile ({e}): uso il look {self.p.get('look')}")
+                self.p["lut"] = None
+        return f"lut3d='{lut}'"
+
     def movimento_camera(self, src, t_in, durata):
         """Tremolio (scatti ad alta frequenza, in px su 160 di larghezza) e deriva (spostamento totale / larghezza)."""
         info = self.probe(src)
@@ -362,7 +379,7 @@ class Montatore:
             filtri.append(mov)
         if corr:
             filtri.append(corr)
-        filtri.append(f"lut3d='{lut}'")
+        filtri.append(self.filtro_colore(lut))
         # rifinitura da consegna: nitidezza leggera per lo schermo del telefono + grana finissima contro le bande nei cieli/sfumature
         filtri.append("unsharp=5:5:0.35:5:5:0")
         if "glow" in globali:  # alone luminoso morbido (romantico, natalizio)
@@ -376,7 +393,8 @@ class Montatore:
         if "vignettatura" in globali:
             filtri.append("vignette=PI/5")
         filtri.append(f"trim=duration={dur:.3f},setpts=PTS-STARTPTS,setsar=1,format=yuv420p")
-        tentativi = [filtri, [f for f in filtri if not f.startswith(("vidstab", "minterpolate"))]]
+        tentativi = [filtri, [f for f in filtri if not f.startswith(("vidstab", "minterpolate"))],
+                     [f if not f.startswith("split[lua]") else f"lut3d='{lut}'" for f in filtri if not f.startswith(("vidstab", "minterpolate"))]]
         for k, fl in enumerate(tentativi):
             try:
                 self.ff(["-ss", f"{t_in:.3f}", "-t", f"{sorgente + 0.2:.3f}", "-i", src, "-vf", ",".join(fl), "-an"] + X264_INT + [out], f"pezzo {i + 1}")

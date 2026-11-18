@@ -4,6 +4,7 @@ import { J, all, log, one, ora, run, configurazione } from './db.js';
 import { libreriaTesto } from './libreria.js';
 import * as S from './servizi.js';
 import { rilevaStile, ricetta, ricercaStile } from './stili.js';
+import { LUT, LUT_NOMI, lutPerStile, descriviLut, voceLut } from './lut.js';
 import { MANUALE_AUDIO, MANUALE_COPY, MANUALE_DIRETTORE, MANUALE_FORMATI, MANUALE_IRIS, MANUALE_MODELLO, MANUALE_PUBBLICAZIONE, MANUALE_REGISTA, MANUALE_SPOT } from './manuali.js';
 
 const FASI = ['piano', 'ricerca', 'riferimenti', 'clip', 'scheda', 'regia', 'montaggio', 'fatto'];
@@ -388,6 +389,7 @@ VALORI AMMESSI
 - transizione_in: ${TRANSIZIONI.join(', ')} (la prima clip non ne ha)
 - effetto: ${EFFETTI_PEZZO.join(', ')}
 - effetti_globali: ${EFFETTI_GLOBALI.join(', ')}
+- lut (facoltativa, LUT vere di pellicole e colorist; se la scegli, comanda lei il colore): ${LUT_NOMI.join(', ')}
 - stile testi: titolo_grande_centrale, etichetta_box, sottotitolo_classico; posizione: alto, centro, terzo_inferiore
 - formato: montaggio, talking_head, carosello (vedi FORMATI DEL MONTATORE)
 
@@ -396,6 +398,7 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
   "formato": "montaggio|talking_head|carosello",
   "durata_target": n,
   "look": "...", "intensita_look": 0.6-1.0,
+  "lut": {"nome": "una LUT della libreria (pellicola o grading vero, prende il posto del look)", "intensita": 0.3-1.0, "perche": "..."} oppure null,
   "effetti_globali": ["..."],
   "font": {"titoli": "font Google Fonts", "testi": "font Google Fonts"},
   "colori": {"testo": "#hex", "accento": "#hex", "box": "#hex"},
@@ -468,7 +471,9 @@ accenti; l'audio delle clip va basso (0-0.25) perché comanda la musica; "riser"
 ${R.regole}
 RICETTA RICAVATA DAI REEL DI RIFERIMENTO IN QUESTO STILE: ${JSON.stringify(scheda.ricetta_stile || {})}
 VINCOLI: look ${R.look}; durata dei pezzi ${R.durata ? R.durata.map((x) => x.toFixed(1)).join('-') + ' s' : 'libera'}; transizioni solo tra: ${R.transizioni.join(', ')}; ${R.effetti ? 'effetti solo tra: ' + R.effetti.join(', ') + '; ' : ''}rallenty: ${R.rallenty}; camera: ${R.camera === 'ferma' ? 'tutto bloccato come su treppiede' : R.camera === 'a_mano' ? 'camera a mano viva, non bloccarla' : 'stabile ma con i movimenti morbidi'}${R.musica ? '; musica adatta: ' + R.musica : ''}.
-Applica questo linguaggio alle clip di Johnny: scegli i momenti che si prestano a questo stile.` : '';
+Applica questo linguaggio alle clip di Johnny: scegli i momenti che si prestano a questo stile.
+LUT CONSIGLIATE PER QUESTO STILE (scegline una e dosala; più il girato è già bello e luminoso, più bassa l'intensità):
+${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
   const p = await S.claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda, clip) + extraMusica + extraStile + extra, { maxTokens: 12000 });
   // controllo del piano: valori ammessi, clip esistenti, tempi dentro le clip
   const tutte = J(L.clip, []);
@@ -547,13 +552,15 @@ Applica questo linguaggio alle clip di Johnny: scegli i momenti che si prestano 
     sfx: brano ? false : p.sfx, segmenti: formato === 'carosello' ? [] : seg, broll, slide: formato === 'carosello' ? slide : [],
     chiusura: formato === 'montaggio' ? p.chiusura : null, look: lookVoluto || (R?.look && LOOKS.includes(R.look) ? R.look : (LOOKS.includes(p.look) ? p.look : (LOOKS.includes(scheda.colore?.look) ? scheda.colore.look : 'naturale_vivace'))),
     effetti_globali: [...new Set([...(p.effetti_globali || []), ...(R?.globali || [])])].filter((e) => EFFETTI_GLOBALI.includes(e)), copertina: cop,
+    // LUT: quella chiesta da Johnny nel rimontaggio, poi quella del Regista, poi la prima consigliata dallo stile
+    lut: indicazioni?.lut === 'nessuna' ? null : voceLut(LUT[indicazioni?.lut] ? indicazioni.lut : (LUT[p.lut?.nome] ? p.lut.nome : (lookVoluto ? null : lutPerStile(J(L.stile, null))[0])), indicazioni?.lut ? null : p.lut?.intensita),
   };
   const versione = (prima?.versione || 0) + 1;
   await run(env, 'UPDATE lavori SET montaggio=? WHERE id=?', JSON.stringify({ stato: 'da_fare', piano, versione, creato: ora(), indicazioni: indicazioni || null }), L.id);
   const tot = seg.reduce((a, s) => a + s.durata, 0);
   const nomeF = { montaggio: 'montaggio', talking_head: 'talking-head', carosello: 'carosello' }[formato];
   await log(env, L.id, 'regista', formato === 'carosello' ? `piano pronto: formato carosello, ${slide.length} slide` :
-    `piano pronto: formato ${nomeF}, ${seg.length} ${formato === 'talking_head' ? 'tratti di parlato' : 'pezzi'}${broll.length ? ` + ${broll.length} b-roll` : ''}${pannello ? ` + pannello ${pannello.tipo}` : ''}, ~${Math.round(tot + (piano.chiusura?.durata || 0))} s, look ${piano.look}`);
+    `piano pronto: formato ${nomeF}${piano.lut ? `, LUT ${piano.lut.nome} al ${Math.round(piano.lut.intensita * 100)}%` : ''}, ${seg.length} ${formato === 'talking_head' ? 'tratti di parlato' : 'pezzi'}${broll.length ? ` + ${broll.length} b-roll` : ''}${pannello ? ` + pannello ${pannello.tipo}` : ''}, ~${Math.round(tot + (piano.chiusura?.durata || 0))} s, look ${piano.look}`);
   if (seg.some((s) => s.testo) || piano.chiusura) await log(env, L.id, 'copy', `testi: ${[...seg.filter((s) => s.testo).map((s) => '"' + s.testo.testo + '"'), piano.chiusura?.testo ? '"' + piano.chiusura.testo + '"' : ''].filter(Boolean).join(' · ').slice(0, 300)}`);
   await log(env, L.id, 'motore', 'chiamo il motore GitHub per il montaggio');
   return true;

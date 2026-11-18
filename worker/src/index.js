@@ -187,7 +187,7 @@ async function api(req, env, url) {
       const L = await one(env, 'SELECT montaggio, clip FROM lavori WHERE id=?', id);
       const mont = J(L?.montaggio, null);
       if (!mont?.piano) return json({ errore: 'questo lavoro non ha ancora un montaggio da rifare' }, 400);
-      mont.indicazioni_rimonta = { testo: String(d.testo || '').slice(0, 800), look: d.look || null, durata: Number(d.durata) || null, ritmo: d.ritmo || null, formato: ['montaggio', 'talking_head', 'carosello'].includes(d.formato) ? d.formato : null };
+      mont.indicazioni_rimonta = { testo: String(d.testo || '').slice(0, 800), look: d.look || null, durata: Number(d.durata) || null, ritmo: d.ritmo || null, formato: ['montaggio', 'talking_head', 'carosello'].includes(d.formato) ? d.formato : null, lut: d.lut || null };
       // "rimontalo romantico", "più street": se nelle indicazioni c'è uno stile, diventa lo stile del lavoro
       const nuovoStile = rilevaStile(String(d.testo || ''), d.stile);
       if (nuovoStile) await run(env, 'UPDATE lavori SET stile=? WHERE id=?', JSON.stringify(nuovoStile), id);

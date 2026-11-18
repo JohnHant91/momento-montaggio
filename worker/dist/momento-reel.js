@@ -1319,6 +1319,101 @@ function ricercaStile(stile, settore) {
 }
 var ELENCO_STILI = { generi: Object.fromEntries(Object.entries(GENERI).map(([k, v]) => [k, v.nome])), mood: Object.fromEntries(Object.entries(MOOD2).map(([k, v]) => [k, v.nome])) };
 
+// src/lut.js
+var LUT = {
+  // --- pellicole cinema e fotografiche a colori
+  kodak_portra_400: ["negative_new", 'Kodak Portra 400: pelle naturale e calda, alte luci morbide, il look "film" pi\xF9 usato', 0.85, ["emozionale", "matrimonio", "racconto", "intervista", "romantico", "beauty"]],
+  kodak_portra_160: ["negative_new", "Kodak Portra 160: pastello delicato, contrasto basso, toni pelle perfetti", 0.85, ["romantico", "beauty", "sognante", "primaverile"]],
+  kodak_portra_800: ["negative_new", "Kodak Portra 800: caldo e ricco, ottimo per luce bassa e serate", 0.8, ["evento", "festoso", "autunnale", "natalizio"]],
+  fuji_400h: ["negative_new", "Fuji Pro 400H: verdi e azzurri freschi, pastello luminoso", 0.85, ["primaverile", "sognante", "viaggio", "immobiliare", "rilassante"]],
+  fuji_160c: ["negative_new", "Fuji 160C: colori puliti e brillanti, leggermente freddi", 0.8, ["minimal", "professionale", "moda"]],
+  kodak_ektar_100: ["negative_color", "Kodak Ektar 100: colori saturi e vividi, rossi e blu potenti", 0.75, ["estivo", "viaggio", "food", "amichevole", "energico"]],
+  fuji_superia_200: ["negative_color", "Fuji Superia 200: la pellicola da rullino anni 90, verdi e magenta nostalgici", 0.8, ["nostalgico", "vlog", "ugc", "malinconico"]],
+  agfa_vista_200: ["negative_color", "Agfa Vista 200: caldo, rossi intensi, sapore vintage europeo", 0.8, ["nostalgico", "autunnale", "street", "racconto"]],
+  kodak_elite_color_400: ["negative_color", "Kodak Elite 400: colori brillanti e caldi da reportage", 0.8, ["viaggio", "evento", "dietro_le_quinte"]],
+  lomography_redscale_100: ["negative_color", "Lomography Redscale: tutto rosso-arancio, estremo e artistico", 0.6, ["halloween", "drammatico", "musicale"]],
+  kodak_2383_constlmap: ["print", "Kodak 2383 (pellicola di stampa cinema): il colore dei film hollywoodiani, ombre dense e calde", 0.55, ["cortometraggio", "epico", "drammatico", "misterioso"]],
+  fuji_3513_constlmap: ["print", "Fuji 3513 (stampa cinema): cinema europeo, pi\xF9 freddo e neutro", 0.55, ["cortometraggio", "elegante", "malinconico"]],
+  // --- bianco e nero
+  ilford_hp_5: ["negative_new", "Ilford HP5: bianco e nero classico da reportage, grana e contrasto medio", 0.95, ["bianco_nero", "street", "racconto", "drammatico"]],
+  kodak_tri_x_400: ["negative_new", "Kodak Tri-X 400: il bianco e nero pi\xF9 iconico, contrasto deciso", 0.95, ["bianco_nero", "street", "sport", "drammatico"], "kodak_tri-x_400"],
+  fuji_neopan_acros_100: ["bw", "Fuji Acros 100: bianco e nero pulito e morbido, elegante", 0.95, ["bianco_nero", "elegante", "minimal", "moda"]],
+  ilford_delta_3200: ["bw", "Ilford Delta 3200: bianco e nero sgranato e notturno", 0.95, ["bianco_nero", "misterioso", "neon"]],
+  // --- istantanee
+  polaroid_690_warm: ["instant_pro", "Polaroid 690 calda: colori sbiaditi e caldi da istantanea", 0.75, ["nostalgico", "festoso", "amichevole", "vhs"]],
+  polaroid_px_70_cold: ["instant_consumer", "Polaroid PX-70 fredda: istantanea moderna, ciano e pastello", 0.7, ["sognante", "invernale", "minimal"], "polaroid_px-70_cold"],
+  polaroid_time_zero_expired: ["instant_consumer", "Polaroid Time Zero scaduta: colori bruciati e strani, effetto ricordo", 0.6, ["vhs", "nostalgico", "malinconico"]],
+  fuji_fp_100c: ["instant_pro", "Fuji FP-100C: istantanea professionale, colori freschi e brillanti", 0.75, ["moda", "primaverile", "amichevole"], "fuji_fp-100c"],
+  // --- grading cinematografici e creativi
+  bleach_bypass: ["others", "Bleach bypass: desaturato e contrastatissimo, look da film di guerra/sport", 0.7, ["drammatico", "sport", "epico", "street"]],
+  cinematic_01: ["others", "Cinematic 01: teal & orange moderno da trailer", 0.7, ["epico", "viaggio", "drone", "musicale", "auto"]],
+  cinematic_02: ["others", "Cinematic 02: cinema caldo e morbido", 0.7, ["emozionale", "cortometraggio", "broll"]],
+  cinematic_03: ["others", "Cinematic 03: cinema freddo e contrastato", 0.7, ["misterioso", "drammatico", "aziendale"]],
+  hong_kong: ["others", "Hong Kong: notte urbana verde-ciano e magenta, alla Wong Kar-wai", 0.65, ["neon", "glamour", "street", "misterioso"]],
+  k_tone_vintage_kodachrome: ["others", "Kodachrome vintage: il colore delle diapositive anni 60-70", 0.75, ["nostalgico", "estivo", "viaggio", "food"]],
+  golden: ["others", "Golden: luce dorata da tramonto", 0.7, ["natalizio", "romantico", "estivo", "autunnale"]],
+  golden_vibrant: ["others", "Golden vibrant: oro brillante e saturo, festoso", 0.65, ["natalizio", "festoso", "evento"]],
+  super_warm: ["others", "Super warm: caldo avvolgente, interni e candele", 0.6, ["natalizio", "autunnale", "rilassante", "food"]],
+  warm_highlight: ["others", "Warm highlight: alte luci calde, ombre neutre", 0.7, ["food", "beauty", "immobiliare"]],
+  natural_vivid: ["others", "Natural vivid: colori naturali ma pi\xF9 vivi, sicuro su tutto", 0.7, ["amichevole", "tutorial", "ugc", "vlog", "food"]],
+  vibrant_contrast: ["others", "Vibrant contrast: punchy, colori e contrasto alti", 0.65, ["energico", "sport", "musicale", "transizioni"]],
+  faded_analog: ["others", "Faded analog: neri sollevati e colori sbiaditi da pellicola", 0.7, ["nostalgico", "malinconico", "sognante", "vlog"]],
+  muted_fade: ["others", "Muted fade: tenue e desaturato, minimal da rivista", 0.7, ["minimal", "elegante", "moda"]],
+  light_blown: ["others", "Light blown: luminoso e arioso, alte luci aperte", 0.6, ["sognante", "romantico", "primaverile", "beauty"]],
+  summer: ["others", "Summer: estate solare, azzurri e caldi", 0.7, ["estivo", "viaggio", "amichevole"]],
+  sunny_warm: ["others", "Sunny warm: sole caldo di met\xE0 pomeriggio", 0.7, ["estivo", "food", "amichevole", "immobiliare"]],
+  color_rich: ["others", "Color rich: colori pieni e profondi, da spot", 0.65, ["spot", "food", "auto", "beauty"]],
+  nostalgic: ["others", "Nostalgic: caldo sbiadito da album di famiglia", 0.7, ["nostalgico", "malinconico", "racconto"]],
+  "60s_faded": ["others", "Anni 60 sbiadito: pastelli caldi d\u2019epoca", 0.7, ["nostalgico", "vhs"]],
+  // --- grading da colorist (pixls.us, inavision, berat, jtsemple, ohad peretz)
+  cinematic_lady_bird: ["pixlsus", "Lady Bird: indie cinema morbido, pelle calda e verdi spenti", 0.75, ["emozionale", "racconto", "malinconico", "vlog"]],
+  cinematic_mexico: ["pixlsus", "Mexico: giallo-arancio caldissimo, sole e polvere", 0.6, ["estivo", "street", "western"]],
+  metropolis: ["pixlsus", "Metropolis: citt\xE0 fredda e contrastata", 0.7, ["street", "aziendale", "drammatico"]],
+  street: ["pixlsus", "Street: grading urbano desaturato con ombre fredde", 0.75, ["street", "sport", "ugc"]],
+  modern_film: ["pixlsus", "Modern film: pellicola moderna pulita, versatile", 0.75, ["broll", "aziendale", "viaggio", "cortometraggio"]],
+  faded_print: ["pixlsus", "Faded print: stampa sbiadita elegante", 0.7, ["elegante", "nostalgico", "moda"]],
+  autumn: ["pixlsus", "Autumn: arancio e rame, foglie e maglioni", 0.75, ["autunnale", "food", "racconto"]],
+  taiga: ["pixlsus", "Taiga: verdi profondi e freddi, natura nordica", 0.7, ["invernale", "viaggio", "drone"]],
+  night_spy: ["pixlsus", "Night spy: notte verde-blu da spionaggio", 0.6, ["misterioso", "halloween", "neon"]],
+  seventies_magazine: ["pixlsus", "Rivista anni 70: colori caldi e sbiaditi da stampa", 0.75, ["nostalgico", "moda", "vhs"]],
+  velvetia: ["pixlsus", "Velvia: diapositiva saturissima, paesaggi spettacolari", 0.6, ["viaggio", "drone", "estivo", "timelapse"]],
+  whiter_whites: ["pixlsus", "Whiter whites: bianchi puliti e luminosi, interni da catalogo", 0.75, ["immobiliare", "minimal", "beauty", "aziendale"]],
+  delicatessen: ["pixlsus", "Delicatessen: verde-giallo caldo, cinema alla Jeunet", 0.6, ["ironico", "food", "cortometraggio"]],
+  london_nights: ["inavision", "London nights: notte urbana blu e ambra", 0.7, ["neon", "glamour", "street", "evento"]],
+  nightlife: ["inavision", "Nightlife: locali e luci di sera, contrasto e magenta", 0.7, ["neon", "glamour", "evento", "festoso"]],
+  cold_ice: ["inavision", "Cold ice: freddo glaciale", 0.65, ["invernale", "misterioso", "sport"]],
+  jwick_21: ["inavision", "Stile John Wick: neon blu-verde ad alto contrasto", 0.6, ["drammatico", "neon", "auto", "sport"]],
+  vintage_mob: ["inavision", "Vintage mob: gangster anni 50, caldo e contrastato", 0.65, ["drammatico", "nostalgico", "elegante"]],
+  cineblue: ["berat", "Cineblue: cinema blu notte", 0.65, ["misterioso", "malinconico", "invernale"]],
+  goldentime: ["berat", "Golden time: ora dorata cinematografica", 0.7, ["romantico", "emozionale", "matrimonio", "natalizio"]],
+  green_and_orange: ["berat", "Green & orange: variante pi\xF9 naturale del teal & orange", 0.7, ["viaggio", "broll", "racconto"]],
+  western: ["berat", "Western: polvere, ocra e ombre secche", 0.65, ["drammatico", "epico", "auto"]],
+  crispromance: ["jtsemple", "Crisp romance: romantico luminoso e nitido", 0.75, ["romantico", "matrimonio", "beauty"]],
+  magentacoffee: ["jtsemple", "Magenta coffee: caff\xE8 e toni caldi rosati, da caffetteria", 0.7, ["food", "amichevole", "vlog"]],
+  minimalistcaffeination: ["jtsemple", "Minimalist caffeination: chiaro e pulito, da caffetteria minimal", 0.75, ["minimal", "food", "ugc"]],
+  nostalgiahoney: ["jtsemple", "Nostalgia honey: miele caldo nostalgico", 0.7, ["nostalgico", "autunnale", "romantico"]],
+  lushgreensummer: ["jtsemple", "Lush green summer: verdi pieni d\u2019estate", 0.7, ["estivo", "viaggio", "primaverile"]],
+  winterlighthouse: ["jtsemple", "Winter lighthouse: inverno sul mare, azzurri freddi", 0.7, ["invernale", "malinconico", "viaggio"]],
+  justpeachy: ["jtsemple", "Just peachy: pesca e rosa delicati", 0.7, ["romantico", "beauty", "primaverile"]],
+  teal_moonlight: ["ohadperetz", "Teal moonlight: notte al chiaro di luna ciano", 0.65, ["misterioso", "neon", "halloween"]],
+  retro_summer_3: ["ohadperetz", "Retro summer: estate anni 70", 0.7, ["estivo", "nostalgico"]],
+  vintage_warmth_1: ["ohadperetz", "Vintage warmth: calore vintage morbido", 0.7, ["nostalgico", "natalizio", "racconto"]],
+  true_colors_8: ["ohadperetz", "True colors: colori fedeli e ricchi, quasi neutro", 0.7, ["spot", "professionale", "tutorial"]]
+};
+var LUT_NOMI = Object.keys(LUT);
+function lutPerStile(stile) {
+  if (!stile) return [];
+  const chiavi = [...stile.mood || [], stile.genere].filter(Boolean);
+  const punti = LUT_NOMI.map((n) => [n, chiavi.reduce((a, k, i) => a + (LUT[n][3].includes(k) ? (chiavi.length - i) * 2 : 0), 0)]).filter(([, p]) => p > 0);
+  return punti.sort((a, b) => b[1] - a[1]).slice(0, 6).map(([n]) => n);
+}
+var descriviLut = (nomi) => nomi.map((n) => `- ${n}: ${LUT[n][1]} (intensit\xE0 consigliata ${LUT[n][2]})`).join("\n");
+var voceLut = (nome, intensita) => {
+  const L = LUT[nome];
+  if (!L) return null;
+  return { nome, file: L[4] || nome, pacchetto: L[0], intensita: Math.min(1, Math.max(0.2, Number(intensita) || L[2])) };
+};
+
 // src/manuali.js
 var MANUALE_DIRETTORE = `MANUALE DEL DIRETTORE CREATIVO (dalle skill short-form-video-script + reels-script)
 - Lo scopo del reel \xE8 essere impossibile da saltare: conta la visione fino in fondo, non i like.
@@ -1821,6 +1916,7 @@ VALORI AMMESSI
 - transizione_in: ${TRANSIZIONI.join(", ")} (la prima clip non ne ha)
 - effetto: ${EFFETTI_PEZZO.join(", ")}
 - effetti_globali: ${EFFETTI_GLOBALI.join(", ")}
+- lut (facoltativa, LUT vere di pellicole e colorist; se la scegli, comanda lei il colore): ${LUT_NOMI.join(", ")}
 - stile testi: titolo_grande_centrale, etichetta_box, sottotitolo_classico; posizione: alto, centro, terzo_inferiore
 - formato: montaggio, talking_head, carosello (vedi FORMATI DEL MONTATORE)
 
@@ -1829,6 +1925,7 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
   "formato": "montaggio|talking_head|carosello",
   "durata_target": n,
   "look": "...", "intensita_look": 0.6-1.0,
+  "lut": {"nome": "una LUT della libreria (pellicola o grading vero, prende il posto del look)", "intensita": 0.3-1.0, "perche": "..."} oppure null,
   "effetti_globali": ["..."],
   "font": {"titoli": "font Google Fonts", "testi": "font Google Fonts"},
   "colori": {"testo": "#hex", "accento": "#hex", "box": "#hex"},
@@ -1917,7 +2014,9 @@ STILE DI MONTAGGIO SCELTO DA JOHNNY (vincolante): ${R.nome}
 ${R.regole}
 RICETTA RICAVATA DAI REEL DI RIFERIMENTO IN QUESTO STILE: ${JSON.stringify(scheda2.ricetta_stile || {})}
 VINCOLI: look ${R.look}; durata dei pezzi ${R.durata ? R.durata.map((x) => x.toFixed(1)).join("-") + " s" : "libera"}; transizioni solo tra: ${R.transizioni.join(", ")}; ${R.effetti ? "effetti solo tra: " + R.effetti.join(", ") + "; " : ""}rallenty: ${R.rallenty}; camera: ${R.camera === "ferma" ? "tutto bloccato come su treppiede" : R.camera === "a_mano" ? "camera a mano viva, non bloccarla" : "stabile ma con i movimenti morbidi"}${R.musica ? "; musica adatta: " + R.musica : ""}.
-Applica questo linguaggio alle clip di Johnny: scegli i momenti che si prestano a questo stile.` : "";
+Applica questo linguaggio alle clip di Johnny: scegli i momenti che si prestano a questo stile.
+LUT CONSIGLIATE PER QUESTO STILE (scegline una e dosala; pi\xF9 il girato \xE8 gi\xE0 bello e luminoso, pi\xF9 bassa l'intensit\xE0):
+${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
   const p = await claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda2, clip) + extraMusica + extraStile + extra, { maxTokens: 12e3 });
   const tutte = J(L.clip, []);
   const eImm = (c) => c?.tipo === "immagine" || c?.tecnico?.tipo === "immagine";
@@ -2015,13 +2114,15 @@ Applica questo linguaggio alle clip di Johnny: scegli i momenti che si prestano 
     chiusura: formato === "montaggio" ? p.chiusura : null,
     look: lookVoluto || (R?.look && LOOKS.includes(R.look) ? R.look : LOOKS.includes(p.look) ? p.look : LOOKS.includes(scheda2.colore?.look) ? scheda2.colore.look : "naturale_vivace"),
     effetti_globali: [.../* @__PURE__ */ new Set([...p.effetti_globali || [], ...R?.globali || []])].filter((e) => EFFETTI_GLOBALI.includes(e)),
-    copertina: cop
+    copertina: cop,
+    // LUT: quella chiesta da Johnny nel rimontaggio, poi quella del Regista, poi la prima consigliata dallo stile
+    lut: indicazioni?.lut === "nessuna" ? null : voceLut(LUT[indicazioni?.lut] ? indicazioni.lut : LUT[p.lut?.nome] ? p.lut.nome : lookVoluto ? null : lutPerStile(J(L.stile, null))[0], indicazioni?.lut ? null : p.lut?.intensita)
   };
   const versione = (prima?.versione || 0) + 1;
   await run(env, "UPDATE lavori SET montaggio=? WHERE id=?", JSON.stringify({ stato: "da_fare", piano: piano2, versione, creato: ora(), indicazioni: indicazioni || null }), L.id);
   const tot = seg.reduce((a, s) => a + s.durata, 0);
   const nomeF = { montaggio: "montaggio", talking_head: "talking-head", carosello: "carosello" }[formato];
-  await log(env, L.id, "regista", formato === "carosello" ? `piano pronto: formato carosello, ${slide.length} slide` : `piano pronto: formato ${nomeF}, ${seg.length} ${formato === "talking_head" ? "tratti di parlato" : "pezzi"}${broll.length ? ` + ${broll.length} b-roll` : ""}${pannello ? ` + pannello ${pannello.tipo}` : ""}, ~${Math.round(tot + (piano2.chiusura?.durata || 0))} s, look ${piano2.look}`);
+  await log(env, L.id, "regista", formato === "carosello" ? `piano pronto: formato carosello, ${slide.length} slide` : `piano pronto: formato ${nomeF}${piano2.lut ? `, LUT ${piano2.lut.nome} al ${Math.round(piano2.lut.intensita * 100)}%` : ""}, ${seg.length} ${formato === "talking_head" ? "tratti di parlato" : "pezzi"}${broll.length ? ` + ${broll.length} b-roll` : ""}${pannello ? ` + pannello ${pannello.tipo}` : ""}, ~${Math.round(tot + (piano2.chiusura?.durata || 0))} s, look ${piano2.look}`);
   if (seg.some((s) => s.testo) || piano2.chiusura) await log(env, L.id, "copy", `testi: ${[...seg.filter((s) => s.testo).map((s) => '"' + s.testo.testo + '"'), piano2.chiusura?.testo ? '"' + piano2.chiusura.testo + '"' : ""].filter(Boolean).join(" \xB7 ").slice(0, 300)}`);
   await log(env, L.id, "motore", "chiamo il motore GitHub per il montaggio");
   return true;
@@ -3436,6 +3537,7 @@ async function lista() {
 const stato = (l) => l.stato === 'pronto' ? 'pronto' : l.stato === 'errore' ? 'errore' : (FASI.find((f) => f[0] === l.fase) || [0, l.fase])[1] + '\u2026';
 
 const STILI_UI = ${JSON.stringify(ELENCO_STILI)};
+const LUT_UI = ${JSON.stringify(Object.fromEntries(Object.entries(LUT).map(([k, v]) => [k, v[1].split(":")[0]])))};
 const GENERI_UI = STILI_UI.generi, MOOD_UI = STILI_UI.mood;
 function nuovo() {
   $('#app').innerHTML = '<h1>Nuovo reel</h1><p class="mut">Il Direttore creativo cerca i video che funzionano nel settore su YouTube, TikTok e Instagram, il motore li misura, Iris li studia, l\\'Analista studia le tue clip e alla fine ricevi la scheda tecnica.</p>' +
@@ -3521,6 +3623,7 @@ function vistaReel(L) {
     '<div class="card"><b>Rimonta</b><p class="mut">Rif\xE0 solo piano e montaggio (niente nuova ricerca n\xE9 analisi).</p>' +
     '<label>Cosa cambiare</label><textarea id="rim_t" style="min-height:70px" placeholder="Es. pi\xF9 veloce, gancio con la tazza, meno testi, chiusura con il logo"></textarea>' +
     '<div class="riga"><div style="flex:1"><label>Look</label><select id="rim_l">' + LOOKS_UI.map(([v, n]) => '<option value="' + v + '">' + n + '</option>').join('') + '</select></div>' +
+    '<div style="flex:1"><label>LUT (pellicola / grading)</label><select id="rim_lut"><option value="">come prima / la sceglie il colorist</option><option value="nessuna">nessuna LUT</option>' + Object.entries(LUT_UI).map(([k, d]) => '<option value="' + k + '">' + e(d) + '</option>').join('') + '</select></div>' +
     '<div style="flex:1"><label>Durata (s)</label><input id="rim_d" type="number" min="7" max="90" placeholder="come prima"></div>' +
     '<div style="flex:1"><label>Formato</label><select id="rim_f"><option value="">decide Rocco</option><option value="montaggio">Montaggio</option><option value="talking_head">Talking-head</option><option value="carosello">Carosello \u2192 reel</option></select></div></div>' +
     '<div style="margin-top:12px"><button id="rim_ok">Rimonta</button></div><div id="rim_er" class="err"></div></div>';
@@ -3559,7 +3662,7 @@ async function dettaglio(id) {
     vistaReel(L) + vistaScheda(L.scheda) + vistaRiferimenti(L.riferimenti) + vistaClip(L.clip) +
     '<h2>Cosa stanno facendo gli agenti</h2><div class="log">' + L.registro.map((r) => { const A = AGENTI[AGID(r.agente)]; return '<div class="' + r.livello + '"><span class="mut">' + new Date(r.quando).toLocaleTimeString('it-IT') + '</span> ' + A.i + ' <b>' + e(A.n) + '</b> ' + e(r.messaggio) + '</div>'; }).join('') + '</div>';
   if ($('#gir_ok')) $('#gir_ok').onclick = async () => { try { await chiama('/api/lavori/' + id + '/girato', { method: 'POST', body: { pcloud: $('#gir').value } }); rotta(); } catch (x) { $('#gir_er').textContent = x.message; } };
-  if ($('#rim_ok')) $('#rim_ok').onclick = async () => { try { await chiama('/api/lavori/' + id + '/rimonta', { method: 'POST', body: { testo: $('#rim_t').value, look: $('#rim_l').value || null, durata: $('#rim_d').value || null, formato: $('#rim_f').value || null } }); rotta(); } catch (x) { $('#rim_er').textContent = x.message; } };
+  if ($('#rim_ok')) $('#rim_ok').onclick = async () => { try { await chiama('/api/lavori/' + id + '/rimonta', { method: 'POST', body: { testo: $('#rim_t').value, look: $('#rim_l').value || null, durata: $('#rim_d').value || null, formato: $('#rim_f').value || null, lut: $('#rim_lut').value || null } }); rotta(); } catch (x) { $('#rim_er').textContent = x.message; } };
   if ($('#rip')) $('#rip').onclick = async () => { await chiama('/api/lavori/' + id + '/riprova', { method: 'POST', body: {} }); rotta(); };
   if ($('#dl')) $('#dl').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(L.scheda, null, 2)], { type: 'application/json' })); a.download = 'scheda-' + id + '.json'; a.click(); };
   $('#del').onclick = async () => { if (confirm('Eliminare questo lavoro?')) { await chiama('/api/lavori/' + id, { method: 'DELETE' }); location.hash = '#/'; } };
@@ -4059,7 +4162,7 @@ async function api(req, env, url) {
       const L = await one(env, "SELECT montaggio, clip FROM lavori WHERE id=?", id);
       const mont = J(L?.montaggio, null);
       if (!mont?.piano) return json2({ errore: "questo lavoro non ha ancora un montaggio da rifare" }, 400);
-      mont.indicazioni_rimonta = { testo: String(d.testo || "").slice(0, 800), look: d.look || null, durata: Number(d.durata) || null, ritmo: d.ritmo || null, formato: ["montaggio", "talking_head", "carosello"].includes(d.formato) ? d.formato : null };
+      mont.indicazioni_rimonta = { testo: String(d.testo || "").slice(0, 800), look: d.look || null, durata: Number(d.durata) || null, ritmo: d.ritmo || null, formato: ["montaggio", "talking_head", "carosello"].includes(d.formato) ? d.formato : null, lut: d.lut || null };
       const nuovoStile = rilevaStile(String(d.testo || ""), d.stile);
       if (nuovoStile) await run(env, "UPDATE lavori SET stile=? WHERE id=?", JSON.stringify(nuovoStile), id);
       await run(env, "UPDATE lavori SET montaggio=?, fase='regia', stato='in_corso', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(mont), ora(), id);

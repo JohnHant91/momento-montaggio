@@ -194,7 +194,7 @@ class TalkingHead(_Base):
         filtri = [f"crop={cw}:{ch}:{x}:{y}", f"scale={W}:{H}:flags=lanczos", f"fps={FPS}"]
         if corr:
             filtri.append(corr)
-        filtri.append(f"lut3d='{lut}'")
+        filtri.append(self.filtro_colore(lut))
         if p["flash"]:  # un fotogramma più luminoso sul salto: il jump cut diventa un accento voluto
             filtri.append(f"eq=brightness=0.18:contrast=1.05:enable='lt(t,{FOTOGRAMMA * 1.5:.3f})'")
         if "vignettatura" in set(self.p.get("effetti_globali") or []):
@@ -520,7 +520,7 @@ class Carosello(_Base):
         out = os.path.join(self.tmp, f"slide_{k:02d}.mp4")
         filtri = [f"zoompan=z='1+0.045*on/{n}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={n}:s={W}x{H}:fps={FPS}"]
         if lut:
-            filtri.append(f"lut3d='{lut}'")
+            filtri.append(self.filtro_colore(lut))
         filtri.append(f"trim=duration={d:.3f},setsar=1,format=yuv420p")
         self.ff(["-loop", "1", "-framerate", str(FPS), "-t", f"{d:.3f}", "-i", png, "-vf", ",".join(filtri)] + X264_INT + [out], f"slide {k + 1}")
         return out
