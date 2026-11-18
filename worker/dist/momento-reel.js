@@ -4400,7 +4400,7 @@ function costruisci(dati) {
     else { muro(R.x, R.z, R.x + R.w, R.z, ALTO - 0.4, porta); muro(R.x, R.z + R.d, R.x + R.w, R.z + R.d, BASSO); }
     const nome = R.nome || uffici[R.id]?.nome || R.id;
     // targa della stanza accanto alla porta (sul corridoio)
-    S.etAree.push({ id: R.id, nome: nome.split(' \xB7 ')[0].replace('Web & E-commerce', 'Web & Shop').replace('Booking & WhatsApp', 'Booking'), pos: new THREE.Vector3(R.x + R.w / 2, 0.1, R.lato === 'n' ? R.z + R.d - 0.15 : R.z + R.d - 0.35) });
+    S.etAree.push({ id: R.id, nome: nome.split(' \xB7 ')[0].replace('Web & E-commerce', 'Web & Shop').replace('Booking & WhatsApp', 'Booking'), pos: new THREE.Vector3(R.x + R.w / 2, 0.1, R.lato === 'n' ? R.z + R.d - 0.15 : R.z + 0.55) });
     S.aree[R.id] = { x: R.x, z: R.z, w: R.w, d: R.d };
     if (R.id === 'relax') { arredaRelax(R); continue; }
     const ags = dati.agenti.filter((a) => a.u === R.id);
