@@ -1,3 +1,107 @@
+// src/persone.js
+var P = 20 * 1024 * 1024;
+var CORS = { "access-control-allow-origin": "*", "access-control-allow-methods": "GET,POST,OPTIONS", "access-control-allow-headers": "content-type" };
+var j = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { "content-type": "application/json", ...CORS } });
+async function salva(env, chiave, buf, tipo) {
+  const tot = buf.byteLength, n = Math.max(1, Math.ceil(tot / P));
+  for (let k = 0; k < n; k++) await env.VIDEO.put(k ? chiave + "#" + k : chiave, buf.slice(k * P, (k + 1) * P), { metadata: { parti: n, totale: tot, tipo } });
+  return tot;
+}
+async function leggi(env, chiave) {
+  const { value, metadata } = await env.VIDEO.getWithMetadata(chiave, "arrayBuffer");
+  if (!value) return null;
+  const n = metadata?.parti || 1;
+  if (n === 1) return { buf: value, tipo: metadata?.tipo };
+  const out = new Uint8Array(metadata.totale);
+  out.set(new Uint8Array(value), 0);
+  for (let k = 1; k < n; k++) out.set(new Uint8Array(await env.VIDEO.get(chiave + "#" + k, "arrayBuffer")), k * P);
+  return { buf: out.buffer, tipo: metadata?.tipo };
+}
+async function persone(req, env, url) {
+  if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+  const m = url.pathname.match(/^\/persone\/([A-Za-z0-9_]+)\.glb$/);
+  if (m && req.method === "GET") {
+    const r = await leggi(env, "persone/glb/" + m[1]);
+    if (!r) return new Response("non trovato", { status: 404, headers: CORS });
+    return new Response(r.buf, { headers: { "content-type": "model/gltf-binary", "cache-control": "public, max-age=86400", ...CORS } });
+  }
+  if (url.pathname === "/persone/elenco.json") return j(JSON.parse(await env.VIDEO.get("persone/pronti") || "[]"));
+  const t = await env.VIDEO.get("persone/token");
+  if (!t || url.searchParams.get("t") !== t) return j({ errore: "gettone non valido" }, 403);
+  if (url.pathname === "/persone/prendi" && req.method === "POST") {
+    const { nome, url: sorgente } = JSON.parse(await req.text());
+    if (!/^[A-Za-z0-9_]+$/.test(nome) || !/^https:\/\/mixamo-storage-prod\.s3[.-][a-z0-9.-]*amazonaws\.com\//.test(sorgente)) return j({ errore: "dati non validi" }, 400);
+    const r = await fetch(sorgente);
+    if (!r.ok) return j({ errore: "S3 " + r.status }, 502);
+    const tot = await salva(env, "persone/fbx/" + nome, await r.arrayBuffer(), "application/octet-stream");
+    const el = new Set(JSON.parse(await env.VIDEO.get("persone/fbx-elenco") || "[]"));
+    el.add(nome);
+    await env.VIDEO.put("persone/fbx-elenco", JSON.stringify([...el]));
+    return j({ ok: true, nome, byte: tot });
+  }
+  if (url.pathname === "/persone/fbx-elenco") return j(JSON.parse(await env.VIDEO.get("persone/fbx-elenco") || "[]"));
+  const f = url.pathname.match(/^\/persone\/fbx\/([A-Za-z0-9_]+)$/);
+  if (f) {
+    const r = await leggi(env, "persone/fbx/" + f[1]);
+    return r ? new Response(r.buf, { headers: CORS }) : j({ errore: "manca" }, 404);
+  }
+  const g = url.pathname.match(/^\/persone\/glb\/([A-Za-z0-9_]+)$/);
+  if (g && req.method === "POST") {
+    const tot = await salva(env, "persone/glb/" + g[1], await req.arrayBuffer(), "model/gltf-binary");
+    const el = new Set(JSON.parse(await env.VIDEO.get("persone/pronti") || "[]"));
+    el.add(g[1]);
+    await env.VIDEO.put("persone/pronti", JSON.stringify([...el]));
+    return j({ ok: true, byte: tot });
+  }
+  if (url.pathname === "/persone/log" && req.method === "POST") {
+    await env.VIDEO.put("persone/log", await req.text());
+    return j({ ok: true });
+  }
+  if (url.pathname === "/persone/log") return new Response(await env.VIDEO.get("persone/log") || "", { headers: CORS });
+  if (url.pathname === "/persone/converti") return new Response(PAGINA_CONVERTI, { headers: { "content-type": "text/html; charset=utf-8" } });
+  return j({ errore: "non trovato" }, 404);
+}
+var PAGINA_CONVERTI = `<!doctype html><html><head><meta charset="utf-8"><title>Conversione personaggi</title>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}<\/script>
+<style>body{font:15px system-ui;padding:24px;max-width:760px}li{margin:4px 0}</style></head><body>
+<h2>Sto preparando i personaggi della sala 3D\u2026</h2><p>Lascia aperta questa scheda finch\xE9 non compare <b>FINITO</b>.</p><ul id="l"></ul>
+<script type="module">
+import * as THREE from 'three';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+const t = new URLSearchParams(location.search).get('t');
+const ul = document.getElementById('l'), log = [];
+const scrivi = (s) => { log.push(s); const li = document.createElement('li'); li.textContent = s; ul.appendChild(li); fetch('/persone/log?t=' + t, { method: 'POST', body: log.join('\\n') }); };
+const elenco = await (await fetch('/persone/fbx-elenco?t=' + t)).json();
+for (const nome of elenco) {
+  try {
+    const anim = nome.startsWith('anim_');
+    const buf = await (await fetch('/persone/fbx/' + nome + '?t=' + t)).arrayBuffer();
+    const o = new FBXLoader().parse(buf, '');
+    // aspetto le texture incorporate
+    await new Promise((r) => setTimeout(r, 1500));
+    const togli = [];
+    o.traverse((m) => {
+      if (!m.isMesh) return;
+      if (anim) { togli.push(m); return; }
+      const mats = Array.isArray(m.material) ? m.material : [m.material];
+      const nuovi = mats.map((p) => {
+        const s = new THREE.MeshStandardMaterial({ name: p.name, color: p.color, map: p.map || null, normalMap: p.normalMap || null, roughness: 0.8, metalness: 0, transparent: !!p.transparent, alphaTest: p.alphaTest || 0, side: p.side });
+        if (s.map) s.map.userData.mimeType = 'image/jpeg';
+        if (s.normalMap) s.normalMap.userData.mimeType = 'image/jpeg';
+        return s;
+      });
+      m.material = Array.isArray(m.material) ? nuovi : nuovi[0];
+    });
+    togli.forEach((m) => m.parent.remove(m));
+    const glb = await new GLTFExporter().parseAsync(o, { binary: true, maxTextureSize: 1024, animations: o.animations, onlyVisible: false });
+    const r = await (await fetch('/persone/glb/' + nome + '?t=' + t, { method: 'POST', body: glb })).json();
+    scrivi('\u2713 ' + nome + ': ' + (buf.byteLength / 1e6).toFixed(1) + ' MB FBX \u2192 ' + (glb.byteLength / 1e6).toFixed(1) + ' MB GLB, animazioni ' + o.animations.map((a) => a.name + ' ' + a.duration.toFixed(1) + 's').join(', ') + (r.ok ? '' : ' ERRORE ' + JSON.stringify(r)));
+  } catch (e) { scrivi('\u2717 ' + nome + ': ' + e.message); }
+}
+scrivi('FINITO');
+<\/script></body></html>`;
+
 // src/db.js
 var ora = () => (/* @__PURE__ */ new Date()).toISOString();
 var J = (s, d = null) => {
@@ -132,10 +236,10 @@ function estraiJson(testo) {
   } catch {
   }
   for (const [a, c] of [["{", "}"], ["[", "]"]]) {
-    const i = t.indexOf(a), j = t.lastIndexOf(c);
-    if (i !== -1 && j > i) {
+    const i = t.indexOf(a), j2 = t.lastIndexOf(c);
+    if (i !== -1 && j2 > i) {
       try {
-        return JSON.parse(t.slice(i, j + 1));
+        return JSON.parse(t.slice(i, j2 + 1));
       } catch {
       }
     }
@@ -2236,8 +2340,8 @@ PUBBLICO: ${d.pubblico || "(deducilo)"}
 TONO: ${d.tono || "(deducilo dal settore)"}
 NOTE DI JOHNNY: ${d.note || "\u2014"}`;
 }
-async function faseStrategia(env, cfg, P) {
-  const d = J(P.dati, {});
+async function faseStrategia(env, cfg, P2) {
+  const d = J(P2.dati, {});
   await log(env, null, "idee", `\u{1F4A1} piano "${d.cliente}": studio gli argomenti e distribuisco ${d.numero} reel in ${d.mesi} mesi`);
   const s = await claude(cfg, SISTEMA_STRATEGIA, `${datiTesto(d)}
 
@@ -2259,16 +2363,16 @@ Il calendario deve avere ESATTAMENTE ${d.numero} reel, numerati da 1 a ${d.numer
   const cal = (s.calendario || []).slice(0, d.numero).map((r, i) => ({ ...r, numero: i + 1 }));
   if (cal.length < d.numero) throw new Error(`la strategia ha solo ${cal.length} reel su ${d.numero}: riprovo`);
   s.calendario = cal;
-  await run(env, "UPDATE piani SET strategia=?, reel=?, fase='copioni', aggiornato=? WHERE id=?", JSON.stringify(s), JSON.stringify(cal.map((c) => ({ numero: c.numero, stato: "da_scrivere" }))), ora(), P.id);
+  await run(env, "UPDATE piani SET strategia=?, reel=?, fase='copioni', aggiornato=? WHERE id=?", JSON.stringify(s), JSON.stringify(cal.map((c) => ({ numero: c.numero, stato: "da_scrivere" }))), ora(), P2.id);
   await log(env, null, "idee", `\u{1F4A1} piano "${s.titolo_piano || d.cliente}": ${cal.length} reel in calendario, ${(s.giornate_di_ripresa || []).length} giornate di ripresa. Ora scrivo i copioni`);
 }
-async function faseCopioni(env, cfg, P) {
-  const d = J(P.dati, {});
-  const s = J(P.strategia, {});
-  const reel = J(P.reel, []);
+async function faseCopioni(env, cfg, P2) {
+  const d = J(P2.dati, {});
+  const s = J(P2.strategia, {});
+  const reel = J(P2.reel, []);
   const daFare = reel.filter((r) => r.stato !== "fatto").slice(0, GRUPPO);
   if (!daFare.length) {
-    await run(env, "UPDATE piani SET fase='fatto', stato='pronto', aggiornato=? WHERE id=?", ora(), P.id);
+    await run(env, "UPDATE piani SET fase='fatto', stato='pronto', aggiornato=? WHERE id=?", ora(), P2.id);
     await log(env, null, "idee", `\u2705 piano "${s.titolo_piano || d.cliente}" pronto: ${reel.length} copioni da girare`);
     return;
   }
@@ -2313,7 +2417,7 @@ Per ognuno restituisci un copione completo:
   "note_set": "consigli pratici per il set"
 }]}`, { maxTokens: 2e4 });
   const nuovi = Object.fromEntries((out.copioni || []).map((c) => [Number(c.numero), c]));
-  const fresco = J((await one(env, "SELECT reel FROM piani WHERE id=?", P.id))?.reel, reel);
+  const fresco = J((await one(env, "SELECT reel FROM piani WHERE id=?", P2.id))?.reel, reel);
   let scritti = 0;
   for (const r of fresco) {
     if (daFare.some((x) => x.numero === r.numero) && nuovi[r.numero]?.scene?.length) {
@@ -2323,7 +2427,7 @@ Per ognuno restituisci un copione completo:
   }
   if (!scritti) throw new Error("Claude non ha restituito copioni validi: riprovo");
   const finiti = fresco.every((r) => r.stato === "fatto");
-  await run(env, "UPDATE piani SET reel=?, fase=?, stato=?, aggiornato=? WHERE id=?", JSON.stringify(fresco), finiti ? "fatto" : "copioni", finiti ? "pronto" : "in_corso", ora(), P.id);
+  await run(env, "UPDATE piani SET reel=?, fase=?, stato=?, aggiornato=? WHERE id=?", JSON.stringify(fresco), finiti ? "fatto" : "copioni", finiti ? "pronto" : "in_corso", ora(), P2.id);
   await log(env, null, "idee", finiti ? `\u2705 piano "${s.titolo_piano || d.cliente}" pronto: ${fresco.length} copioni da girare` : `\u270D\uFE0F ${fresco.filter((r) => r.stato === "fatto").length}/${fresco.length} copioni scritti`);
 }
 async function avanzaPiani(env) {
@@ -2337,15 +2441,15 @@ async function avanzaPiani(env) {
     adesso
   );
   if (!presi.length) return;
-  const P = presi[0];
+  const P2 = presi[0];
   const cfg = await configurazione(env);
   try {
-    if (P.fase === "strategia") await faseStrategia(env, cfg, P);
-    else await faseCopioni(env, cfg, P);
-    await run(env, "UPDATE piani SET blocco_fino=NULL, tentativi=0, errore=NULL WHERE id=?", P.id);
+    if (P2.fase === "strategia") await faseStrategia(env, cfg, P2);
+    else await faseCopioni(env, cfg, P2);
+    await run(env, "UPDATE piani SET blocco_fino=NULL, tentativi=0, errore=NULL WHERE id=?", P2.id);
   } catch (e) {
     const msg = String(e?.message || e).slice(0, 400);
-    const stop = P.tentativi >= 3 || /manca la chiave/.test(msg);
+    const stop = P2.tentativi >= 3 || /manca la chiave/.test(msg);
     await run(
       env,
       "UPDATE piani SET stato=?, errore=?, blocco_fino=?, aggiornato=? WHERE id=?",
@@ -2353,9 +2457,9 @@ async function avanzaPiani(env) {
       msg,
       stop ? null : new Date(Date.now() + 2 * 6e4).toISOString(),
       ora(),
-      P.id
+      P2.id
     );
-    await log(env, null, "idee", `${stop ? "\u274C fermo" : "\u26A0\uFE0F riprovo tra 2 minuti"} (piano #${P.id}): ${msg}`, stop ? "errore" : "warn");
+    await log(env, null, "idee", `${stop ? "\u274C fermo" : "\u26A0\uFE0F riprovo tra 2 minuti"} (piano #${P2.id}): ${msg}`, stop ? "errore" : "warn");
   }
 }
 async function apiPiani(req, env, p, m, json3) {
@@ -2393,9 +2497,9 @@ async function apiPiani(req, env, p, m, json3) {
   }
   const pp = p.match(/^\/api\/piani\/(\d+)$/);
   if (pp && m === "GET") {
-    const P = await one(env, "SELECT * FROM piani WHERE id=?", pp[1]);
-    if (!P) return json3({ errore: "piano non trovato" }, 404);
-    return json3({ ...P, dati: J(P.dati, {}), strategia: J(P.strategia), reel: J(P.reel, []) });
+    const P2 = await one(env, "SELECT * FROM piani WHERE id=?", pp[1]);
+    if (!P2) return json3({ errore: "piano non trovato" }, 404);
+    return json3({ ...P2, dati: J(P2.dati, {}), strategia: J(P2.strategia), reel: J(P2.reel, []) });
   }
   if (pp && m === "DELETE") {
     await run(env, "DELETE FROM piani WHERE id=?", pp[1]);
@@ -2409,13 +2513,13 @@ async function apiPiani(req, env, p, m, json3) {
   const rr = p.match(/^\/api\/piani\/(\d+)\/reel\/(\d+)\/rifai$/);
   if (rr && m === "POST") {
     const d = await req.json().catch(() => ({}));
-    const P = await one(env, "SELECT * FROM piani WHERE id=?", rr[1]);
-    if (!P) return json3({ errore: "piano non trovato" }, 404);
-    const reel = J(P.reel, []);
+    const P2 = await one(env, "SELECT * FROM piani WHERE id=?", rr[1]);
+    if (!P2) return json3({ errore: "piano non trovato" }, 404);
+    const reel = J(P2.reel, []);
     const r = reel.find((x) => x.numero === Number(rr[2]));
     if (!r) return json3({ errore: "reel non trovato" }, 404);
     Object.assign(r, { stato: "da_scrivere", nota: String(d.nota || "").trim().slice(0, 1500) || void 0, copione: void 0 });
-    const strategia = J(P.strategia, {});
+    const strategia = J(P2.strategia, {});
     if (d.argomento && strategia?.calendario) {
       const c = strategia.calendario.find((x) => x.numero === r.numero);
       if (c) c.argomento = String(d.argomento).slice(0, 300);
@@ -2426,9 +2530,9 @@ async function apiPiani(req, env, p, m, json3) {
       JSON.stringify(reel),
       JSON.stringify(strategia),
       ora(),
-      P.id
+      P2.id
     );
-    await log(env, null, "idee", `\u270D\uFE0F riscrivo il copione #${r.numero} del piano #${P.id}${r.nota ? ": " + r.nota.slice(0, 100) : ""}`);
+    await log(env, null, "idee", `\u270D\uFE0F riscrivo il copione #${r.numero} del piano #${P2.id}${r.nota ? ": " + r.nota.slice(0, 100) : ""}`);
     return json3({ ok: true });
   }
   return null;
@@ -4928,7 +5032,7 @@ async function autorizzato(req, env) {
 }
 var cookie = (v, maxAge) => `mr_s=${v}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
 async function videoAPezzi(env, req, url, chiave, primo2, md, vv) {
-  const P = 20 * 1024 * 1024, tot = md.totale, n = md.parti;
+  const P2 = 20 * 1024 * 1024, tot = md.totale, n = md.parti;
   const h = new Headers({ "content-type": md.tipo || "video/mp4", "accept-ranges": "bytes", "cache-control": "private, max-age=3600" });
   if (url.searchParams.get("scarica")) h.set("content-disposition", `attachment; filename="reel-${vv[1]}.mp4"`);
   const rg = /bytes=(\d*)-(\d*)/.exec(req.headers.get("range") || "");
@@ -4937,7 +5041,7 @@ async function videoAPezzi(env, req, url, chiave, primo2, md, vv) {
     a = rg[1] === "" ? Math.max(0, tot - Number(rg[2])) : Number(rg[1]);
     b = rg[1] === "" || rg[2] === "" ? tot - 1 : Math.min(Number(rg[2]), tot - 1);
     if (a > b || a >= tot) return new Response(null, { status: 416, headers: { "content-range": `bytes */${tot}` } });
-    if (rg[2] === "" && b - a + 1 > P) b = Math.min(tot - 1, (Math.floor(a / P) + 1) * P - 1);
+    if (rg[2] === "" && b - a + 1 > P2) b = Math.min(tot - 1, (Math.floor(a / P2) + 1) * P2 - 1);
     h.set("content-range", `bytes ${a}-${b}/${tot}`);
     status = 206;
   }
@@ -4946,9 +5050,9 @@ async function videoAPezzi(env, req, url, chiave, primo2, md, vv) {
   (async () => {
     const w = writable.getWriter();
     try {
-      for (let k = Math.floor(a / P); k <= Math.floor(b / P) && k < n; k++) {
+      for (let k = Math.floor(a / P2); k <= Math.floor(b / P2) && k < n; k++) {
         const buf = k === 0 ? primo2 : await env.VIDEO.get(`${chiave}#${k}`, "arrayBuffer");
-        const da = Math.max(a - k * P, 0), fino = Math.min(b - k * P + 1, buf.byteLength);
+        const da = Math.max(a - k * P2, 0), fino = Math.min(b - k * P2 + 1, buf.byteLength);
         await w.write(new Uint8Array(buf.slice(da, fino)));
       }
     } finally {
@@ -5123,6 +5227,13 @@ var index_default = {
     await schemaPiani(env);
     await schemaAgenzia(env);
     const url = new URL(req.url);
+    if (url.pathname.startsWith("/persone/")) {
+      try {
+        return await persone(req, env, url);
+      } catch (e) {
+        return json2({ errore: String(e?.message || e).slice(0, 300) }, 500);
+      }
+    }
     if (url.pathname === "/sala3d.js") return new Response(sala3d_default, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=300" } });
     if (url.pathname.startsWith("/api/motore/")) {
       try {

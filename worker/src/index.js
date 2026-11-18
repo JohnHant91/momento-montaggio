@@ -1,3 +1,4 @@
+import { persone } from './persone.js';
 // Momento Reel · Worker Cloudflare: pagina regia + API + cron che fa lavorare gli agenti.
 import { CHIAVI_OPZIONI, CHIAVI_SEGRETE, J, all, configurazione, log, one, ora, run, schema } from './db.js';
 import { avanza } from './lavoro.js';
@@ -228,6 +229,10 @@ export default {
     await schemaPiani(env);
     await schemaAgenzia(env);
     const url = new URL(req.url);
+    if (url.pathname.startsWith('/persone/')) {
+      try { return await persone(req, env, url); }
+      catch (e) { return json({ errore: String(e?.message || e).slice(0, 300) }, 500); }
+    }
     if (url.pathname === '/sala3d.js') return new Response(SALA3D_JS, { headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'public, max-age=300' } });
     if (url.pathname.startsWith('/api/motore/')) {
       try { return await motoreApi(req, env, url); }
