@@ -38,7 +38,7 @@ def filtro(nome=None, intensita=None, pacchetto=None, file=None, bn=None):
         k = 1.0
     if k >= 0.98:
         return f"{pre}lut3d=file='{esc}':interp=tetrahedral"
-    return f"split[lua][lub];[lub]lut3d=file='{esc}':interp=tetrahedral[luc];[lua][luc]blend=all_mode=normal:all_opacity={k:.2f}"
+    return f"split[lua][lub];[lub]{pre}lut3d=file='{esc}':interp=tetrahedral[luc];[luc][lua]mix=inputs=2:weights='{k:.2f} {1 - k:.2f}'"
 
 
 if __name__ == "__main__":  # tavola di prova: python3 lut.py foto1 foto2 cartella_uscita
