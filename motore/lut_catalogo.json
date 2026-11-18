@@ -1,0 +1,367 @@
+{
+ "kodak_portra_400": {
+  "pacchetto": "negative_new",
+  "file": "kodak_portra_400",
+  "intensita": 0.85
+ },
+ "kodak_portra_160": {
+  "pacchetto": "negative_new",
+  "file": "kodak_portra_160",
+  "intensita": 0.85
+ },
+ "kodak_portra_800": {
+  "pacchetto": "negative_new",
+  "file": "kodak_portra_800",
+  "intensita": 0.8
+ },
+ "fuji_400h": {
+  "pacchetto": "negative_new",
+  "file": "fuji_400h",
+  "intensita": 0.85
+ },
+ "fuji_160c": {
+  "pacchetto": "negative_new",
+  "file": "fuji_160c",
+  "intensita": 0.8
+ },
+ "kodak_ektar_100": {
+  "pacchetto": "negative_color",
+  "file": "kodak_ektar_100",
+  "intensita": 0.75
+ },
+ "fuji_superia_200": {
+  "pacchetto": "negative_color",
+  "file": "fuji_superia_200",
+  "intensita": 0.8
+ },
+ "agfa_vista_200": {
+  "pacchetto": "negative_color",
+  "file": "agfa_vista_200",
+  "intensita": 0.8
+ },
+ "kodak_elite_color_400": {
+  "pacchetto": "negative_color",
+  "file": "kodak_elite_color_400",
+  "intensita": 0.8
+ },
+ "lomography_redscale_100": {
+  "pacchetto": "negative_color",
+  "file": "lomography_redscale_100",
+  "intensita": 0.6
+ },
+ "kodak_2383_constlmap": {
+  "pacchetto": "print",
+  "file": "kodak_2383_constlmap",
+  "intensita": 0.55
+ },
+ "fuji_3513_constlmap": {
+  "pacchetto": "print",
+  "file": "fuji_3513_constlmap",
+  "intensita": 0.55
+ },
+ "ilford_hp_5": {
+  "pacchetto": "negative_new",
+  "file": "ilford_hp_5",
+  "intensita": 0.95
+ },
+ "kodak_tri_x_400": {
+  "pacchetto": "negative_new",
+  "file": "kodak_tri-x_400",
+  "intensita": 0.95
+ },
+ "fuji_neopan_acros_100": {
+  "pacchetto": "bw",
+  "file": "fuji_neopan_acros_100",
+  "intensita": 0.95
+ },
+ "ilford_delta_3200": {
+  "pacchetto": "bw",
+  "file": "ilford_delta_3200",
+  "intensita": 0.95
+ },
+ "polaroid_690_warm": {
+  "pacchetto": "instant_pro",
+  "file": "polaroid_690_warm",
+  "intensita": 0.75
+ },
+ "polaroid_px_70_cold": {
+  "pacchetto": "instant_consumer",
+  "file": "polaroid_px-70_cold",
+  "intensita": 0.7
+ },
+ "polaroid_time_zero_expired": {
+  "pacchetto": "instant_consumer",
+  "file": "polaroid_time_zero_expired",
+  "intensita": 0.6
+ },
+ "fuji_fp_100c": {
+  "pacchetto": "instant_pro",
+  "file": "fuji_fp-100c",
+  "intensita": 0.75
+ },
+ "bleach_bypass": {
+  "pacchetto": "others",
+  "file": "bleach_bypass",
+  "intensita": 0.7
+ },
+ "cinematic_01": {
+  "pacchetto": "others",
+  "file": "cinematic_01",
+  "intensita": 0.7
+ },
+ "cinematic_02": {
+  "pacchetto": "others",
+  "file": "cinematic_02",
+  "intensita": 0.7
+ },
+ "cinematic_03": {
+  "pacchetto": "others",
+  "file": "cinematic_03",
+  "intensita": 0.7
+ },
+ "hong_kong": {
+  "pacchetto": "others",
+  "file": "hong_kong",
+  "intensita": 0.65
+ },
+ "k_tone_vintage_kodachrome": {
+  "pacchetto": "others",
+  "file": "k_tone_vintage_kodachrome",
+  "intensita": 0.75
+ },
+ "golden": {
+  "pacchetto": "others",
+  "file": "golden",
+  "intensita": 0.7
+ },
+ "golden_vibrant": {
+  "pacchetto": "others",
+  "file": "golden_vibrant",
+  "intensita": 0.65
+ },
+ "super_warm": {
+  "pacchetto": "others",
+  "file": "super_warm",
+  "intensita": 0.6
+ },
+ "warm_highlight": {
+  "pacchetto": "others",
+  "file": "warm_highlight",
+  "intensita": 0.7
+ },
+ "natural_vivid": {
+  "pacchetto": "others",
+  "file": "natural_vivid",
+  "intensita": 0.7
+ },
+ "vibrant_contrast": {
+  "pacchetto": "others",
+  "file": "vibrant_contrast",
+  "intensita": 0.65
+ },
+ "faded_analog": {
+  "pacchetto": "others",
+  "file": "faded_analog",
+  "intensita": 0.7
+ },
+ "muted_fade": {
+  "pacchetto": "others",
+  "file": "muted_fade",
+  "intensita": 0.7
+ },
+ "light_blown": {
+  "pacchetto": "others",
+  "file": "light_blown",
+  "intensita": 0.6
+ },
+ "summer": {
+  "pacchetto": "others",
+  "file": "summer",
+  "intensita": 0.7
+ },
+ "sunny_warm": {
+  "pacchetto": "others",
+  "file": "sunny_warm",
+  "intensita": 0.7
+ },
+ "color_rich": {
+  "pacchetto": "others",
+  "file": "color_rich",
+  "intensita": 0.65
+ },
+ "nostalgic": {
+  "pacchetto": "others",
+  "file": "nostalgic",
+  "intensita": 0.7
+ },
+ "60s_faded": {
+  "pacchetto": "others",
+  "file": "60s_faded",
+  "intensita": 0.7
+ },
+ "cinematic_lady_bird": {
+  "pacchetto": "pixlsus",
+  "file": "cinematic_lady_bird",
+  "intensita": 0.75
+ },
+ "cinematic_mexico": {
+  "pacchetto": "pixlsus",
+  "file": "cinematic_mexico",
+  "intensita": 0.6
+ },
+ "metropolis": {
+  "pacchetto": "pixlsus",
+  "file": "metropolis",
+  "intensita": 0.7
+ },
+ "street": {
+  "pacchetto": "pixlsus",
+  "file": "street",
+  "intensita": 0.75
+ },
+ "modern_film": {
+  "pacchetto": "pixlsus",
+  "file": "modern_film",
+  "intensita": 0.75
+ },
+ "faded_print": {
+  "pacchetto": "pixlsus",
+  "file": "faded_print",
+  "intensita": 0.7
+ },
+ "autumn": {
+  "pacchetto": "pixlsus",
+  "file": "autumn",
+  "intensita": 0.75
+ },
+ "taiga": {
+  "pacchetto": "pixlsus",
+  "file": "taiga",
+  "intensita": 0.7
+ },
+ "night_spy": {
+  "pacchetto": "pixlsus",
+  "file": "night_spy",
+  "intensita": 0.6
+ },
+ "seventies_magazine": {
+  "pacchetto": "pixlsus",
+  "file": "seventies_magazine",
+  "intensita": 0.75
+ },
+ "velvetia": {
+  "pacchetto": "pixlsus",
+  "file": "velvetia",
+  "intensita": 0.6
+ },
+ "whiter_whites": {
+  "pacchetto": "pixlsus",
+  "file": "whiter_whites",
+  "intensita": 0.75
+ },
+ "delicatessen": {
+  "pacchetto": "pixlsus",
+  "file": "delicatessen",
+  "intensita": 0.6
+ },
+ "london_nights": {
+  "pacchetto": "inavision",
+  "file": "london_nights",
+  "intensita": 0.7
+ },
+ "nightlife": {
+  "pacchetto": "inavision",
+  "file": "nightlife",
+  "intensita": 0.7
+ },
+ "cold_ice": {
+  "pacchetto": "inavision",
+  "file": "cold_ice",
+  "intensita": 0.65
+ },
+ "jwick_21": {
+  "pacchetto": "inavision",
+  "file": "jwick_21",
+  "intensita": 0.6
+ },
+ "vintage_mob": {
+  "pacchetto": "inavision",
+  "file": "vintage_mob",
+  "intensita": 0.65
+ },
+ "cineblue": {
+  "pacchetto": "berat",
+  "file": "cineblue",
+  "intensita": 0.65
+ },
+ "goldentime": {
+  "pacchetto": "berat",
+  "file": "goldentime",
+  "intensita": 0.7
+ },
+ "green_and_orange": {
+  "pacchetto": "berat",
+  "file": "green_and_orange",
+  "intensita": 0.7
+ },
+ "western": {
+  "pacchetto": "berat",
+  "file": "western",
+  "intensita": 0.65
+ },
+ "crispromance": {
+  "pacchetto": "jtsemple",
+  "file": "crispromance",
+  "intensita": 0.75
+ },
+ "magentacoffee": {
+  "pacchetto": "jtsemple",
+  "file": "magentacoffee",
+  "intensita": 0.7
+ },
+ "minimalistcaffeination": {
+  "pacchetto": "jtsemple",
+  "file": "minimalistcaffeination",
+  "intensita": 0.75
+ },
+ "nostalgiahoney": {
+  "pacchetto": "jtsemple",
+  "file": "nostalgiahoney",
+  "intensita": 0.7
+ },
+ "lushgreensummer": {
+  "pacchetto": "jtsemple",
+  "file": "lushgreensummer",
+  "intensita": 0.7
+ },
+ "winterlighthouse": {
+  "pacchetto": "jtsemple",
+  "file": "winterlighthouse",
+  "intensita": 0.7
+ },
+ "justpeachy": {
+  "pacchetto": "jtsemple",
+  "file": "justpeachy",
+  "intensita": 0.7
+ },
+ "teal_moonlight": {
+  "pacchetto": "ohadperetz",
+  "file": "teal_moonlight",
+  "intensita": 0.65
+ },
+ "retro_summer_3": {
+  "pacchetto": "ohadperetz",
+  "file": "retro_summer_3",
+  "intensita": 0.7
+ },
+ "vintage_warmth_1": {
+  "pacchetto": "ohadperetz",
+  "file": "vintage_warmth_1",
+  "intensita": 0.7
+ },
+ "true_colors_8": {
+  "pacchetto": "ohadperetz",
+  "file": "true_colors_8",
+  "intensita": 0.7
+ }
+}
