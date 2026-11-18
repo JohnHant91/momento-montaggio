@@ -1555,8 +1555,8 @@ var SQUADRA = {
   contabile: { n: "Dora", r: "Contabile", u: "contabilita", i: "\u{1F9FE}", c: "#f9c74f", chat: true, d: "Preventivi dal listino, entrate e uscite, scadenze e incassi da sollecitare, sul gestionale." }
 };
 var DELEGABILI = Object.keys(SQUADRA).filter((k) => !SQUADRA[k].chat && k !== "capo");
-var MAX_FIGLI = 4;
-var MAX_PROFONDITA = 3;
+var MAX_FIGLI = 2;
+var MAX_PROFONDITA = 2;
 var IN_PARALLELO = 6;
 var BLOCCO_MIN3 = 15;
 async function schemaAgenzia(env) {
@@ -1592,7 +1592,7 @@ function sistemaAgente(id) {
 ${SKILL[s] || ""}`).join("");
   return `Sei ${A.n}, ${A.r} di AGENZIA MOMENTO AI, l'agenzia di Johnny (Momento Produzione: video, foto, social, siti ed e-commerce per clienti di ogni nicchia: ristoranti, bar, B&B, negozi, artigiani, professionisti).
 Il tuo compito: ${A.d}
-Lavori in squadra: altri uffici lavorano in parallelo a te. Se per completare il lavoro serve un collega, passagli un incarico in "passa_a" (massimo ${MAX_FIGLI}), con un brief chiaro.
+Lavori in squadra: altri uffici lavorano in parallelo a te. Passa lavoro a un collega in "passa_a" (massimo ${MAX_FIGLI}) SOLO se \xE8 indispensabile per consegnare quello che Johnny ha chiesto (es. i post hanno bisogno della grafica). Ogni passaggio costa: niente lavori extra non richiesti.
 Colleghi a cui puoi passare lavoro: ${DELEGABILI.filter((k) => k !== id).map((k) => `${k} (${SQUADRA[k].r})`).join(", ")}.
 
 ${ADATTA}${skill}`;
@@ -1700,6 +1700,11 @@ async function avanzaUffici(env) {
       await eseguiIncarico(env, cfg, I);
     } catch (e) {
       const msg = String(e?.message || e).slice(0, 400);
+      if (/credit balance|billing/i.test(msg)) {
+        await run(env, "UPDATE incarichi SET stato='in_coda', errore=?, tentativi=0, blocco_fino=?, aggiornato=? WHERE id=?", "Credito Claude esaurito: riparto da solo quando lo ricarichi", new Date(Date.now() + 10 * 6e4).toISOString(), ora(), I.id);
+        await log(env, null, I.agente, "\u23F8\uFE0F credito Claude esaurito: ricarica su console.anthropic.com, poi riparto da solo", "errore");
+        return;
+      }
       const stop = I.tentativi >= 3 || /manca la chiave/.test(msg);
       await run(
         env,
