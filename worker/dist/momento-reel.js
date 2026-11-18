@@ -3429,7 +3429,7 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 .velo{position:fixed;inset:0;background:rgba(20,20,22,.25);z-index:39}
 /* ---------- la sala: l'agenzia vista dall'alto ---------- */
 .sala-canvas{position:absolute;inset:0;width:100%!important;height:100%!important;display:block;touch-action:none;cursor:grab}.sala-canvas:active{cursor:grabbing}
-.etichette{position:absolute;inset:0;pointer-events:none;overflow:hidden}.etichette>div{position:absolute;left:0;top:0;pointer-events:auto;will-change:transform}
+.etichette{position:absolute;inset:0;pointer-events:none;overflow:hidden}.etichette:not(.vicino) .et-ag:not(.lavora):not(.coda):not(.errore):not(.scelto){display:none}.etichette:not(.vicino) .et-ag:not(.scelto) .et-msg{display:none}.etichette>div{position:absolute;left:0;top:0;pointer-events:auto;will-change:transform}
 .et-ag{display:flex;flex-direction:column;align-items:center;gap:6px;transform-origin:50% 100%}
 .et-nome{background:rgba(20,20,22,.92);color:#fff;border-radius:999px;padding:5px 10px 5px 8px;font:600 12px/1 Inter,system-ui;display:flex;gap:6px;align-items:center;white-space:nowrap;box-shadow:0 6px 16px -6px rgba(0,0,0,.45);cursor:pointer}
 .et-nome .pt{width:7px;height:7px;border-radius:50%;background:#9a968f}.lavora .et-nome .pt{background:#3ddc84;box-shadow:0 0 0 3px rgba(61,220,132,.25)}.coda .et-nome .pt{background:#ffb020}.errore .et-nome .pt{background:#ff5a5f}
@@ -3443,7 +3443,7 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 .saluto h1{font-size:30px;margin:0}.saluto p{margin:6px 0 0;color:#5f5c56;font-size:14px;line-height:1.5}.saluto b.n{font-weight:600}
 .chiedi{display:flex;gap:8px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 6px 6px 16px;margin:16px 0 4px;box-shadow:0 8px 30px -18px rgba(0,0,0,.25)}
 .chiedi input{border:0;padding:8px 0;outline:none!important;background:transparent}.chiedi select{width:auto;max-width:170px;border:0;background:#f4f2ee;border-radius:999px;padding:8px 10px;font-size:13px}
-.sala{position:relative;height:min(70vh,760px);min-height:440px;margin:14px -22px 0;overflow:hidden;touch-action:none;background:radial-gradient(120% 90% at 50% 40%,#fbfaf7 0%,#efebe3 70%,#e7e2d8 100%);border-top:1px solid var(--line);border-bottom:1px solid var(--line);user-select:none;-webkit-user-select:none}
+.sala{position:relative;z-index:0;isolation:isolate;height:min(70vh,760px);min-height:440px;margin:14px -22px 0;overflow:hidden;touch-action:none;background:radial-gradient(120% 90% at 50% 40%,#fbfaf7 0%,#efebe3 70%,#e7e2d8 100%);border-top:1px solid var(--line);border-bottom:1px solid var(--line);user-select:none;-webkit-user-select:none}
 .camera{position:absolute;left:0;top:0;transform-origin:0 0;transition:transform .9s cubic-bezier(.2,.75,.2,1)}
 .pavimento{position:relative;width:1440px;height:1000px;transform:rotateX(57deg) rotateZ(-38deg);transform-style:preserve-3d}
 .stanza3d{position:absolute;border-radius:22px;background:#f8f5ef;box-shadow:inset 0 0 0 2px #e4dccd,0 30px 40px -30px rgba(80,60,30,.25);transform-style:preserve-3d;cursor:pointer;transition:background .3s}
@@ -4187,10 +4187,10 @@ function texLegno() {
 }
 function texPavimento() {
   const c = document.createElement('canvas'); c.width = c.height = 256;
-  const g = c.getContext('2d'); g.fillStyle = '#f3f1ec'; g.fillRect(0, 0, 256, 256);
+  const g = c.getContext('2d'); g.fillStyle = '#ebe6dd'; g.fillRect(0, 0, 256, 256);
   for (let i = 0; i < 2500; i++) { g.fillStyle = 'rgba(0,0,0,' + Math.random() * 0.025 + ')'; g.fillRect(Math.random() * 256, Math.random() * 256, 1, 1); }
   g.strokeStyle = 'rgba(0,0,0,0.035)'; g.lineWidth = 2; g.strokeRect(0, 0, 256, 256);
-  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(24, 24); t.colorSpace = THREE.SRGBColorSpace; return t;
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(240, 240); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 function texSchermo(colore, acceso) {
   const c = document.createElement('canvas'); c.width = 256; c.height = 160;
@@ -4281,14 +4281,14 @@ function pianta(mat, scala = 1) {
 function costruisci(dati) {
   const { scena, mat } = S;
   // pavimento generale
-  const pav = new THREE.Mesh(new THREE.PlaneGeometry(40, 30), new THREE.MeshStandardMaterial({ map: texPavimento(), roughness: 0.95 }));
+  const pav = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ map: texPavimento(), roughness: 0.95 }));
   pav.rotation.x = -Math.PI / 2; pav.position.set(7.2, 0, 5); pav.receiveShadow = true; scena.add(pav);
   S.uffici = {}; S.agenti = {}; S.etichetteUff = [];
   for (const U of dati.uffici) {
     const x = U.x * M, z = U.y * M, w = U.w * M, d = U.h * M, cx = x + w / 2, cz = z + d / 2;
     const g = new THREE.Group(); scena.add(g);
     // pedana dell'ufficio: leggermente rialzata, col colore dell'area
-    const ped = new THREE.Mesh(new RoundedBoxGeometry(w - 0.24, 0.04, d - 0.24, 2, 0.02), new THREE.MeshStandardMaterial({ color: new THREE.Color(U.col).lerp(new THREE.Color('#ffffff'), 0.35), roughness: 0.9 }));
+    const ped = new THREE.Mesh(new RoundedBoxGeometry(w - 0.24, 0.04, d - 0.24, 2, 0.02), new THREE.MeshStandardMaterial({ color: new THREE.Color(U.col).lerp(new THREE.Color('#f2ede4'), 0.15), roughness: 0.9 }));
     ped.position.set(cx, 0.02, cz); ped.receiveShadow = true; ped.userData.uff = U.id; g.add(ped);
     // pareti basse su tre lati (il lato verso chi guarda resta aperto)
     const h = 0.42, sp = 0.08;
@@ -4357,7 +4357,8 @@ function disegnaEtichette() {
 const tmp = new THREE.Vector3();
 function posiziona() {
   const r = S.renderer.domElement.getBoundingClientRect(), W = r.width, H = r.height;
-  const scala = Math.min(1.15, Math.max(0.72, Math.sqrt(S.camera.zoom) / 2.4));
+  S.etichette.classList.toggle('vicino', S.camera.zoom > (S.zoomTutto || 1) * 1.45);
+  const scala = Math.min(1.1, Math.max(0.62, Math.sqrt(S.camera.zoom / (S.zoomTutto || 1)) * 0.62));
   for (const el of S.nodiAg || []) {
     const P = S.agenti[el.dataset.ag]; if (!P) continue;
     P.g.localToWorld(tmp.set(0, 1.62, 0.66)); tmp.project(S.camera);
@@ -4388,7 +4389,7 @@ function vola(target, zoom, ms = 900) {
 }
 export function grandangolo(subito) {
   S.scelto = null; S.ufficio = null; disegnaEtichette();
-  const z = zoomPer(14.4, 10, 7.2, 5);
+  const z = zoomPer(14.4, 10, 7.2, 5); S.zoomTutto = z;
   if (subito) { S.controls.target.set(7.2, 0, 5); S.camera.position.copy(S.offset).add(S.controls.target); S.camera.zoom = z; S.camera.updateProjectionMatrix(); }
   else vola(new THREE.Vector3(7.2, 0, 5), z);
   S.cb.vista && S.cb.vista('tutto');
@@ -4403,7 +4404,9 @@ export function vaiAgente(a) {
   const P = S.agenti[a]; if (!P) return;
   S.scelto = a; disegnaEtichette();
   const p = P.g.position.clone(); p.y = 0.9; p.z += 0.3;
-  vola(p, Math.max(zoomPer(3.2, 2.6, p.x, p.z), S.camera.zoom));
+  const z = Math.max(zoomPer(3.2, 2.6, p.x, p.z), S.camera.zoom);
+  if (innerWidth < 700) { const su = new THREE.Vector3(0, 1, 0).applyQuaternion(S.camera.quaternion); p.addScaledVector(su, -(10 / z) * 0.24); }
+  vola(p, z);
   S.cb.agente && S.cb.agente(a);
 }
 
@@ -4453,15 +4456,16 @@ export function avvia(cont, dati, cb) {
   renderer.domElement.className = 'sala-canvas';
   cont.prepend(renderer.domElement);
   const scena = new THREE.Scene();
-  scena.background = new THREE.Color('#ece9e3');
+  scena.background = new THREE.Color('#e9e4db');
   const pmrem = new THREE.PMREMGenerator(renderer);
   scena.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+  scena.environmentIntensity = 0.55;
   const camera = new THREE.OrthographicCamera(-5, 5, 5, -5, 0.1, 200);
   const offset = new THREE.Vector3(18, 22, 18);
   camera.position.copy(offset).add(new THREE.Vector3(7.2, 0, 5));
   // luci: cielo morbido + sole con ombre morbide
-  scena.add(new THREE.HemisphereLight(0xffffff, 0xd9d2c5, 0.55));
-  const sole = new THREE.DirectionalLight(0xfff4e6, 1.7);
+  scena.add(new THREE.HemisphereLight(0xffffff, 0xcfc6b6, 0.35));
+  const sole = new THREE.DirectionalLight(0xfff1e0, 2.6);
   sole.position.set(4, 16, 9); sole.target.position.set(7.2, 0, 5);
   sole.castShadow = true; sole.shadow.mapSize.set(2048, 2048); sole.shadow.bias = -0.0004; sole.shadow.normalBias = 0.02; sole.shadow.radius = 4;
   Object.assign(sole.shadow.camera, { left: -12, right: 12, top: 12, bottom: -12, near: 1, far: 50 });
