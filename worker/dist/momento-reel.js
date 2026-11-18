@@ -4303,7 +4303,7 @@ function persona(mat, k) {
     const b = new THREE.Group(); b.position.set(0.25 * lato, 1.0, 0);
     const br = ombra(new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.28, 4, 10), mat.felpa)); br.position.y = -0.16; b.add(br);
     const mano = ombra(new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 10), mat.pelle)); mano.position.y = -0.35; b.add(mano);
-    b.rotation.x = 1.2; b.rotation.z = 0.12 * lato; p.add(b); braccia.push(b);
+    b.rotation.x = 1.05; b.rotation.z = 0.1 * lato; p.add(b); braccia.push(b);
   }
   return { p, braccia, testa };
 }
@@ -4372,7 +4372,7 @@ function costruisci(dati) {
       for (let c = 0; c < nRiga; c++) {
         const A = ags[r * L.col + c], k = r * L.col + c;
         const x = L.x + POSTO * c + POSTO / 2;
-        const mon = monitor(mat, A, id === 'video' ? 'video' : ''); mon.g.position.set(x, 0.785, zDesk - 0.2); scena.add(mon.g);
+        const mon = monitor(mat, A, id === 'video' ? 'video' : ''); mon.g.position.set(x, 0.785, zDesk - 0.2); mon.g.rotation.x = -0.22; scena.add(mon.g);
         const tast = box(0.42, 0.015, 0.13, mat.nero, 0.005); tast.position.set(x, 0.79, zDesk + 0.12); scena.add(tast);
         const se = sedia(mat); se.position.set(x, 0, zDesk + 0.72); scena.add(se);
         const pe = persona(mat, k + A.id.length); pe.p.position.set(x, 0, zDesk + 0.7); scena.add(pe.p);
@@ -4495,7 +4495,7 @@ function anima(t) {
   for (const id in S.agenti) {
     const P = S.agenti[id];
     if (P.stato === 'lavora') {
-      P.braccia[0].rotation.x = 1.2 + Math.sin(s * 14 + P.x) * 0.07; P.braccia[1].rotation.x = 1.2 + Math.cos(s * 13 + P.x) * 0.07;
+      P.braccia[0].rotation.x = 1.05 + Math.sin(s * 14 + P.x) * 0.07; P.braccia[1].rotation.x = 1.05 + Math.cos(s * 13 + P.x) * 0.07;
       P.testa.rotation.y = Math.sin(s * 0.8 + P.x) * 0.12; P.sm.emissiveIntensity = 0.8 + Math.sin(s * 3 + P.x) * 0.1;
     }
   }
