@@ -357,9 +357,9 @@ function arredaMeeting(R) {
   // schermo a parete con l'argomento della riunione
   const cv = document.createElement('canvas'); cv.width = 512; cv.height = 288;
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
-  const tv = box(2.0, 1.15, 0.06, mat.nero, 0.02); tv.position.set(cx, 1.45, R.z + R.d - 0.08); scena.add(tv);
+  const tv = box(0.06, 1.15, 2.0, mat.nero, 0.02); tv.position.set(R.x + R.w - 0.1, 1.45, cz); scena.add(tv);
   const sc = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 1.07), new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.6 }));
-  sc.position.set(cx, 1.45, R.z + R.d - 0.115); sc.rotation.y = Math.PI; scena.add(sc);
+  sc.position.set(R.x + R.w - 0.135, 1.45, cz); sc.rotation.y = -Math.PI / 2; scena.add(sc);
   S.schermoMeeting = { cv, tex };
   disegnaSchermoMeeting(null);
 }
@@ -671,6 +671,7 @@ export function prova(cosa, a) {
   if (cosa === 'vista') { S.volo = null; S.controls.target.set(a[3], a[4], a[5]); S.camera.position.set(a[0], a[1], a[2]); S.camera.lookAt(S.controls.target); }
   if (cosa === 'cammina') { const P = S.agenti[a]; P.cammino = percorso(P); P.seduto = false; P.fase = 0; }
   if (cosa === 'persone') return Object.values(S.agenti).filter((P) => P.G).length;
+  if (cosa === 'salta') { const s = performance.now() / 1000; for (const P of Object.values(S.agenti)) for (let k = 0; k < 4000 && P.cammino; k++) { if (P.cammino.punti[P.cammino.i] === 'sosta') P.cammino.i++; else muovi(P, s, 0.05); } }
   if (cosa === 'sposta') { for (const P of Object.values(S.agenti)) if (P.G) { P.G.dz = a; P.G.w.position.z = a; } }
   if (cosa === 'dove') { const P = S.agenti[a]; return [P.U.o.position.x, P.U.o.position.z]; }
 }
@@ -687,7 +688,7 @@ function anima(t) {
     if (k >= 1) S.volo = null;
   }
   S.controls.update();
-  const s = t / 1000, dt = Math.min(0.05, s - (S.ultimo || s)); S.ultimo = s;
+  const s = t / 1000, dt = Math.min(0.2, s - (S.ultimo || s)); S.ultimo = s;
   for (const id in S.agenti) {
     const P = S.agenti[id];
     if (P.cammino) muovi(P, s, dt);
