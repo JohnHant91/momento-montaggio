@@ -40,14 +40,7 @@ jobs:
           # fotogrammi grandi, uno al secondo (per studiare grafica e interfacce)
           ffmpeg -loglevel error -i rif.mp4 -vf "fps=1,scale=720:-2" grande_%02d.jpg
           ffmpeg -loglevel error -i rif.mp4 -vn -ac 1 -ar 22050 audio.mp3 || true
-          pip install -q faster-whisper > /dev/null 2>&1 && python3 -c "
-from faster_whisper import WhisperModel
-m = WhisperModel('small', device='cpu', compute_type='int8')
-seg, info = m.transcribe('audio.mp3', vad_filter=True)
-with open('trascrizione.txt', 'w') as f:
-    f.write('lingua: %s\n' % info.language)
-    for s in seg: f.write('[%.1f-%.1f] %s\n' % (s.start, s.end, s.text.strip()))
-" || echo "trascrizione non riuscita" > trascrizione.txt
+          (pip install -q faster-whisper > /dev/null 2>&1 && python3 "$GITHUB_WORKSPACE/motore/trascrivi.py" audio.mp3 trascrizione.txt) || echo "trascrizione non riuscita" > trascrizione.txt
           mkdir -p /tmp/pub && cp *.jpg info.txt tagli.txt trascrizione.txt /tmp/pub/ && cp audio.mp3 /tmp/pub/ 2>/dev/null || true
           cd /tmp/pub && git init -q && git checkout -q -b studio-riferimento && git add . \
             && git -c user.name=motore -c user.email=motore@momento commit -qm studio \
