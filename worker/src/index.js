@@ -1,6 +1,7 @@
 // Momento Reel · Worker Cloudflare: pagina regia + API + cron che fa lavorare gli agenti.
 import { CHIAVI_OPZIONI, CHIAVI_SEGRETE, J, all, configurazione, log, one, ora, run, schema } from './db.js';
 import { avanza } from './lavoro.js';
+import { apiPiani, avanzaPiani, schemaPiani } from './copioni.js';
 import { motoreApi } from './motore.js';
 import { PAGINA } from './pagina.js';
 
@@ -74,10 +75,11 @@ async function api(req, env, url) {
       all(env, 'SELECT agente, messaggio, livello, quando, lavoro_id FROM registro ORDER BY id DESC LIMIT 30'),
       all(env, 'SELECT agente, COUNT(*) AS n FROM registro WHERE quando > ? GROUP BY agente', new Date(Date.now() - 7 * 864e5).toISOString()),
     ]);
+    const piani = await all(env, "SELECT id, cliente, fase, blocco_fino FROM piani WHERE stato='in_corso' ORDER BY id").catch(() => []);
     const cfg = await configurazione(env);
     const chiavi = { Claude: !!cfg.ANTHROPIC_API_KEY };
     const riposo = cfg.APIFY_TOKEN ? [] : ['scout_tt', 'scout_ig'];
-    return json({ adesso: ora(), attivi, ultimi, feed, conti, chiavi, riposo, yt_web: !cfg.YOUTUBE_API_KEY });
+    return json({ adesso: ora(), attivi, piani, ultimi, feed, conti, chiavi, riposo, yt_web: !cfg.YOUTUBE_API_KEY });
   }
   const ag = p.match(/^\/api\/regia\/agente\/([a-z_]+)$/);
   if (ag && m === 'GET') {
@@ -171,12 +173,17 @@ async function api(req, env, url) {
       return json({ ok: true });
     }
   }
+  if (p.startsWith('/api/piani')) {
+    const r = await apiPiani(req, env, p, m, json);
+    if (r) return r;
+  }
   return json({ errore: 'non trovato' }, 404);
 }
 
 export default {
   async fetch(req, env) {
     await schema(env);
+    await schemaPiani(env);
     const url = new URL(req.url);
     if (url.pathname.startsWith('/api/motore/')) {
       try { return await motoreApi(req, env, url); }
@@ -190,6 +197,7 @@ export default {
   },
   async scheduled(evento, env, ctx) {
     await schema(env);
-    ctx.waitUntil(avanza(env));
+    await schemaPiani(env);
+    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env)]));
   },
 };

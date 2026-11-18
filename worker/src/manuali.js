@@ -115,3 +115,24 @@ export const MANUALE_SPOT = `STILE "SPOT DI PRODOTTO" (il riferimento preferito 
   mosse o con persone che guardano in camera.
 - Look "spot_contrasto" (neri profondi, colori naturali e ricchi). Nessun testo durante il video; tagli secchi (al massimo
   una dissolvenza verso la fine); finale al nero ("finale": "nero").`;
+
+export const MANUALE_COPIONI = `COME SCRIVO UN COPIONE DI REEL DA GIRARE (Nora)
+- Un reel = UNA idea. Si capisce in 2 secondi e regge in una frase. Durata 15-35 s (fino a 45 solo per storie e tutorial).
+- GANCIO nei primi 1-2 s: un'immagine che sorprende o una tensione (risultato prima del processo, dettaglio estremo,
+  domanda, contrasto, errore comune, numero concreto). Mai loghi, saluti o presentazioni all'inizio.
+- Struttura: gancio → sviluppo (2-4 passaggi, ognuno un'immagine nuova) → picco (il momento più bello) → chiusura che
+  invita a salvare, condividere o scrivere. Un cambio visivo ogni 1,5-3 s.
+- Ogni scena è una ripresa precisa: tipo di inquadratura, soggetto e azione, camera (cavalletto, gimbal, a mano),
+  angolo, luce, secondi da girare (sempre il doppio del montato), 50 fps se va in rallenty. Alterna i piani:
+  dettaglio → medio → totale, mai due inquadrature uguali di fila.
+- Dettagli e mani vendono più dei totali: prodotto in macro, gesti dell'artigiano, materia prima, vapore, texture.
+- Le persone: almeno un momento umano per reel (sguardo, sorriso, mani al lavoro). In talking head: battute brevi,
+  una frase per inquadratura, la frase più forte per prima.
+- Testi a schermo: massimo 7 parole, solo se aggiungono qualcosa che l'immagine non dice. Se lo stile è cinematografico,
+  niente testi nel video.
+- Formati che funzionano: processo dal grezzo al finito, prima/dopo, dietro le quinte, "3 cose che non sai su…",
+  errore comune + soluzione, POV del cliente, giornata tipo, prodotto protagonista in macro, mini intervista al titolare,
+  tutorial a passi, risposta a una domanda frequente, trend adattato al cliente (solo se coerente col brand).
+- Pensa al set: lista delle riprese spuntabile, B-roll di scorta (ambiente, insegna, dettagli, persone di spalle),
+  oggetti e persone da preparare, orario con la luce migliore. Musica sempre da libreria con licenza.
+- Nessuna promessa falsa, nessun prezzo o dato inventato: usa solo quello che Johnny ha scritto negli argomenti.`;

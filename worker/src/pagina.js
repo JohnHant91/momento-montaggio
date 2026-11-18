@@ -5,6 +5,8 @@ export const PAGINA = `<!DOCTYPE html>
 <meta name="theme-color" content="#0b1113">
 <title>Momento Reel · Regia</title>
 <style>
+@media print{header,.noprint,button{display:none!important}body{background:#fff;color:#000}.card{border-color:#ccc;background:#fff}.mut{color:#555}a{color:#000}}
+details.copione summary{cursor:pointer;list-style:none}details.copione[open]{border-color:var(--teal)}
 :root{--teal:#12a3a4;--teal2:#3fd0c9;--bg:#0b1113;--card:#141c1f;--line:#223035;--txt:#e8eef0;--mut:#8fa3a8;--warn:#f0b44c;--err:#ef6b6b;--ok:#4fd18b}
 *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--txt);font-size:15px}
 header{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(11,17,19,.95);backdrop-filter:blur(8px);z-index:5}
@@ -66,6 +68,7 @@ const FASI = [['piano','Piano'],['ricerca','Ricerca'],['riferimenti','Studio ree
 let timer = null;
 
 const AGENTI = {
+  idee: { n: 'Nora', r: 'Idee e copioni', i: '💡', c: '#f0b44c', s: 'direzione', d: 'Riceve i tuoi argomenti e il numero di reel del contratto, costruisce strategia, calendario e giornate di ripresa, e scrive per ogni reel il copione da girare: scene, inquadrature, camera, durata, testi e caption.' },
   direttore: { n: 'Leo', r: 'Direttore creativo', i: '🎬', c: '#12a3a4', s: 'direzione', d: 'Legge il tuo prompt, capisce settore, obiettivo e pubblico, decide cosa cercare. Alla fine incrocia riferimenti e clip e scrive la scheda tecnica per tutta la squadra.' },
   scout_yt: { n: 'Yuri', r: 'Scout YouTube Shorts', i: '▶️', c: '#e5483f', s: 'scouting', d: 'Cerca gli Shorts del settore pubblicati negli ultimi 18 mesi e li ordina per visualizzazioni e coinvolgimento (like, commenti).' },
   scout_tt: { n: 'Tea', r: 'Scout TikTok', i: '🎵', c: '#25d6ee', s: 'scouting', d: 'Cerca su TikTok per parole chiave e hashtag del settore (via Apify) e recupera il video per Max e Iris.' },
@@ -99,6 +102,7 @@ async function regia() {
     if (stati[a]?.s !== 'lavora') stati[a] = { s: preso ? 'lavora' : 'coda', L };
   }
   for (const [a, u] of Object.entries(ultimo)) if (!stati[a] && u.livello === 'errore' && Date.now() - new Date(u.quando) < 30 * 60e3) stati[a] = { s: 'errore' };
+  if ((R.piani || []).length) stati.idee = { s: R.piani.some((x) => x.blocco_fino && x.blocco_fino > R.adesso) ? 'lavora' : 'coda' };
   for (const a of R.riposo || []) stati[a] = { s: 'riposo' };
   if (R.yt_web) AGENTI.scout_yt.r = 'Scout YouTube Shorts · cerca sul web';
   const testoStato = { lavora: 'al lavoro', coda: 'parte a breve', errore: 'bloccato', riposo: 'a riposo' };
@@ -142,7 +146,7 @@ async function chiama(path, opts = {}) {
 }
 
 function menu(on) {
-  $('#nav').innerHTML = on ? '<a class="btn sec" href="#/">Regia</a><a class="btn sec" href="#/lavori">Lavori</a><a class="btn" href="#/nuovo">+ Reel</a><a class="btn sec" href="#/impostazioni" title="Impostazioni">⚙︎</a>' : '';
+  $('#nav').innerHTML = on ? '<a class="btn sec" href="#/">Regia</a><a class="btn sec" href="#/lavori">Lavori</a><a class="btn sec" href="#/copioni">Copioni</a><a class="btn" href="#/nuovo">+ Reel</a><a class="btn sec" href="#/impostazioni" title="Impostazioni">⚙︎</a>' : '';
 }
 
 async function accesso() {
@@ -173,6 +177,7 @@ function nuovo() {
     '<div class="aiuto">Su pCloud: tasto destro sulla cartella → Condividi → Link di condivisione → copia. Senza clip ottieni scheda e lista delle riprese, e il girato lo aggiungi dopo.</div>' +
     '<label>Reel MODELLO: lo stile che vuoi (facoltativo, ma fa la differenza)</label><textarea id="lr" style="min-height:70px" placeholder="Un link per riga: Instagram, TikTok, Pinterest, YouTube, Vimeo… La squadra copia il suo linguaggio (look, ritmo, testi sì/no, finale), non i contenuti."></textarea>' +
     '<div style="margin-top:18px"><button id="go">Avvia la squadra</button></div><div id="er" class="err"></div>';
+  if (PREFILL) { $('#pr').value = PREFILL; PREFILL = ''; }
   $('#go').onclick = async () => {
     $('#go').disabled = true;
     try { const r = await chiama('/api/lavori', { method: 'POST', body: { prompt: $('#pr').value, pcloud: $('#pc').value, link_rif: $('#lr').value } }); location.hash = '#/lavoro/' + r.id; }
@@ -306,6 +311,96 @@ async function impostazioni() {
   $('#out').onclick = async () => { await fetch('/api/esci'); accesso(); };
 }
 
+// ---------------------------------------------------------------- Nora · idee e copioni
+let PREFILL = '';
+async function piani() {
+  const P = await chiama('/api/piani');
+  $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Copioni</h1><a class="btn" href="#/copioni/nuovo">+ Nuovo piano</a></div>' +
+    '<p class="mut">Nora prende i tuoi argomenti e scrive il piano del contratto: calendario, giornate di ripresa e un copione per ogni reel con le clip da girare.</p>' +
+    (P.map((x) => '<a class="card lav" href="#/copioni/' + x.id + '"><div class="riga"><b style="flex:1">#' + x.id + ' · ' + e(x.titolo || x.cliente) + '</b><span class="pill ' + x.stato + '">' + (x.stato === 'pronto' ? 'pronto' : x.stato === 'errore' ? 'errore' : (x.fase === 'strategia' ? 'strategia…' : 'copioni ' + x.scritti + '/' + x.numero)) + '</span></div><div class="mut">' + e(x.cliente) + ' · ' + x.numero + ' reel in ' + x.mesi + ' mesi · ' + fa(x.creato) + '</div></a>').join('') || '<div class="vuoto">Nessun piano ancora. Crea il primo con “+ Nuovo piano”.</div>');
+}
+
+function nuovoPiano() {
+  const oggi = new Date(); oggi.setDate(oggi.getDate() + ((8 - oggi.getDay()) % 7 || 7));
+  $('#app').innerHTML = '<h1>Nuovo piano di copioni</h1><p class="mut">Tu dai cliente, argomenti e numero di reel. Nora fa strategia, calendario e copioni da girare.</p>' +
+    '<label>Cliente</label><input id="c_cl" placeholder="Es. Caffetteria Torretta">' +
+    '<label>Settore / attività (facoltativo)</label><input id="c_se" placeholder="Es. torrefazione artigianale e bar, Salerno">' +
+    '<label>Argomenti (uno per riga)</label><textarea id="c_ar" style="min-height:160px" placeholder="La tostatura dei chicchi&#10;Il mastro tostatore&#10;Le miscele della casa&#10;La colazione del sabato&#10;…"></textarea>' +
+    '<div class="aiuto">Più sono concreti (prodotti, persone, momenti, promozioni) più i copioni sono girabili. Nora non inventa cose che non hai scritto.</div>' +
+    '<div class="riga" style="gap:12px"><div style="flex:1;min-width:120px"><label>Numero di reel</label><input id="c_nu" type="number" min="1" max="60" value="20"></div>' +
+    '<div style="flex:1;min-width:120px"><label>Mesi di contratto</label><input id="c_me" type="number" min="1" max="24" value="3"></div>' +
+    '<div style="flex:1;min-width:160px"><label>Inizio</label><input id="c_in" type="date" value="' + oggi.toISOString().slice(0, 10) + '"></div></div>' +
+    '<label>Obiettivo del cliente (facoltativo)</label><input id="c_ob" placeholder="Es. più clienti al bancone il weekend, vendere le miscele online">' +
+    '<label>Pubblico (facoltativo)</label><input id="c_pu" placeholder="Es. 25-45 anni, amanti del caffè, turisti">' +
+    '<label>Tono (facoltativo)</label><input id="c_to" placeholder="Es. caldo, artigianale, cinematografico, niente testi">' +
+    '<label>Piattaforme (facoltativo)</label><input id="c_pi" placeholder="Instagram Reels + TikTok">' +
+    '<label>Note per Nora (facoltativo)</label><textarea id="c_no" style="min-height:70px" placeholder="Vincoli, date importanti, chi può andare in camera, reel modello…"></textarea>' +
+    '<div style="margin-top:18px"><button id="c_go">Fai lavorare Nora</button></div><div id="c_er" class="err"></div>';
+  $('#c_go').onclick = async () => {
+    $('#c_go').disabled = true;
+    try {
+      const r = await chiama('/api/piani', { method: 'POST', body: { cliente: $('#c_cl').value, settore: $('#c_se').value, argomenti: $('#c_ar').value, numero: $('#c_nu').value, mesi: $('#c_me').value, inizio: $('#c_in').value, obiettivo: $('#c_ob').value, pubblico: $('#c_pu').value, tono: $('#c_to').value, piattaforme: $('#c_pi').value, note: $('#c_no').value } });
+      location.hash = '#/copioni/' + r.id;
+    } catch (x) { $('#c_er').textContent = x.message; $('#c_go').disabled = false; }
+  };
+}
+
+function testoCopione(c, d) {
+  const g = c.gancio || {};
+  return 'REEL #' + c.numero + ' · ' + c.titolo + '\\nCliente: ' + d.cliente + ' · Formato: ' + c.formato + ' · ' + c.durata_sec + ' s\\n\\n' + c.concetto +
+    '\\n\\nGANCIO: ' + (g.visivo || '') + (g.testo_a_schermo ? ' | testo: ' + g.testo_a_schermo : '') + (g.parlato ? ' | parlato: ' + g.parlato : '') +
+    '\\n\\nSCENE:\\n' + (c.scene || []).map((s) => s.n + '. ' + s.da_sec + '-' + s.a_sec + ' s · ' + s.inquadratura + ' · ' + s.cosa_riprendere + ' · camera: ' + s.camera + (s.fps && String(s.fps).includes('50') ? ' · 50 fps' : '') + (s.testo_a_schermo ? ' · testo: ' + s.testo_a_schermo : '') + (s.parlato ? ' · parlato: ' + s.parlato : '')).join('\\n') +
+    '\\n\\nLISTA RIPRESE:\\n' + (c.lista_riprese || []).map((x) => '- ' + x).join('\\n') +
+    '\\n\\nMUSICA: ' + (c.musica || '') + '\\n\\nCAPTION:\\n' + (c.caption || '') + '\\n' + (c.hashtag || []).join(' ');
+}
+
+function vistaCopione(r, cal, d, id) {
+  const c = r.copione;
+  const t = '<div class="riga"><b style="flex:1">#' + r.numero + ' · ' + e(c ? c.titolo : (cal.idea || cal.argomento || '')) + '</b><span class="pill">' + e(cal.data || ('sett. ' + cal.settimana)) + '</span><span class="pill">' + e((c && c.formato) || cal.formato || '') + '</span></div>' +
+    '<div class="mut">' + e(cal.argomento || '') + ' · ' + e(cal.pilastro || '') + ' · obiettivo ' + e((c && c.obiettivo) || cal.obiettivo || '') + '</div>';
+  if (!c) return '<div class="card">' + t + '<p class="mut">' + (r.stato === 'da_scrivere' ? '✍️ Nora lo sta scrivendo…' : '') + (r.nota ? ' (' + e(r.nota) + ')' : '') + '</p></div>';
+  const g = c.gancio || {}, mo = c.montaggio || {};
+  const scene = (c.scene || []).map((s) => '<tr><td style="white-space:nowrap"><b>' + e(s.da_sec) + '–' + e(s.a_sec) + ' s</b><div class="mut">gira ' + e(s.girare_sec || '') + '</div></td><td><b>' + e(s.inquadratura) + '</b><div class="mut">' + e(s.angolo || '') + '</div></td><td>' + e(s.cosa_riprendere) +
+    '<div class="mut">🎥 ' + e(s.camera || '') + ' · 💡 ' + e(s.luce || '') + (s.fps ? ' · ' + e(s.fps) + ' fps' : '') + ' · 🔊 ' + e(s.audio || '') + '</div>' +
+    (s.testo_a_schermo ? '<div>🅣 “' + e(s.testo_a_schermo) + '”</div>' : '') + (s.parlato ? '<div>🗣️ “' + e(s.parlato) + '”</div>' : '') + '</td></tr>').join('');
+  return '<details class="card copione"><summary>' + t + '</summary>' +
+    '<p>' + e(c.concetto) + '</p>' +
+    '<div class="kv"><b>Gancio</b><span>' + e(g.visivo || '') + (g.testo_a_schermo ? '<br>🅣 “' + e(g.testo_a_schermo) + '”' : '') + (g.parlato ? '<br>🗣️ “' + e(g.parlato) + '”' : '') + '</span>' +
+    '<b>Durata</b><span>' + e(c.durata_sec) + ' s</span><b>Musica</b><span>' + e(c.musica || '') + '</span>' +
+    '<b>Montaggio</b><span>' + e([mo.ritmo, mo.look, mo.transizioni, mo.finale].filter(Boolean).join(' · ')) + '</span></div>' +
+    '<h3 style="margin:16px 0 6px">Scene da girare</h3><table><tr><th>Tempo</th><th>Inquadratura</th><th>Cosa e come</th></tr>' + scene + '</table>' +
+    (c.parlato_completo ? '<h3 style="margin:16px 0 6px">Testo parlato</h3><p>' + e(c.parlato_completo) + '</p>' : '') +
+    '<div class="grid"><div><h3 style="margin:16px 0 6px">✅ Lista riprese</h3>' + (c.lista_riprese || []).map((x) => '<label style="font-weight:400;margin:4px 0;display:flex;gap:8px"><input type="checkbox" style="width:auto"> ' + e(x) + '</label>').join('') + '</div>' +
+    '<div><h3 style="margin:16px 0 6px">📦 Da preparare</h3>' + lst(c.da_preparare) + '<h3 style="margin:16px 0 6px">🎬 Note set</h3><p>' + e(c.note_set || '—') + '</p></div></div>' +
+    '<h3 style="margin:16px 0 6px">Caption</h3><div class="card" style="white-space:pre-wrap">' + e(c.caption || '') + '\\n\\n' + e((c.hashtag || []).join(' ')) + '</div>' +
+    '<div class="mut">CTA: ' + e(c.cta || '') + ' · Ganci da testare: ' + e((c.ganci_alternativi || []).join(' / ')) + '</div>' +
+    '<div class="riga" style="margin-top:12px"><button class="sec" data-copia="' + r.numero + '">Copia copione</button><button class="sec" data-lavoro="' + r.numero + '">🎬 Crea il reel da questo</button><button class="sec" data-rifai="' + r.numero + '">✍️ Riscrivi</button></div></details>';
+}
+
+async function piano(id) {
+  const P = await chiama('/api/piani/' + id);
+  const d = P.dati || {}, s = P.strategia || {}, cal = s.calendario || [];
+  const fatti = P.reel.filter((r) => r.stato === 'fatto').length;
+  const stato = P.stato === 'errore' ? '<div class="card err">❌ ' + e(P.errore || '') + ' <button class="sec" id="p_rip">Riprova</button></div>' :
+    P.stato === 'in_corso' ? '<div class="card attivo">💡 Nora ' + (P.fase === 'strategia' ? 'sta studiando la strategia…' : 'sta scrivendo i copioni: ' + fatti + '/' + P.reel.length) + (P.errore ? '<div class="mut">' + e(P.errore) + '</div>' : '') + '<div class="fasi">' + P.reel.map((r) => '<div class="' + (r.stato === 'fatto' ? 'ok' : '') + '"></div>').join('') + '</div></div>' : '';
+  const strat = !P.strategia ? '' : '<h2>Strategia</h2><div class="card"><h1>' + e(s.titolo_piano || d.cliente) + '</h1><p>' + e(s.sintesi || '') + '</p><div class="kv">' +
+    '<b>Pubblico</b><span>' + e(s.pubblico || '') + '</span><b>Linea</b><span>' + e(s.linea_editoriale || '') + '</span><b>Formati</b><span>' + e(s.mix_formati || '') + '</span><b>Frequenza</b><span>' + e(s.frequenza || '') + '</span></div>' +
+    '<h3 style="margin:16px 0 6px">Pilastri</h3>' + lst((s.pilastri || []).map((x) => x.nome + ' (' + (x.quota || '') + ') — ' + (x.perche || ''))) +
+    '<h3 style="margin:16px 0 6px">Consigli</h3>' + lst(s.consigli) + '</div>' +
+    '<h2>Giornate di ripresa</h2>' + (s.giornate_di_ripresa || []).map((gr) => '<div class="card"><b>Giorno ' + e(gr.giorno) + ' · ' + e(gr.dove || '') + '</b> <span class="pill">' + e(gr.durata || '') + '</span><div>Reel: ' + (gr.reel || []).map((n) => '#' + n).join(', ') + '</div><div class="mut">Chi: ' + e(gr.chi || '') + (gr.note ? ' · ' + e(gr.note) : '') + '</div></div>').join('') +
+    '<h2>Calendario e copioni</h2>' + P.reel.map((r) => vistaCopione(r, cal.find((x) => x.numero === r.numero) || {}, d, id)).join('');
+  $('#app').innerHTML = '<div class="riga noprint"><a class="mut" href="#/copioni">← Copioni</a><span style="flex:1"></span>' + (P.stato === 'pronto' ? '<button class="sec" id="p_print">🖨️ Stampa / PDF</button>' : '') + '<button class="rosso" id="p_del">Elimina</button></div>' +
+    '<h1>' + e(d.cliente) + '</h1><div class="mut">' + d.numero + ' reel · ' + d.mesi + ' mesi dal ' + e(d.inizio) + ' · argomenti: ' + e((d.argomenti || []).join(', ')) + '</div>' + stato + strat;
+  const trova = (n) => ({ r: P.reel.find((x) => x.numero === Number(n)), c: cal.find((x) => x.numero === Number(n)) || {} });
+  document.querySelectorAll('[data-copia]').forEach((b) => b.onclick = async () => { await navigator.clipboard.writeText(testoCopione(trova(b.dataset.copia).r.copione, d)); b.textContent = 'Copiato ✓'; });
+  document.querySelectorAll('[data-lavoro]').forEach((b) => b.onclick = () => { const c = trova(b.dataset.lavoro).r.copione; PREFILL = 'Reel per ' + d.cliente + (d.settore ? ' (' + d.settore + ')' : '') + ', ' + c.durata_sec + ' secondi, formato ' + c.formato + '. Segui questo copione:\\n\\n' + testoCopione(c, d); location.hash = '#/nuovo'; });
+  document.querySelectorAll('[data-rifai]').forEach((b) => b.onclick = async () => { const nota = prompt('Cosa vuoi cambiare in questo copione? (vuoto = riscrivilo da capo)'); if (nota === null) return; await chiama('/api/piani/' + id + '/reel/' + b.dataset.rifai + '/rifai', { method: 'POST', body: { nota } }); rotta(); });
+  if ($('#p_print')) $('#p_print').onclick = () => { document.querySelectorAll('details').forEach((x) => x.open = true); print(); };
+  if ($('#p_rip')) $('#p_rip').onclick = async () => { await chiama('/api/piani/' + id + '/riprova', { method: 'POST', body: {} }); rotta(); };
+  $('#p_del').onclick = async () => { if (!confirm('Eliminare questo piano?')) return; await chiama('/api/piani/' + id, { method: 'DELETE' }); location.hash = '#/copioni'; };
+  if (P.stato === 'in_corso') timer = setTimeout(rotta, 5000);
+}
+
 async function rotta() {
   clearTimeout(timer);
   const h = location.hash || '#/';
@@ -317,6 +412,9 @@ async function rotta() {
     else if (h === '#/nuovo') nuovo();
     else if (h === '#/impostazioni') await impostazioni();
     else if (h === '#/lavori') await lista();
+    else if (h === '#/copioni') await piani();
+    else if (h === '#/copioni/nuovo') nuovoPiano();
+    else if (h.startsWith('#/copioni/')) await piano(h.split('/')[2]);
     else if (!document.querySelector('.pannello')) await regia();
     else timer = setTimeout(rotta, 3000);
   } catch (x) { if (x.message !== 'accesso') $('#app').innerHTML = '<div class="card err">' + e(x.message) + '</div>'; }

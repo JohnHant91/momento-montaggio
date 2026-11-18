@@ -579,6 +579,26 @@ var MANUALE_SPOT = `STILE "SPOT DI PRODOTTO" (il riferimento preferito di Johnny
   mosse o con persone che guardano in camera.
 - Look "spot_contrasto" (neri profondi, colori naturali e ricchi). Nessun testo durante il video; tagli secchi (al massimo
   una dissolvenza verso la fine); finale al nero ("finale": "nero").`;
+var MANUALE_COPIONI = `COME SCRIVO UN COPIONE DI REEL DA GIRARE (Nora)
+- Un reel = UNA idea. Si capisce in 2 secondi e regge in una frase. Durata 15-35 s (fino a 45 solo per storie e tutorial).
+- GANCIO nei primi 1-2 s: un'immagine che sorprende o una tensione (risultato prima del processo, dettaglio estremo,
+  domanda, contrasto, errore comune, numero concreto). Mai loghi, saluti o presentazioni all'inizio.
+- Struttura: gancio \u2192 sviluppo (2-4 passaggi, ognuno un'immagine nuova) \u2192 picco (il momento pi\xF9 bello) \u2192 chiusura che
+  invita a salvare, condividere o scrivere. Un cambio visivo ogni 1,5-3 s.
+- Ogni scena \xE8 una ripresa precisa: tipo di inquadratura, soggetto e azione, camera (cavalletto, gimbal, a mano),
+  angolo, luce, secondi da girare (sempre il doppio del montato), 50 fps se va in rallenty. Alterna i piani:
+  dettaglio \u2192 medio \u2192 totale, mai due inquadrature uguali di fila.
+- Dettagli e mani vendono pi\xF9 dei totali: prodotto in macro, gesti dell'artigiano, materia prima, vapore, texture.
+- Le persone: almeno un momento umano per reel (sguardo, sorriso, mani al lavoro). In talking head: battute brevi,
+  una frase per inquadratura, la frase pi\xF9 forte per prima.
+- Testi a schermo: massimo 7 parole, solo se aggiungono qualcosa che l'immagine non dice. Se lo stile \xE8 cinematografico,
+  niente testi nel video.
+- Formati che funzionano: processo dal grezzo al finito, prima/dopo, dietro le quinte, "3 cose che non sai su\u2026",
+  errore comune + soluzione, POV del cliente, giornata tipo, prodotto protagonista in macro, mini intervista al titolare,
+  tutorial a passi, risposta a una domanda frequente, trend adattato al cliente (solo se coerente col brand).
+- Pensa al set: lista delle riprese spuntabile, B-roll di scorta (ambiente, insegna, dettagli, persone di spalle),
+  oggetti e persone da preparare, orario con la luce migliore. Musica sempre da libreria con licenza.
+- Nessuna promessa falsa, nessun prezzo o dato inventato: usa solo quello che Johnny ha scritto negli argomenti.`;
 
 // src/lavoro.js
 var FASI = ["piano", "ricerca", "riferimenti", "clip", "scheda", "regia", "montaggio", "fatto"];
@@ -1165,6 +1185,249 @@ async function avanza(env) {
   }
 }
 
+// src/copioni.js
+var GRUPPO = 4;
+var BLOCCO_MIN2 = 15;
+async function schemaPiani(env) {
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS piani (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, cliente TEXT, dati TEXT, stato TEXT NOT NULL DEFAULT 'in_corso', fase TEXT NOT NULL DEFAULT 'strategia',
+    strategia TEXT, reel TEXT, errore TEXT, tentativi INTEGER DEFAULT 0, blocco_fino TEXT, creato TEXT, aggiornato TEXT)`).run();
+}
+var SISTEMA_STRATEGIA = `Sei Nora, content strategist e sceneggiatrice di Momento Produzione, agenzia che gira e monta
+video e foto per i social dei clienti (ristoranti, bar, B&B, negozi, artigiani, professionisti). Johnny ti d\xE0 il cliente,
+gli argomenti e il numero di reel del contratto: tu costruisci il piano editoriale che poi l'agenzia gira e monta.
+
+${MANUALE_DIRETTORE}
+
+${MANUALE_COPIONI}
+
+Regole del piano:
+- Usa gli argomenti di Johnny come materia prima: puoi dividerli, combinarli e ordinarli, non inventare servizi o
+  prodotti che il cliente non ha. Se un argomento \xE8 vago, trasformalo in un'idea concreta e girabile.
+- Distribuisci i reel sulle settimane del contratto in modo regolare (stessi giorni della settimana), alternando
+  pilastri e formati: mai due reel uguali di fila. Il primo mese deve contenere i reel pi\xF9 forti per farsi conoscere.
+- Pensa alla produzione: raggruppa i reel in GIORNATE DI RIPRESA per luogo e situazione (meno uscite = pi\xF9 margine
+  per l'agenzia). Ogni giornata indica quali reel si girano, dove, chi deve esserci, e quanto dura.
+- Rispondi SOLO JSON.`;
+var SISTEMA_COPIONE = `Sei Nora, sceneggiatrice di Momento Produzione. Scrivi copioni di reel da GIRARE: il videomaker
+li legge sul set e deve sapere esattamente cosa riprendere, come e per quanto; il montatore deve sapere come montarli.
+
+${MANUALE_COPIONI}
+
+${MANUALE_COPY}
+
+Rispondi SOLO JSON.`;
+function datiTesto(d) {
+  return `CLIENTE: ${d.cliente}
+SETTORE / ATTIVIT\xC0: ${d.settore || "(deducilo dal cliente e dagli argomenti)"}
+ARGOMENTI DA COPRIRE (scelti da Johnny):
+${(d.argomenti || []).map((a, i) => `${i + 1}. ${a}`).join("\n")}
+NUMERO DI REEL: ${d.numero}
+DURATA DEL CONTRATTO: ${d.mesi} mesi, dal ${d.inizio}
+PIATTAFORME: ${d.piattaforme || "Instagram Reels (+ TikTok)"}
+OBIETTIVO DEL CLIENTE: ${d.obiettivo || "(deducilo)"}
+PUBBLICO: ${d.pubblico || "(deducilo)"}
+TONO: ${d.tono || "(deducilo dal settore)"}
+NOTE DI JOHNNY: ${d.note || "\u2014"}`;
+}
+async function faseStrategia(env, cfg, P) {
+  const d = J(P.dati, {});
+  await log(env, null, "idee", `\u{1F4A1} piano "${d.cliente}": studio gli argomenti e distribuisco ${d.numero} reel in ${d.mesi} mesi`);
+  const s = await claude(cfg, SISTEMA_STRATEGIA, `${datiTesto(d)}
+
+Restituisci:
+{
+  "titolo_piano": "...",
+  "sintesi": "3-4 frasi: l'idea guida del piano e perch\xE9 funziona per questo cliente",
+  "pubblico": "chi guarda e cosa gli interessa",
+  "linea_editoriale": "tono, stile visivo, cosa rende riconoscibili questi reel",
+  "pilastri": [{"nome": "...", "perche": "...", "quota": "percentuale dei reel"}],
+  "mix_formati": "quanti reel per formato e perch\xE9",
+  "frequenza": "es. 2 a settimana, marted\xEC e venerd\xEC",
+  "calendario": [{"numero": 1, "settimana": 1, "data": "YYYY-MM-DD", "argomento": "...", "pilastro": "...", "formato": "montaggio|talking_head|carosello|tutorial|dietro_le_quinte|prima_dopo|pov|intervista|trend",
+                  "idea": "una frase concreta", "obiettivo": "visibilit\xE0|salvataggi|condivisioni|interazione|contatti", "gancio_bozza": "..."}],
+  "giornate_di_ripresa": [{"giorno": 1, "reel": [1, 4, 7], "dove": "...", "chi": "persone che devono esserci", "durata": "es. mezza giornata", "note": "..."}],
+  "consigli": ["3-5 consigli pratici per la produzione e la pubblicazione"]
+}
+Il calendario deve avere ESATTAMENTE ${d.numero} reel, numerati da 1 a ${d.numero}.`, { maxTokens: 16e3 });
+  const cal = (s.calendario || []).slice(0, d.numero).map((r, i) => ({ ...r, numero: i + 1 }));
+  if (cal.length < d.numero) throw new Error(`la strategia ha solo ${cal.length} reel su ${d.numero}: riprovo`);
+  s.calendario = cal;
+  await run(env, "UPDATE piani SET strategia=?, reel=?, fase='copioni', aggiornato=? WHERE id=?", JSON.stringify(s), JSON.stringify(cal.map((c) => ({ numero: c.numero, stato: "da_scrivere" }))), ora(), P.id);
+  await log(env, null, "idee", `\u{1F4A1} piano "${s.titolo_piano || d.cliente}": ${cal.length} reel in calendario, ${(s.giornate_di_ripresa || []).length} giornate di ripresa. Ora scrivo i copioni`);
+}
+async function faseCopioni(env, cfg, P) {
+  const d = J(P.dati, {});
+  const s = J(P.strategia, {});
+  const reel = J(P.reel, []);
+  const daFare = reel.filter((r) => r.stato !== "fatto").slice(0, GRUPPO);
+  if (!daFare.length) {
+    await run(env, "UPDATE piani SET fase='fatto', stato='pronto', aggiornato=? WHERE id=?", ora(), P.id);
+    await log(env, null, "idee", `\u2705 piano "${s.titolo_piano || d.cliente}" pronto: ${reel.length} copioni da girare`);
+    return;
+  }
+  const voci = daFare.map((r) => {
+    const c = s.calendario.find((x) => x.numero === r.numero) || {};
+    return { ...c, nota_di_johnny: r.nota || void 0 };
+  });
+  await log(env, null, "idee", `\u270D\uFE0F scrivo i copioni ${voci.map((v) => "#" + v.numero).join(", ")} del piano "${s.titolo_piano || d.cliente}"`);
+  const out = await claude(cfg, SISTEMA_COPIONE, `${datiTesto(d)}
+
+PIANO GI\xC0 DECISO:
+- idea guida: ${s.sintesi || ""}
+- linea editoriale: ${s.linea_editoriale || ""}
+- pubblico: ${s.pubblico || ""}
+
+REEL DA SCRIVERE ORA (rispetta argomento, formato, pilastro e obiettivo; se c'\xE8 una nota di Johnny, seguila):
+${JSON.stringify(voci, null, 1)}
+
+Per ognuno restituisci un copione completo:
+{"copioni": [{
+  "numero": n, "titolo": "...", "formato": "...", "durata_sec": 15-45, "obiettivo": "...",
+  "concetto": "2 frasi: cosa racconta e perch\xE9 qualcuno lo guarda fino alla fine",
+  "gancio": {"visivo": "cosa si vede nei primi 2 secondi", "testo_a_schermo": "max 7 parole o null", "parlato": "prima frase detta o null"},
+  "scene": [{"n": 1, "da_sec": 0, "a_sec": 2,
+             "inquadratura": "macro|dettaglio|primo piano|piano medio|piano americano|totale|POV|dall'alto",
+             "cosa_riprendere": "soggetto e azione precisi",
+             "camera": "cavalletto fisso|gimbal|a mano|slider + eventuale movimento",
+             "angolo": "frontale|laterale|dall'alto|dal basso|3/4",
+             "luce": "naturale da finestra|calda|controluce|...",
+             "girare_sec": "quanti secondi girare (sempre pi\xF9 del montato)",
+             "fps": "25 oppure 50 per il rallenty",
+             "audio": "ambiente|parlato in camera|voce fuori campo|nessuno",
+             "testo_a_schermo": "... o null", "parlato": "battuta esatta o null"}],
+  "parlato_completo": "tutto il testo detto (talking head / voce fuori campo) o null",
+  "montaggio": {"ritmo": "...", "look": "...", "transizioni": "...", "finale": "..."},
+  "musica": "mood, genere e BPM indicativi (da libreria con licenza)",
+  "lista_riprese": ["checklist per il videomaker: ogni clip da portare a casa, comprese le B-roll di scorta"],
+  "da_preparare": ["oggetti, prodotti, persone, abbigliamento, permessi"],
+  "caption": "caption pronta, prima riga \u2264125 caratteri con la parola chiave",
+  "hashtag": ["3-5"], "cta": "una sola call to action",
+  "ganci_alternativi": ["2 alternative da testare"],
+  "note_set": "consigli pratici per il set"
+}]}`, { maxTokens: 2e4 });
+  const nuovi = Object.fromEntries((out.copioni || []).map((c) => [Number(c.numero), c]));
+  const fresco = J((await one(env, "SELECT reel FROM piani WHERE id=?", P.id))?.reel, reel);
+  let scritti = 0;
+  for (const r of fresco) {
+    if (daFare.some((x) => x.numero === r.numero) && nuovi[r.numero]?.scene?.length) {
+      Object.assign(r, { stato: "fatto", copione: nuovi[r.numero], nota: void 0, scritto: ora() });
+      scritti++;
+    }
+  }
+  if (!scritti) throw new Error("Claude non ha restituito copioni validi: riprovo");
+  const finiti = fresco.every((r) => r.stato === "fatto");
+  await run(env, "UPDATE piani SET reel=?, fase=?, stato=?, aggiornato=? WHERE id=?", JSON.stringify(fresco), finiti ? "fatto" : "copioni", finiti ? "pronto" : "in_corso", ora(), P.id);
+  await log(env, null, "idee", finiti ? `\u2705 piano "${s.titolo_piano || d.cliente}" pronto: ${fresco.length} copioni da girare` : `\u270D\uFE0F ${fresco.filter((r) => r.stato === "fatto").length}/${fresco.length} copioni scritti`);
+}
+async function avanzaPiani(env) {
+  const adesso = ora();
+  const presi = await all(
+    env,
+    `UPDATE piani SET blocco_fino=?, tentativi=tentativi+1, aggiornato=?
+    WHERE id = (SELECT id FROM piani WHERE stato='in_corso' AND (blocco_fino IS NULL OR blocco_fino < ?) ORDER BY id LIMIT 1) RETURNING *`,
+    new Date(Date.now() + BLOCCO_MIN2 * 6e4).toISOString(),
+    adesso,
+    adesso
+  );
+  if (!presi.length) return;
+  const P = presi[0];
+  const cfg = await configurazione(env);
+  try {
+    if (P.fase === "strategia") await faseStrategia(env, cfg, P);
+    else await faseCopioni(env, cfg, P);
+    await run(env, "UPDATE piani SET blocco_fino=NULL, tentativi=0, errore=NULL WHERE id=?", P.id);
+  } catch (e) {
+    const msg = String(e?.message || e).slice(0, 400);
+    const stop = P.tentativi >= 3 || /manca la chiave/.test(msg);
+    await run(
+      env,
+      "UPDATE piani SET stato=?, errore=?, blocco_fino=?, aggiornato=? WHERE id=?",
+      stop ? "errore" : "in_corso",
+      msg,
+      stop ? null : new Date(Date.now() + 2 * 6e4).toISOString(),
+      ora(),
+      P.id
+    );
+    await log(env, null, "idee", `${stop ? "\u274C fermo" : "\u26A0\uFE0F riprovo tra 2 minuti"} (piano #${P.id}): ${msg}`, stop ? "errore" : "warn");
+  }
+}
+async function apiPiani(req, env, p, m, json3) {
+  if (p === "/api/piani" && m === "GET") {
+    return json3(await all(env, "SELECT id, cliente, stato, fase, errore, creato, json_extract(strategia, '$.titolo_piano') AS titolo, json_extract(dati, '$.numero') AS numero, json_extract(dati, '$.mesi') AS mesi, (SELECT COUNT(*) FROM json_each(piani.reel) WHERE json_extract(value, '$.stato')='fatto') AS scritti FROM piani ORDER BY id DESC LIMIT 60"));
+  }
+  if (p === "/api/piani" && m === "POST") {
+    const d = await req.json().catch(() => ({}));
+    const cfg = await configurazione(env);
+    if (!cfg.ANTHROPIC_API_KEY) return json3({ errore: "Prima inserisci la chiave Claude in \u2699\uFE0E Impostazioni" }, 400);
+    const cliente = String(d.cliente || "").trim();
+    const argomenti = String(d.argomenti || "").split("\n").map((x) => x.replace(/^[-•*\d.)\s]+/, "").trim()).filter(Boolean).slice(0, 60);
+    const numero = Math.round(Number(d.numero) || 20);
+    const mesi = Math.round(Number(d.mesi) || 3);
+    if (!cliente) return json3({ errore: "scrivi il nome del cliente" }, 400);
+    if (!argomenti.length) return json3({ errore: "scrivi almeno un argomento (uno per riga)" }, 400);
+    if (numero < 1 || numero > 60) return json3({ errore: "il numero di reel va da 1 a 60" }, 400);
+    const inizio = /^\d{4}-\d{2}-\d{2}$/.test(d.inizio || "") ? d.inizio : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+    const dati = {
+      cliente,
+      settore: String(d.settore || "").trim(),
+      argomenti,
+      numero,
+      mesi: Math.min(Math.max(mesi, 1), 24),
+      inizio,
+      obiettivo: String(d.obiettivo || "").trim(),
+      pubblico: String(d.pubblico || "").trim(),
+      tono: String(d.tono || "").trim(),
+      piattaforme: String(d.piattaforme || "").trim(),
+      note: String(d.note || "").trim()
+    };
+    const r = await one(env, "INSERT INTO piani (cliente, dati, creato, aggiornato) VALUES (?,?,?,?) RETURNING id", cliente, JSON.stringify(dati), ora(), ora());
+    await log(env, null, "idee", `\u{1F4A1} nuovo piano #${r.id} per ${cliente}: ${numero} reel in ${dati.mesi} mesi, parto entro un minuto`);
+    return json3({ id: r.id });
+  }
+  const pp = p.match(/^\/api\/piani\/(\d+)$/);
+  if (pp && m === "GET") {
+    const P = await one(env, "SELECT * FROM piani WHERE id=?", pp[1]);
+    if (!P) return json3({ errore: "piano non trovato" }, 404);
+    return json3({ ...P, dati: J(P.dati, {}), strategia: J(P.strategia), reel: J(P.reel, []) });
+  }
+  if (pp && m === "DELETE") {
+    await run(env, "DELETE FROM piani WHERE id=?", pp[1]);
+    return json3({ ok: true });
+  }
+  const rp = p.match(/^\/api\/piani\/(\d+)\/riprova$/);
+  if (rp && m === "POST") {
+    await run(env, "UPDATE piani SET stato='in_corso', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", ora(), rp[1]);
+    return json3({ ok: true });
+  }
+  const rr = p.match(/^\/api\/piani\/(\d+)\/reel\/(\d+)\/rifai$/);
+  if (rr && m === "POST") {
+    const d = await req.json().catch(() => ({}));
+    const P = await one(env, "SELECT * FROM piani WHERE id=?", rr[1]);
+    if (!P) return json3({ errore: "piano non trovato" }, 404);
+    const reel = J(P.reel, []);
+    const r = reel.find((x) => x.numero === Number(rr[2]));
+    if (!r) return json3({ errore: "reel non trovato" }, 404);
+    Object.assign(r, { stato: "da_scrivere", nota: String(d.nota || "").trim().slice(0, 1500) || void 0, copione: void 0 });
+    const strategia = J(P.strategia, {});
+    if (d.argomento && strategia?.calendario) {
+      const c = strategia.calendario.find((x) => x.numero === r.numero);
+      if (c) c.argomento = String(d.argomento).slice(0, 300);
+    }
+    await run(
+      env,
+      "UPDATE piani SET reel=?, strategia=?, fase='copioni', stato='in_corso', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?",
+      JSON.stringify(reel),
+      JSON.stringify(strategia),
+      ora(),
+      P.id
+    );
+    await log(env, null, "idee", `\u270D\uFE0F riscrivo il copione #${r.numero} del piano #${P.id}${r.nota ? ": " + r.nota.slice(0, 100) : ""}`);
+    return json3({ ok: true });
+  }
+  return null;
+}
+
 // src/motore.js
 var REPO = "johnhant91/momento-montaggio";
 var AUD = "momento-reel";
@@ -1373,6 +1636,8 @@ var PAGINA = `<!DOCTYPE html>
 <meta name="theme-color" content="#0b1113">
 <title>Momento Reel \xB7 Regia</title>
 <style>
+@media print{header,.noprint,button{display:none!important}body{background:#fff;color:#000}.card{border-color:#ccc;background:#fff}.mut{color:#555}a{color:#000}}
+details.copione summary{cursor:pointer;list-style:none}details.copione[open]{border-color:var(--teal)}
 :root{--teal:#12a3a4;--teal2:#3fd0c9;--bg:#0b1113;--card:#141c1f;--line:#223035;--txt:#e8eef0;--mut:#8fa3a8;--warn:#f0b44c;--err:#ef6b6b;--ok:#4fd18b}
 *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--txt);font-size:15px}
 header{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(11,17,19,.95);backdrop-filter:blur(8px);z-index:5}
@@ -1434,6 +1699,7 @@ const FASI = [['piano','Piano'],['ricerca','Ricerca'],['riferimenti','Studio ree
 let timer = null;
 
 const AGENTI = {
+  idee: { n: 'Nora', r: 'Idee e copioni', i: '\u{1F4A1}', c: '#f0b44c', s: 'direzione', d: 'Riceve i tuoi argomenti e il numero di reel del contratto, costruisce strategia, calendario e giornate di ripresa, e scrive per ogni reel il copione da girare: scene, inquadrature, camera, durata, testi e caption.' },
   direttore: { n: 'Leo', r: 'Direttore creativo', i: '\u{1F3AC}', c: '#12a3a4', s: 'direzione', d: 'Legge il tuo prompt, capisce settore, obiettivo e pubblico, decide cosa cercare. Alla fine incrocia riferimenti e clip e scrive la scheda tecnica per tutta la squadra.' },
   scout_yt: { n: 'Yuri', r: 'Scout YouTube Shorts', i: '\u25B6\uFE0F', c: '#e5483f', s: 'scouting', d: 'Cerca gli Shorts del settore pubblicati negli ultimi 18 mesi e li ordina per visualizzazioni e coinvolgimento (like, commenti).' },
   scout_tt: { n: 'Tea', r: 'Scout TikTok', i: '\u{1F3B5}', c: '#25d6ee', s: 'scouting', d: 'Cerca su TikTok per parole chiave e hashtag del settore (via Apify) e recupera il video per Max e Iris.' },
@@ -1467,6 +1733,7 @@ async function regia() {
     if (stati[a]?.s !== 'lavora') stati[a] = { s: preso ? 'lavora' : 'coda', L };
   }
   for (const [a, u] of Object.entries(ultimo)) if (!stati[a] && u.livello === 'errore' && Date.now() - new Date(u.quando) < 30 * 60e3) stati[a] = { s: 'errore' };
+  if ((R.piani || []).length) stati.idee = { s: R.piani.some((x) => x.blocco_fino && x.blocco_fino > R.adesso) ? 'lavora' : 'coda' };
   for (const a of R.riposo || []) stati[a] = { s: 'riposo' };
   if (R.yt_web) AGENTI.scout_yt.r = 'Scout YouTube Shorts \xB7 cerca sul web';
   const testoStato = { lavora: 'al lavoro', coda: 'parte a breve', errore: 'bloccato', riposo: 'a riposo' };
@@ -1510,7 +1777,7 @@ async function chiama(path, opts = {}) {
 }
 
 function menu(on) {
-  $('#nav').innerHTML = on ? '<a class="btn sec" href="#/">Regia</a><a class="btn sec" href="#/lavori">Lavori</a><a class="btn" href="#/nuovo">+ Reel</a><a class="btn sec" href="#/impostazioni" title="Impostazioni">\u2699\uFE0E</a>' : '';
+  $('#nav').innerHTML = on ? '<a class="btn sec" href="#/">Regia</a><a class="btn sec" href="#/lavori">Lavori</a><a class="btn sec" href="#/copioni">Copioni</a><a class="btn" href="#/nuovo">+ Reel</a><a class="btn sec" href="#/impostazioni" title="Impostazioni">\u2699\uFE0E</a>' : '';
 }
 
 async function accesso() {
@@ -1541,6 +1808,7 @@ function nuovo() {
     '<div class="aiuto">Su pCloud: tasto destro sulla cartella \u2192 Condividi \u2192 Link di condivisione \u2192 copia. Senza clip ottieni scheda e lista delle riprese, e il girato lo aggiungi dopo.</div>' +
     '<label>Reel MODELLO: lo stile che vuoi (facoltativo, ma fa la differenza)</label><textarea id="lr" style="min-height:70px" placeholder="Un link per riga: Instagram, TikTok, Pinterest, YouTube, Vimeo\u2026 La squadra copia il suo linguaggio (look, ritmo, testi s\xEC/no, finale), non i contenuti."></textarea>' +
     '<div style="margin-top:18px"><button id="go">Avvia la squadra</button></div><div id="er" class="err"></div>';
+  if (PREFILL) { $('#pr').value = PREFILL; PREFILL = ''; }
   $('#go').onclick = async () => {
     $('#go').disabled = true;
     try { const r = await chiama('/api/lavori', { method: 'POST', body: { prompt: $('#pr').value, pcloud: $('#pc').value, link_rif: $('#lr').value } }); location.hash = '#/lavoro/' + r.id; }
@@ -1674,6 +1942,96 @@ async function impostazioni() {
   $('#out').onclick = async () => { await fetch('/api/esci'); accesso(); };
 }
 
+// ---------------------------------------------------------------- Nora \xB7 idee e copioni
+let PREFILL = '';
+async function piani() {
+  const P = await chiama('/api/piani');
+  $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Copioni</h1><a class="btn" href="#/copioni/nuovo">+ Nuovo piano</a></div>' +
+    '<p class="mut">Nora prende i tuoi argomenti e scrive il piano del contratto: calendario, giornate di ripresa e un copione per ogni reel con le clip da girare.</p>' +
+    (P.map((x) => '<a class="card lav" href="#/copioni/' + x.id + '"><div class="riga"><b style="flex:1">#' + x.id + ' \xB7 ' + e(x.titolo || x.cliente) + '</b><span class="pill ' + x.stato + '">' + (x.stato === 'pronto' ? 'pronto' : x.stato === 'errore' ? 'errore' : (x.fase === 'strategia' ? 'strategia\u2026' : 'copioni ' + x.scritti + '/' + x.numero)) + '</span></div><div class="mut">' + e(x.cliente) + ' \xB7 ' + x.numero + ' reel in ' + x.mesi + ' mesi \xB7 ' + fa(x.creato) + '</div></a>').join('') || '<div class="vuoto">Nessun piano ancora. Crea il primo con \u201C+ Nuovo piano\u201D.</div>');
+}
+
+function nuovoPiano() {
+  const oggi = new Date(); oggi.setDate(oggi.getDate() + ((8 - oggi.getDay()) % 7 || 7));
+  $('#app').innerHTML = '<h1>Nuovo piano di copioni</h1><p class="mut">Tu dai cliente, argomenti e numero di reel. Nora fa strategia, calendario e copioni da girare.</p>' +
+    '<label>Cliente</label><input id="c_cl" placeholder="Es. Caffetteria Torretta">' +
+    '<label>Settore / attivit\xE0 (facoltativo)</label><input id="c_se" placeholder="Es. torrefazione artigianale e bar, Salerno">' +
+    '<label>Argomenti (uno per riga)</label><textarea id="c_ar" style="min-height:160px" placeholder="La tostatura dei chicchi&#10;Il mastro tostatore&#10;Le miscele della casa&#10;La colazione del sabato&#10;\u2026"></textarea>' +
+    '<div class="aiuto">Pi\xF9 sono concreti (prodotti, persone, momenti, promozioni) pi\xF9 i copioni sono girabili. Nora non inventa cose che non hai scritto.</div>' +
+    '<div class="riga" style="gap:12px"><div style="flex:1;min-width:120px"><label>Numero di reel</label><input id="c_nu" type="number" min="1" max="60" value="20"></div>' +
+    '<div style="flex:1;min-width:120px"><label>Mesi di contratto</label><input id="c_me" type="number" min="1" max="24" value="3"></div>' +
+    '<div style="flex:1;min-width:160px"><label>Inizio</label><input id="c_in" type="date" value="' + oggi.toISOString().slice(0, 10) + '"></div></div>' +
+    '<label>Obiettivo del cliente (facoltativo)</label><input id="c_ob" placeholder="Es. pi\xF9 clienti al bancone il weekend, vendere le miscele online">' +
+    '<label>Pubblico (facoltativo)</label><input id="c_pu" placeholder="Es. 25-45 anni, amanti del caff\xE8, turisti">' +
+    '<label>Tono (facoltativo)</label><input id="c_to" placeholder="Es. caldo, artigianale, cinematografico, niente testi">' +
+    '<label>Piattaforme (facoltativo)</label><input id="c_pi" placeholder="Instagram Reels + TikTok">' +
+    '<label>Note per Nora (facoltativo)</label><textarea id="c_no" style="min-height:70px" placeholder="Vincoli, date importanti, chi pu\xF2 andare in camera, reel modello\u2026"></textarea>' +
+    '<div style="margin-top:18px"><button id="c_go">Fai lavorare Nora</button></div><div id="c_er" class="err"></div>';
+  $('#c_go').onclick = async () => {
+    $('#c_go').disabled = true;
+    try {
+      const r = await chiama('/api/piani', { method: 'POST', body: { cliente: $('#c_cl').value, settore: $('#c_se').value, argomenti: $('#c_ar').value, numero: $('#c_nu').value, mesi: $('#c_me').value, inizio: $('#c_in').value, obiettivo: $('#c_ob').value, pubblico: $('#c_pu').value, tono: $('#c_to').value, piattaforme: $('#c_pi').value, note: $('#c_no').value } });
+      location.hash = '#/copioni/' + r.id;
+    } catch (x) { $('#c_er').textContent = x.message; $('#c_go').disabled = false; }
+  };
+}
+
+function testoCopione(c, d) {
+  const g = c.gancio || {};
+  return 'REEL #' + c.numero + ' \xB7 ' + c.titolo + '\\nCliente: ' + d.cliente + ' \xB7 Formato: ' + c.formato + ' \xB7 ' + c.durata_sec + ' s\\n\\n' + c.concetto +
+    '\\n\\nGANCIO: ' + (g.visivo || '') + (g.testo_a_schermo ? ' | testo: ' + g.testo_a_schermo : '') + (g.parlato ? ' | parlato: ' + g.parlato : '') +
+    '\\n\\nSCENE:\\n' + (c.scene || []).map((s) => s.n + '. ' + s.da_sec + '-' + s.a_sec + ' s \xB7 ' + s.inquadratura + ' \xB7 ' + s.cosa_riprendere + ' \xB7 camera: ' + s.camera + (s.fps && String(s.fps).includes('50') ? ' \xB7 50 fps' : '') + (s.testo_a_schermo ? ' \xB7 testo: ' + s.testo_a_schermo : '') + (s.parlato ? ' \xB7 parlato: ' + s.parlato : '')).join('\\n') +
+    '\\n\\nLISTA RIPRESE:\\n' + (c.lista_riprese || []).map((x) => '- ' + x).join('\\n') +
+    '\\n\\nMUSICA: ' + (c.musica || '') + '\\n\\nCAPTION:\\n' + (c.caption || '') + '\\n' + (c.hashtag || []).join(' ');
+}
+
+function vistaCopione(r, cal, d, id) {
+  const c = r.copione;
+  const t = '<div class="riga"><b style="flex:1">#' + r.numero + ' \xB7 ' + e(c ? c.titolo : (cal.idea || cal.argomento || '')) + '</b><span class="pill">' + e(cal.data || ('sett. ' + cal.settimana)) + '</span><span class="pill">' + e((c && c.formato) || cal.formato || '') + '</span></div>' +
+    '<div class="mut">' + e(cal.argomento || '') + ' \xB7 ' + e(cal.pilastro || '') + ' \xB7 obiettivo ' + e((c && c.obiettivo) || cal.obiettivo || '') + '</div>';
+  if (!c) return '<div class="card">' + t + '<p class="mut">' + (r.stato === 'da_scrivere' ? '\u270D\uFE0F Nora lo sta scrivendo\u2026' : '') + (r.nota ? ' (' + e(r.nota) + ')' : '') + '</p></div>';
+  const g = c.gancio || {}, mo = c.montaggio || {};
+  const scene = (c.scene || []).map((s) => '<tr><td style="white-space:nowrap"><b>' + e(s.da_sec) + '\u2013' + e(s.a_sec) + ' s</b><div class="mut">gira ' + e(s.girare_sec || '') + '</div></td><td><b>' + e(s.inquadratura) + '</b><div class="mut">' + e(s.angolo || '') + '</div></td><td>' + e(s.cosa_riprendere) +
+    '<div class="mut">\u{1F3A5} ' + e(s.camera || '') + ' \xB7 \u{1F4A1} ' + e(s.luce || '') + (s.fps ? ' \xB7 ' + e(s.fps) + ' fps' : '') + ' \xB7 \u{1F50A} ' + e(s.audio || '') + '</div>' +
+    (s.testo_a_schermo ? '<div>\u{1F163} \u201C' + e(s.testo_a_schermo) + '\u201D</div>' : '') + (s.parlato ? '<div>\u{1F5E3}\uFE0F \u201C' + e(s.parlato) + '\u201D</div>' : '') + '</td></tr>').join('');
+  return '<details class="card copione"><summary>' + t + '</summary>' +
+    '<p>' + e(c.concetto) + '</p>' +
+    '<div class="kv"><b>Gancio</b><span>' + e(g.visivo || '') + (g.testo_a_schermo ? '<br>\u{1F163} \u201C' + e(g.testo_a_schermo) + '\u201D' : '') + (g.parlato ? '<br>\u{1F5E3}\uFE0F \u201C' + e(g.parlato) + '\u201D' : '') + '</span>' +
+    '<b>Durata</b><span>' + e(c.durata_sec) + ' s</span><b>Musica</b><span>' + e(c.musica || '') + '</span>' +
+    '<b>Montaggio</b><span>' + e([mo.ritmo, mo.look, mo.transizioni, mo.finale].filter(Boolean).join(' \xB7 ')) + '</span></div>' +
+    '<h3 style="margin:16px 0 6px">Scene da girare</h3><table><tr><th>Tempo</th><th>Inquadratura</th><th>Cosa e come</th></tr>' + scene + '</table>' +
+    (c.parlato_completo ? '<h3 style="margin:16px 0 6px">Testo parlato</h3><p>' + e(c.parlato_completo) + '</p>' : '') +
+    '<div class="grid"><div><h3 style="margin:16px 0 6px">\u2705 Lista riprese</h3>' + (c.lista_riprese || []).map((x) => '<label style="font-weight:400;margin:4px 0;display:flex;gap:8px"><input type="checkbox" style="width:auto"> ' + e(x) + '</label>').join('') + '</div>' +
+    '<div><h3 style="margin:16px 0 6px">\u{1F4E6} Da preparare</h3>' + lst(c.da_preparare) + '<h3 style="margin:16px 0 6px">\u{1F3AC} Note set</h3><p>' + e(c.note_set || '\u2014') + '</p></div></div>' +
+    '<h3 style="margin:16px 0 6px">Caption</h3><div class="card" style="white-space:pre-wrap">' + e(c.caption || '') + '\\n\\n' + e((c.hashtag || []).join(' ')) + '</div>' +
+    '<div class="mut">CTA: ' + e(c.cta || '') + ' \xB7 Ganci da testare: ' + e((c.ganci_alternativi || []).join(' / ')) + '</div>' +
+    '<div class="riga" style="margin-top:12px"><button class="sec" data-copia="' + r.numero + '">Copia copione</button><button class="sec" data-lavoro="' + r.numero + '">\u{1F3AC} Crea il reel da questo</button><button class="sec" data-rifai="' + r.numero + '">\u270D\uFE0F Riscrivi</button></div></details>';
+}
+
+async function piano(id) {
+  const P = await chiama('/api/piani/' + id);
+  const d = P.dati || {}, s = P.strategia || {}, cal = s.calendario || [];
+  const fatti = P.reel.filter((r) => r.stato === 'fatto').length;
+  const stato = P.stato === 'errore' ? '<div class="card err">\u274C ' + e(P.errore || '') + ' <button class="sec" id="p_rip">Riprova</button></div>' :
+    P.stato === 'in_corso' ? '<div class="card attivo">\u{1F4A1} Nora ' + (P.fase === 'strategia' ? 'sta studiando la strategia\u2026' : 'sta scrivendo i copioni: ' + fatti + '/' + P.reel.length) + (P.errore ? '<div class="mut">' + e(P.errore) + '</div>' : '') + '<div class="fasi">' + P.reel.map((r) => '<div class="' + (r.stato === 'fatto' ? 'ok' : '') + '"></div>').join('') + '</div></div>' : '';
+  const strat = !P.strategia ? '' : '<h2>Strategia</h2><div class="card"><h1>' + e(s.titolo_piano || d.cliente) + '</h1><p>' + e(s.sintesi || '') + '</p><div class="kv">' +
+    '<b>Pubblico</b><span>' + e(s.pubblico || '') + '</span><b>Linea</b><span>' + e(s.linea_editoriale || '') + '</span><b>Formati</b><span>' + e(s.mix_formati || '') + '</span><b>Frequenza</b><span>' + e(s.frequenza || '') + '</span></div>' +
+    '<h3 style="margin:16px 0 6px">Pilastri</h3>' + lst((s.pilastri || []).map((x) => x.nome + ' (' + (x.quota || '') + ') \u2014 ' + (x.perche || ''))) +
+    '<h3 style="margin:16px 0 6px">Consigli</h3>' + lst(s.consigli) + '</div>' +
+    '<h2>Giornate di ripresa</h2>' + (s.giornate_di_ripresa || []).map((gr) => '<div class="card"><b>Giorno ' + e(gr.giorno) + ' \xB7 ' + e(gr.dove || '') + '</b> <span class="pill">' + e(gr.durata || '') + '</span><div>Reel: ' + (gr.reel || []).map((n) => '#' + n).join(', ') + '</div><div class="mut">Chi: ' + e(gr.chi || '') + (gr.note ? ' \xB7 ' + e(gr.note) : '') + '</div></div>').join('') +
+    '<h2>Calendario e copioni</h2>' + P.reel.map((r) => vistaCopione(r, cal.find((x) => x.numero === r.numero) || {}, d, id)).join('');
+  $('#app').innerHTML = '<div class="riga noprint"><a class="mut" href="#/copioni">\u2190 Copioni</a><span style="flex:1"></span>' + (P.stato === 'pronto' ? '<button class="sec" id="p_print">\u{1F5A8}\uFE0F Stampa / PDF</button>' : '') + '<button class="rosso" id="p_del">Elimina</button></div>' +
+    '<h1>' + e(d.cliente) + '</h1><div class="mut">' + d.numero + ' reel \xB7 ' + d.mesi + ' mesi dal ' + e(d.inizio) + ' \xB7 argomenti: ' + e((d.argomenti || []).join(', ')) + '</div>' + stato + strat;
+  const trova = (n) => ({ r: P.reel.find((x) => x.numero === Number(n)), c: cal.find((x) => x.numero === Number(n)) || {} });
+  document.querySelectorAll('[data-copia]').forEach((b) => b.onclick = async () => { await navigator.clipboard.writeText(testoCopione(trova(b.dataset.copia).r.copione, d)); b.textContent = 'Copiato \u2713'; });
+  document.querySelectorAll('[data-lavoro]').forEach((b) => b.onclick = () => { const c = trova(b.dataset.lavoro).r.copione; PREFILL = 'Reel per ' + d.cliente + (d.settore ? ' (' + d.settore + ')' : '') + ', ' + c.durata_sec + ' secondi, formato ' + c.formato + '. Segui questo copione:\\n\\n' + testoCopione(c, d); location.hash = '#/nuovo'; });
+  document.querySelectorAll('[data-rifai]').forEach((b) => b.onclick = async () => { const nota = prompt('Cosa vuoi cambiare in questo copione? (vuoto = riscrivilo da capo)'); if (nota === null) return; await chiama('/api/piani/' + id + '/reel/' + b.dataset.rifai + '/rifai', { method: 'POST', body: { nota } }); rotta(); });
+  if ($('#p_print')) $('#p_print').onclick = () => { document.querySelectorAll('details').forEach((x) => x.open = true); print(); };
+  if ($('#p_rip')) $('#p_rip').onclick = async () => { await chiama('/api/piani/' + id + '/riprova', { method: 'POST', body: {} }); rotta(); };
+  $('#p_del').onclick = async () => { if (!confirm('Eliminare questo piano?')) return; await chiama('/api/piani/' + id, { method: 'DELETE' }); location.hash = '#/copioni'; };
+  if (P.stato === 'in_corso') timer = setTimeout(rotta, 5000);
+}
+
 async function rotta() {
   clearTimeout(timer);
   const h = location.hash || '#/';
@@ -1685,6 +2043,9 @@ async function rotta() {
     else if (h === '#/nuovo') nuovo();
     else if (h === '#/impostazioni') await impostazioni();
     else if (h === '#/lavori') await lista();
+    else if (h === '#/copioni') await piani();
+    else if (h === '#/copioni/nuovo') nuovoPiano();
+    else if (h.startsWith('#/copioni/')) await piano(h.split('/')[2]);
     else if (!document.querySelector('.pannello')) await regia();
     else timer = setTimeout(rotta, 3000);
   } catch (x) { if (x.message !== 'accesso') $('#app').innerHTML = '<div class="card err">' + e(x.message) + '</div>'; }
@@ -1755,10 +2116,11 @@ async function api(req, env, url) {
       all(env, "SELECT agente, messaggio, livello, quando, lavoro_id FROM registro ORDER BY id DESC LIMIT 30"),
       all(env, "SELECT agente, COUNT(*) AS n FROM registro WHERE quando > ? GROUP BY agente", new Date(Date.now() - 7 * 864e5).toISOString())
     ]);
+    const piani = await all(env, "SELECT id, cliente, fase, blocco_fino FROM piani WHERE stato='in_corso' ORDER BY id").catch(() => []);
     const cfg = await configurazione(env);
     const chiavi = { Claude: !!cfg.ANTHROPIC_API_KEY };
     const riposo = cfg.APIFY_TOKEN ? [] : ["scout_tt", "scout_ig"];
-    return json2({ adesso: ora(), attivi, ultimi, feed, conti, chiavi, riposo, yt_web: !cfg.YOUTUBE_API_KEY });
+    return json2({ adesso: ora(), attivi, piani, ultimi, feed, conti, chiavi, riposo, yt_web: !cfg.YOUTUBE_API_KEY });
   }
   const ag = p.match(/^\/api\/regia\/agente\/([a-z_]+)$/);
   if (ag && m === "GET") {
@@ -1856,11 +2218,16 @@ async function api(req, env, url) {
       return json2({ ok: true });
     }
   }
+  if (p.startsWith("/api/piani")) {
+    const r = await apiPiani(req, env, p, m, json2);
+    if (r) return r;
+  }
   return json2({ errore: "non trovato" }, 404);
 }
 var index_default = {
   async fetch(req, env) {
     await schema(env);
+    await schemaPiani(env);
     const url = new URL(req.url);
     if (url.pathname.startsWith("/api/motore/")) {
       try {
@@ -1880,7 +2247,8 @@ var index_default = {
   },
   async scheduled(evento, env, ctx) {
     await schema(env);
-    ctx.waitUntil(avanza(env));
+    await schemaPiani(env);
+    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env)]));
   }
 };
 export {
