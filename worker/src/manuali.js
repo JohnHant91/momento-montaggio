@@ -100,6 +100,12 @@ export const MANUALE_FORMATI = `FORMATI DEL MONTATORE (scegli "formato" nel pian
   percentuale) o un PROCEDIMENTO a passi, aggiungi "pannello": scende sulla metà alta con un grafico animato che si
   disegna (line = andamento nel tempo, bar = confronto, steps = passi numerati) e il viso si sposta in basso. Usa SOLO
   numeri e passi detti davvero nella trascrizione: mai inventarli. Se non ci sono, niente pannello.
+  STILE "EDUCATIVO CON GRAFICHE" (video tipo tutorial/consigli, 60-95 s): sottotitoli "piccoli_alto" (piccoli, bianchi, in
+  alto); i concetti diventano "cartelli" (4-10): 1-4 parole GRANDI su fascia blu o rosa inclinata che entrano sulla parola
+  detta (nomi di strumenti, il concetto del momento, "cosa NON si può fare"; stile "barrato" per una cosa smentita o
+  sbagliata). Ogni foto o screenshot caricato con il girato diventa una "scheda": cartolina ruotata a lato della testa con
+  etichetta (prima/dopo, 1/2/3, esempio) sulla parola che la cita; "prima" e "dopo" possono restare insieme. I punti
+  numerati vanno nel pannello "steps" con i passi detti davvero.
 - "carosello": hai delle FOTO/SLIDE (tecnico.tipo = immagine) che formano un carosello o una sequenza: ogni slide resta
   intera su uno sfondo sfocato di se stessa, con barre di avanzamento come le storie, push-in lento e transizioni a spinta
   con whoosh. Slide ricche di testo: ~1 s ogni 8 parole, minimo 1,8 s. Gancio breve sulla prima slide, CTA sull'ultima.
@@ -135,6 +141,16 @@ export const MANUALE_SPOT = `STILE "SPOT DI PRODOTTO" (il riferimento preferito 
   una dissolvenza verso la fine); finale al nero ("finale": "nero").`;
 
 export const MANUALE_COPIONI = `COME SCRIVO UN COPIONE DI REEL DA GIRARE (Nora)
+FORMATO "TALKING HEAD EDUCATIVO CON GRAFICHE" (quando Johnny lo chiede o per il suo profilo personale):
+- Set: busto seduto a una scrivania, camera fissa all'altezza degli occhi, luci colorate (gel magenta da un lato, blu
+  dall'altro) su sfondo scuro materico, un oggetto brandizzato in campo (tazza), microfono a clip. Si gira in un'unica presa
+  lunga: le pause e gli errori li toglie il montaggio.
+- Testo (60-95 s): GANCIO nei primi 2 s con una promessa o un fatto sorprendente ("questo video l'ha montato…"), contesto
+  in una frase, 3 PUNTI NUMERATI ("punto numero 1…"), un momento di onestà sui limiti ("cosa NON si può fare"), CTA finale.
+  Frasi brevi da dire a tempo di parlato, niente frasi da leggere.
+- Per ogni copione elenca: i CARTELLI (parole chiave da mostrare grandi e su quale parola), gli SCREENSHOT/FOTO da preparare
+  (prima/dopo, schermate degli strumenti) e i 3 punti per il pannello a elenco.
+
 - Un reel = UNA idea. Si capisce in 2 secondi e regge in una frase. Durata 15-35 s (fino a 45 solo per storie e tutorial).
 - GANCIO nei primi 1-2 s: un'immagine che sorprende o una tensione (risultato prima del processo, dettaglio estremo,
   domanda, contrasto, errore comune, numero concreto). Mai loghi, saluti o presentazioni all'inizio.

@@ -408,11 +408,13 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
                 "testo": {"testo": "...", "stile": "...", "posizione": "...", "evidenzia": "parola"} oppure null,
                 "zoom_fisso": {"z": 1.2-2.5, "cx": 0-1, "cy": 0-1} oppure null (avvicina su un dettaglio dell'inquadratura),
                 "in_preciso": true se il momento esatto conta (il montatore altrimenti può spostare l'inizio di ±0,8 s sul tratto più fermo)}],
-  "sottotitoli": {"usare": bool, "stile": "parola_per_parola|karaoke_evidenziato|sottotitolo_classico", "posizione": "terzo_inferiore"},
+  "sottotitoli": {"usare": bool, "stile": "parola_per_parola|karaoke_evidenziato|sottotitolo_classico|piccoli_alto (solo talking_head: sottotitoli piccoli in alto, i concetti li portano i cartelli)", "posizione": "terzo_inferiore"},
   "chiusura": {"testo": "...", "sottotesto": "cta breve", "evidenzia": "parola", "durata": 2-3, "colore": "#hex"} oppure null (non per talking_head/carosello),
   "finale": "nero (l'ultima immagine scende al nero) | bianco (sfuma al bianco e compare il logo del cliente, se c'è) | null",
   "gancio": {"testo": "solo carosello: frase breve sulla prima slide; talking_head: lascia null (usa la prima frase detta)", "evidenzia": ["parole del gancio da colorare"]},
   "evidenzia": ["solo talking_head: 3-8 parole chiave del discorso da colorare nei sottotitoli"],
+  "cartelli": [{"testo": "solo talking_head: 1-4 parole chiave GRANDI su fascia colorata inclinata (es. CLAUDE, IL GIRATO, cosa NON si può fare)", "sulla_parola": "parola detta su cui entra", "colore": "blu|rosa|verde|#hex", "stile": "fascia|grande|barrato (barrato = parola cancellata, per smentire)", "durata": 1.2-2.2}],
+  "schede": [{"clip": indice di una FOTO o di uno SCREENSHOT caricato, "sulla_parola": "parola detta su cui entra", "etichetta": "prima|dopo|1|esempio… (max 2 parole)", "lato": "sx|dx", "durata": 2-6}],
   "correzioni": {"parola_sentita_male": "parola giusta"},
   "broll": [{"clip": indice, "in": secondi, "durata": 1.5-3, "sulla_parola": "parola detta su cui entra", "rallenty": bool}],
   "cta": {"testo": "solo talking_head/carosello: call to action breve (es. Scrivici ORTO in DM)"},
@@ -479,7 +481,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
   const tutte = J(L.clip, []);
   const eImm = (c) => c?.tipo === 'immagine' || c?.tecnico?.tipo === 'immagine';
   const sorg = (c) => ({ fileid: c.sorgente?.tipo === 'url' ? null : c.fileid, url: c.sorgente?.tipo === 'url' ? c.sorgente.url : null, nome: c.nome });
-  let formato = FORMATI_REEL.includes(indicazioni?.formato) ? indicazioni.formato : (FORMATI_REEL.includes(p.formato) ? p.formato : 'montaggio');
+  let formato = FORMATI_REEL.includes(indicazioni?.formato) ? indicazioni.formato : (FORMATI_REEL.includes(R?.formato) ? R.formato : (FORMATI_REEL.includes(p.formato) ? p.formato : 'montaggio'));
   const slide = (p.slide || []).filter((s) => tutte[s.clip]?.stato === 'fatto' && eImm(tutte[s.clip])).slice(0, 20)
     .map((s) => ({ clip: s.clip, ...sorg(tutte[s.clip]), durata: Math.min(Math.max(Number(s.durata) || 2.2, 1.8), 8) }));
   if (formato === 'carosello' && slide.length < 2) {
@@ -527,6 +529,12 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
     const durata = Math.min(Math.max(Number(b.durata) || 2, 1), 3.5);
     return { clip: b.clip, ...sorg(c), in: Math.max(0, Math.min(Number(b.in) || 0, Math.max(0, (Number(c.tecnico?.durata_sec) || 9999) - durata * (b.rallenty ? 0.5 : 1) - 0.05))), durata, rallenty: !!b.rallenty, sulla_parola: String(b.sulla_parola).slice(0, 40) };
   });
+  // talking head: cartelli con le parole chiave e cartoline (foto/screenshot) sulle parole dette
+  const cartelli = formato !== 'talking_head' ? [] : (p.cartelli || []).filter((c) => c?.testo && c?.sulla_parola).slice(0, 12).map((c) => ({
+    testo: String(c.testo).slice(0, 34), sulla_parola: String(c.sulla_parola).slice(0, 40), colore: /^(blu|rosa|verde|#[0-9a-f]{6})$/i.test(c.colore || '') ? c.colore : null,
+    stile: ['fascia', 'grande', 'barrato'].includes(c.stile) ? c.stile : 'fascia', durata: Math.min(2.6, Math.max(0.9, Number(c.durata) || 1.7)) }));
+  const schede = formato !== 'talking_head' ? [] : (p.schede || []).filter((s) => tutte[s?.clip]?.stato === 'fatto' && eImm(tutte[s.clip]) && s.sulla_parola).slice(0, 8).map((s) => ({
+    clip: s.clip, ...sorg(tutte[s.clip]), sulla_parola: String(s.sulla_parola).slice(0, 40), etichetta: String(s.etichetta || '').slice(0, 16), lato: s.lato === 'sx' ? 'sx' : 'dx', durata: Math.min(7, Math.max(1.5, Number(s.durata) || 2.6)) }));
   const lookVoluto = indicazioni?.look && LOOKS.includes(indicazioni.look) ? indicazioni.look : null;
   const cop = p.copertina && tutte[p.copertina.clip]?.stato === 'fatto' ? { fileid: tutte[p.copertina.clip].fileid, url: tutte[p.copertina.clip].sorgente?.url || null, secondo: Math.max(0, Number(p.copertina.secondo) || 0), testo: String(p.copertina.testo || '').slice(0, 60) } : null;
   let pannello = null;
@@ -540,7 +548,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
     }
   }
   const piano = {
-    ...p, formato, pannello,
+    ...p, formato, pannello, cartelli, schede,
     logo: prima?.logo || null,
     stabilizza_tutto: !!(indicazioni?.stabilizza_tutto || prima?.piano?.stabilizza_tutto || p.stabilizza_tutto || R?.camera === 'morbida'),
     camera_ferma: R?.camera === 'a_mano' ? false : !!(indicazioni?.camera_ferma || prima?.piano?.camera_ferma || p.camera_ferma || R?.camera === 'ferma'),

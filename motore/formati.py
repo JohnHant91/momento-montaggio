@@ -336,6 +336,8 @@ class TalkingHead(_Base):
 
         if self.pannello:
             video = self.con_pannello(video, pan, eventi_sfx)
+        if P.get("schede"):
+            video = self.con_schede(video, tutte, gancio_fine, totale, eventi_sfx)
         self.avvisa("sottotitoli", f"scrivo {len(righe)} righe di sottotitoli con il riquadro che segue la voce")
         ass = self.sottotitoli(righe, totale, segmenti)
         for k, p in enumerate(tratti[1:], 1):
@@ -369,6 +371,86 @@ class TalkingHead(_Base):
         self.report.append(f"pannello {props['tipo']} da {da:.1f}s a {a:.1f}s")
         return out
 
+    def scheda_png(self, k, sc):
+        """Foto/screenshot come cartolina: bordo bianco, angoli tondi, ombra, leggermente ruotata, etichetta colorata sopra."""
+        from PIL import Image, ImageDraw, ImageFilter, ImageFont
+        im = Image.open(sc["file"]).convert("RGB")
+        mw, mh = 330, 470
+        r = min(mw / im.width, mh / im.height)
+        im = im.resize((max(1, int(im.width * r)), max(1, int(im.height * r))), Image.LANCZOS)
+        b = 12
+        tela = Image.new("RGBA", (im.width + 2 * b, im.height + 2 * b), (255, 255, 255, 255))
+        tela.paste(im, (b, b))
+        m = Image.new("L", tela.size, 0)
+        ImageDraw.Draw(m).rounded_rectangle([0, 0, tela.width - 1, tela.height - 1], radius=16, fill=255)
+        tela.putalpha(m)
+        et = str(sc.get("etichetta") or "").strip()[:16]
+        alto = 0
+        if et:
+            fp = self.font_file(800) if hasattr(self, "font_file") else None
+            try:
+                fnt = ImageFont.truetype(fp or "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 34)
+            except Exception:
+                fnt = ImageFont.load_default()
+            tw = int(ImageDraw.Draw(tela).textlength(et, font=fnt)) + 34
+            col = sc.get("colore") or ("#E8327A" if k % 2 == 0 else "#2F8CE0")
+            chip = Image.new("RGBA", (tw, 52), (0, 0, 0, 0))
+            ImageDraw.Draw(chip).rounded_rectangle([0, 0, tw - 1, 51], radius=12, fill=col)
+            ImageDraw.Draw(chip).text((17, 6), et, font=fnt, fill="white")
+            alto = 40
+            nuova = Image.new("RGBA", (max(tela.width, tw + 20), tela.height + alto), (0, 0, 0, 0))
+            nuova.paste(tela, (0, alto), tela)
+            nuova.paste(chip, (nuova.width - tw - 6, 0), chip)
+            tela = nuova
+        ang = float(sc.get("rotazione", (-6 if sc.get("lato") == "sx" else 6)))
+        tela = tela.rotate(ang, resample=Image.BICUBIC, expand=True)
+        ombra = Image.new("RGBA", (tela.width + 60, tela.height + 60), (0, 0, 0, 0))
+        sag = Image.new("L", tela.size, 0)
+        sag.paste(tela.split()[3].point(lambda a: 120 if a > 0 else 0), (0, 0))
+        ombra.paste((0, 0, 0, 255), (34, 42), sag)
+        ombra = ombra.filter(ImageFilter.GaussianBlur(16))
+        ombra.paste(tela, (30, 30), tela)
+        out = os.path.join(self.tmp, f"scheda_{k:02d}.png")
+        ombra.save(out)
+        return out, ombra.width, ombra.height
+
+    def con_schede(self, video, tutte, gancio_fine, totale, eventi_sfx):
+        """Cartoline (foto, screenshot, prima/dopo) che entrano sulle parole chiave, ai lati della testa, sopra il parlato."""
+        usate, pos = [], 0
+        for k, sc in enumerate((self.p.get("schede") or [])[:8]):
+            if not sc.get("file"):
+                continue
+            chiave = norm(sc.get("sulla_parola", ""))
+            w = next((w for w in tutte[pos:] if chiave and norm(w["testo"]).startswith(chiave) and w["t0"] >= gancio_fine - 0.5), None)
+            if not w:
+                self.report.append(f"scheda non inserita: la parola \"{sc.get('sulla_parola')}\" non si sente")
+                continue
+            pos = tutte.index(w) + 1
+            da = max(0.3, w["t0"] - 0.1)
+            dur = min(float(sc.get("durata") or 2.6), 7.0, totale - da - 0.2)
+            if dur < 0.8:
+                continue
+            png, pw, ph = self.scheda_png(k, sc)
+            lato = sc.get("lato") or ("dx" if k % 2 == 0 else "sx")
+            x = W - pw - 10 if lato == "dx" else 10
+            y = int(SICURO_ALTO + 140)
+            usate.append({"png": png, "da": da, "a": da + dur, "x": x, "y": y})
+            eventi_sfx.append(("pop", da, 0.7))
+        if not usate:
+            return video
+        self.avvisa("vfx", f"inserisco {len(usate)} cartoline (foto e screenshot) sulle parole chiave")
+        args, fc, prev = ["-i", video], [], "[0:v]"
+        for k, u in enumerate(usate):
+            d = u["a"] - u["da"]
+            args += ["-loop", "1", "-t", f"{d:.3f}", "-i", u["png"]]
+            fc.append(f"[{k + 1}:v]format=rgba,fade=t=in:st=0:d=0.14:alpha=1,fade=t=out:st={max(0, d - 0.2):.3f}:d=0.2:alpha=1,setpts=PTS+{u['da']:.3f}/TB[s{k}];"
+                      f"{prev}[s{k}]overlay={u['x']}:{u['y']}:eof_action=pass:enable='between(t,{u['da']:.3f},{u['a']:.3f})'[v{k}]")
+            prev = f"[v{k}]"
+        out = os.path.join(self.tmp, "parlato_schede.mp4")
+        self.ff(args + ["-filter_complex", ";".join(fc), "-map", prev] + X264_INT + [out], "cartoline")
+        self.report.append(f"{len(usate)} cartoline inserite")
+        return out
+
     def fine_gancio(self, righe):
         g = self.p.get("gancio") or {}
         n = int(g.get("righe") or 0)
@@ -391,7 +473,8 @@ class TalkingHead(_Base):
         acc_hex = col.get("accento") or "#D97757"
         acc = self.ass_colore(acc_hex)
         giallo = self.ass_colore(col.get("evidenzia") or "#FFD84D")
-        DIM, DIM_G = 84, 118
+        piccoli = (P.get("sottotitoli") or {}).get("stile") == "piccoli_alto"  # come nei video "talking head educativi": piccoli, in alto, i concetti nei cartelli
+        DIM, DIM_G = (54 if piccoli else 84), 118
         largo = self.misura_font(famiglia, 800, DIM)
         largo_g = self.misura_font(famiglia, 800, DIM_G)
         # posizioni: sottotitoli sotto il mento, gancio sopra la testa, sempre nelle zone sicure
@@ -453,6 +536,11 @@ class TalkingHead(_Base):
             testo = " ".join((f"{{\\c{giallo}}}{p}{{\\c{bianco}}}" if norm(w["testo"]) in evid else p) for p, w in zip(parole_r, r))
             pan = getattr(self, "pannello", None)
             y_r = (SICURO_BASSO - 120) if pan and pan[0] - 0.05 <= da < pan[1] else y_sub
+            if piccoli:
+                y_r = SICURO_ALTO + 30
+                testo = " ".join((f"{{\\c{giallo}}}{pulisci(w['testo'])}{{\\c{bianco}}}" if norm(w["testo"]) in evid else pulisci(w["testo"])) for w in r)
+                ev.append(f"Dialogue: 3,{self.tempo_ass(da)},{self.tempo_ass(a)},S,,0,0,0,,{{\\an5\\pos(540,{y_r})\\fad(60,0)}}{testo}")
+                continue
             ev.append(f"Dialogue: 3,{self.tempo_ass(da)},{self.tempo_ass(a)},S,,0,0,0,,{{\\an5\\pos(540,{y_r})\\fscx86\\fscy86\\t(0,90,\\fscx100\\fscy100)}}{testo}")
             for j, w in enumerate(r):
                 b0 = w["t0"]
@@ -466,6 +554,36 @@ class TalkingHead(_Base):
                     ev.append(f"Dialogue: 2,{self.tempo_ass(b0)},{self.tempo_ass(b1)},Box,,0,0,0,,{{\\an5\\pos({cx:.0f},{y_r})\\fscx70\\fscy70\\t(0,80,\\fscx100\\fscy100)\\c{acc}\\p1}}{self.rettangolo(bw, alt_box)}")
                 prec_box = (cx, bw)
             prec_box = None
+        # cartelli: 1-4 parole chiave grandi, su una fascia colorata inclinata, che entrano quando la parola si sente
+        tutte_w = [w for r in righe for w in r]
+        y_c = (SICURO_ALTO + 115) if piccoli else y_gancio
+        cartelli, presi = [], set()
+        for c in (P.get("cartelli") or [])[:12]:
+            chiave = norm(c.get("sulla_parola", "")) or norm(str(c.get("testo", "")).split(" ")[0])
+            w = next((w for w in tutte_w if chiave and id(w) not in presi and norm(w["testo"]).startswith(chiave) and w["t0"] >= fine_g - 0.3), None)
+            if not w or not str(c.get("testo") or "").strip():
+                self.report.append(f"cartello non inserito: la parola \"{c.get('sulla_parola')}\" non si sente")
+                continue
+            presi.add(id(w))
+            cartelli.append((w["t0"] - 0.05, c))
+        cartelli.sort(key=lambda x: x[0])
+        for j, (da, c) in enumerate(cartelli):
+            a = min(da + float(c.get("durata") or 1.7), cartelli[j + 1][0] - 0.05 if j + 1 < len(cartelli) else totale - 0.1)
+            if a - da < 0.5:
+                continue
+            testo_c = pulisci(c["testo"])[:34]
+            stile_c = c.get("stile") or "fascia"
+            col_c = self.ass_colore({"blu": "#2F8CE0", "rosa": "#E8327A", "verde": "#22A55B"}.get(c.get("colore"), c.get("colore") if str(c.get("colore", "")).startswith("#") else acc_hex))
+            rot = -3 if j % 2 == 0 else 2
+            larg = self.misura_font(famiglia, 800, 92)(testo_c.upper()) + 56
+            k = min(100, int(900 / max(1, larg) * 100))  # i cartelli lunghi si rimpiccioliscono per stare in 900 px
+            entra = f"\\fscx{int(k * .4)}\\fscy{int(k * .4)}\\t(0,120,\\fscx{int(k * 1.08)}\\fscy{int(k * 1.08)})\\t(120,200,\\fscx{k}\\fscy{k})\\fad(0,120)"
+            if stile_c == "fascia":
+                ev.append(f"Dialogue: 6,{self.tempo_ass(da)},{self.tempo_ass(a)},Box,,0,0,0,,{{\\an5\\pos(540,{y_c})\\frz{rot}{entra}\\c{col_c}\\p1}}{self.rettangolo(larg, 118, 10)}")
+            barrato = "\\s1" if stile_c == "barrato" else ""
+            ev.append(f"Dialogue: 7,{self.tempo_ass(da)},{self.tempo_ass(a)},C,,0,0,0,,{{\\an5\\pos(540,{y_c})\\frz{rot}{barrato}{entra}}}{testo_c.upper()}")
+        if cartelli:
+            self.report.append(f"{len(cartelli)} cartelli con le parole chiave")
         # CTA finale
         cta = P.get("cta") or {}
         if cta.get("testo"):
@@ -474,6 +592,7 @@ class TalkingHead(_Base):
         stili = [f"G,{famiglia},{DIM_G},{bianco},{bianco},&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,7,4,5,60,60,0,1",
                  f"S,{famiglia},{DIM},{bianco},{bianco},&H00000000,&H78000000,-1,0,0,0,100,100,0,0,1,5,3,5,60,60,0,1",
                  f"Box,{famiglia},{DIM},{acc},{acc},&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1",
+                 f"C,{famiglia},92,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4,3,5,40,40,0,1",
                  f"CTA,{famiglia},64,&H00FFFFFF,&H00FFFFFF,{acc},{acc},-1,0,0,0,100,100,0,0,3,22,0,5,60,60,0,1"]
         path = os.path.join(self.tmp, "sottotitoli.ass")
         with open(path, "w", encoding="utf-8") as f:

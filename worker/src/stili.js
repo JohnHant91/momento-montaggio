@@ -3,6 +3,10 @@
 // gli scout cercano reel montati in quello stile (anche fuori settore) e Iris ne estrae la ricetta da applicare alle clip.
 
 export const GENERI = {
+  educativo: { nome: 'Talking head educativo con grafiche', parole: ['talking head', 'parlato in camera', 'educativo', 'tutorial', 'consigli', 'tips', 'spiegazione', 'divulgativo', 'faccio vedere', 'ti spiego'], formato: 'talking_head',
+    regole: 'Una persona parla in camera a busto, seduta a una scrivania, luci colorate (gel magenta e blu) su sfondo materico scuro, un oggetto brandizzato in campo (tazza). Montaggio a jump cut serrati: niente pause, un punch-in a ogni frase, cambio di inquadratura ogni 4-5 s. Sottotitoli piccoli e bianchi in alto, parola per parola; i concetti chiave diventano CARTELLI grandi su fasce colorate inclinate (blu e rosa) che entrano quando la parola si sente; parole smentite barrate. Foto e screenshot entrano come CARTOLINE ruotate ai lati della testa con etichetta (prima/dopo, 1/2/3). Struttura: gancio forte nei primi 2 s con promessa, contesto, 3 punti numerati (con il pannello a elenco), onestà sui limiti, chiusura con CTA. Durata 60-95 s.',
+    look: 'naturale_vivace', camera: 'ferma', durata: [2, 5], transizioni: ['taglio_netto'], effetti: ['punch_in', 'nessuno'], globali: [], rallenty: 'mai', finale: null,
+    cerca: { yt: ['talking head reel editing captions'], tt: ['talking head edit tutorial'], ig: ['talkinghead', 'contentcreatoritalia'] } },
   broll: { nome: 'B-roll / atmosfera', parole: ['b-roll', 'broll', 'b roll', 'atmosfera', 'ambient', 'cinematic', 'cinematico'],
     regole: 'Racconto per immagini senza parlato: dettagli, mani, materia, luce. Movimenti lenti e puliti (slider, dolly), camera stabile. Pezzi 1,5-3 s, tagli netti sul battito, rallenty sui gesti belli. Testi assenti o un solo titolo elegante.',
     look: 'caldo_cinematico', camera: 'morbida', durata: [1.5, 3], transizioni: ['taglio_netto', 'dissolvenza'], effetti: ['dolly_in', 'slider_dx', 'slider_sx', 'zoom_lento', 'nessuno'], globali: [], rallenty: 'spesso', finale: 'nero',
@@ -253,6 +257,7 @@ export function ricetta(stile) {
   const durate = [G?.durata, M?.durata].filter(Boolean);
   return {
     nome: [G?.nome, ...Ms.map((m) => m.nome)].filter(Boolean).join(' + '),
+    formato: G?.formato || null,
     look: M?.look || G?.look || null,
     camera: G?.camera || 'morbida',
     durata: durate.length ? [Math.min(...durate.map((d) => d[0])), Math.max(...durate.map((d) => d[1]))].map((x, i) => durate.length > 1 ? (durate[0][i] + durate[1][i]) / 2 : x) : null,
@@ -262,7 +267,7 @@ export function ricetta(stile) {
     rallenty: M?.rallenty || G?.rallenty || 'a_volte',
     apertura: M?.apertura ?? null, finale: M?.finale ?? G?.finale ?? null,
     musica: Ms.map((m) => m.musica).join(' / ') || null,
-    regole: [G && `GENERE ${G.nome.toUpperCase()}: ${G.regole}`, ...Ms.map((m) => `MOOD ${m.nome.toUpperCase()}: ${m.regole}`)].filter(Boolean).join('\n'),
+    regole: [G && `GENERE ${G.nome.toUpperCase()}: ${G.regole}${G.formato ? ` FORMATO DEL MONTATORE: ${G.formato} (se le clip hanno parlato), con sottotitoli "piccoli_alto", 4-10 cartelli, schede per ogni foto/screenshot caricato e il pannello "steps" per i punti numerati.` : ''}`, ...Ms.map((m) => `MOOD ${m.nome.toUpperCase()}: ${m.regole}`)].filter(Boolean).join('\n'),
   };
 }
 

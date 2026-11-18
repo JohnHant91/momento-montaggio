@@ -603,6 +603,21 @@ async function pcloudClip(link) {
 
 // src/stili.js
 var GENERI = {
+  educativo: {
+    nome: "Talking head educativo con grafiche",
+    parole: ["talking head", "parlato in camera", "educativo", "tutorial", "consigli", "tips", "spiegazione", "divulgativo", "faccio vedere", "ti spiego"],
+    formato: "talking_head",
+    regole: "Una persona parla in camera a busto, seduta a una scrivania, luci colorate (gel magenta e blu) su sfondo materico scuro, un oggetto brandizzato in campo (tazza). Montaggio a jump cut serrati: niente pause, un punch-in a ogni frase, cambio di inquadratura ogni 4-5 s. Sottotitoli piccoli e bianchi in alto, parola per parola; i concetti chiave diventano CARTELLI grandi su fasce colorate inclinate (blu e rosa) che entrano quando la parola si sente; parole smentite barrate. Foto e screenshot entrano come CARTOLINE ruotate ai lati della testa con etichetta (prima/dopo, 1/2/3). Struttura: gancio forte nei primi 2 s con promessa, contesto, 3 punti numerati (con il pannello a elenco), onest\xE0 sui limiti, chiusura con CTA. Durata 60-95 s.",
+    look: "naturale_vivace",
+    camera: "ferma",
+    durata: [2, 5],
+    transizioni: ["taglio_netto"],
+    effetti: ["punch_in", "nessuno"],
+    globali: [],
+    rallenty: "mai",
+    finale: null,
+    cerca: { yt: ["talking head reel editing captions"], tt: ["talking head edit tutorial"], ig: ["talkinghead", "contentcreatoritalia"] }
+  },
   broll: {
     nome: "B-roll / atmosfera",
     parole: ["b-roll", "broll", "b roll", "atmosfera", "ambient", "cinematic", "cinematico"],
@@ -1421,6 +1436,7 @@ function ricetta(stile) {
   const durate = [G?.durata, M?.durata].filter(Boolean);
   return {
     nome: [G?.nome, ...Ms.map((m) => m.nome)].filter(Boolean).join(" + "),
+    formato: G?.formato || null,
     look: M?.look || G?.look || null,
     camera: G?.camera || "morbida",
     durata: durate.length ? [Math.min(...durate.map((d) => d[0])), Math.max(...durate.map((d) => d[1]))].map((x, i) => durate.length > 1 ? (durate[0][i] + durate[1][i]) / 2 : x) : null,
@@ -1431,7 +1447,7 @@ function ricetta(stile) {
     apertura: M?.apertura ?? null,
     finale: M?.finale ?? G?.finale ?? null,
     musica: Ms.map((m) => m.musica).join(" / ") || null,
-    regole: [G && `GENERE ${G.nome.toUpperCase()}: ${G.regole}`, ...Ms.map((m) => `MOOD ${m.nome.toUpperCase()}: ${m.regole}`)].filter(Boolean).join("\n")
+    regole: [G && `GENERE ${G.nome.toUpperCase()}: ${G.regole}${G.formato ? ` FORMATO DEL MONTATORE: ${G.formato} (se le clip hanno parlato), con sottotitoli "piccoli_alto", 4-10 cartelli, schede per ogni foto/screenshot caricato e il pannello "steps" per i punti numerati.` : ""}`, ...Ms.map((m) => `MOOD ${m.nome.toUpperCase()}: ${m.regole}`)].filter(Boolean).join("\n")
   };
 }
 function ricercaStile(stile, settore) {
@@ -1633,6 +1649,12 @@ var MANUALE_FORMATI = `FORMATI DEL MONTATORE (scegli "formato" nel piano, in bas
   percentuale) o un PROCEDIMENTO a passi, aggiungi "pannello": scende sulla met\xE0 alta con un grafico animato che si
   disegna (line = andamento nel tempo, bar = confronto, steps = passi numerati) e il viso si sposta in basso. Usa SOLO
   numeri e passi detti davvero nella trascrizione: mai inventarli. Se non ci sono, niente pannello.
+  STILE "EDUCATIVO CON GRAFICHE" (video tipo tutorial/consigli, 60-95 s): sottotitoli "piccoli_alto" (piccoli, bianchi, in
+  alto); i concetti diventano "cartelli" (4-10): 1-4 parole GRANDI su fascia blu o rosa inclinata che entrano sulla parola
+  detta (nomi di strumenti, il concetto del momento, "cosa NON si pu\xF2 fare"; stile "barrato" per una cosa smentita o
+  sbagliata). Ogni foto o screenshot caricato con il girato diventa una "scheda": cartolina ruotata a lato della testa con
+  etichetta (prima/dopo, 1/2/3, esempio) sulla parola che la cita; "prima" e "dopo" possono restare insieme. I punti
+  numerati vanno nel pannello "steps" con i passi detti davvero.
 - "carosello": hai delle FOTO/SLIDE (tecnico.tipo = immagine) che formano un carosello o una sequenza: ogni slide resta
   intera su uno sfondo sfocato di se stessa, con barre di avanzamento come le storie, push-in lento e transizioni a spinta
   con whoosh. Slide ricche di testo: ~1 s ogni 8 parole, minimo 1,8 s. Gancio breve sulla prima slide, CTA sull'ultima.
@@ -1665,6 +1687,16 @@ var MANUALE_SPOT = `STILE "SPOT DI PRODOTTO" (il riferimento preferito di Johnny
 - Look "spot_contrasto" (neri profondi, colori naturali e ricchi). Nessun testo durante il video; tagli secchi (al massimo
   una dissolvenza verso la fine); finale al nero ("finale": "nero").`;
 var MANUALE_COPIONI = `COME SCRIVO UN COPIONE DI REEL DA GIRARE (Nora)
+FORMATO "TALKING HEAD EDUCATIVO CON GRAFICHE" (quando Johnny lo chiede o per il suo profilo personale):
+- Set: busto seduto a una scrivania, camera fissa all'altezza degli occhi, luci colorate (gel magenta da un lato, blu
+  dall'altro) su sfondo scuro materico, un oggetto brandizzato in campo (tazza), microfono a clip. Si gira in un'unica presa
+  lunga: le pause e gli errori li toglie il montaggio.
+- Testo (60-95 s): GANCIO nei primi 2 s con una promessa o un fatto sorprendente ("questo video l'ha montato\u2026"), contesto
+  in una frase, 3 PUNTI NUMERATI ("punto numero 1\u2026"), un momento di onest\xE0 sui limiti ("cosa NON si pu\xF2 fare"), CTA finale.
+  Frasi brevi da dire a tempo di parlato, niente frasi da leggere.
+- Per ogni copione elenca: i CARTELLI (parole chiave da mostrare grandi e su quale parola), gli SCREENSHOT/FOTO da preparare
+  (prima/dopo, schermate degli strumenti) e i 3 punti per il pannello a elenco.
+
 - Un reel = UNA idea. Si capisce in 2 secondi e regge in una frase. Durata 15-35 s (fino a 45 solo per storie e tutorial).
 - GANCIO nei primi 1-2 s: un'immagine che sorprende o una tensione (risultato prima del processo, dettaglio estremo,
   domanda, contrasto, errore comune, numero concreto). Mai loghi, saluti o presentazioni all'inizio.
@@ -2062,11 +2094,13 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
                 "testo": {"testo": "...", "stile": "...", "posizione": "...", "evidenzia": "parola"} oppure null,
                 "zoom_fisso": {"z": 1.2-2.5, "cx": 0-1, "cy": 0-1} oppure null (avvicina su un dettaglio dell'inquadratura),
                 "in_preciso": true se il momento esatto conta (il montatore altrimenti pu\xF2 spostare l'inizio di \xB10,8 s sul tratto pi\xF9 fermo)}],
-  "sottotitoli": {"usare": bool, "stile": "parola_per_parola|karaoke_evidenziato|sottotitolo_classico", "posizione": "terzo_inferiore"},
+  "sottotitoli": {"usare": bool, "stile": "parola_per_parola|karaoke_evidenziato|sottotitolo_classico|piccoli_alto (solo talking_head: sottotitoli piccoli in alto, i concetti li portano i cartelli)", "posizione": "terzo_inferiore"},
   "chiusura": {"testo": "...", "sottotesto": "cta breve", "evidenzia": "parola", "durata": 2-3, "colore": "#hex"} oppure null (non per talking_head/carosello),
   "finale": "nero (l'ultima immagine scende al nero) | bianco (sfuma al bianco e compare il logo del cliente, se c'\xE8) | null",
   "gancio": {"testo": "solo carosello: frase breve sulla prima slide; talking_head: lascia null (usa la prima frase detta)", "evidenzia": ["parole del gancio da colorare"]},
   "evidenzia": ["solo talking_head: 3-8 parole chiave del discorso da colorare nei sottotitoli"],
+  "cartelli": [{"testo": "solo talking_head: 1-4 parole chiave GRANDI su fascia colorata inclinata (es. CLAUDE, IL GIRATO, cosa NON si pu\xF2 fare)", "sulla_parola": "parola detta su cui entra", "colore": "blu|rosa|verde|#hex", "stile": "fascia|grande|barrato (barrato = parola cancellata, per smentire)", "durata": 1.2-2.2}],
+  "schede": [{"clip": indice di una FOTO o di uno SCREENSHOT caricato, "sulla_parola": "parola detta su cui entra", "etichetta": "prima|dopo|1|esempio\u2026 (max 2 parole)", "lato": "sx|dx", "durata": 2-6}],
   "correzioni": {"parola_sentita_male": "parola giusta"},
   "broll": [{"clip": indice, "in": secondi, "durata": 1.5-3, "sulla_parola": "parola detta su cui entra", "rallenty": bool}],
   "cta": {"testo": "solo talking_head/carosello: call to action breve (es. Scrivici ORTO in DM)"},
@@ -2148,7 +2182,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
   const tutte = J(L.clip, []);
   const eImm = (c) => c?.tipo === "immagine" || c?.tecnico?.tipo === "immagine";
   const sorg = (c) => ({ fileid: c.sorgente?.tipo === "url" ? null : c.fileid, url: c.sorgente?.tipo === "url" ? c.sorgente.url : null, nome: c.nome });
-  let formato = FORMATI_REEL.includes(indicazioni?.formato) ? indicazioni.formato : FORMATI_REEL.includes(p.formato) ? p.formato : "montaggio";
+  let formato = FORMATI_REEL.includes(indicazioni?.formato) ? indicazioni.formato : FORMATI_REEL.includes(R?.formato) ? R.formato : FORMATI_REEL.includes(p.formato) ? p.formato : "montaggio";
   const slide = (p.slide || []).filter((s) => tutte[s.clip]?.stato === "fatto" && eImm(tutte[s.clip])).slice(0, 20).map((s) => ({ clip: s.clip, ...sorg(tutte[s.clip]), durata: Math.min(Math.max(Number(s.durata) || 2.2, 1.8), 8) }));
   if (formato === "carosello" && slide.length < 2) {
     const foto = tutte.map((c, i) => ({ c, i })).filter(({ c }) => c.stato === "fatto" && eImm(c));
@@ -2201,6 +2235,21 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
     const durata = Math.min(Math.max(Number(b.durata) || 2, 1), 3.5);
     return { clip: b.clip, ...sorg(c), in: Math.max(0, Math.min(Number(b.in) || 0, Math.max(0, (Number(c.tecnico?.durata_sec) || 9999) - durata * (b.rallenty ? 0.5 : 1) - 0.05))), durata, rallenty: !!b.rallenty, sulla_parola: String(b.sulla_parola).slice(0, 40) };
   });
+  const cartelli = formato !== "talking_head" ? [] : (p.cartelli || []).filter((c) => c?.testo && c?.sulla_parola).slice(0, 12).map((c) => ({
+    testo: String(c.testo).slice(0, 34),
+    sulla_parola: String(c.sulla_parola).slice(0, 40),
+    colore: /^(blu|rosa|verde|#[0-9a-f]{6})$/i.test(c.colore || "") ? c.colore : null,
+    stile: ["fascia", "grande", "barrato"].includes(c.stile) ? c.stile : "fascia",
+    durata: Math.min(2.6, Math.max(0.9, Number(c.durata) || 1.7))
+  }));
+  const schede = formato !== "talking_head" ? [] : (p.schede || []).filter((s) => tutte[s?.clip]?.stato === "fatto" && eImm(tutte[s.clip]) && s.sulla_parola).slice(0, 8).map((s) => ({
+    clip: s.clip,
+    ...sorg(tutte[s.clip]),
+    sulla_parola: String(s.sulla_parola).slice(0, 40),
+    etichetta: String(s.etichetta || "").slice(0, 16),
+    lato: s.lato === "sx" ? "sx" : "dx",
+    durata: Math.min(7, Math.max(1.5, Number(s.durata) || 2.6))
+  }));
   const lookVoluto = indicazioni?.look && LOOKS.includes(indicazioni.look) ? indicazioni.look : null;
   const cop = p.copertina && tutte[p.copertina.clip]?.stato === "fatto" ? { fileid: tutte[p.copertina.clip].fileid, url: tutte[p.copertina.clip].sorgente?.url || null, secondo: Math.max(0, Number(p.copertina.secondo) || 0), testo: String(p.copertina.testo || "").slice(0, 60) } : null;
   let pannello = null;
@@ -2226,6 +2275,8 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
     ...p,
     formato,
     pannello,
+    cartelli,
+    schede,
     logo: prima?.logo || null,
     stabilizza_tutto: !!(indicazioni?.stabilizza_tutto || prima?.piano?.stabilizza_tutto || p.stabilizza_tutto || R?.camera === "morbida"),
     camera_ferma: R?.camera === "a_mano" ? false : !!(indicazioni?.camera_ferma || prima?.piano?.camera_ferma || p.camera_ferma || R?.camera === "ferma"),
@@ -3308,6 +3359,9 @@ Johnny (il titolare) ha fatto una richiesta alla Direttrice. Prima di far partir
 
 CAPIREPARTO PRESENTI E I LORO UFFICI:
 ${squadraTesto()}
+
+STILI DI VIDEO CHE IL COMPARTO REEL SA MONTARE (nel "prompt" del reel scrivi il nome dello stile): ${Object.values(GENERI).map((g) => g.nome).join(", ")}.
+Per un "Talking head educativo con grafiche" la proposta include: copione di Nora (gancio, 3 punti numerati, limiti, CTA), set da preparare (luci colorate, scrivania, tazza col logo), elenco di screenshot/foto da caricare con il girato; Johnny gira, il comparto Reel monta.
 
 REGOLE
 - La discussione \xE8 concreta e breve: ogni capo parla solo per il suo reparto, dice cosa serve, rischi, tempi. Niente frasi di circostanza.

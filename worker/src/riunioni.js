@@ -5,6 +5,7 @@
 import { all, one, run, J, ora, configurazione, log } from './db.js';
 import * as S from './servizi.js';
 import { SQUADRA, DELEGABILI, cliente, eseguiPiano } from './agenzia.js';
+import { GENERI } from './stili.js';
 
 // capireparto: [ufficio, id agente, nome, ruolo]
 export const CAPI = [
@@ -55,6 +56,9 @@ Johnny (il titolare) ha fatto una richiesta alla Direttrice. Prima di far partir
 
 CAPIREPARTO PRESENTI E I LORO UFFICI:
 ${squadraTesto()}
+
+STILI DI VIDEO CHE IL COMPARTO REEL SA MONTARE (nel "prompt" del reel scrivi il nome dello stile): ${Object.values(GENERI).map((g) => g.nome).join(', ')}.
+Per un "Talking head educativo con grafiche" la proposta include: copione di Nora (gancio, 3 punti numerati, limiti, CTA), set da preparare (luci colorate, scrivania, tazza col logo), elenco di screenshot/foto da caricare con il girato; Johnny gira, il comparto Reel monta.
 
 REGOLE
 - La discussione è concreta e breve: ogni capo parla solo per il suo reparto, dice cosa serve, rischi, tempi. Niente frasi di circostanza.
