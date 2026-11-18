@@ -1696,6 +1696,15 @@ FORMATO "TALKING HEAD EDUCATIVO CON GRAFICHE" (quando Johnny lo chiede o per il 
   Frasi brevi da dire a tempo di parlato, niente frasi da leggere.
 - Per ogni copione elenca: i CARTELLI (parole chiave da mostrare grandi e su quale parola), gli SCREENSHOT/FOTO da preparare
   (prima/dopo, schermate degli strumenti) e i 3 punti per il pannello a elenco.
+FORMATO "AVATAR" (profilo Instagram di Johnny, video generati con il suo avatar HeyGen, stessa grafica del talking head):
+- Scrivi SOLO il testo che dice l'avatar, in prima persona, italiano parlato, 120-180 parole (45-75 s), frasi brevi.
+- Struttura GANCIO \u2192 PROBLEMA \u2192 TENSIONE \u2192 SOLUZIONE \u2192 CTA, tenendo lo spettatore sulle spine fino alla fine:
+  GANCIO (prime 2-3 s): apre una domanda o una promessa che si chiude solo alla fine ("c'\xE8 un motivo se i tuoi reel non
+  li guarda nessuno, e non \xE8 quello che pensi"). PROBLEMA: concreto, in cui chi guarda si riconosce. TENSIONE: 2-3
+  "anelli aperti" uno dopo l'altro (sveli un pezzo e ne apri un altro: "ma prima devi sapere una cosa\u2026", "e qui sbagliano
+  tutti\u2026"), mai la risposta prima del finale. SOLUZIONE: solo negli ultimi 10-15 s, chiara e pratica. CTA breve.
+- Niente elenchi letti, niente emoji, niente parole difficili da pronunciare; numeri scritti in lettere.
+- Elenca 4-8 CARTELLI (1-4 parole chiave e la parola su cui entrano), uno con stile "barrato" per l'errore comune.
 
 - Un reel = UNA idea. Si capisce in 2 secondi e regge in una frase. Durata 15-35 s (fino a 45 solo per storie e tutorial).
 - GANCIO nei primi 1-2 s: un'immagine che sorprende o una tensione (risultato prima del processo, dettaglio estremo,
@@ -1988,7 +1997,20 @@ async function avvisoMotore(env, L) {
 }
 var chiaveRif = (v) => `rif2:${v.piattaforma}:${v.id}`;
 var FONTI = {
-  pcloud: { nome: "Cartella pCloud", pronta: (L) => !!L.pcloud, elenca: async (L) => (await pcloudClip(L.pcloud)).map((c) => ({ ...c, sorgente: { tipo: "pcloud", fileid: c.fileid } })) }
+  pcloud: { nome: "Cartella pCloud", pronta: (L) => !!L.pcloud, elenca: async (L) => (await pcloudClip(L.pcloud)).map((c) => ({ ...c, sorgente: { tipo: "pcloud", fileid: c.fileid } })) },
+  // video da link diretti (es. il video del tuo avatar HeyGen): in "pcloud" c'è l'elenco JSON [{nome, url, durata}]
+  url: { nome: "Video da link", pronta: (L) => !!L.pcloud, elenca: async (L) => J(L.pcloud, []).filter((v) => /^https:\/\//.test(v?.url || "")).map((v, i) => {
+    let h = 2166136261;
+    for (const ch of v.url.split("?")[0]) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+    return {
+      fileid: `url${i}_${(h >>> 0).toString(36)}`,
+      nome: String(v.nome || `video_${i + 1}.mp4`),
+      hash: (h >>> 0).toString(36),
+      dimensione: 0,
+      sorgente: { tipo: "url", url: v.url },
+      tecnico: { durata_sec: Number(v.durata) || null, orientamento: "verticale" }
+    };
+  }) }
 };
 async function faseClip(env, cfg, L) {
   const fonte = FONTI[L.fonte || "pcloud"] || FONTI.pcloud;
@@ -5632,7 +5654,8 @@ async function api(req, env, url) {
     if (pcloud && !/code=/.test(pcloud)) return json2({ errore: 'il link pCloud deve essere il link pubblico della cartella (contiene "code=")' }, 400);
     const link = String(d.link_rif || "").split(/\s+/).filter((l) => /^https?:\/\//.test(l)).slice(0, 10);
     const stile = rilevaStile(prompt, d.stile);
-    const r = await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,?,'pcloud',?,?,?) RETURNING id", prompt, pcloud, JSON.stringify(link), stile ? JSON.stringify(stile) : null, ora(), ora());
+    const video = (Array.isArray(d.video) ? d.video : []).filter((v) => /^https:\/\//.test(v?.url || "")).slice(0, 20).map((v) => ({ nome: String(v.nome || "").slice(0, 80), url: v.url, durata: Number(v.durata) || null }));
+    const r = video.length ? await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,?,'url',?,?,?) RETURNING id", prompt, JSON.stringify(video), JSON.stringify(link), stile ? JSON.stringify(stile) : null, ora(), ora()) : await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,?,'pcloud',?,?,?) RETURNING id", prompt, pcloud, JSON.stringify(link), stile ? JSON.stringify(stile) : null, ora(), ora());
     await log(env, r.id, "regia", "\u{1F3AC} nuovo lavoro in coda: il Direttore creativo parte entro un minuto");
     return json2({ id: r.id });
   }

@@ -150,6 +150,15 @@ FORMATO "TALKING HEAD EDUCATIVO CON GRAFICHE" (quando Johnny lo chiede o per il 
   Frasi brevi da dire a tempo di parlato, niente frasi da leggere.
 - Per ogni copione elenca: i CARTELLI (parole chiave da mostrare grandi e su quale parola), gli SCREENSHOT/FOTO da preparare
   (prima/dopo, schermate degli strumenti) e i 3 punti per il pannello a elenco.
+FORMATO "AVATAR" (profilo Instagram di Johnny, video generati con il suo avatar HeyGen, stessa grafica del talking head):
+- Scrivi SOLO il testo che dice l'avatar, in prima persona, italiano parlato, 120-180 parole (45-75 s), frasi brevi.
+- Struttura GANCIO → PROBLEMA → TENSIONE → SOLUZIONE → CTA, tenendo lo spettatore sulle spine fino alla fine:
+  GANCIO (prime 2-3 s): apre una domanda o una promessa che si chiude solo alla fine ("c'è un motivo se i tuoi reel non
+  li guarda nessuno, e non è quello che pensi"). PROBLEMA: concreto, in cui chi guarda si riconosce. TENSIONE: 2-3
+  "anelli aperti" uno dopo l'altro (sveli un pezzo e ne apri un altro: "ma prima devi sapere una cosa…", "e qui sbagliano
+  tutti…"), mai la risposta prima del finale. SOLUZIONE: solo negli ultimi 10-15 s, chiara e pratica. CTA breve.
+- Niente elenchi letti, niente emoji, niente parole difficili da pronunciare; numeri scritti in lettere.
+- Elenca 4-8 CARTELLI (1-4 parole chiave e la parola su cui entrano), uno con stile "barrato" per l'errore comune.
 
 - Un reel = UNA idea. Si capisce in 2 secondi e regge in una frase. Durata 15-35 s (fino a 45 solo per storie e tutorial).
 - GANCIO nei primi 1-2 s: un'immagine che sorprende o una tensione (risultato prima del processo, dettaglio estremo,

@@ -306,6 +306,12 @@ export const chiaveRif = (v) => `rif2:${v.piattaforma}:${v.id}`;
 // basta aggiungere una voce qui e il download corrispondente nel motore (motore/analizza.py → scarica).
 export const FONTI = {
   pcloud: { nome: 'Cartella pCloud', pronta: (L) => !!L.pcloud, elenca: async (L) => (await S.pcloudClip(L.pcloud)).map((c) => ({ ...c, sorgente: { tipo: 'pcloud', fileid: c.fileid } })) },
+  // video da link diretti (es. il video del tuo avatar HeyGen): in "pcloud" c'è l'elenco JSON [{nome, url, durata}]
+  url: { nome: 'Video da link', pronta: (L) => !!L.pcloud, elenca: async (L) => J(L.pcloud, []).filter((v) => /^https:\/\//.test(v?.url || '')).map((v, i) => {
+    let h = 2166136261; for (const ch of v.url.split('?')[0]) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+    return { fileid: `url${i}_${(h >>> 0).toString(36)}`, nome: String(v.nome || `video_${i + 1}.mp4`), hash: (h >>> 0).toString(36), dimensione: 0, sorgente: { tipo: 'url', url: v.url },
+      tecnico: { durata_sec: Number(v.durata) || null, orientamento: 'verticale' } };
+  }) },
 };
 
 async function faseClip(env, cfg, L) {

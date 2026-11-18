@@ -135,7 +135,11 @@ async function api(req, env, url) {
     if (pcloud && !/code=/.test(pcloud)) return json({ errore: 'il link pCloud deve essere il link pubblico della cartella (contiene "code=")' }, 400);
     const link = String(d.link_rif || '').split(/\s+/).filter((l) => /^https?:\/\//.test(l)).slice(0, 10);
     const stile = rilevaStile(prompt, d.stile);
-    const r = await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,?,'pcloud',?,?,?) RETURNING id", prompt, pcloud, JSON.stringify(link), stile ? JSON.stringify(stile) : null, ora(), ora());
+    // in alternativa a pCloud: video da link diretti (es. il video dell'avatar HeyGen)
+    const video = (Array.isArray(d.video) ? d.video : []).filter((v) => /^https:\/\//.test(v?.url || '')).slice(0, 20).map((v) => ({ nome: String(v.nome || '').slice(0, 80), url: v.url, durata: Number(v.durata) || null }));
+    const r = video.length
+      ? await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,?,'url',?,?,?) RETURNING id", prompt, JSON.stringify(video), JSON.stringify(link), stile ? JSON.stringify(stile) : null, ora(), ora())
+      : await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,?,'pcloud',?,?,?) RETURNING id", prompt, pcloud, JSON.stringify(link), stile ? JSON.stringify(stile) : null, ora(), ora());
     await log(env, r.id, 'regia', '🎬 nuovo lavoro in coda: il Direttore creativo parte entro un minuto');
     return json({ id: r.id });
   }
