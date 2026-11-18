@@ -3259,7 +3259,7 @@ var CAPI = [
   ["direzione", "capo", "Alba", "Direttrice"],
   ["marketing", "stratega", "Marco", "capo Marketing"],
   ["social", "calendario", "Rita", "capo Social"],
-  ["video", "direttore", "Leo", "capo Video (direttore creativo del comparto Reel)"],
+  ["video", "direttore", "Leo", "capo Video"],
   ["foto", "fotografo", "Ugo", "capo Foto"],
   ["web", "web", "Walter", "capo Web & E-commerce"],
   ["booking", "booking", "Bea", "capo Booking & WhatsApp"],
@@ -4382,7 +4382,7 @@ async function azienda() {
   const tutti = Object.keys(AGENTI).filter((a) => a !== 'regia').length;
   const h = new Date().getHours();
   const frase = [
-    R.da_approvare ? '<b class="n" style="color:var(--warn)">' + R.da_approvare + ' contenuti</b> ti aspettano in approvazione.' : '',
+    R.da_approvare ? '<b class="n" style="color:var(--warn)">' + R.da_approvare + (R.da_approvare === 1 ? ' contenuto</b> ti aspetta' : ' contenuti</b> ti aspettano') + ' in approvazione.' : '',
     lavorano.length ? nomi(lavorano, 'var(--teal)') + (lavorano.length === 1 ? ' sta' : ' stanno') + ' lavorando.' : 'Nessuno sta lavorando adesso.',
     coda.length ? nomi(coda, 'var(--warn)') + (coda.length === 1 ? ' parte' : ' partono') + ' a breve.' : '',
     (tutti - lavorano.length - coda.length) + ' sono liberi.',
@@ -4868,14 +4868,22 @@ function clipPer(M, prefisso) {
   return (M.perPrefisso[prefisso] = out);
 }
 const va = new THREE.Vector3();
+let MACCHIA = null;
+function macchia() {
+  if (!MACCHIA) {
+    const tex = canvasTex(128, 128, (g, w, h) => { const r = g.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w / 2); r.addColorStop(0, 'rgba(0,0,0,0.38)'); r.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = r; g.fillRect(0, 0, w, h); });
+    MACCHIA = { geo: new THREE.PlaneGeometry(0.95, 0.95), mat: new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }) };
+  }
+  const m = new THREE.Mesh(MACCHIA.geo, MACCHIA.mat); m.rotation.x = -Math.PI / 2; m.position.y = 0.065; m.renderOrder = 1; return m;
+}
 function creaGLB(id, M) {
   const h = hash(id), donna = DONNE.has(id);
   const lista = (donna ? DONNE_M : UOMINI).filter((n) => M.corpi[n]);
   const base = M.corpi[lista[h % lista.length]] || Object.values(M.corpi)[0];
   const modello = SkeletonUtils.clone(base.scene);
   modello.scale.setScalar(base.scala);
-  modello.traverse((m) => { if (m.isMesh) { m.castShadow = true; m.frustumCulled = false; } });
-  const o = new THREE.Group(), w = new THREE.Group(); w.add(modello); o.add(w);
+  modello.traverse((m) => { if (m.isMesh) { m.castShadow = false; m.frustumCulled = true; } });
+  const o = new THREE.Group(), w = new THREE.Group(); w.add(modello); o.add(w, macchia());
   w.rotation.y = Math.PI; w.position.z = SEDUTA_DZ; // i personaggi Mixamo guardano +z, la scrivania \xE8 verso -z
   const mixer = new THREE.AnimationMixer(modello);
   const C = clipPer(M, base.prefisso);
@@ -4893,7 +4901,12 @@ function glbVai(G, nome, dissolvi = 0.4) {
   G.corrente = nome;
 }
 function glbSiedi(G) { G.seduto = true; G.w.position.set(0, 0, G.dz || 0); }
-function glbSeduto(G, t, lavora, dt) { if (!G.seduto) glbSiedi(G); glbVai(G, lavora ? 'scrive' : 'fermo'); G.mixer.update(dt); }
+function glbSeduto(G, t, lavora, dt) {
+  if (!G.seduto) glbSiedi(G);
+  glbVai(G, lavora ? 'scrive' : 'fermo');
+  G.acc = (G.acc || 0) + dt;
+  if (G.acc >= (S.lontano ? 0.1 : 0)) { G.mixer.update(G.acc); G.acc = 0; }
+}
 function glbMuovi(G, nome, dt) { if (G.seduto) { G.seduto = false; G.w.position.set(0, 0, 0); } glbVai(G, nome, 0.3); G.mixer.update(dt); }
 async function caricaPersone() {
   const pronti = await (await fetch('/persone/elenco.json')).json();
@@ -5328,9 +5341,24 @@ export function prova(cosa, a) {
   if (cosa === 'vista') { S.volo = null; S.controls.target.set(a[3], a[4], a[5]); S.camera.position.set(a[0], a[1], a[2]); S.camera.lookAt(S.controls.target); }
   if (cosa === 'cammina') { const P = S.agenti[a]; P.cammino = percorso(P); P.seduto = false; P.fase = 0; }
   if (cosa === 'persone') return Object.values(S.agenti).filter((P) => P.G).length;
+  if (cosa === 'prestazioni') return { fps: S.fpsVisto, pr: S.renderer.getPixelRatio(), info: { ...S.renderer.info.render } };
   if (cosa === 'salta') { const s = performance.now() / 1000; for (const P of Object.values(S.agenti)) for (let k = 0; k < 4000 && P.cammino; k++) { if (P.cammino.punti[P.cammino.i] === 'sosta') P.cammino.i++; else muovi(P, s, 0.05); } }
   if (cosa === 'sposta') { for (const P of Object.values(S.agenti)) if (P.G) { P.G.dz = a; P.G.w.position.z = a; } }
   if (cosa === 'dove') { const P = S.agenti[a]; return [P.U.o.position.x, P.U.o.position.z]; }
+}
+
+// se la scheda video fatica (sotto i 24 fotogrammi al secondo) abbasso la risoluzione, se va bene la rialzo
+function adatta(t) {
+  const A = (S.fps ||= { t0: t, n: 0, pr: S.renderer.getPixelRatio() });
+  A.n++;
+  if (t - A.t0 < 2000) return;
+  const fps = A.n * 1000 / (t - A.t0); A.t0 = t; A.n = 0;
+  const max = Math.min(devicePixelRatio, 2);
+  let pr = A.pr;
+  if (fps < 24 && pr > 0.55) pr = Math.max(0.55, pr - 0.15);
+  else if (fps > 50 && pr < max) pr = Math.min(max, pr + 0.1);
+  if (pr !== A.pr) { A.pr = pr; const v = new THREE.Vector2(); S.renderer.getSize(v); S.renderer.setPixelRatio(pr); S.renderer.setSize(v.x, v.y, false); }
+  S.fpsVisto = Math.round(fps);
 }
 
 function anima(t) {
@@ -5350,10 +5378,12 @@ function anima(t) {
     const P = S.agenti[id];
     if (P.cammino) muovi(P, s, dt);
     else poseSeduto(P, s, P.stato === 'lavora' && !P.riunione, dt);
-    if (P.stato === 'lavora' && s - (P.ts || 0) > 0.12) { P.ts = s; disegnaSchermo(P, s); P.sm.emissiveIntensity = 0.8 + Math.sin(s * 3 + P.x) * 0.1; }
+    if (P.stato === 'lavora' && s - (P.ts || 0) > (S.lontano ? 1.5 : 0.35)) { P.ts = s; disegnaSchermo(P, s); P.sm.emissiveIntensity = 0.8 + Math.sin(s * 3 + P.x) * 0.1; }
   }
   passeggiate(s);
   if (S.cervello) { S.cervello.punti.rotation.y = s * 0.35; S.cervello.punti.rotation.x = Math.sin(s * 0.3) * 0.3; S.cervello.nucleo.material.emissiveIntensity = 0.7 + Math.sin(s * 2) * 0.25; }
+  S.lontano = S.camera.position.distanceTo(S.controls.target) > 22;
+  adatta(t);
   S.renderer.render(S.scena, S.camera);
   posiziona();
 }
@@ -5376,7 +5406,7 @@ export function avvia(cont, dati, cb) {
   if (S) ferma();
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.domElement.className = 'sala-canvas';
@@ -5404,6 +5434,8 @@ export function avvia(cont, dati, cb) {
   S.ridim = () => { if (S) ridimensiona(); }; addEventListener('resize', S.ridim);
   ridimensiona();
   costruisci(dati);
+  for (const P of Object.values(S.agenti)) P.U.o.traverse((m) => { m.castShadow = false; });
+  renderer.shadowMap.needsUpdate = true;
   caricaPersone().catch((e) => console.warn("persone 3D non caricate", e));
   grandangolo(true);
   const ray = new THREE.Raycaster(), pt = new THREE.Vector2(); let giu = null;

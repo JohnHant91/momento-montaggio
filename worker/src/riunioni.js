@@ -11,7 +11,7 @@ export const CAPI = [
   ['direzione', 'capo', 'Alba', 'Direttrice'],
   ['marketing', 'stratega', 'Marco', 'capo Marketing'],
   ['social', 'calendario', 'Rita', 'capo Social'],
-  ['video', 'direttore', 'Leo', 'capo Video (direttore creativo del comparto Reel)'],
+  ['video', 'direttore', 'Leo', 'capo Video'],
   ['foto', 'fotografo', 'Ugo', 'capo Foto'],
   ['web', 'web', 'Walter', 'capo Web & E-commerce'],
   ['booking', 'booking', 'Bea', 'capo Booking & WhatsApp'],

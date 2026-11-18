@@ -621,7 +621,7 @@ async function azienda() {
   const tutti = Object.keys(AGENTI).filter((a) => a !== 'regia').length;
   const h = new Date().getHours();
   const frase = [
-    R.da_approvare ? '<b class="n" style="color:var(--warn)">' + R.da_approvare + ' contenuti</b> ti aspettano in approvazione.' : '',
+    R.da_approvare ? '<b class="n" style="color:var(--warn)">' + R.da_approvare + (R.da_approvare === 1 ? ' contenuto</b> ti aspetta' : ' contenuti</b> ti aspettano') + ' in approvazione.' : '',
     lavorano.length ? nomi(lavorano, 'var(--teal)') + (lavorano.length === 1 ? ' sta' : ' stanno') + ' lavorando.' : 'Nessuno sta lavorando adesso.',
     coda.length ? nomi(coda, 'var(--warn)') + (coda.length === 1 ? ' parte' : ' partono') + ' a breve.' : '',
     (tutti - lavorano.length - coda.length) + ' sono liberi.',
