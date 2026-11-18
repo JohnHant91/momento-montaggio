@@ -223,7 +223,7 @@ async function chiama(path, opts = {}) {
 }
 
 function menu(on) {
-  $('#nav').innerHTML = on ? '<a class="btn sec" href="#/">Agenzia</a><a class="btn sec" href="#/approvazioni">Approvazioni</a><a class="btn sec" href="#/clienti">Clienti</a><a class="btn sec" href="#/chat/gestionale">Gestionale</a><a class="btn sec" href="#/reel">Reel</a><a class="btn sec" href="#/copioni">Copioni</a><a class="btn sec" href="#/impostazioni" title="Impostazioni">⚙︎</a>' : '';
+  $('#nav').innerHTML = on ? '<a class="btn sec" href="#/">Agenzia</a><a class="btn sec" href="#/riunioni">Riunioni</a><a class="btn sec" href="#/approvazioni">Approvazioni</a><a class="btn sec" href="#/clienti">Clienti</a><a class="btn sec" href="#/chat/gestionale">Gestionale</a><a class="btn sec" href="#/reel">Reel</a><a class="btn sec" href="#/copioni">Copioni</a><a class="btn sec" href="#/impostazioni" title="Impostazioni">⚙︎</a>' : '';
 }
 
 async function accesso() {
@@ -520,6 +520,7 @@ const PIANTA = [
   ['booking', 'Booking & WhatsApp', 360, 740, 360, 260, '#eaf8df'],
   ['gestionale', 'Gestionale', 720, 740, 360, 260, '#efe9ff'],
   ['contabilita', 'Contabilità', 1080, 740, 360, 260, '#fff0d9'],
+  ['meeting', 'Sala meeting', 1440, 740, 300, 260, '#eef2f7'],
 ];
 const VIDEO_TEAM = ['direttore', 'stella', 'scout_yt', 'scout_tt', 'scout_ig', 'occhi', 'analista', 'motore', 'regista', 'copy', 'editor', 'vfx', 'color', 'audio', 'sottotitoli', 'revisore'];
 let SALA = { s: 1, x: 0, y: 0, dati: null, sel: null, ufficio: null };
@@ -536,6 +537,7 @@ function statiAgenti(R) {
     if (st[a] !== 'lavora') { st[a] = s; cosa[a] = { testo: 'Reel #' + L.id + ' · fase ' + L.fase, link: '#/lavoro/' + L.id }; }
   }
   if (R.piani.length) { st.idee = 'lavora'; cosa.idee = { testo: 'Piano copioni #' + R.piani[0].id, link: '#/copioni/' + R.piani[0].id }; }
+  for (const Q of (R.riunioni || []).filter((x) => x.in_sala)) for (const a of Q.partecipanti) cosa[a] = { testo: 'In riunione: ' + (Q.titolo || ''), link: '#/riunione/' + Q.id };
   for (const [a, u] of Object.entries(ultimo)) if (!st[a] && u.livello === 'errore' && Date.now() - new Date(u.quando) < 30 * 60e3) st[a] = 'errore';
   return { st, cosa, ultimo };
 }
@@ -554,7 +556,8 @@ function datiSala(R) {
   for (const r of R.feed) { const a = AGID(r.agente); (registro[a] ||= []).length < 4 && registro[a].push(r.messaggio); }
   const reelImg = (a) => { const L = R.reel.find((x) => (FASE_AGENTI[x.fase] || []).includes(a)); return L && L.fase === 'fatto' ? '/api/lavori/' + L.id + '/anteprima.jpg' : null; };
   for (const [u] of PIANTA) for (const a of agentiUfficio(R, u)) { const A = AGENTI[a]; if (A) agenti.push({ id: a, n: A.n, r: A.r, c: A.c || '#888888', u, stato: st[a] || '', msg: cosa[a]?.testo || ultimo[a]?.messaggio || '', log: registro[a] || [], img: reelImg(a) }); }
-  return { uffici: PIANTA.map(([id, nome, x, y, w, h, col]) => ({ id, nome, x, y, w, h, col })), agenti };
+  const riunioni = (R.riunioni || []).filter((x) => x.in_sala).map((x) => ({ id: x.id, stanza: x.tipo === 'settimanale' ? 'direzione' : 'meeting', partecipanti: x.partecipanti, titolo: x.titolo }));
+  return { uffici: PIANTA.map(([id, nome, x, y, w, h, col]) => ({ id, nome, x, y, w, h, col })), agenti, riunioni };
 }
 let SALA3D = null;
 function vaiAgente(a) { if (SALA3D) SALA3D.vaiAgente(a); }
@@ -606,8 +609,9 @@ function apriCervello() {
 }
 
 async function azienda() {
-  const [R, lavori] = await Promise.all([chiama('/api/azienda'), chiama('/api/lavori').catch(() => [])]);
+  const [R, lavori, riunioni] = await Promise.all([chiama('/api/azienda'), chiama('/api/lavori').catch(() => []), chiama('/api/riunioni').catch(() => [])]);
   Object.assign(AGENTI, R.squadra);
+  R.riunioni = riunioni;
   SALA.dati = R;
   const prima = !$('#sala');
   // se la sala è già aperta aggiorno solo i dati (stati, fumetti, saluto) senza muovere la camera
@@ -631,7 +635,9 @@ async function azienda() {
     return;
   }
   const C = await clientiSel('k_cli', '', 'cliente: lo capisce Alba');
-  const recenti = [...lavori.slice(0, 4).map((L) => ({ t: 'REEL · ' + (L.stato === 'pronto' ? 'pronto' : L.stato === 'errore' ? 'errore' : 'in lavorazione'), b: (L.titolo || L.prompt || '').slice(0, 60), link: '#/lavoro/' + L.id, img: L.stato === 'pronto' ? '/api/lavori/' + L.id + '/anteprima.jpg' : null, i: '🎬' })),
+  const daScegliere = riunioni.filter((x) => x.stato === 'proposte').map((x) => ({ t: '🗳️ PROPOSTE DA SCEGLIERE', b: x.titolo || x.richiesta || '', link: '#/riunione/' + x.id, img: null, i: '🗳️' }));
+  const ultimoReport = riunioni.find((x) => x.tipo === 'settimanale' && x.stato === 'report');
+  const recenti = [...daScegliere, ...(ultimoReport ? [{ t: '📊 REPORT RIUNIONE OPERATIVA', b: ultimoReport.titolo, link: '#/riunione/' + ultimoReport.id, img: null, i: '📊' }] : []), ...lavori.slice(0, 4).map((L) => ({ t: 'REEL · ' + (L.stato === 'pronto' ? 'pronto' : L.stato === 'errore' ? 'errore' : 'in lavorazione'), b: (L.titolo || L.prompt || '').slice(0, 60), link: '#/lavoro/' + L.id, img: L.stato === 'pronto' ? '/api/lavori/' + L.id + '/anteprima.jpg' : null, i: '🎬' })),
     ...R.recenti.slice(0, 4).map((I) => ({ t: (AGENTI[I.agente]?.n || I.agente) + ' · ' + (ST_INC[I.stato] || I.stato), b: I.titolo, link: '#/incarico/' + I.id, img: null, i: AGENTI[I.agente]?.i || '📄' }))];
   $('#app').innerHTML = '<div id="saluto">' + saluto + '</div>' +
     '<div class="chiedi"><span>🧭</span><input id="k_t" placeholder="Chiedi all’agenzia… es. 6 post per dicembre per A’ Villetta, romantici">' + C + '<button id="k_go">Invia</button></div><div id="k_r"></div>' +
@@ -661,11 +667,11 @@ async function azienda() {
   $('#torna').onclick = () => { if (SALA.sel && SALA.ufficio) { SALA.sel = null; chiudiLato(); entraUfficio(SALA.ufficio); } else grandangolo(); };
   $('#k_go').onclick = async () => {
     const t = $('#k_t').value.trim(); if (!t) return;
-    $('#k_go').disabled = true; $('#k_r').innerHTML = '<p class="mut">Alba sta smistando…</p>';
+    $('#k_go').disabled = true; $('#k_r').innerHTML = '<p class="mut">Alba sta convocando i capireparto…</p>';
     try {
       const r = await chiama('/api/capo', { method: 'POST', body: { testo: t, cliente_id: $('#k_cli').value || null } });
       $('#k_t').value = '';
-      $('#k_r').innerHTML = '<div class="card">🧭 ' + e(r.risposta) + '<div class="mut" style="margin-top:6px">' + r.incarichi.map((i) => '<a href="#/incarico/' + i + '">#' + i + '</a>').join(' · ') + (r.reel ? ' · <a href="#/lavoro/' + r.reel + '">reel #' + r.reel + '</a>' : '') + (r.piano ? ' · <a href="#/copioni/' + r.piano + '">copioni #' + r.piano + '</a>' : '') + '</div></div>';
+      $('#k_r').innerHTML = '<div class="card">🧭 <b>Alba:</b> ' + e(r.risposta) + (r.riunione ? '<div style="margin-top:8px"><a class="btn" href="#/riunione/' + r.riunione + '">Segui la riunione ▸</a></div>' : '') + '</div>';
     } catch (x) { $('#k_r').innerHTML = '<div class="err">' + e(x.message) + '</div>'; }
     $('#k_go').disabled = false;
   };
@@ -733,6 +739,66 @@ async function incarico(id) {
   if ($('#i_rip')) $('#i_rip').onclick = async () => { await chiama('/api/incarichi/' + id + '/riprova', { method: 'POST', body: {} }); rotta(); };
   if ($('#i_rifai')) $('#i_rifai').onclick = async () => { const r = await chiama('/api/incarichi/' + id + '/rifai', { method: 'POST', body: { nota: $('#i_nota').value } }); location.hash = '#/incarico/' + r.id; };
   if (I.stato === 'in_coda' || I.stato === 'in_corso' || I.figli.some((f) => f.stato === 'in_coda' || f.stato === 'in_corso')) timer = setTimeout(rotta, 6000);
+}
+
+const ST_RIU = { in_corso: 'in corso', proposte: 'proposte da scegliere', decisa: 'decisa', report: 'report pronto', chiusa: 'rifatta', errore: 'errore' };
+const PILL_RIU = { in_corso: 'corso', proposte: 'errore', decisa: 'pronto', report: 'pronto', chiusa: '', errore: 'errore' };
+async function riunioniPagina() {
+  const L = await chiama('/api/riunioni');
+  const riga = (x) => '<a class="card lav" href="#/riunione/' + x.id + '"><div class="riga"><b style="flex:1">' + (x.tipo === 'settimanale' ? '📊 ' : '🗳️ ') + e(x.titolo || x.richiesta || 'Riunione') + '</b><span class="pill ' + (PILL_RIU[x.stato] || '') + '">' + (ST_RIU[x.stato] || x.stato) + '</span></div><div class="mut">#' + x.id + ' · ' + new Date(x.creato).toLocaleString('it-IT', { dateStyle: 'medium', timeStyle: 'short' }) + (x.cliente ? ' · ' + e(x.cliente) : '') + (x.tipo === 'settimanale' ? ' · in direzione' : ' · in sala meeting') + '</div></a>';
+  $('#app').innerHTML = '<h1>Riunioni</h1><p class="mut">Parli solo con Alba, la Direttrice. Per ogni tua richiesta i capireparto si riuniscono in sala meeting e ti preparano le proposte: scegli tu, anche modificandole. Ogni lunedì mattina c’è la riunione operativa in direzione con il report della settimana.</p>' +
+    '<div class="riga"><button id="r_sett">Convoca adesso la riunione operativa</button></div>' +
+    '<h2>Da scegliere</h2>' + (L.filter((x) => x.stato === 'proposte').map(riga).join('') || '<p class="mut">Niente in attesa.</p>') +
+    '<h2>Riunioni operative</h2>' + (L.filter((x) => x.tipo === 'settimanale').map(riga).join('') || '<p class="mut">La prima è lunedì mattina (o convocala adesso).</p>') +
+    '<h2>Tutte le richieste</h2>' + (L.filter((x) => x.tipo === 'richiesta' && x.stato !== 'proposte').map(riga).join('') || '<p class="mut">Ancora nessuna.</p>');
+  $('#r_sett').onclick = async () => { const r = await chiama('/api/riunioni/settimanale', { method: 'POST' }); location.hash = '#/riunione/' + r.id; };
+  if (L.some((x) => x.stato === 'in_corso')) timer = setTimeout(rotta, 8000);
+}
+
+async function riunionePagina(id) {
+  const R = await chiama('/api/riunioni/' + id);
+  if (!AGENTI.capo) { const A = await chiama('/api/azienda'); Object.assign(AGENTI, A.squadra); }
+  const chi = (a) => { const A = AGENTI[a]; return (A ? A.i + ' ' : '') + '<b>' + e(R.nomi[a] || A?.n || a) + '</b>'; };
+  const verbale = R.verbale.length ? '<h2>Verbale</h2><div class="card">' + R.verbale.map((v) => '<p style="margin:6px 0">' + chi(v.chi) + ': ' + e(v.testo) + '</p>').join('') + '</div>' : '';
+  const testa = '<a class="mut" href="#/riunioni">← Riunioni</a><h1>' + (R.tipo === 'settimanale' ? '📊 ' : '🗳️ ') + e(R.titolo || 'Riunione') + '</h1>' +
+    '<div class="mut">#' + R.id + ' · ' + (R.tipo === 'settimanale' ? 'riunione operativa in direzione' : 'riunione preventiva in sala meeting') + ' · ' + new Date(R.creato).toLocaleString('it-IT', { dateStyle: 'medium', timeStyle: 'short' }) + (R.cliente ? ' · ' + e(R.cliente) : '') + '</div>' +
+    '<div class="mut" style="margin-top:4px">Presenti: ' + R.partecipanti.map((a) => e(R.nomi[a] || a)).join(', ') + '</div>' +
+    (R.richiesta ? '<div class="card" style="margin-top:12px"><b>La tua richiesta</b><div style="white-space:pre-wrap">' + e(R.richiesta) + '</div></div>' : '');
+  if (R.stato === 'in_corso') {
+    $('#app').innerHTML = testa + '<div class="card" style="margin-top:12px">⏳ I capireparto sono in riunione' + (R.tipo === 'settimanale' ? ' in direzione' : ' in sala meeting') + '. Li vedi nella sala 3D. ' + (R.errore ? '<div class="err">' + e(R.errore) + '</div>' : 'Tra qualche minuto qui trovi ' + (R.tipo === 'settimanale' ? 'il report.' : 'le proposte.')) + '</div>';
+    timer = setTimeout(rotta, 6000); return;
+  }
+  if (R.stato === 'errore') { $('#app').innerHTML = testa + '<div class="card err">La riunione non è andata a buon fine: ' + e(R.errore || '') + '</div>'; return; }
+  if (R.tipo === 'settimanale') {
+    const P = R.report || {};
+    const lista = (a) => (a || []).map((x) => '<li>' + e(x) + '</li>').join('');
+    $('#app').innerHTML = testa +
+      '<div class="card" style="margin-top:12px">🧭 <b>Alba:</b> ' + e(R.messaggio || '') + '<p>' + e(P.sintesi || '') + '</p></div>' +
+      (P.numeri?.length ? '<h2>I numeri</h2><div class="riga" style="flex-wrap:wrap;gap:10px">' + P.numeri.map((n) => '<div class="card" style="min-width:150px;margin:0"><div class="mut">' + e(n.etichetta) + '</div><b style="font-size:22px">' + e(n.valore) + '</b></div>').join('') + '</div>' : '') +
+      (P.reparti?.length ? '<h2>Reparto per reparto</h2>' + P.reparti.map((x) => '<div class="card"><b>' + e(x.ufficio) + '</b> · ' + e(x.capo || '') + '<p><b>Fatto:</b> ' + e(x.fatto || '') + '</p><p><b>Problemi:</b> ' + e(x.problemi || '') + '</p><p><b>Prossima settimana:</b> ' + e(x.prossima_settimana || '') + '</p></div>').join('') : '') +
+      '<h2>Decisioni</h2><div class="card"><ul>' + lista(P.decisioni) + '</ul></div><h2>Priorità della settimana</h2><div class="card"><ol>' + lista(P.priorita) + '</ol></div>' +
+      (P.per_johnny?.length ? '<h2>Cosa serve da te</h2><div class="card"><ul>' + lista(P.per_johnny) + '</ul></div>' : '') + verbale;
+    return;
+  }
+  const scelta = R.stato === 'decisa' ? R.scelta : null;
+  $('#app').innerHTML = testa +
+    '<div class="card" style="margin-top:12px">🧭 <b>Alba:</b> ' + e(R.messaggio || '') + '</div>' +
+    '<h2>' + (scelta == null ? 'Scegli come procedere' : 'Hai scelto') + '</h2>' +
+    R.proposte.map((P, i) => '<div class="card"' + (scelta === i ? ' style="outline:2px solid var(--teal)"' : scelta != null ? ' style="opacity:.55"' : '') + '><div class="riga"><b style="flex:1;font-size:17px">' + (i + 1) + '. ' + e(P.titolo) + '</b>' + (i === R.consigliata ? '<span class="pill pronto">consigliata</span>' : '') + (P.tempi ? '<span class="pill">' + e(P.tempi) + '</span>' : '') + '</div>' +
+      '<p>' + e(P.sintesi || '') + '</p>' + (P.passi?.length ? '<ol>' + P.passi.map((x) => '<li>' + e(x) + '</li>').join('') + '</ol>' : '') +
+      '<p class="mut"><b>Pro:</b> ' + e(P.pro || '') + ' · <b>Contro:</b> ' + e(P.contro || '') + '</p>' +
+      (P.domande?.length ? '<p class="mut"><b>Domande per te:</b> ' + P.domande.map(e).join(' · ') + '</p>' : '') +
+      (scelta == null ? '<label>Vuoi cambiare qualcosa prima di partire? (facoltativo)</label><textarea id="mod_' + i + '" placeholder="Es. niente reel, solo post; aggiungi una storia al giorno; tono più ironico…"></textarea><div class="riga" style="margin-top:8px"><button data-sc="' + i + '">Scegli questa</button></div>' : '') + '</div>').join('') +
+    (scelta == null ? '<h2>Nessuna ti convince?</h2><div class="card"><textarea id="r_nota" placeholder="Dì ad Alba cosa non va: i capireparto rifanno la riunione con le tue indicazioni"></textarea><div class="riga" style="margin-top:8px"><button class="sec" id="r_rifai">Rifate la riunione</button></div></div>' : '') +
+    (R.esito ? '<h2>Partito</h2><div class="card">' + (R.esito.incarichi || []).map((i) => '<a href="#/incarico/' + i + '">incarico #' + i + '</a>').join(' · ') + (R.esito.reel ? ' · <a href="#/lavoro/' + R.esito.reel + '">reel #' + R.esito.reel + '</a>' : '') + (R.esito.piano ? ' · <a href="#/copioni/' + R.esito.piano + '">copioni #' + R.esito.piano + '</a>' : '') + (R.modifica ? '<p class="mut">Con le tue modifiche: ' + e(R.modifica) + '</p>' : '') + '</div>' : '') +
+    verbale + '<div id="r_er" class="err"></div>';
+  document.querySelectorAll('[data-sc]').forEach((b) => b.onclick = async () => {
+    const i = Number(b.dataset.sc);
+    document.querySelectorAll('[data-sc]').forEach((x) => { x.disabled = true; }); b.textContent = 'Alba fa partire gli uffici…';
+    try { await chiama('/api/riunioni/' + id + '/scegli', { method: 'POST', body: { indice: i, modifica: $('#mod_' + i).value } }); rotta(); }
+    catch (x) { $('#r_er').textContent = x.message; document.querySelectorAll('[data-sc]').forEach((y) => { y.disabled = false; }); b.textContent = 'Scegli questa'; }
+  });
+  if ($('#r_rifai')) $('#r_rifai').onclick = async () => { const r = await chiama('/api/riunioni/' + id + '/rifai', { method: 'POST', body: { nota: $('#r_nota').value } }); location.hash = '#/riunione/' + r.id; };
 }
 
 async function approvazioni() {
@@ -812,6 +878,8 @@ async function rotta() {
     else if (h.startsWith('#/agente/')) await agentePagina(h.split('/')[2]);
     else if (h.startsWith('#/incarico/')) await incarico(h.split('/')[2]);
     else if (h === '#/approvazioni') await approvazioni();
+    else if (h === '#/riunioni') await riunioniPagina();
+    else if (h.startsWith('#/riunione/')) await riunionePagina(h.split('/')[2]);
     else if (h === '#/clienti') await clientiPagina();
     else if (h.startsWith('#/cliente/')) await clientePagina(h.split('/')[2]);
     else if (h.startsWith('#/chat/')) await chatPagina(h.split('/')[2]);

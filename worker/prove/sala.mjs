@@ -11,7 +11,7 @@ const az = { adesso: ora, uffici: UFFICI, squadra: SQUADRA,
   recenti: [{ id: 7, agente: 'copywriter', titolo: '6 post di dicembre per A’ Villetta', stato: 'in_corso', aggiornato: ora }], da_approvare: 2, conti: [{ agente: 'copywriter', n: 4 }], clienti: 2,
   reel: [{ id: 2, fase: 'montaggio', blocco_fino: fra }], piani: [], gestionale: true,
   feed: [{ agente: 'editor', messaggio: 'monto 22 pezzi: reframe, stabilizzazione, rallenty', livello: 'info', quando: ora }, { agente: 'copywriter', messaggio: '✍️ inizio #7: 6 post di dicembre', livello: 'info', quando: ora }] };
-const fake = { '/api/stato': { configurato: true, dentro: true }, '/api/azienda': az, '/api/lavori': [{ id: 2, prompt: 'Reel Torretta', titolo: 'Tostatura caffè · Torretta', stato: 'in_corso' }], '/api/clienti': [] };
+const fake = { '/api/stato': { configurato: true, dentro: true }, '/api/azienda': az, '/api/riunioni': [{ id: 3, tipo: 'richiesta', stato: 'in_corso', titolo: '6 post di dicembre per A’ Villetta, romantici', partecipanti: ['capo', 'stratega', 'calendario', 'direttore', 'fotografo', 'web', 'booking'], in_sala: true, creato: ora }], '/api/lavori': [{ id: 2, prompt: 'Reel Torretta', titolo: 'Tostatura caffè · Torretta', stato: 'in_corso' }], '/api/clienti': [] };
 const stub = '<script>const __F=' + JSON.stringify(fake) + ';const __of=window.fetch;window.fetch=async(u,o)=>{const k=new URL(typeof u==="string"?u:u.url,location.href).pathname;if(__F[k]!==undefined)return new Response(JSON.stringify(__F[k]),{headers:{"content-type":"application/json"}});if(k.startsWith("/persone/"))return __of("https://momento-reel.gestionalelcl.workers.dev"+k,o);return __of(u,o);};</script>';
 const dir = process.argv[2] || '/tmp/sala';
 mkdirSync(dir, { recursive: true });

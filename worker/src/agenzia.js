@@ -13,7 +13,7 @@ export const UFFICI = [
 
 // agenti degli uffici (quelli del Video sono la squadra reel, definita nella pagina)
 export const SQUADRA = {
-  capo: { n: 'Alba', r: 'Capo dell’agenzia', u: 'direzione', i: '🧭', c: '#3fd0c9', skill: ['social-strategy'], d: 'Legge le tue richieste, capisce per quale cliente sono e le smista agli uffici giusti, tutti insieme. Ti risponde in chat.' },
+  capo: { n: 'Alba', r: 'Direttrice dell’agenzia', u: 'direzione', i: '🧭', c: '#3fd0c9', skill: ['social-strategy'], d: 'È l’unica con cui parli. Riceve le tue richieste, convoca i capireparto in sala meeting, ti porta le proposte e, quando scegli, fa partire gli uffici. Ogni settimana guida la riunione operativa in direzione e ti manda il report.' },
   brand: { n: 'Bianca', r: 'Brand manager · scheda cliente', u: 'marketing', i: '🪪', c: '#c58cff', skill: ['brand-profile', 'voice-builder', 'audience-research'], d: 'Scrive la scheda di ogni cliente (chi è, a chi parla, come parla, cosa non dire). Tutti gli altri agenti la leggono prima di lavorare.' },
   stratega: { n: 'Marco', r: 'Stratega', u: 'marketing', i: '♟️', c: '#7aa2ff', skill: ['social-strategy', 'goals-and-kpis', 'content-pillars'], d: 'Strategia social, obiettivi, KPI e pilastri dei contenuti per il cliente.' },
   audit: { n: 'Greta', r: 'Audit e concorrenti', u: 'marketing', i: '🔎', c: '#ffb86b', skill: ['content-audit', 'competitor-analysis', 'profile-optimization'], d: 'Analizza il profilo del cliente e i concorrenti: cosa tenere, cosa buttare, dove c’è spazio. Base per le proposte ai nuovi clienti.' },
@@ -33,7 +33,7 @@ export const SQUADRA = {
   gestionale: { n: 'Gino', r: 'Segreteria gestionale', u: 'gestionale', i: '🗄️', c: '#90be6d', chat: true, d: 'Ha il pieno controllo del gestionale: gli scrivi “segnami uno shooting il 12” o “nuovo cliente…” e lui lo fa.' },
   contabile: { n: 'Dora', r: 'Contabile', u: 'contabilita', i: '🧾', c: '#f9c74f', chat: true, d: 'Preventivi dal listino, entrate e uscite, scadenze e incassi da sollecitare, sul gestionale.' },
 };
-const DELEGABILI = Object.keys(SQUADRA).filter((k) => !SQUADRA[k].chat && k !== 'capo');
+export const DELEGABILI = Object.keys(SQUADRA).filter((k) => !SQUADRA[k].chat && k !== 'capo');
 const MAX_FIGLI = 2, MAX_PROFONDITA = 2, IN_PARALLELO = 6, BLOCCO_MIN = 15;
 
 export async function schemaAgenzia(env) {
@@ -51,7 +51,7 @@ export async function schemaAgenzia(env) {
 }
 
 // ------------------------------------------------------------------ scheda cliente
-async function cliente(env, id) { return id ? one(env, 'SELECT * FROM clienti WHERE id=?', id) : null; }
+export async function cliente(env, id) { return id ? one(env, 'SELECT * FROM clienti WHERE id=?', id) : null; }
 const testoScheda = (C) => C ? `SCHEDA CLIENTE: ${C.nome}${C.nicchia ? ' · ' + C.nicchia : ''}
 ${C.scheda || '(la scheda non è ancora stata scritta: lavora con quello che sai dal brief e scrivilo in "domande")'}
 ${C.note ? 'NOTE DI JOHNNY: ' + C.note : ''}` : 'CLIENTE: nessuno in particolare (lavoro interno di Momento Produzione o generico).';
@@ -293,30 +293,8 @@ export async function chatGestionale(env, canale, testo) {
 }
 
 // ------------------------------------------------------------------ Capo: smista le richieste agli uffici
-export async function chiediCapo(env, testo, clienteId) {
-  const cfg = await configurazione(env);
-  const clienti = await all(env, 'SELECT id, nome, nicchia, (scheda IS NOT NULL) AS ha_scheda FROM clienti ORDER BY nome');
-  const C = clienteId ? await cliente(env, clienteId) : null;
-  await run(env, 'INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)', 'capo', 'user', testo, ora());
-  const out = await S.claude(cfg, sistemaAgente('capo') + `
-
-ALTRI UFFICI CHE PUOI ATTIVARE (fuori dagli incarichi):
-- "reel": il comparto Video monta un reel dalle clip del cliente (serve il link pCloud delle clip, se Johnny lo dà).
-- "copioni": Nora scrive piano e copioni di N reel per X mesi a partire dagli argomenti.
-- Gestionale e contabilità: Gino e Dora, ma Johnny ci scrive direttamente nella loro chat: se la richiesta è solo gestionale, diglielo.`,
-  `OGGI: ${new Date().toISOString().slice(0, 10)}
-CLIENTI DELL'AGENZIA: ${clienti.map((c) => `#${c.id} ${c.nome}${c.nicchia ? ' (' + c.nicchia + ')' : ''}${c.ha_scheda ? '' : ' [senza scheda]'}`).join('; ') || 'nessuno'}
-${C ? 'CLIENTE SELEZIONATO DA JOHNNY: #' + C.id + ' ' + C.nome : ''}
-
-RICHIESTA DI JOHNNY: ${testo}
-
-Decidi chi deve lavorare. Fai partire IN PARALLELO tutti gli agenti che possono lavorare subito; usa "dopo" (indice di un altro incarico della lista) solo se un agente ha davvero bisogno del risultato di un altro. Se il cliente non ha la scheda, il primo incarico è a "brand" e gli altri che ne hanno bisogno lo aspettano.
-Rispondi SOLO JSON:
-{"risposta": "messaggio breve a Johnny: chi hai messo al lavoro e cosa riceverà",
- "cliente_id": numero o null, "nuovo_cliente": {"nome": "...", "nicchia": "..."} o null,
- "incarichi": [{"agente": "uno di: ${DELEGABILI.join(', ')}", "titolo": "...", "brief": "brief completo e autonomo", "dopo": null}],
- "reel": {"prompt": "descrizione completa del reel", "pcloud": "link o null"} o null,
- "copioni": {"argomenti": ["..."], "numero": 20, "mesi": 3} o null}`, { maxTokens: 6000 });
+// esegue un piano già deciso (dalla riunione e dalla scelta di Johnny): crea cliente se serve, incarichi in parallelo, reel, copioni
+export async function eseguiPiano(env, out, testo, clienteId, origine = '') {
   let cid = Number(out.cliente_id) || clienteId || null;
   if (!cid && out.nuovo_cliente?.nome) {
     const r = await one(env, 'INSERT INTO clienti (nome, nicchia, creato, aggiornato) VALUES (?,?,?,?) RETURNING id', String(out.nuovo_cliente.nome).slice(0, 120), String(out.nuovo_cliente.nicchia || ''), ora(), ora());
@@ -324,11 +302,11 @@ Rispondi SOLO JSON:
   }
   if (cid && !(await cliente(env, cid))) cid = null;
   const creati = [];
-  for (const x of (out.incarichi || []).slice(0, 10)) {
+  for (const x of (out.incarichi || []).slice(0, 12)) {
     if (!DELEGABILI.includes(x.agente)) continue;
     const dip = Number.isInteger(x.dopo) && creati[x.dopo] ? creati[x.dopo] : null;
     const r = await one(env, 'INSERT INTO incarichi (agente, cliente_id, titolo, brief, dipende_da, creato, aggiornato) VALUES (?,?,?,?,?,?,?) RETURNING id',
-      x.agente, cid, String(x.titolo || '').slice(0, 200), String(x.brief || ''), dip, ora(), ora());
+      x.agente, cid, String(x.titolo || '').slice(0, 200), String(x.brief || '') + (origine ? '\n\n' + origine : ''), dip, ora(), ora());
     creati.push(r.id);
   }
   let reel = null, piano = null;
@@ -338,7 +316,7 @@ Rispondi SOLO JSON:
     const r = await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, creato, aggiornato) VALUES (?,?,'[]','pcloud',?,?) RETURNING id",
       (C2 ? `Cliente: ${C2.nome}. ` : '') + out.reel.prompt, pc, ora(), ora());
     reel = r.id;
-    await log(env, r.id, 'regia', '🎬 nuovo reel chiesto da Alba: il Direttore creativo parte entro un minuto');
+    await log(env, r.id, 'regia', '🎬 nuovo reel deciso in riunione: il Direttore creativo parte entro un minuto');
   }
   if (out.copioni?.argomenti?.length) {
     const C2 = await cliente(env, cid);
@@ -346,10 +324,8 @@ Rispondi SOLO JSON:
     const r = await one(env, 'INSERT INTO piani (cliente, dati, creato, aggiornato) VALUES (?,?,?,?) RETURNING id', dati.cliente, JSON.stringify(dati), ora(), ora());
     piano = r.id;
   }
-  const risposta = String(out.risposta || 'Ricevuto, la squadra è al lavoro.');
-  await run(env, 'INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)', 'capo', 'assistant', risposta, ora());
-  await log(env, null, 'capo', `🧭 ${creati.length} incarichi assegnati${reel ? ', 1 reel' : ''}${piano ? ', 1 piano copioni' : ''}: ${testo.slice(0, 80)}`);
-  return { risposta, cliente_id: cid, incarichi: creati, reel, piano };
+  await log(env, null, 'capo', `🧭 ${creati.length} incarichi assegnati${reel ? ', 1 reel' : ''}${piano ? ', 1 piano copioni' : ''}: ${String(testo).slice(0, 80)}`);
+  return { cliente_id: cid, incarichi: creati, reel, piano };
 }
 
 // ------------------------------------------------------------------ API
@@ -368,11 +344,6 @@ export async function apiAgenzia(req, env, p, m, json) {
     ]);
     const feed = await all(env, 'SELECT agente, messaggio, livello, quando, lavoro_id FROM registro ORDER BY id DESC LIMIT 40');
     return json({ adesso, uffici: UFFICI, squadra: SQUADRA, attivi, recenti, da_approvare: approvare.n, conti, clienti: clienti.n, reel: reelAttivi, piani: pianiAttivi, feed, gestionale: !!env.GEST });
-  }
-  if (p === '/api/capo' && m === 'POST') {
-    const d = await corpo();
-    if (String(d.testo || '').trim().length < 3) return json({ errore: 'scrivi la richiesta' }, 400);
-    return json(await chiediCapo(env, String(d.testo).trim().slice(0, 4000), Number(d.cliente_id) || null));
   }
   const ch = p.match(/^\/api\/chat\/(capo|gestionale|contabile)$/);
   if (ch && m === 'GET') return json((await all(env, 'SELECT ruolo, testo, quando FROM chat WHERE canale=? ORDER BY id DESC LIMIT 40', ch[1])).reverse());

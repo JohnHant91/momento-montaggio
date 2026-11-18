@@ -26,10 +26,11 @@ const STANZE = [
   { id: 'booking', x: 8.4, z: COR_Z + COR_D, w: 3.4, d: SUD, lato: 's', col: 1 },
   { id: 'gestionale', x: 11.8, z: COR_Z + COR_D, w: 3.4, d: SUD, lato: 's', col: 1 },
   { id: 'contabilita', x: 15.2, z: COR_Z + COR_D, w: 3.4, d: SUD, lato: 's', col: 1 },
-  { id: 'relax', x: 18.6, z: COR_Z + COR_D, w: 8.4, d: SUD, lato: 's', col: 0, nome: 'Sala relax' },
+  { id: 'meeting', x: 18.6, z: COR_Z + COR_D, w: 4.4, d: SUD, lato: 's', col: 0, nome: 'Sala meeting' },
+  { id: 'relax', x: 23.0, z: COR_Z + COR_D, w: 4.0, d: SUD, lato: 's', col: 0, nome: 'Sala relax' },
 ];
 const ST = (id) => STANZE.find((r) => r.id === id);
-const TINTE = { direzione: '#e7ebff', marketing: '#fff0e6', social: '#ffeef4', video: '#eaf6ee', foto: '#fff7e2', web: '#e9f4fb', booking: '#eef8e6', gestionale: '#f1edff', contabilita: '#fff3e3', relax: '#f4efe6' };
+const TINTE = { direzione: '#e7ebff', marketing: '#fff0e6', social: '#ffeef4', video: '#eaf6ee', foto: '#fff7e2', web: '#e9f4fb', booking: '#eef8e6', gestionale: '#f1edff', contabilita: '#fff3e3', relax: '#f4efe6', meeting: '#eef2f7' };
 
 // ---------------------------------------------------------------- texture disegnate al volo
 function canvasTex(w, h, fn) {
@@ -335,15 +336,49 @@ function agave(mat, s = 1) {
 }
 
 // ---------------------------------------------------------------- sala relax
+// sedie in ellisse attorno a un tavolo; per ogni sedia il posto dove si siede la persona, rivolta al centro
+function giroDiSedie(cx, cz, rx, rz, n, stanza) {
+  const posti = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + Math.PI / n, se = sedia(S.mat);
+    const x = cx + Math.cos(a) * rx, z = cz + Math.sin(a) * rz;
+    se.position.set(x, 0, z); se.rotation.y = Math.atan2(cx - x, cz - z) + Math.PI; S.scena.add(se);
+    const d = new THREE.Vector3(cx - x, 0, cz - z).normalize();
+    posti.push({ pos: new THREE.Vector3(x + d.x * 0.12, 0, z + d.z * 0.12), rot: Math.atan2(-d.x, -d.z) });
+  }
+  (S.posti ||= {})[stanza] = posti;
+}
+function arredaMeeting(R) {
+  const { scena, mat } = S;
+  const cx = R.x + R.w / 2, cz = R.z + R.d / 2 + 0.25;
+  const piano = ombra(new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.06, 48), mat.legno)); piano.scale.set(0.62, 1, 1.45); piano.position.set(cx, 0.75, cz); scena.add(piano);
+  for (const dz of [-0.8, 0.8]) { const g = box(0.4, 0.72, 0.08, mat.bianco, 0.02); g.position.set(cx, 0.37, cz + dz); scena.add(g); }
+  giroDiSedie(cx, cz, 1.2, 1.95, 8, 'meeting');
+  // schermo a parete con l'argomento della riunione
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 288;
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const tv = box(2.0, 1.15, 0.06, mat.nero, 0.02); tv.position.set(cx, 1.45, R.z + R.d - 0.08); scena.add(tv);
+  const sc = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 1.07), new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.6 }));
+  sc.position.set(cx, 1.45, R.z + R.d - 0.115); sc.rotation.y = Math.PI; scena.add(sc);
+  S.schermoMeeting = { cv, tex };
+  disegnaSchermoMeeting(null);
+}
+function disegnaSchermoMeeting(Q) {
+  const M = S.schermoMeeting; if (!M) return;
+  const g = M.cv.getContext('2d'), w = 512, h = 288;
+  g.fillStyle = Q ? '#1d2b6b' : '#15171c'; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#ffffff'; g.font = '700 26px Inter, system-ui'; g.fillText(Q ? 'RIUNIONE IN CORSO' : 'Sala meeting', 24, 52);
+  if (Q) { g.font = '600 24px Inter, system-ui'; g.fillStyle = '#c9d4ff'; righeTesto(g, Q.titolo || '', 24, 100, w - 48, 32, 5); }
+  else { g.font = '20px Inter, system-ui'; g.fillStyle = '#7d8290'; g.fillText('libera', 24, 90); }
+  M.tex.needsUpdate = true;
+}
+
 function arredaDirezione(R) {
   const { scena, mat } = S;
   const cx = R.x + R.w / 2 + 0.6, cz = R.z + 4.75;
   const piano = ombra(new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.06, 48), mat.legno)); piano.scale.set(1.6, 1, 0.62); piano.position.set(cx, 0.75, cz); scena.add(piano);
   for (const dx of [-0.9, 0.9]) { const g = box(0.08, 0.72, 0.5, mat.bianco, 0.02); g.position.set(cx + dx, 0.37, cz); scena.add(g); }
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2, se = sedia(mat);
-    se.position.set(cx + Math.cos(a) * 2.05, 0, cz + Math.sin(a) * 0.95); se.rotation.y = Math.atan2(Math.cos(a), Math.sin(a)); scena.add(se);
-  }
+  giroDiSedie(cx, cz, 2.15, 1.05, 10, 'direzione');
   const lap = box(0.34, 0.02, 0.24, mat.metallo, 0.01); lap.position.set(cx - 0.6, 0.79, cz); scena.add(lap);
   const tazza = ombra(new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.035, 0.09, 16), mat.bianco)); tazza.position.set(cx + 0.5, 0.82, cz + 0.15); scena.add(tazza);
   const tappeto = new THREE.Mesh(new RoundedBoxGeometry(5.6, 0.012, 2.6, 2, 0.006), new THREE.MeshStandardMaterial({ color: 0xcfd6e6, roughness: 0.95 }));
@@ -411,6 +446,7 @@ function costruisci(dati) {
     S.etAree.push({ id: R.id, nome: nome.split(' · ')[0].replace('Web & E-commerce', 'Web & Shop').replace('Booking & WhatsApp', 'Booking'), pos: new THREE.Vector3(R.x + R.w / 2, 0.1, R.lato === 'n' ? R.z + R.d - 0.15 : R.z + 0.55) });
     S.aree[R.id] = { x: R.x, z: R.z, w: R.w, d: R.d };
     if (R.id === 'relax') { arredaRelax(R); continue; }
+    if (R.id === 'meeting') { arredaMeeting(R); continue; }
     if (R.id === 'direzione') arredaDirezione(R);
     const ags = dati.agenti.filter((a) => a.u === R.id);
     const righe = Math.max(1, Math.ceil(ags.length / R.col)), largo = R.col * POSTO;
@@ -468,6 +504,7 @@ export function aggiorna(dati) {
     P.sm.emissiveIntensity = P.stato === 'lavora' || P.stato === 'coda' ? 0.85 : 0.25;
     disegnaSchermo(P, t);
   }
+  aggiornaRiunioni(dati);
   disegnaEtichette();
 }
 
@@ -477,7 +514,7 @@ function disegnaEtichette() {
   for (const E of S.etAree) h += '<div class="et-uff" data-uff="' + E.id + '">' + esc(E.nome) + '</div>';
   for (const A of S.dati.agenti) {
     if (!S.agenti[A.id]) continue;
-    const viva = A.stato === 'lavora' || A.stato === 'coda' || S.scelto === A.id;
+    const viva = A.stato === 'lavora' || A.stato === 'coda' || S.scelto === A.id || !!S.agenti[A.id]?.riunione;
     h += viva
       ? '<div class="et-ag carta ' + (A.stato || '') + (S.scelto === A.id ? ' scelto' : '') + '" data-ag="' + A.id + '"><b>' + esc(A.n) + '</b><span>' + esc((A.msg || A.r || '').slice(0, 46)) + '</span><i>' + (A.stato === 'coda' ? 'In coda' : 'Guarda ▸') + '</i></div>'
       : '<div class="et-ag pillola ' + (A.stato || '') + '" data-ag="' + A.id + '"><span class="pt"></span>' + esc(A.n) + '</div>';
@@ -558,12 +595,46 @@ function percorso(P) {
   const andata = [alzati, new THREE.Vector3(alzati.x, 0, da.dentro.z), da.dentro, da.fuori, a.fuori, a.dentro, fondo];
   return { punti: [...andata, 'sosta', ...andata.slice(0, -1).reverse(), P.casa.clone()], i: 0, sosta: 0 };
 }
+function stanzaDi(pos) { return STANZE.find((r) => pos.x > r.x && pos.x < r.x + r.w && pos.z > r.z && pos.z < r.z + r.d) || null; }
+function viaggio(da, aStanza, fine) {
+  const pts = [], dS = stanzaDi(da);
+  if (dS && dS !== aStanza) { const d = porta(dS); pts.push(new THREE.Vector3(da.x, 0, d.dentro.z), d.dentro, d.fuori); }
+  if (aStanza && dS !== aStanza) { const a = porta(aStanza); pts.push(a.fuori, a.dentro); }
+  pts.push(fine);
+  return pts;
+}
+function vaiInRiunione(P, Q, i) {
+  const posti = S.posti?.[Q.stanza]; if (!posti) return;
+  const seat = posti[i % posti.length], o = P.U.o;
+  const parti = P.cammino ? o.position.clone() : new THREE.Vector3(P.casa.x + 0.55, 0, P.casa.z + 0.35);
+  const R = STANZE.find((r) => r.id === Q.stanza);
+  P.riunione = Q.id;
+  P.cammino = { punti: [parti, ...viaggio(parti, R, seat.pos)], i: 0, sosta: 0, fine: { tipo: 'riunione', seat } };
+  P.seduto = false; P.fase = 0;
+}
+function tornaDaRiunione(P) {
+  P.riunione = null;
+  const o = P.U.o, alzati = new THREE.Vector3(P.casa.x + 0.55, 0, P.casa.z + 0.35);
+  P.cammino = { punti: [...viaggio(o.position.clone(), P.stanza, alzati), P.casa.clone()], i: 0, sosta: 0 };
+  P.seduto = false; P.fase = 0;
+}
+function aggiornaRiunioni(dati) {
+  const dove = new Map();
+  for (const Q of dati.riunioni || []) Q.partecipanti.forEach((a, i) => dove.set(a, { Q, i }));
+  for (const [id, P] of Object.entries(S.agenti)) {
+    const r = dove.get(id);
+    if (r && P.riunione !== r.Q.id) vaiInRiunione(P, r.Q, r.i);
+    else if (!r && P.riunione) tornaDaRiunione(P);
+  }
+  disegnaSchermoMeeting((dati.riunioni || []).find((Q) => Q.stanza === 'meeting') || null);
+}
+
 function passeggiate(s) {
   if (s < (S.prossima || 3)) return;
   S.prossima = s + 6 + Math.random() * 8;
   const inGiro = Object.values(S.agenti).filter((P) => P.cammino).length;
   if (inGiro >= 3) return;
-  const liberi = Object.values(S.agenti).filter((P) => !P.cammino && !P.stato && S.scelto !== P.A.id);
+  const liberi = Object.values(S.agenti).filter((P) => !P.cammino && !P.stato && !P.riunione && S.scelto !== P.A.id);
   if (!liberi.length) return;
   const P = liberi[Math.floor(Math.random() * liberi.length)];
   P.cammino = percorso(P); P.seduto = false; P.fase = 0;
@@ -580,7 +651,12 @@ function muovi(P, s, dt) {
   const dist = dir.length(), v = 1.25 * dt;
   if (dist < 0.05) {
     C.i++;
-    if (C.i >= C.punti.length) { P.cammino = null; P.seduto = true; o.position.copy(P.casa); o.rotation.y = 0; if (P.G) glbSiedi(P.G); }
+    if (C.i >= C.punti.length) {
+      P.cammino = null; P.seduto = true;
+      if (C.fine?.tipo === 'riunione') { o.position.copy(C.fine.seat.pos); o.rotation.y = C.fine.seat.rot; }
+      else { o.position.copy(P.casa); o.rotation.y = 0; }
+      if (P.G) glbSiedi(P.G);
+    }
     return;
   }
   o.position.addScaledVector(dir.normalize(), Math.min(v, dist));
@@ -615,7 +691,7 @@ function anima(t) {
   for (const id in S.agenti) {
     const P = S.agenti[id];
     if (P.cammino) muovi(P, s, dt);
-    else poseSeduto(P, s, P.stato === 'lavora', dt);
+    else poseSeduto(P, s, P.stato === 'lavora' && !P.riunione, dt);
     if (P.stato === 'lavora' && s - (P.ts || 0) > 0.12) { P.ts = s; disegnaSchermo(P, s); P.sm.emissiveIntensity = 0.8 + Math.sin(s * 3 + P.x) * 0.1; }
   }
   passeggiate(s);

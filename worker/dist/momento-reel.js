@@ -2664,7 +2664,7 @@ var UFFICI = [
   ["contabilita", "Ufficio Contabile"]
 ];
 var SQUADRA = {
-  capo: { n: "Alba", r: "Capo dell\u2019agenzia", u: "direzione", i: "\u{1F9ED}", c: "#3fd0c9", skill: ["social-strategy"], d: "Legge le tue richieste, capisce per quale cliente sono e le smista agli uffici giusti, tutti insieme. Ti risponde in chat." },
+  capo: { n: "Alba", r: "Direttrice dell\u2019agenzia", u: "direzione", i: "\u{1F9ED}", c: "#3fd0c9", skill: ["social-strategy"], d: "\xC8 l\u2019unica con cui parli. Riceve le tue richieste, convoca i capireparto in sala meeting, ti porta le proposte e, quando scegli, fa partire gli uffici. Ogni settimana guida la riunione operativa in direzione e ti manda il report." },
   brand: { n: "Bianca", r: "Brand manager \xB7 scheda cliente", u: "marketing", i: "\u{1FAAA}", c: "#c58cff", skill: ["brand-profile", "voice-builder", "audience-research"], d: "Scrive la scheda di ogni cliente (chi \xE8, a chi parla, come parla, cosa non dire). Tutti gli altri agenti la leggono prima di lavorare." },
   stratega: { n: "Marco", r: "Stratega", u: "marketing", i: "\u265F\uFE0F", c: "#7aa2ff", skill: ["social-strategy", "goals-and-kpis", "content-pillars"], d: "Strategia social, obiettivi, KPI e pilastri dei contenuti per il cliente." },
   audit: { n: "Greta", r: "Audit e concorrenti", u: "marketing", i: "\u{1F50E}", c: "#ffb86b", skill: ["content-audit", "competitor-analysis", "profile-optimization"], d: "Analizza il profilo del cliente e i concorrenti: cosa tenere, cosa buttare, dove c\u2019\xE8 spazio. Base per le proposte ai nuovi clienti." },
@@ -2997,34 +2997,7 @@ async function chatGestionale(env, canale, testo) {
   for (const a of azioni) await log(env, null, canale, "\u{1F5C4}\uFE0F " + a);
   return { risposta, azioni };
 }
-async function chiediCapo(env, testo, clienteId) {
-  const cfg = await configurazione(env);
-  const clienti = await all(env, "SELECT id, nome, nicchia, (scheda IS NOT NULL) AS ha_scheda FROM clienti ORDER BY nome");
-  const C = clienteId ? await cliente(env, clienteId) : null;
-  await run(env, "INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)", "capo", "user", testo, ora());
-  const out = await claude(
-    cfg,
-    sistemaAgente("capo") + `
-
-ALTRI UFFICI CHE PUOI ATTIVARE (fuori dagli incarichi):
-- "reel": il comparto Video monta un reel dalle clip del cliente (serve il link pCloud delle clip, se Johnny lo d\xE0).
-- "copioni": Nora scrive piano e copioni di N reel per X mesi a partire dagli argomenti.
-- Gestionale e contabilit\xE0: Gino e Dora, ma Johnny ci scrive direttamente nella loro chat: se la richiesta \xE8 solo gestionale, diglielo.`,
-    `OGGI: ${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}
-CLIENTI DELL'AGENZIA: ${clienti.map((c) => `#${c.id} ${c.nome}${c.nicchia ? " (" + c.nicchia + ")" : ""}${c.ha_scheda ? "" : " [senza scheda]"}`).join("; ") || "nessuno"}
-${C ? "CLIENTE SELEZIONATO DA JOHNNY: #" + C.id + " " + C.nome : ""}
-
-RICHIESTA DI JOHNNY: ${testo}
-
-Decidi chi deve lavorare. Fai partire IN PARALLELO tutti gli agenti che possono lavorare subito; usa "dopo" (indice di un altro incarico della lista) solo se un agente ha davvero bisogno del risultato di un altro. Se il cliente non ha la scheda, il primo incarico \xE8 a "brand" e gli altri che ne hanno bisogno lo aspettano.
-Rispondi SOLO JSON:
-{"risposta": "messaggio breve a Johnny: chi hai messo al lavoro e cosa ricever\xE0",
- "cliente_id": numero o null, "nuovo_cliente": {"nome": "...", "nicchia": "..."} o null,
- "incarichi": [{"agente": "uno di: ${DELEGABILI.join(", ")}", "titolo": "...", "brief": "brief completo e autonomo", "dopo": null}],
- "reel": {"prompt": "descrizione completa del reel", "pcloud": "link o null"} o null,
- "copioni": {"argomenti": ["..."], "numero": 20, "mesi": 3} o null}`,
-    { maxTokens: 6e3 }
-  );
+async function eseguiPiano(env, out, testo, clienteId, origine = "") {
   let cid = Number(out.cliente_id) || clienteId || null;
   if (!cid && out.nuovo_cliente?.nome) {
     const r = await one(env, "INSERT INTO clienti (nome, nicchia, creato, aggiornato) VALUES (?,?,?,?) RETURNING id", String(out.nuovo_cliente.nome).slice(0, 120), String(out.nuovo_cliente.nicchia || ""), ora(), ora());
@@ -3032,7 +3005,7 @@ Rispondi SOLO JSON:
   }
   if (cid && !await cliente(env, cid)) cid = null;
   const creati = [];
-  for (const x of (out.incarichi || []).slice(0, 10)) {
+  for (const x of (out.incarichi || []).slice(0, 12)) {
     if (!DELEGABILI.includes(x.agente)) continue;
     const dip = Number.isInteger(x.dopo) && creati[x.dopo] ? creati[x.dopo] : null;
     const r = await one(
@@ -3041,7 +3014,7 @@ Rispondi SOLO JSON:
       x.agente,
       cid,
       String(x.titolo || "").slice(0, 200),
-      String(x.brief || ""),
+      String(x.brief || "") + (origine ? "\n\n" + origine : ""),
       dip,
       ora(),
       ora()
@@ -3061,7 +3034,7 @@ Rispondi SOLO JSON:
       ora()
     );
     reel = r.id;
-    await log(env, r.id, "regia", "\u{1F3AC} nuovo reel chiesto da Alba: il Direttore creativo parte entro un minuto");
+    await log(env, r.id, "regia", "\u{1F3AC} nuovo reel deciso in riunione: il Direttore creativo parte entro un minuto");
   }
   if (out.copioni?.argomenti?.length) {
     const C2 = await cliente(env, cid);
@@ -3069,10 +3042,8 @@ Rispondi SOLO JSON:
     const r = await one(env, "INSERT INTO piani (cliente, dati, creato, aggiornato) VALUES (?,?,?,?) RETURNING id", dati.cliente, JSON.stringify(dati), ora(), ora());
     piano2 = r.id;
   }
-  const risposta = String(out.risposta || "Ricevuto, la squadra \xE8 al lavoro.");
-  await run(env, "INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)", "capo", "assistant", risposta, ora());
-  await log(env, null, "capo", `\u{1F9ED} ${creati.length} incarichi assegnati${reel ? ", 1 reel" : ""}${piano2 ? ", 1 piano copioni" : ""}: ${testo.slice(0, 80)}`);
-  return { risposta, cliente_id: cid, incarichi: creati, reel, piano: piano2 };
+  await log(env, null, "capo", `\u{1F9ED} ${creati.length} incarichi assegnati${reel ? ", 1 reel" : ""}${piano2 ? ", 1 piano copioni" : ""}: ${String(testo).slice(0, 80)}`);
+  return { cliente_id: cid, incarichi: creati, reel, piano: piano2 };
 }
 async function apiAgenzia(req, env, p, m, json3) {
   const corpo = () => req.json().catch(() => ({}));
@@ -3089,11 +3060,6 @@ async function apiAgenzia(req, env, p, m, json3) {
     ]);
     const feed = await all(env, "SELECT agente, messaggio, livello, quando, lavoro_id FROM registro ORDER BY id DESC LIMIT 40");
     return json3({ adesso, uffici: UFFICI, squadra: SQUADRA, attivi, recenti, da_approvare: approvare.n, conti, clienti: clienti.n, reel: reelAttivi, piani: pianiAttivi, feed, gestionale: !!env.GEST });
-  }
-  if (p === "/api/capo" && m === "POST") {
-    const d = await corpo();
-    if (String(d.testo || "").trim().length < 3) return json3({ errore: "scrivi la richiesta" }, 400);
-    return json3(await chiediCapo(env, String(d.testo).trim().slice(0, 4e3), Number(d.cliente_id) || null));
   }
   const ch = p.match(/^\/api\/chat\/(capo|gestionale|contabile)$/);
   if (ch && m === "GET") return json3((await all(env, "SELECT ruolo, testo, quando FROM chat WHERE canale=? ORDER BY id DESC LIMIT 40", ch[1])).reverse());
@@ -3283,6 +3249,309 @@ ${campi.testo ?? c.testo ?? ""}`.slice(0, 3e3), shotlist: String(campi.visual ??
   }
   if (kc && m === "DELETE") {
     await run(env, "DELETE FROM clienti WHERE id=?", kc[1]);
+    return json3({ ok: true });
+  }
+  return null;
+}
+
+// src/riunioni.js
+var CAPI = [
+  ["direzione", "capo", "Alba", "Direttrice"],
+  ["marketing", "stratega", "Marco", "capo Marketing"],
+  ["social", "calendario", "Rita", "capo Social"],
+  ["video", "direttore", "Leo", "capo Video (direttore creativo del comparto Reel)"],
+  ["foto", "fotografo", "Ugo", "capo Foto"],
+  ["web", "web", "Walter", "capo Web & E-commerce"],
+  ["booking", "booking", "Bea", "capo Booking & WhatsApp"],
+  ["gestionale", "gestionale", "Gino", "capo Gestionale"],
+  ["contabilita", "contabile", "Dora", "capo Contabilit\xE0"]
+];
+var PER_RICHIESTA = ["capo", "stratega", "calendario", "direttore", "fotografo", "web", "booking"];
+var SETTIMANALE = CAPI.map((c) => c[1]);
+var NOME = Object.fromEntries(CAPI.map(([, id, n, r]) => [id, `${n} (${r})`]));
+var DURATA_VISIVA = 15e4;
+async function schemaRiunioni(env) {
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS riunioni (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT NOT NULL, stato TEXT NOT NULL DEFAULT 'in_corso',
+    richiesta TEXT, cliente_id INTEGER, partecipanti TEXT, titolo TEXT, verbale TEXT, proposte TEXT, consigliata INTEGER, messaggio TEXT, report TEXT,
+    scelta INTEGER, modifica TEXT, esito TEXT, errore TEXT, tentativi INTEGER DEFAULT 0, blocco_fino TEXT, fine_visiva TEXT, creato TEXT, aggiornato TEXT)`).run();
+}
+var squadraTesto = () => CAPI.map(([u, id, n, r]) => {
+  const membri = Object.entries(SQUADRA).filter(([, A]) => A.u === u).map(([k, A]) => `${A.n} [${k}] ${A.r}`).join("; ");
+  return `- ${n} [${id}], ${r}. Ufficio: ${membri || (u === "video" ? "comparto Reel (monta i reel dalle clip del cliente)" : "\u2014")}`;
+}).join("\n");
+async function chiediDirettrice(env, testo, clienteId) {
+  await run(env, "INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)", "capo", "user", testo, ora());
+  const r = await one(
+    env,
+    `INSERT INTO riunioni (tipo, stato, richiesta, cliente_id, partecipanti, titolo, creato, aggiornato) VALUES ('richiesta','in_corso',?,?,?,?,?,?) RETURNING id`,
+    testo,
+    clienteId || null,
+    JSON.stringify(PER_RICHIESTA),
+    testo.slice(0, 80),
+    ora(),
+    ora()
+  );
+  const risposta = "Ricevuto. Convoco subito i capireparto in sala meeting: tra qualche minuto ti porto le proposte e scegli tu come procedere.";
+  await run(env, "INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)", "capo", "assistant", risposta, ora());
+  await log(env, null, "capo", `\u{1F5E3}\uFE0F riunione #${r.id} in sala meeting: ${testo.slice(0, 80)}`);
+  return { risposta, riunione: r.id, incarichi: [] };
+}
+async function svolgiRichiesta(env, cfg, R) {
+  const clienti = await all(env, "SELECT id, nome, nicchia, (scheda IS NOT NULL) AS ha_scheda FROM clienti ORDER BY nome");
+  const C = R.cliente_id ? await cliente(env, R.cliente_id) : null;
+  const precedente = J(R.esito, {})?.rifai_da;
+  const out = await claude(
+    cfg,
+    `Sei il verbale vivo della RIUNIONE PREVENTIVA dei capireparto di AGENZIA MOMENTO AI (Momento Produzione: video, foto, social, siti ed e-commerce per clienti di ogni nicchia).
+Johnny (il titolare) ha fatto una richiesta alla Direttrice. Prima di far partire qualsiasi lavoro, i capireparto si riuniscono e preparano 2 o 3 PROPOSTE davvero diverse
+(per esempio: essenziale e veloce / completa / pi\xF9 ambiziosa, oppure strade creative diverse). Johnny sceglier\xE0.
+
+CAPIREPARTO PRESENTI E I LORO UFFICI:
+${squadraTesto()}
+
+REGOLE
+- La discussione \xE8 concreta e breve: ogni capo parla solo per il suo reparto, dice cosa serve, rischi, tempi. Niente frasi di circostanza.
+- Le proposte devono essere fattibili con gli agenti che esistono. Per ogni proposta scrivi anche il "piano" esatto da eseguire se Johnny la sceglie.
+- Se mancano informazioni importanti, dillo nella proposta (campo "domande"), non inventare dati del cliente.
+- Se il cliente non ha la scheda, il primo incarico del piano \xE8 a "brand" e gli altri che ne hanno bisogno lo aspettano ("dopo").
+- Gestionale e contabilit\xE0 (Gino, Dora) li attivi solo se la richiesta lo riguarda: in quel caso nel piano scrivi cosa fare in "note_gestionale".`,
+    `OGGI: ${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}
+CLIENTI DELL'AGENZIA: ${clienti.map((c) => `#${c.id} ${c.nome}${c.nicchia ? " (" + c.nicchia + ")" : ""}${c.ha_scheda ? "" : " [senza scheda]"}`).join("; ") || "nessuno"}
+${C ? `CLIENTE SELEZIONATO DA JOHNNY: #${C.id} ${C.nome}
+${(C.scheda || "").slice(0, 3e3)}` : ""}
+${precedente ? `
+PROPOSTE DELLA RIUNIONE PRECEDENTE (Johnny le ha rimandate indietro):
+${precedente}` : ""}
+
+RICHIESTA DI JOHNNY: ${R.richiesta}
+
+Rispondi SOLO JSON:
+{"titolo": "titolo breve della riunione",
+ "verbale": [{"chi": "id del capo (${PER_RICHIESTA.join(", ")})", "testo": "intervento di 1-3 frasi"}],
+ "proposte": [{"titolo": "...", "sintesi": "2-3 frasi", "passi": ["cosa fa ogni reparto, in ordine"], "reparti": ["marketing", "social", ...], "tempi": "es. 2 giorni", "pro": "...", "contro": "...", "domande": ["..."],
+   "piano": {"cliente_id": numero o null, "nuovo_cliente": {"nome": "...", "nicchia": "..."} o null,
+     "incarichi": [{"agente": "uno di: ${DELEGABILI.join(", ")}", "titolo": "...", "brief": "brief completo e autonomo", "dopo": null}],
+     "reel": {"prompt": "descrizione completa del reel", "pcloud": "link o null"} o null,
+     "copioni": {"argomenti": ["..."], "numero": 20, "mesi": 3} o null, "note_gestionale": null}}],
+ "consigliata": indice della proposta che la riunione consiglia,
+ "messaggio": "messaggio di Alba a Johnny: com'\xE8 andata la riunione e cosa consiglia, in 2-3 frasi"}
+Il verbale ha 6-12 interventi; parlano solo i capi presenti; Alba apre e chiude.`,
+    { maxTokens: 14e3 }
+  );
+  const proposte = (out.proposte || []).slice(0, 3);
+  if (!proposte.length) throw new Error("la riunione non ha prodotto proposte");
+  const fine = new Date(Math.max(Date.now() + 3e4, new Date(R.creato).getTime() + DURATA_VISIVA)).toISOString();
+  await run(
+    env,
+    `UPDATE riunioni SET stato='proposte', titolo=?, verbale=?, proposte=?, consigliata=?, messaggio=?, errore=NULL, blocco_fino=NULL, fine_visiva=?, aggiornato=? WHERE id=?`,
+    String(out.titolo || R.titolo).slice(0, 120),
+    JSON.stringify(out.verbale || []),
+    JSON.stringify(proposte),
+    Number(out.consigliata) || 0,
+    String(out.messaggio || ""),
+    fine,
+    ora(),
+    R.id
+  );
+  await run(
+    env,
+    "INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)",
+    "capo",
+    "assistant",
+    `${out.messaggio || "Riunione finita."} Le proposte sono qui: #/riunione/${R.id}`,
+    ora()
+  );
+  await log(env, null, "capo", `\u{1F4CB} riunione #${R.id} finita: ${proposte.length} proposte da scegliere`);
+}
+async function numeri(env) {
+  const da = new Date(Date.now() - 7 * 864e5).toISOString();
+  const q = (sql, ...a) => all(env, sql, ...a).catch(() => []);
+  const [inc, perAg, cont, reel, piani, nuovi, errori, attesa, riu] = await Promise.all([
+    q("SELECT stato, COUNT(*) AS n FROM incarichi WHERE aggiornato > ? GROUP BY stato", da),
+    q("SELECT agente, COUNT(*) AS n FROM incarichi WHERE aggiornato > ? AND stato IN ('fatto','da_approvare','approvato') GROUP BY agente", da),
+    q("SELECT stato, COUNT(*) AS n FROM contenuti WHERE aggiornato > ? GROUP BY stato", da),
+    q("SELECT stato, COUNT(*) AS n FROM lavori WHERE aggiornato > ? GROUP BY stato", da),
+    q("SELECT stato, COUNT(*) AS n FROM piani WHERE aggiornato > ? GROUP BY stato", da),
+    q("SELECT nome, nicchia FROM clienti WHERE creato > ?", da),
+    q("SELECT agente, messaggio FROM registro WHERE livello='errore' AND quando > ? ORDER BY id DESC LIMIT 15", da),
+    q("SELECT i.agente, i.titolo, i.stato, k.nome AS cliente FROM incarichi i LEFT JOIN clienti k ON k.id=i.cliente_id WHERE i.stato IN ('in_coda','in_corso','errore','da_approvare') ORDER BY i.id LIMIT 30"),
+    q("SELECT titolo, stato FROM riunioni WHERE tipo='richiesta' AND creato > ?", da)
+  ]);
+  const ufficio = (a) => SQUADRA[a]?.u || "video";
+  const perUfficio = {};
+  for (const r of perAg) perUfficio[ufficio(r.agente)] = (perUfficio[ufficio(r.agente)] || 0) + r.n;
+  return { periodo: `${da.slice(0, 10)} \u2192 ${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}`, incarichi: inc, fatti_per_ufficio: perUfficio, contenuti: cont, reel, piani, clienti_nuovi: nuovi, errori, in_sospeso: attesa, richieste_di_johnny: riu };
+}
+async function svolgiSettimanale(env, cfg, R) {
+  const N = await numeri(env);
+  const out = await claude(
+    cfg,
+    `Sei il verbale della RIUNIONE OPERATIVA SETTIMANALE dei capireparto di AGENZIA MOMENTO AI, in direzione, guidata dalla Direttrice Alba.
+Si parla dell'andamento dell'agenzia nella settimana appena passata, usando SOLO i numeri forniti (non inventarne altri: se un dato manca, dillo).
+CAPIREPARTO:
+${squadraTesto()}
+Ogni capo fa il punto del suo reparto (fatto, problemi, cosa far\xE0 la prossima settimana), poi si decidono priorit\xE0 e cose da chiedere a Johnny.`,
+    `NUMERI DELLA SETTIMANA (dal sistema): ${JSON.stringify(N)}
+
+Rispondi SOLO JSON:
+{"titolo": "Riunione operativa settimana ...",
+ "sintesi": "3-4 frasi per Johnny: come \xE8 andata la settimana",
+ "numeri": [{"etichetta": "...", "valore": "..."}],
+ "reparti": [{"ufficio": "...", "capo": "nome", "fatto": "...", "problemi": "... o nessuno", "prossima_settimana": "..."}],
+ "decisioni": ["..."], "priorita": ["le 3-5 priorit\xE0 della settimana"], "per_johnny": ["cosa serve da Johnny: approvazioni, materiali, decisioni"],
+ "verbale": [{"chi": "id del capo (${SETTIMANALE.join(", ")})", "testo": "intervento di 1-3 frasi"}],
+ "messaggio": "messaggio di Alba a Johnny in 2 frasi"}`,
+    { maxTokens: 1e4 }
+  );
+  const fine = new Date(Math.max(Date.now() + 3e4, new Date(R.creato).getTime() + DURATA_VISIVA)).toISOString();
+  await run(
+    env,
+    `UPDATE riunioni SET stato='report', titolo=?, verbale=?, report=?, messaggio=?, errore=NULL, blocco_fino=NULL, fine_visiva=?, aggiornato=? WHERE id=?`,
+    String(out.titolo || "Riunione operativa settimanale").slice(0, 120),
+    JSON.stringify(out.verbale || []),
+    JSON.stringify({ ...out, verbale: void 0, dati: N }),
+    String(out.messaggio || ""),
+    fine,
+    ora(),
+    R.id
+  );
+  await run(env, "INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)", "capo", "assistant", `${out.messaggio || "Riunione operativa finita."} Il report \xE8 qui: #/riunione/${R.id}`, ora());
+  await log(env, null, "capo", `\u{1F4CA} riunione operativa #${R.id} finita: report pronto`);
+}
+async function convocaSettimanale(env, manuale = false) {
+  const aperta = await one(env, "SELECT id FROM riunioni WHERE tipo='settimanale' AND stato='in_corso'");
+  if (aperta) return aperta.id;
+  const r = await one(
+    env,
+    `INSERT INTO riunioni (tipo, stato, partecipanti, titolo, creato, aggiornato) VALUES ('settimanale','in_corso',?,?,?,?) RETURNING id`,
+    JSON.stringify(SETTIMANALE),
+    "Riunione operativa settimanale",
+    ora(),
+    ora()
+  );
+  await log(env, null, "capo", `\u{1F5D3}\uFE0F riunione operativa settimanale #${r.id} in direzione${manuale ? " (convocata da Johnny)" : ""}`);
+  return r.id;
+}
+function oraRoma() {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Rome", weekday: "short", hour: "2-digit", hour12: false }).formatToParts(/* @__PURE__ */ new Date()).map((x) => [x.type, x.value]));
+  return { giorno: p.weekday, ora: Number(p.hour) };
+}
+async function avanzaRiunioni(env) {
+  await schemaRiunioni(env);
+  const { giorno, ora: h } = oraRoma();
+  if (giorno === "Mon" && h >= 9) {
+    const ultima = await one(env, "SELECT creato FROM riunioni WHERE tipo='settimanale' ORDER BY id DESC LIMIT 1");
+    if (!ultima || Date.now() - new Date(ultima.creato).getTime() > 6 * 864e5) await convocaSettimanale(env);
+  }
+  const adesso = ora();
+  const aperte = await all(env, "SELECT * FROM riunioni WHERE stato='in_corso' AND (blocco_fino IS NULL OR blocco_fino < ?) ORDER BY id LIMIT 2", adesso);
+  if (!aperte.length) return;
+  const cfg = await configurazione(env);
+  await Promise.allSettled(aperte.map(async (R0) => {
+    const R = await one(
+      env,
+      "UPDATE riunioni SET blocco_fino=?, tentativi=tentativi+1, aggiornato=? WHERE id=? AND stato='in_corso' AND (blocco_fino IS NULL OR blocco_fino < ?) RETURNING *",
+      new Date(Date.now() + 10 * 6e4).toISOString(),
+      ora(),
+      R0.id,
+      adesso
+    );
+    if (!R) return;
+    try {
+      if (R.tipo === "settimanale") await svolgiSettimanale(env, cfg, R);
+      else await svolgiRichiesta(env, cfg, R);
+    } catch (e) {
+      const msg = String(e?.message || e).slice(0, 400);
+      const credito = /credit balance|billing/i.test(msg);
+      const stop = !credito && (R.tentativi >= 3 || /manca la chiave/.test(msg));
+      await run(
+        env,
+        "UPDATE riunioni SET stato=?, errore=?, blocco_fino=?, tentativi=?, aggiornato=? WHERE id=?",
+        stop ? "errore" : "in_corso",
+        credito ? "Credito Claude esaurito: la riunione riparte da sola quando lo ricarichi" : msg,
+        stop ? null : new Date(Date.now() + (credito ? 10 : 2) * 6e4).toISOString(),
+        credito ? 0 : R.tentativi,
+        ora(),
+        R.id
+      );
+      await log(env, null, "capo", credito ? "\u23F8\uFE0F riunione in pausa: credito Claude esaurito" : `${stop ? "\u274C" : "\u26A0\uFE0F"} riunione #${R.id}: ${msg}`, stop || credito ? "errore" : "warn");
+    }
+  }));
+}
+async function scegli(env, R, indice, modifica) {
+  const proposte = J(R.proposte, []);
+  const P2 = proposte[indice];
+  if (!P2) throw new Error("proposta non trovata");
+  let piano2 = P2.piano || {}, messaggio = `Perfetto, parto con "${P2.titolo}".`;
+  if (modifica) {
+    const cfg = await configurazione(env);
+    const out = await claude(
+      cfg,
+      `Sei Alba, Direttrice di AGENZIA MOMENTO AI. Johnny ha scelto una proposta della riunione ma vuole delle modifiche. Aggiorna il piano rispettando ESATTAMENTE le sue modifiche e lo stesso formato. Agenti disponibili per gli incarichi: ${DELEGABILI.join(", ")}.`,
+      `RICHIESTA ORIGINALE: ${R.richiesta}
+PROPOSTA SCELTA: ${JSON.stringify(P2)}
+MODIFICHE DI JOHNNY: ${modifica}
+
+Rispondi SOLO JSON: {"piano": {stesso formato del piano}, "messaggio": "conferma breve a Johnny di cosa parte"}`,
+      { maxTokens: 1e4 }
+    );
+    piano2 = out.piano || piano2;
+    messaggio = out.messaggio || messaggio;
+  }
+  const origine = `Deciso nella riunione #${R.id} dei capireparto (proposta "${P2.titolo}")${modifica ? ". Modifiche di Johnny: " + modifica : ""}.`;
+  const esito = await eseguiPiano(env, piano2, R.richiesta, R.cliente_id, origine);
+  await run(env, "UPDATE riunioni SET stato='decisa', scelta=?, modifica=?, esito=?, aggiornato=? WHERE id=?", indice, modifica || null, JSON.stringify({ ...esito, piano: piano2 }), ora(), R.id);
+  await run(env, "INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)", "capo", "assistant", messaggio, ora());
+  if (piano2.note_gestionale) await log(env, null, "gestionale", "\u{1F5C4}\uFE0F dalla riunione: " + String(piano2.note_gestionale).slice(0, 200), "warn");
+  return { messaggio, ...esito };
+}
+async function apiRiunioni(req, env, p, m, json3) {
+  await schemaRiunioni(env);
+  const corpo = () => req.json().catch(() => ({}));
+  if (p === "/api/capo" && m === "POST") {
+    const d = await corpo();
+    if (String(d.testo || "").trim().length < 3) return json3({ errore: "scrivi la richiesta" }, 400);
+    return json3(await chiediDirettrice(env, String(d.testo).trim().slice(0, 4e3), Number(d.cliente_id) || null));
+  }
+  if (p === "/api/riunioni" && m === "GET") {
+    const adesso = ora();
+    const L = await all(env, `SELECT r.id, r.tipo, r.stato, r.titolo, r.richiesta, r.partecipanti, r.messaggio, r.consigliata, r.scelta, r.errore, r.fine_visiva, r.creato, r.aggiornato, k.nome AS cliente
+      FROM riunioni r LEFT JOIN clienti k ON k.id=r.cliente_id ORDER BY r.id DESC LIMIT 60`);
+    return json3(L.map((r) => ({ ...r, partecipanti: J(r.partecipanti, []), in_sala: r.stato === "in_corso" || r.fine_visiva && r.fine_visiva > adesso })));
+  }
+  if (p === "/api/riunioni/settimanale" && m === "POST") return json3({ id: await convocaSettimanale(env, true) });
+  const mm = p.match(/^\/api\/riunioni\/(\d+)(?:\/(scegli|rifai))?$/);
+  if (!mm) return null;
+  const R = await one(env, "SELECT r.*, k.nome AS cliente FROM riunioni r LEFT JOIN clienti k ON k.id=r.cliente_id WHERE r.id=?", mm[1]);
+  if (!R) return json3({ errore: "riunione non trovata" }, 404);
+  if (m === "GET" && !mm[2]) return json3({ ...R, partecipanti: J(R.partecipanti, []), verbale: J(R.verbale, []), proposte: J(R.proposte, []), report: J(R.report), esito: J(R.esito), nomi: NOME });
+  if (m === "POST" && mm[2] === "scegli") {
+    if (R.stato !== "proposte") return json3({ errore: R.stato === "decisa" ? "hai gi\xE0 scelto per questa riunione" : "la riunione non \xE8 ancora finita" }, 400);
+    const d = await corpo();
+    return json3(await scegli(env, R, Number(d.indice) || 0, String(d.modifica || "").trim().slice(0, 3e3)));
+  }
+  if (m === "POST" && mm[2] === "rifai") {
+    const d = await corpo();
+    const prima = J(R.proposte, []).map((x, i) => `${i + 1}. ${x.titolo}: ${x.sintesi}`).join("\n");
+    await run(env, "UPDATE riunioni SET stato='chiusa', aggiornato=? WHERE id=?", ora(), R.id);
+    const nuova = await one(
+      env,
+      `INSERT INTO riunioni (tipo, stato, richiesta, cliente_id, partecipanti, titolo, esito, creato, aggiornato) VALUES ('richiesta','in_corso',?,?,?,?,?,?,?) RETURNING id`,
+      R.richiesta + (d.nota ? `
+
+INDICAZIONI DI JOHNNY PER LA NUOVA RIUNIONE: ${String(d.nota).slice(0, 2e3)}` : ""),
+      R.cliente_id,
+      JSON.stringify(PER_RICHIESTA),
+      R.titolo,
+      JSON.stringify({ rifai_da: prima }),
+      ora(),
+      ora()
+    );
+    await run(env, "INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)", "capo", "assistant", "Va bene, riconvoco i capireparto con le tue indicazioni.", ora());
+    return json3({ id: nuova.id });
+  }
+  if (m === "DELETE") {
+    await run(env, "DELETE FROM riunioni WHERE id=?", R.id);
     return json3({ ok: true });
   }
   return null;
@@ -3715,7 +3984,7 @@ async function chiama(path, opts = {}) {
 }
 
 function menu(on) {
-  $('#nav').innerHTML = on ? '<a class="btn sec" href="#/">Agenzia</a><a class="btn sec" href="#/approvazioni">Approvazioni</a><a class="btn sec" href="#/clienti">Clienti</a><a class="btn sec" href="#/chat/gestionale">Gestionale</a><a class="btn sec" href="#/reel">Reel</a><a class="btn sec" href="#/copioni">Copioni</a><a class="btn sec" href="#/impostazioni" title="Impostazioni">\u2699\uFE0E</a>' : '';
+  $('#nav').innerHTML = on ? '<a class="btn sec" href="#/">Agenzia</a><a class="btn sec" href="#/riunioni">Riunioni</a><a class="btn sec" href="#/approvazioni">Approvazioni</a><a class="btn sec" href="#/clienti">Clienti</a><a class="btn sec" href="#/chat/gestionale">Gestionale</a><a class="btn sec" href="#/reel">Reel</a><a class="btn sec" href="#/copioni">Copioni</a><a class="btn sec" href="#/impostazioni" title="Impostazioni">\u2699\uFE0E</a>' : '';
 }
 
 async function accesso() {
@@ -4012,6 +4281,7 @@ const PIANTA = [
   ['booking', 'Booking & WhatsApp', 360, 740, 360, 260, '#eaf8df'],
   ['gestionale', 'Gestionale', 720, 740, 360, 260, '#efe9ff'],
   ['contabilita', 'Contabilit\xE0', 1080, 740, 360, 260, '#fff0d9'],
+  ['meeting', 'Sala meeting', 1440, 740, 300, 260, '#eef2f7'],
 ];
 const VIDEO_TEAM = ['direttore', 'stella', 'scout_yt', 'scout_tt', 'scout_ig', 'occhi', 'analista', 'motore', 'regista', 'copy', 'editor', 'vfx', 'color', 'audio', 'sottotitoli', 'revisore'];
 let SALA = { s: 1, x: 0, y: 0, dati: null, sel: null, ufficio: null };
@@ -4028,6 +4298,7 @@ function statiAgenti(R) {
     if (st[a] !== 'lavora') { st[a] = s; cosa[a] = { testo: 'Reel #' + L.id + ' \xB7 fase ' + L.fase, link: '#/lavoro/' + L.id }; }
   }
   if (R.piani.length) { st.idee = 'lavora'; cosa.idee = { testo: 'Piano copioni #' + R.piani[0].id, link: '#/copioni/' + R.piani[0].id }; }
+  for (const Q of (R.riunioni || []).filter((x) => x.in_sala)) for (const a of Q.partecipanti) cosa[a] = { testo: 'In riunione: ' + (Q.titolo || ''), link: '#/riunione/' + Q.id };
   for (const [a, u] of Object.entries(ultimo)) if (!st[a] && u.livello === 'errore' && Date.now() - new Date(u.quando) < 30 * 60e3) st[a] = 'errore';
   return { st, cosa, ultimo };
 }
@@ -4046,7 +4317,8 @@ function datiSala(R) {
   for (const r of R.feed) { const a = AGID(r.agente); (registro[a] ||= []).length < 4 && registro[a].push(r.messaggio); }
   const reelImg = (a) => { const L = R.reel.find((x) => (FASE_AGENTI[x.fase] || []).includes(a)); return L && L.fase === 'fatto' ? '/api/lavori/' + L.id + '/anteprima.jpg' : null; };
   for (const [u] of PIANTA) for (const a of agentiUfficio(R, u)) { const A = AGENTI[a]; if (A) agenti.push({ id: a, n: A.n, r: A.r, c: A.c || '#888888', u, stato: st[a] || '', msg: cosa[a]?.testo || ultimo[a]?.messaggio || '', log: registro[a] || [], img: reelImg(a) }); }
-  return { uffici: PIANTA.map(([id, nome, x, y, w, h, col]) => ({ id, nome, x, y, w, h, col })), agenti };
+  const riunioni = (R.riunioni || []).filter((x) => x.in_sala).map((x) => ({ id: x.id, stanza: x.tipo === 'settimanale' ? 'direzione' : 'meeting', partecipanti: x.partecipanti, titolo: x.titolo }));
+  return { uffici: PIANTA.map(([id, nome, x, y, w, h, col]) => ({ id, nome, x, y, w, h, col })), agenti, riunioni };
 }
 let SALA3D = null;
 function vaiAgente(a) { if (SALA3D) SALA3D.vaiAgente(a); }
@@ -4098,8 +4370,9 @@ function apriCervello() {
 }
 
 async function azienda() {
-  const [R, lavori] = await Promise.all([chiama('/api/azienda'), chiama('/api/lavori').catch(() => [])]);
+  const [R, lavori, riunioni] = await Promise.all([chiama('/api/azienda'), chiama('/api/lavori').catch(() => []), chiama('/api/riunioni').catch(() => [])]);
   Object.assign(AGENTI, R.squadra);
+  R.riunioni = riunioni;
   SALA.dati = R;
   const prima = !$('#sala');
   // se la sala \xE8 gi\xE0 aperta aggiorno solo i dati (stati, fumetti, saluto) senza muovere la camera
@@ -4123,7 +4396,9 @@ async function azienda() {
     return;
   }
   const C = await clientiSel('k_cli', '', 'cliente: lo capisce Alba');
-  const recenti = [...lavori.slice(0, 4).map((L) => ({ t: 'REEL \xB7 ' + (L.stato === 'pronto' ? 'pronto' : L.stato === 'errore' ? 'errore' : 'in lavorazione'), b: (L.titolo || L.prompt || '').slice(0, 60), link: '#/lavoro/' + L.id, img: L.stato === 'pronto' ? '/api/lavori/' + L.id + '/anteprima.jpg' : null, i: '\u{1F3AC}' })),
+  const daScegliere = riunioni.filter((x) => x.stato === 'proposte').map((x) => ({ t: '\u{1F5F3}\uFE0F PROPOSTE DA SCEGLIERE', b: x.titolo || x.richiesta || '', link: '#/riunione/' + x.id, img: null, i: '\u{1F5F3}\uFE0F' }));
+  const ultimoReport = riunioni.find((x) => x.tipo === 'settimanale' && x.stato === 'report');
+  const recenti = [...daScegliere, ...(ultimoReport ? [{ t: '\u{1F4CA} REPORT RIUNIONE OPERATIVA', b: ultimoReport.titolo, link: '#/riunione/' + ultimoReport.id, img: null, i: '\u{1F4CA}' }] : []), ...lavori.slice(0, 4).map((L) => ({ t: 'REEL \xB7 ' + (L.stato === 'pronto' ? 'pronto' : L.stato === 'errore' ? 'errore' : 'in lavorazione'), b: (L.titolo || L.prompt || '').slice(0, 60), link: '#/lavoro/' + L.id, img: L.stato === 'pronto' ? '/api/lavori/' + L.id + '/anteprima.jpg' : null, i: '\u{1F3AC}' })),
     ...R.recenti.slice(0, 4).map((I) => ({ t: (AGENTI[I.agente]?.n || I.agente) + ' \xB7 ' + (ST_INC[I.stato] || I.stato), b: I.titolo, link: '#/incarico/' + I.id, img: null, i: AGENTI[I.agente]?.i || '\u{1F4C4}' }))];
   $('#app').innerHTML = '<div id="saluto">' + saluto + '</div>' +
     '<div class="chiedi"><span>\u{1F9ED}</span><input id="k_t" placeholder="Chiedi all\u2019agenzia\u2026 es. 6 post per dicembre per A\u2019 Villetta, romantici">' + C + '<button id="k_go">Invia</button></div><div id="k_r"></div>' +
@@ -4153,11 +4428,11 @@ async function azienda() {
   $('#torna').onclick = () => { if (SALA.sel && SALA.ufficio) { SALA.sel = null; chiudiLato(); entraUfficio(SALA.ufficio); } else grandangolo(); };
   $('#k_go').onclick = async () => {
     const t = $('#k_t').value.trim(); if (!t) return;
-    $('#k_go').disabled = true; $('#k_r').innerHTML = '<p class="mut">Alba sta smistando\u2026</p>';
+    $('#k_go').disabled = true; $('#k_r').innerHTML = '<p class="mut">Alba sta convocando i capireparto\u2026</p>';
     try {
       const r = await chiama('/api/capo', { method: 'POST', body: { testo: t, cliente_id: $('#k_cli').value || null } });
       $('#k_t').value = '';
-      $('#k_r').innerHTML = '<div class="card">\u{1F9ED} ' + e(r.risposta) + '<div class="mut" style="margin-top:6px">' + r.incarichi.map((i) => '<a href="#/incarico/' + i + '">#' + i + '</a>').join(' \xB7 ') + (r.reel ? ' \xB7 <a href="#/lavoro/' + r.reel + '">reel #' + r.reel + '</a>' : '') + (r.piano ? ' \xB7 <a href="#/copioni/' + r.piano + '">copioni #' + r.piano + '</a>' : '') + '</div></div>';
+      $('#k_r').innerHTML = '<div class="card">\u{1F9ED} <b>Alba:</b> ' + e(r.risposta) + (r.riunione ? '<div style="margin-top:8px"><a class="btn" href="#/riunione/' + r.riunione + '">Segui la riunione \u25B8</a></div>' : '') + '</div>';
     } catch (x) { $('#k_r').innerHTML = '<div class="err">' + e(x.message) + '</div>'; }
     $('#k_go').disabled = false;
   };
@@ -4225,6 +4500,66 @@ async function incarico(id) {
   if ($('#i_rip')) $('#i_rip').onclick = async () => { await chiama('/api/incarichi/' + id + '/riprova', { method: 'POST', body: {} }); rotta(); };
   if ($('#i_rifai')) $('#i_rifai').onclick = async () => { const r = await chiama('/api/incarichi/' + id + '/rifai', { method: 'POST', body: { nota: $('#i_nota').value } }); location.hash = '#/incarico/' + r.id; };
   if (I.stato === 'in_coda' || I.stato === 'in_corso' || I.figli.some((f) => f.stato === 'in_coda' || f.stato === 'in_corso')) timer = setTimeout(rotta, 6000);
+}
+
+const ST_RIU = { in_corso: 'in corso', proposte: 'proposte da scegliere', decisa: 'decisa', report: 'report pronto', chiusa: 'rifatta', errore: 'errore' };
+const PILL_RIU = { in_corso: 'corso', proposte: 'errore', decisa: 'pronto', report: 'pronto', chiusa: '', errore: 'errore' };
+async function riunioniPagina() {
+  const L = await chiama('/api/riunioni');
+  const riga = (x) => '<a class="card lav" href="#/riunione/' + x.id + '"><div class="riga"><b style="flex:1">' + (x.tipo === 'settimanale' ? '\u{1F4CA} ' : '\u{1F5F3}\uFE0F ') + e(x.titolo || x.richiesta || 'Riunione') + '</b><span class="pill ' + (PILL_RIU[x.stato] || '') + '">' + (ST_RIU[x.stato] || x.stato) + '</span></div><div class="mut">#' + x.id + ' \xB7 ' + new Date(x.creato).toLocaleString('it-IT', { dateStyle: 'medium', timeStyle: 'short' }) + (x.cliente ? ' \xB7 ' + e(x.cliente) : '') + (x.tipo === 'settimanale' ? ' \xB7 in direzione' : ' \xB7 in sala meeting') + '</div></a>';
+  $('#app').innerHTML = '<h1>Riunioni</h1><p class="mut">Parli solo con Alba, la Direttrice. Per ogni tua richiesta i capireparto si riuniscono in sala meeting e ti preparano le proposte: scegli tu, anche modificandole. Ogni luned\xEC mattina c\u2019\xE8 la riunione operativa in direzione con il report della settimana.</p>' +
+    '<div class="riga"><button id="r_sett">Convoca adesso la riunione operativa</button></div>' +
+    '<h2>Da scegliere</h2>' + (L.filter((x) => x.stato === 'proposte').map(riga).join('') || '<p class="mut">Niente in attesa.</p>') +
+    '<h2>Riunioni operative</h2>' + (L.filter((x) => x.tipo === 'settimanale').map(riga).join('') || '<p class="mut">La prima \xE8 luned\xEC mattina (o convocala adesso).</p>') +
+    '<h2>Tutte le richieste</h2>' + (L.filter((x) => x.tipo === 'richiesta' && x.stato !== 'proposte').map(riga).join('') || '<p class="mut">Ancora nessuna.</p>');
+  $('#r_sett').onclick = async () => { const r = await chiama('/api/riunioni/settimanale', { method: 'POST' }); location.hash = '#/riunione/' + r.id; };
+  if (L.some((x) => x.stato === 'in_corso')) timer = setTimeout(rotta, 8000);
+}
+
+async function riunionePagina(id) {
+  const R = await chiama('/api/riunioni/' + id);
+  if (!AGENTI.capo) { const A = await chiama('/api/azienda'); Object.assign(AGENTI, A.squadra); }
+  const chi = (a) => { const A = AGENTI[a]; return (A ? A.i + ' ' : '') + '<b>' + e(R.nomi[a] || A?.n || a) + '</b>'; };
+  const verbale = R.verbale.length ? '<h2>Verbale</h2><div class="card">' + R.verbale.map((v) => '<p style="margin:6px 0">' + chi(v.chi) + ': ' + e(v.testo) + '</p>').join('') + '</div>' : '';
+  const testa = '<a class="mut" href="#/riunioni">\u2190 Riunioni</a><h1>' + (R.tipo === 'settimanale' ? '\u{1F4CA} ' : '\u{1F5F3}\uFE0F ') + e(R.titolo || 'Riunione') + '</h1>' +
+    '<div class="mut">#' + R.id + ' \xB7 ' + (R.tipo === 'settimanale' ? 'riunione operativa in direzione' : 'riunione preventiva in sala meeting') + ' \xB7 ' + new Date(R.creato).toLocaleString('it-IT', { dateStyle: 'medium', timeStyle: 'short' }) + (R.cliente ? ' \xB7 ' + e(R.cliente) : '') + '</div>' +
+    '<div class="mut" style="margin-top:4px">Presenti: ' + R.partecipanti.map((a) => e(R.nomi[a] || a)).join(', ') + '</div>' +
+    (R.richiesta ? '<div class="card" style="margin-top:12px"><b>La tua richiesta</b><div style="white-space:pre-wrap">' + e(R.richiesta) + '</div></div>' : '');
+  if (R.stato === 'in_corso') {
+    $('#app').innerHTML = testa + '<div class="card" style="margin-top:12px">\u23F3 I capireparto sono in riunione' + (R.tipo === 'settimanale' ? ' in direzione' : ' in sala meeting') + '. Li vedi nella sala 3D. ' + (R.errore ? '<div class="err">' + e(R.errore) + '</div>' : 'Tra qualche minuto qui trovi ' + (R.tipo === 'settimanale' ? 'il report.' : 'le proposte.')) + '</div>';
+    timer = setTimeout(rotta, 6000); return;
+  }
+  if (R.stato === 'errore') { $('#app').innerHTML = testa + '<div class="card err">La riunione non \xE8 andata a buon fine: ' + e(R.errore || '') + '</div>'; return; }
+  if (R.tipo === 'settimanale') {
+    const P = R.report || {};
+    const lista = (a) => (a || []).map((x) => '<li>' + e(x) + '</li>').join('');
+    $('#app').innerHTML = testa +
+      '<div class="card" style="margin-top:12px">\u{1F9ED} <b>Alba:</b> ' + e(R.messaggio || '') + '<p>' + e(P.sintesi || '') + '</p></div>' +
+      (P.numeri?.length ? '<h2>I numeri</h2><div class="riga" style="flex-wrap:wrap;gap:10px">' + P.numeri.map((n) => '<div class="card" style="min-width:150px;margin:0"><div class="mut">' + e(n.etichetta) + '</div><b style="font-size:22px">' + e(n.valore) + '</b></div>').join('') + '</div>' : '') +
+      (P.reparti?.length ? '<h2>Reparto per reparto</h2>' + P.reparti.map((x) => '<div class="card"><b>' + e(x.ufficio) + '</b> \xB7 ' + e(x.capo || '') + '<p><b>Fatto:</b> ' + e(x.fatto || '') + '</p><p><b>Problemi:</b> ' + e(x.problemi || '') + '</p><p><b>Prossima settimana:</b> ' + e(x.prossima_settimana || '') + '</p></div>').join('') : '') +
+      '<h2>Decisioni</h2><div class="card"><ul>' + lista(P.decisioni) + '</ul></div><h2>Priorit\xE0 della settimana</h2><div class="card"><ol>' + lista(P.priorita) + '</ol></div>' +
+      (P.per_johnny?.length ? '<h2>Cosa serve da te</h2><div class="card"><ul>' + lista(P.per_johnny) + '</ul></div>' : '') + verbale;
+    return;
+  }
+  const scelta = R.stato === 'decisa' ? R.scelta : null;
+  $('#app').innerHTML = testa +
+    '<div class="card" style="margin-top:12px">\u{1F9ED} <b>Alba:</b> ' + e(R.messaggio || '') + '</div>' +
+    '<h2>' + (scelta == null ? 'Scegli come procedere' : 'Hai scelto') + '</h2>' +
+    R.proposte.map((P, i) => '<div class="card"' + (scelta === i ? ' style="outline:2px solid var(--teal)"' : scelta != null ? ' style="opacity:.55"' : '') + '><div class="riga"><b style="flex:1;font-size:17px">' + (i + 1) + '. ' + e(P.titolo) + '</b>' + (i === R.consigliata ? '<span class="pill pronto">consigliata</span>' : '') + (P.tempi ? '<span class="pill">' + e(P.tempi) + '</span>' : '') + '</div>' +
+      '<p>' + e(P.sintesi || '') + '</p>' + (P.passi?.length ? '<ol>' + P.passi.map((x) => '<li>' + e(x) + '</li>').join('') + '</ol>' : '') +
+      '<p class="mut"><b>Pro:</b> ' + e(P.pro || '') + ' \xB7 <b>Contro:</b> ' + e(P.contro || '') + '</p>' +
+      (P.domande?.length ? '<p class="mut"><b>Domande per te:</b> ' + P.domande.map(e).join(' \xB7 ') + '</p>' : '') +
+      (scelta == null ? '<label>Vuoi cambiare qualcosa prima di partire? (facoltativo)</label><textarea id="mod_' + i + '" placeholder="Es. niente reel, solo post; aggiungi una storia al giorno; tono pi\xF9 ironico\u2026"></textarea><div class="riga" style="margin-top:8px"><button data-sc="' + i + '">Scegli questa</button></div>' : '') + '</div>').join('') +
+    (scelta == null ? '<h2>Nessuna ti convince?</h2><div class="card"><textarea id="r_nota" placeholder="D\xEC ad Alba cosa non va: i capireparto rifanno la riunione con le tue indicazioni"></textarea><div class="riga" style="margin-top:8px"><button class="sec" id="r_rifai">Rifate la riunione</button></div></div>' : '') +
+    (R.esito ? '<h2>Partito</h2><div class="card">' + (R.esito.incarichi || []).map((i) => '<a href="#/incarico/' + i + '">incarico #' + i + '</a>').join(' \xB7 ') + (R.esito.reel ? ' \xB7 <a href="#/lavoro/' + R.esito.reel + '">reel #' + R.esito.reel + '</a>' : '') + (R.esito.piano ? ' \xB7 <a href="#/copioni/' + R.esito.piano + '">copioni #' + R.esito.piano + '</a>' : '') + (R.modifica ? '<p class="mut">Con le tue modifiche: ' + e(R.modifica) + '</p>' : '') + '</div>' : '') +
+    verbale + '<div id="r_er" class="err"></div>';
+  document.querySelectorAll('[data-sc]').forEach((b) => b.onclick = async () => {
+    const i = Number(b.dataset.sc);
+    document.querySelectorAll('[data-sc]').forEach((x) => { x.disabled = true; }); b.textContent = 'Alba fa partire gli uffici\u2026';
+    try { await chiama('/api/riunioni/' + id + '/scegli', { method: 'POST', body: { indice: i, modifica: $('#mod_' + i).value } }); rotta(); }
+    catch (x) { $('#r_er').textContent = x.message; document.querySelectorAll('[data-sc]').forEach((y) => { y.disabled = false; }); b.textContent = 'Scegli questa'; }
+  });
+  if ($('#r_rifai')) $('#r_rifai').onclick = async () => { const r = await chiama('/api/riunioni/' + id + '/rifai', { method: 'POST', body: { nota: $('#r_nota').value } }); location.hash = '#/riunione/' + r.id; };
 }
 
 async function approvazioni() {
@@ -4304,6 +4639,8 @@ async function rotta() {
     else if (h.startsWith('#/agente/')) await agentePagina(h.split('/')[2]);
     else if (h.startsWith('#/incarico/')) await incarico(h.split('/')[2]);
     else if (h === '#/approvazioni') await approvazioni();
+    else if (h === '#/riunioni') await riunioniPagina();
+    else if (h.startsWith('#/riunione/')) await riunionePagina(h.split('/')[2]);
     else if (h === '#/clienti') await clientiPagina();
     else if (h.startsWith('#/cliente/')) await clientePagina(h.split('/')[2]);
     else if (h.startsWith('#/chat/')) await chatPagina(h.split('/')[2]);
@@ -4346,10 +4683,11 @@ const STANZE = [
   { id: 'booking', x: 8.4, z: COR_Z + COR_D, w: 3.4, d: SUD, lato: 's', col: 1 },
   { id: 'gestionale', x: 11.8, z: COR_Z + COR_D, w: 3.4, d: SUD, lato: 's', col: 1 },
   { id: 'contabilita', x: 15.2, z: COR_Z + COR_D, w: 3.4, d: SUD, lato: 's', col: 1 },
-  { id: 'relax', x: 18.6, z: COR_Z + COR_D, w: 8.4, d: SUD, lato: 's', col: 0, nome: 'Sala relax' },
+  { id: 'meeting', x: 18.6, z: COR_Z + COR_D, w: 4.4, d: SUD, lato: 's', col: 0, nome: 'Sala meeting' },
+  { id: 'relax', x: 23.0, z: COR_Z + COR_D, w: 4.0, d: SUD, lato: 's', col: 0, nome: 'Sala relax' },
 ];
 const ST = (id) => STANZE.find((r) => r.id === id);
-const TINTE = { direzione: '#e7ebff', marketing: '#fff0e6', social: '#ffeef4', video: '#eaf6ee', foto: '#fff7e2', web: '#e9f4fb', booking: '#eef8e6', gestionale: '#f1edff', contabilita: '#fff3e3', relax: '#f4efe6' };
+const TINTE = { direzione: '#e7ebff', marketing: '#fff0e6', social: '#ffeef4', video: '#eaf6ee', foto: '#fff7e2', web: '#e9f4fb', booking: '#eef8e6', gestionale: '#f1edff', contabilita: '#fff3e3', relax: '#f4efe6', meeting: '#eef2f7' };
 
 // ---------------------------------------------------------------- texture disegnate al volo
 function canvasTex(w, h, fn) {
@@ -4655,15 +4993,49 @@ function agave(mat, s = 1) {
 }
 
 // ---------------------------------------------------------------- sala relax
+// sedie in ellisse attorno a un tavolo; per ogni sedia il posto dove si siede la persona, rivolta al centro
+function giroDiSedie(cx, cz, rx, rz, n, stanza) {
+  const posti = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + Math.PI / n, se = sedia(S.mat);
+    const x = cx + Math.cos(a) * rx, z = cz + Math.sin(a) * rz;
+    se.position.set(x, 0, z); se.rotation.y = Math.atan2(cx - x, cz - z) + Math.PI; S.scena.add(se);
+    const d = new THREE.Vector3(cx - x, 0, cz - z).normalize();
+    posti.push({ pos: new THREE.Vector3(x + d.x * 0.12, 0, z + d.z * 0.12), rot: Math.atan2(-d.x, -d.z) });
+  }
+  (S.posti ||= {})[stanza] = posti;
+}
+function arredaMeeting(R) {
+  const { scena, mat } = S;
+  const cx = R.x + R.w / 2, cz = R.z + R.d / 2 + 0.25;
+  const piano = ombra(new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.06, 48), mat.legno)); piano.scale.set(0.62, 1, 1.45); piano.position.set(cx, 0.75, cz); scena.add(piano);
+  for (const dz of [-0.8, 0.8]) { const g = box(0.4, 0.72, 0.08, mat.bianco, 0.02); g.position.set(cx, 0.37, cz + dz); scena.add(g); }
+  giroDiSedie(cx, cz, 1.2, 1.95, 8, 'meeting');
+  // schermo a parete con l'argomento della riunione
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 288;
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const tv = box(2.0, 1.15, 0.06, mat.nero, 0.02); tv.position.set(cx, 1.45, R.z + R.d - 0.08); scena.add(tv);
+  const sc = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 1.07), new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.6 }));
+  sc.position.set(cx, 1.45, R.z + R.d - 0.115); sc.rotation.y = Math.PI; scena.add(sc);
+  S.schermoMeeting = { cv, tex };
+  disegnaSchermoMeeting(null);
+}
+function disegnaSchermoMeeting(Q) {
+  const M = S.schermoMeeting; if (!M) return;
+  const g = M.cv.getContext('2d'), w = 512, h = 288;
+  g.fillStyle = Q ? '#1d2b6b' : '#15171c'; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#ffffff'; g.font = '700 26px Inter, system-ui'; g.fillText(Q ? 'RIUNIONE IN CORSO' : 'Sala meeting', 24, 52);
+  if (Q) { g.font = '600 24px Inter, system-ui'; g.fillStyle = '#c9d4ff'; righeTesto(g, Q.titolo || '', 24, 100, w - 48, 32, 5); }
+  else { g.font = '20px Inter, system-ui'; g.fillStyle = '#7d8290'; g.fillText('libera', 24, 90); }
+  M.tex.needsUpdate = true;
+}
+
 function arredaDirezione(R) {
   const { scena, mat } = S;
   const cx = R.x + R.w / 2 + 0.6, cz = R.z + 4.75;
   const piano = ombra(new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.06, 48), mat.legno)); piano.scale.set(1.6, 1, 0.62); piano.position.set(cx, 0.75, cz); scena.add(piano);
   for (const dx of [-0.9, 0.9]) { const g = box(0.08, 0.72, 0.5, mat.bianco, 0.02); g.position.set(cx + dx, 0.37, cz); scena.add(g); }
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2, se = sedia(mat);
-    se.position.set(cx + Math.cos(a) * 2.05, 0, cz + Math.sin(a) * 0.95); se.rotation.y = Math.atan2(Math.cos(a), Math.sin(a)); scena.add(se);
-  }
+  giroDiSedie(cx, cz, 2.15, 1.05, 10, 'direzione');
   const lap = box(0.34, 0.02, 0.24, mat.metallo, 0.01); lap.position.set(cx - 0.6, 0.79, cz); scena.add(lap);
   const tazza = ombra(new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.035, 0.09, 16), mat.bianco)); tazza.position.set(cx + 0.5, 0.82, cz + 0.15); scena.add(tazza);
   const tappeto = new THREE.Mesh(new RoundedBoxGeometry(5.6, 0.012, 2.6, 2, 0.006), new THREE.MeshStandardMaterial({ color: 0xcfd6e6, roughness: 0.95 }));
@@ -4731,6 +5103,7 @@ function costruisci(dati) {
     S.etAree.push({ id: R.id, nome: nome.split(' \xB7 ')[0].replace('Web & E-commerce', 'Web & Shop').replace('Booking & WhatsApp', 'Booking'), pos: new THREE.Vector3(R.x + R.w / 2, 0.1, R.lato === 'n' ? R.z + R.d - 0.15 : R.z + 0.55) });
     S.aree[R.id] = { x: R.x, z: R.z, w: R.w, d: R.d };
     if (R.id === 'relax') { arredaRelax(R); continue; }
+    if (R.id === 'meeting') { arredaMeeting(R); continue; }
     if (R.id === 'direzione') arredaDirezione(R);
     const ags = dati.agenti.filter((a) => a.u === R.id);
     const righe = Math.max(1, Math.ceil(ags.length / R.col)), largo = R.col * POSTO;
@@ -4788,6 +5161,7 @@ export function aggiorna(dati) {
     P.sm.emissiveIntensity = P.stato === 'lavora' || P.stato === 'coda' ? 0.85 : 0.25;
     disegnaSchermo(P, t);
   }
+  aggiornaRiunioni(dati);
   disegnaEtichette();
 }
 
@@ -4797,7 +5171,7 @@ function disegnaEtichette() {
   for (const E of S.etAree) h += '<div class="et-uff" data-uff="' + E.id + '">' + esc(E.nome) + '</div>';
   for (const A of S.dati.agenti) {
     if (!S.agenti[A.id]) continue;
-    const viva = A.stato === 'lavora' || A.stato === 'coda' || S.scelto === A.id;
+    const viva = A.stato === 'lavora' || A.stato === 'coda' || S.scelto === A.id || !!S.agenti[A.id]?.riunione;
     h += viva
       ? '<div class="et-ag carta ' + (A.stato || '') + (S.scelto === A.id ? ' scelto' : '') + '" data-ag="' + A.id + '"><b>' + esc(A.n) + '</b><span>' + esc((A.msg || A.r || '').slice(0, 46)) + '</span><i>' + (A.stato === 'coda' ? 'In coda' : 'Guarda \u25B8') + '</i></div>'
       : '<div class="et-ag pillola ' + (A.stato || '') + '" data-ag="' + A.id + '"><span class="pt"></span>' + esc(A.n) + '</div>';
@@ -4878,12 +5252,46 @@ function percorso(P) {
   const andata = [alzati, new THREE.Vector3(alzati.x, 0, da.dentro.z), da.dentro, da.fuori, a.fuori, a.dentro, fondo];
   return { punti: [...andata, 'sosta', ...andata.slice(0, -1).reverse(), P.casa.clone()], i: 0, sosta: 0 };
 }
+function stanzaDi(pos) { return STANZE.find((r) => pos.x > r.x && pos.x < r.x + r.w && pos.z > r.z && pos.z < r.z + r.d) || null; }
+function viaggio(da, aStanza, fine) {
+  const pts = [], dS = stanzaDi(da);
+  if (dS && dS !== aStanza) { const d = porta(dS); pts.push(new THREE.Vector3(da.x, 0, d.dentro.z), d.dentro, d.fuori); }
+  if (aStanza && dS !== aStanza) { const a = porta(aStanza); pts.push(a.fuori, a.dentro); }
+  pts.push(fine);
+  return pts;
+}
+function vaiInRiunione(P, Q, i) {
+  const posti = S.posti?.[Q.stanza]; if (!posti) return;
+  const seat = posti[i % posti.length], o = P.U.o;
+  const parti = P.cammino ? o.position.clone() : new THREE.Vector3(P.casa.x + 0.55, 0, P.casa.z + 0.35);
+  const R = STANZE.find((r) => r.id === Q.stanza);
+  P.riunione = Q.id;
+  P.cammino = { punti: [parti, ...viaggio(parti, R, seat.pos)], i: 0, sosta: 0, fine: { tipo: 'riunione', seat } };
+  P.seduto = false; P.fase = 0;
+}
+function tornaDaRiunione(P) {
+  P.riunione = null;
+  const o = P.U.o, alzati = new THREE.Vector3(P.casa.x + 0.55, 0, P.casa.z + 0.35);
+  P.cammino = { punti: [...viaggio(o.position.clone(), P.stanza, alzati), P.casa.clone()], i: 0, sosta: 0 };
+  P.seduto = false; P.fase = 0;
+}
+function aggiornaRiunioni(dati) {
+  const dove = new Map();
+  for (const Q of dati.riunioni || []) Q.partecipanti.forEach((a, i) => dove.set(a, { Q, i }));
+  for (const [id, P] of Object.entries(S.agenti)) {
+    const r = dove.get(id);
+    if (r && P.riunione !== r.Q.id) vaiInRiunione(P, r.Q, r.i);
+    else if (!r && P.riunione) tornaDaRiunione(P);
+  }
+  disegnaSchermoMeeting((dati.riunioni || []).find((Q) => Q.stanza === 'meeting') || null);
+}
+
 function passeggiate(s) {
   if (s < (S.prossima || 3)) return;
   S.prossima = s + 6 + Math.random() * 8;
   const inGiro = Object.values(S.agenti).filter((P) => P.cammino).length;
   if (inGiro >= 3) return;
-  const liberi = Object.values(S.agenti).filter((P) => !P.cammino && !P.stato && S.scelto !== P.A.id);
+  const liberi = Object.values(S.agenti).filter((P) => !P.cammino && !P.stato && !P.riunione && S.scelto !== P.A.id);
   if (!liberi.length) return;
   const P = liberi[Math.floor(Math.random() * liberi.length)];
   P.cammino = percorso(P); P.seduto = false; P.fase = 0;
@@ -4900,7 +5308,12 @@ function muovi(P, s, dt) {
   const dist = dir.length(), v = 1.25 * dt;
   if (dist < 0.05) {
     C.i++;
-    if (C.i >= C.punti.length) { P.cammino = null; P.seduto = true; o.position.copy(P.casa); o.rotation.y = 0; if (P.G) glbSiedi(P.G); }
+    if (C.i >= C.punti.length) {
+      P.cammino = null; P.seduto = true;
+      if (C.fine?.tipo === 'riunione') { o.position.copy(C.fine.seat.pos); o.rotation.y = C.fine.seat.rot; }
+      else { o.position.copy(P.casa); o.rotation.y = 0; }
+      if (P.G) glbSiedi(P.G);
+    }
     return;
   }
   o.position.addScaledVector(dir.normalize(), Math.min(v, dist));
@@ -4935,7 +5348,7 @@ function anima(t) {
   for (const id in S.agenti) {
     const P = S.agenti[id];
     if (P.cammino) muovi(P, s, dt);
-    else poseSeduto(P, s, P.stato === 'lavora', dt);
+    else poseSeduto(P, s, P.stato === 'lavora' && !P.riunione, dt);
     if (P.stato === 'lavora' && s - (P.ts || 0) > 0.12) { P.ts = s; disegnaSchermo(P, s); P.sm.emissiveIntensity = 0.8 + Math.sin(s * 3 + P.x) * 0.1; }
   }
   passeggiate(s);
@@ -5209,6 +5622,10 @@ async function api(req, env, url) {
       return json2({ ok: true });
     }
   }
+  if (/^\/api\/(capo|riunioni)/.test(p)) {
+    const r = await apiRiunioni(req, env, p, m, json2);
+    if (r) return r;
+  }
   if (/^\/api\/(azienda|capo|chat|incarichi|contenuti|clienti|gestionale)/.test(p)) {
     const r = await apiAgenzia(req, env, p, m, json2);
     if (r) return r;
@@ -5253,7 +5670,7 @@ var index_default = {
     await schema(env);
     await schemaPiani(env);
     await schemaAgenzia(env);
-    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env)]));
+    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env), avanzaRiunioni(env)]));
   }
 };
 export {
