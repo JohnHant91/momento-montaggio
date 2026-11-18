@@ -1,0 +1,26 @@
+# Esplora le CLUT di G'MIC (oltre 1000 look di pellicole e grading) e prova l'esportazione in .cube per il motore.
+name: prova-lut
+on:
+  workflow_dispatch: {}
+  push:
+    paths: ['.github/workflows/prova-lut.yml', 'motore/lut.py']
+permissions:
+  contents: write
+jobs:
+  prova:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Installa G'MIC
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq gmic ffmpeg > /dev/null && gmic -version | head -3
+      - name: Elenco e prova
+        run: |
+          mkdir -p /tmp/pub && cd /tmp/pub
+          gmic -h clut > aiuto_clut.txt 2>&1 || true
+          gmic -h output_cube > aiuto_cube.txt 2>&1 || true
+          (gmic clut kodak_2383_constlmap,33 output_cube k2383.cube 2>&1 | tail -5) > prova_export.txt || true
+          ls -la >> prova_export.txt; head -12 k2383.cube >> prova_export.txt 2>/dev/null || true
+          git init -q && git checkout -q -b prove-lut && git add . 
+          git -c user.name=motore -c user.email=motore@momento commit -qm prova
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" prove-lut
