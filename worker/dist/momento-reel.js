@@ -4198,26 +4198,30 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 let S = null;
 // pianta: due file di stanze separate da un corridoio centrale; ogni stanza ha la porta sul corridoio
-const LARGO = 23, FONDO = 15, CX = LARGO / 2, CZ = FONDO / 2;
+const LARGO = 27, FONDO = 15, CX = LARGO / 2, CZ = FONDO / 2;
 const COR_Z = 6.6, COR_D = 1.9; // corridoio da z 6.6 a 8.5
 const POSTO = 1.15, FILA = 1.95;
+const SUD = FONDO - COR_Z - COR_D;
 const STANZE = [
-  // fila nord (in fondo): porta verso il corridoio = parete vicina a chi guarda
-  { id: 'direzione', x: 0, z: 0, w: 4.4, d: COR_Z, lato: 'n', col: 2 },
-  { id: 'marketing', x: 4.4, z: 0, w: 4.6, d: COR_Z, lato: 'n', col: 3 },
-  { id: 'social', x: 9.0, z: 0, w: 4.6, d: COR_Z, lato: 'n', col: 3 },
-  { id: 'video', x: 13.6, z: 0, w: 9.4, d: COR_Z, lato: 'n', col: 6 },
+  // fila nord (in fondo): porta verso il corridoio = parete vicina a chi guarda; la direzione \xE8 la stanza grande al centro
+  { id: 'marketing', x: 0, z: 0, w: 4.6, d: COR_Z, lato: 'n', col: 3 },
+  { id: 'social', x: 4.6, z: 0, w: 4.6, d: COR_Z, lato: 'n', col: 3 },
+  { id: 'direzione', x: 9.2, z: 0, w: 8.6, d: COR_Z, lato: 'n', col: 3, porta: 4.3, scrivanie: 0.95 },
+  { id: 'video', x: 17.8, z: 0, w: 9.2, d: COR_Z, lato: 'n', col: 6 },
   // fila sud (davanti): porta verso il corridoio = parete di fondo della stanza
-  { id: 'foto', x: 0, z: COR_Z + COR_D, w: 4.6, d: FONDO - COR_Z - COR_D, lato: 's', col: 3 },
-  { id: 'web', x: 4.6, z: COR_Z + COR_D, w: 3.6, d: FONDO - COR_Z - COR_D, lato: 's', col: 2 },
-  { id: 'booking', x: 8.2, z: COR_Z + COR_D, w: 3.2, d: FONDO - COR_Z - COR_D, lato: 's', col: 1 },
-  { id: 'gestionale', x: 11.4, z: COR_Z + COR_D, w: 3.2, d: FONDO - COR_Z - COR_D, lato: 's', col: 1 },
-  { id: 'contabilita', x: 14.6, z: COR_Z + COR_D, w: 3.2, d: FONDO - COR_Z - COR_D, lato: 's', col: 1 },
-  { id: 'relax', x: 17.8, z: COR_Z + COR_D, w: 5.2, d: FONDO - COR_Z - COR_D, lato: 's', col: 0, nome: 'Sala relax' },
+  { id: 'foto', x: 0, z: COR_Z + COR_D, w: 4.6, d: SUD, lato: 's', col: 3 },
+  { id: 'web', x: 4.6, z: COR_Z + COR_D, w: 3.8, d: SUD, lato: 's', col: 2 },
+  { id: 'booking', x: 8.4, z: COR_Z + COR_D, w: 3.4, d: SUD, lato: 's', col: 1 },
+  { id: 'gestionale', x: 11.8, z: COR_Z + COR_D, w: 3.4, d: SUD, lato: 's', col: 1 },
+  { id: 'contabilita', x: 15.2, z: COR_Z + COR_D, w: 3.4, d: SUD, lato: 's', col: 1 },
+  { id: 'relax', x: 18.6, z: COR_Z + COR_D, w: 8.4, d: SUD, lato: 's', col: 0, nome: 'Sala relax' },
 ];
+const ST = (id) => STANZE.find((r) => r.id === id);
 const TINTE = { direzione: '#e7ebff', marketing: '#fff0e6', social: '#ffeef4', video: '#eaf6ee', foto: '#fff7e2', web: '#e9f4fb', booking: '#eef8e6', gestionale: '#f1edff', contabilita: '#fff3e3', relax: '#f4efe6' };
 
 // ---------------------------------------------------------------- texture disegnate al volo
@@ -4382,6 +4386,112 @@ function umano(id) {
 }
 
 // pose: seduto alla scrivania (guarda verso -z), in cammino, in piedi
+// ---------------------------------------------------------------- persone vere (modelli 3D animati, scheletro Mixamo)
+// Michelle per le donne, il soldato di three.js rivestito per gli uomini; colori dei vestiti e pelle diversi per ognuno.
+// Se i modelli non si caricano restano le figure disegnate a mano.
+const MODELLI = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/models/gltf/';
+const PELLE_K = [1.0, 0.86, 0.72, 0.58, 1.06, 0.93];
+const qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), va = new THREE.Vector3(), vb = new THREE.Vector3();
+function tingi(m, tinta, pelle) {
+  const n = m.clone();
+  n.onBeforeCompile = (sh) => {
+    sh.uniforms.uTinta = { value: new THREE.Color(tinta) }; sh.uniforms.uPelle = { value: pelle };
+    sh.fragmentShader = 'uniform vec3 uTinta;\\nuniform float uPelle;\\n' + sh.fragmentShader.replace('#include <map_fragment>', \`#include <map_fragment>
+      { vec3 c = diffuseColor.rgb; float mx = max(c.r, max(c.g, c.b)), mn = min(c.r, min(c.g, c.b)); float sat = (mx - mn) / (mx + 1e-4);
+        float lum = dot(c, vec3(0.299, 0.587, 0.114));
+        bool pel = c.r > c.g && c.g > c.b && sat > 0.22 && sat < 0.75 && mx > 0.16 && (c.r - c.b) > 0.08;
+        if (pel) diffuseColor.rgb = c * uPelle;
+        else if (lum > 0.045) diffuseColor.rgb = mix(c, uTinta * (0.45 + lum * 1.4), 0.8); }\`);
+  };
+  n.customProgramCacheKey = () => 'tinta-persona';
+  return n;
+}
+const nomeOsso = (o) => o.name.replace(/[:]/g, '').replace(/^mixamorig/, '');
+function ruota(G, n, ang) { // ruota un osso attorno all'asse "destra" del personaggio (positivo = in avanti)
+  const b = G.ossa[n]; if (!b) return;
+  const pw = b.parent.getWorldQuaternion(qa);
+  qb.setFromAxisAngle(G.asse, ang);
+  const loc = pw.clone().invert().multiply(qb).multiply(pw);
+  b.quaternion.premultiply(loc); b.updateMatrixWorld(true);
+}
+function creaGLB(id, M) {
+  const h = hash(id), donna = DONNE.has(id), base = donna ? M.donna : M.uomo;
+  const modello = SkeletonUtils.clone(base.scene);
+  const o = new THREE.Group(), w = new THREE.Group(); w.add(modello); o.add(w);
+  const tinta = MAGLIE[(h >> 5) % MAGLIE.length], pelle = PELLE_K[h % PELLE_K.length];
+  modello.traverse((m) => {
+    if (m.isMesh) { m.castShadow = true; m.receiveShadow = false; m.frustumCulled = false; if (/visor/i.test(m.name)) m.visible = false; else m.material = tingi(m.material, tinta, pelle); }
+  });
+  const ossa = {}; modello.traverse((b) => { if (b.isBone) ossa[nomeOsso(b)] = b; });
+  const mixer = new THREE.AnimationMixer(modello);
+  const az = { Walk: mixer.clipAction(donna ? M.walkD : M.walk), Idle: mixer.clipAction(donna ? M.idleD : M.idle) };
+  az.Idle.play(); mixer.update(0); az.Idle.stop();
+  const G = { o, w, modello, ossa, mixer, az, hips: ossa.Hips, asse: new THREE.Vector3() };
+  G.riposo = new Map(); modello.traverse((b) => { if (b.isBone) G.riposo.set(b, b.quaternion.clone()); });
+  G.hipsPos = G.hips.position.clone();
+  // verso dove guarda (dal tallone alla punta del piede) e lo giro verso -z, cio\xE8 verso la scrivania
+  o.updateMatrixWorld(true);
+  const f = (ossa.LeftToeBase || ossa.LeftToe_End).getWorldPosition(va).sub(ossa.LeftFoot.getWorldPosition(vb)); f.y = 0; f.normalize();
+  w.rotation.y = Math.PI - Math.atan2(f.x, f.z);
+  o.userData.persona = true;
+  glbSiedi(G);
+  return G;
+}
+function aggiornaAsse(G) { // asse destra = (-Y) x avanti, nel mondo
+  G.o.updateMatrixWorld(true);
+  const avanti = va.set(0, 0, -1).applyQuaternion(G.o.getWorldQuaternion(qa));
+  G.asse.set(0, -1, 0).cross(avanti).normalize();
+}
+function glbRiposo(G) { for (const [b, q] of G.riposo) b.quaternion.copy(q); G.hips.position.copy(G.hipsPos); G.modello.position.y = 0; }
+function glbSiedi(G) {
+  G.mixer.stopAllAction(); G.corrente = null;
+  glbRiposo(G); aggiornaAsse(G);
+  for (const l of ['Left', 'Right']) { ruota(G, l + 'UpLeg', 1.5); ruota(G, l + 'Leg', -1.45); ruota(G, l + 'Arm', 0.5); ruota(G, l + 'ForeArm', 0.95); }
+  ruota(G, 'Spine1', 0.06);
+  G.o.updateMatrixWorld(true);
+  const y = G.hips.getWorldPosition(va).y - G.o.position.y;
+  G.modello.position.y = 0.6 - y;
+  G.base = { L: G.ossa.LeftForeArm?.quaternion.clone(), R: G.ossa.RightForeArm?.quaternion.clone(), T: G.ossa.Head?.quaternion.clone() };
+  G.seduto = true;
+}
+function glbSeduto(G, t, lavora) {
+  if (!G.seduto) glbSiedi(G);
+  if (!G.base.L) return;
+  const fa = G.ossa.LeftForeArm, fb = G.ossa.RightForeArm, te = G.ossa.Head;
+  fa.quaternion.copy(G.base.L); fb.quaternion.copy(G.base.R); te.quaternion.copy(G.base.T);
+  if (!lavora) { te.rotateY(Math.sin(t * 0.3 + G.o.position.x) * 0.25); return; }
+  ruota(G, 'LeftForeArm', Math.sin(t * 13 + G.o.position.x) * 0.05); ruota(G, 'RightForeArm', Math.cos(t * 12 + G.o.position.x) * 0.05);
+  te.rotateY(Math.sin(t * 0.7) * 0.08);
+}
+function glbMuovi(G, nome, dt) {
+  if (G.seduto) { glbRiposo(G); G.seduto = false; }
+  if (G.corrente !== nome) {
+    const nuova = G.az[nome].reset().play();
+    if (G.corrente) G.az[G.corrente].crossFadeTo(nuova, 0.35, false);
+    G.corrente = nome;
+  }
+  G.mixer.update(dt);
+}
+async function caricaPersone() {
+  const L = new GLTFLoader();
+  const [donna, uomo] = await Promise.all(['Michelle.glb', 'Soldier.glb'].map((f) => L.loadAsync(MODELLI + f)));
+  const clip = (n) => uomo.animations.find((a) => a.name === n);
+  // Michelle ha l'armatura orientata in un altro modo: alle sue copie tolgo il bacino, il resto del corpo va uguale
+  const senzaBacino = (c) => new THREE.AnimationClip(c.name, c.duration, c.tracks.filter((t) => !/Hips\\./.test(t.name)));
+  const M = { donna, uomo, walk: clip('Walk'), idle: clip('Idle'), walkD: senzaBacino(clip('Walk')), idleD: senzaBacino(clip('Idle')) };
+  if (!S) return;
+  for (const id in S.agenti) {
+    const P = S.agenti[id];
+    const G = creaGLB(id, M);
+    G.o.position.copy(P.U.o.position); G.o.rotation.y = P.U.o.rotation.y;
+    G.o.traverse((m) => { m.userData.ag = id; });
+    S.scena.remove(P.U.o); S.scena.add(G.o);
+    P.G = G; P.U = { o: G.o };
+    if (P.cammino) glbMuovi(G, 'Walk', 0); else glbSiedi(G);
+  }
+}
+const poseSeduto = (P, s, lav) => (P.G ? glbSeduto(P.G, s, lav) : posaSeduto(P.U, s, lav));
+
 function posaSeduto(U, t, lavora) {
   U.fianchi.position.y = 0.52; U.busto.rotation.x = 0.06;
   for (const [i, g] of U.gambe.entries()) { g.anca.rotation.set(Math.PI / 2 - 0.08, 0, (i ? 1 : -1) * 0.05); g.ginocchio.rotation.x = -(Math.PI / 2 - 0.12); }
@@ -4441,6 +4551,23 @@ function agave(mat, s = 1) {
 }
 
 // ---------------------------------------------------------------- sala relax
+function arredaDirezione(R) {
+  const { scena, mat } = S;
+  const cx = R.x + R.w / 2 + 0.6, cz = R.z + 4.75;
+  const piano = ombra(new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.06, 48), mat.legno)); piano.scale.set(1.6, 1, 0.62); piano.position.set(cx, 0.75, cz); scena.add(piano);
+  for (const dx of [-0.9, 0.9]) { const g = box(0.08, 0.72, 0.5, mat.bianco, 0.02); g.position.set(cx + dx, 0.37, cz); scena.add(g); }
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2, se = sedia(mat);
+    se.position.set(cx + Math.cos(a) * 2.05, 0, cz + Math.sin(a) * 0.95); se.rotation.y = Math.atan2(Math.cos(a), Math.sin(a)); scena.add(se);
+  }
+  const lap = box(0.34, 0.02, 0.24, mat.metallo, 0.01); lap.position.set(cx - 0.6, 0.79, cz); scena.add(lap);
+  const tazza = ombra(new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.035, 0.09, 16), mat.bianco)); tazza.position.set(cx + 0.5, 0.82, cz + 0.15); scena.add(tazza);
+  const tappeto = new THREE.Mesh(new RoundedBoxGeometry(5.6, 0.012, 2.6, 2, 0.006), new THREE.MeshStandardMaterial({ color: 0xcfd6e6, roughness: 0.95 }));
+  tappeto.position.set(cx, 0.055, cz); tappeto.receiveShadow = true; scena.add(tappeto);
+  const libreria = box(1.8, 1.4, 0.35, mat.bianco, 0.03); libreria.position.set(R.x + R.w - 1.3, 0.7, R.z + 0.3); scena.add(libreria);
+  for (let i = 0; i < 9; i++) { const l = box(0.08, 0.3, 0.24, matC([0xd97757, 0x5a74d6, 0x5f9a5c, 0xf0b44c, 0x2f3e56][i % 5], 0.7), 0.01); l.position.set(R.x + R.w - 2.05 + i * 0.17, 1.05, R.z + 0.32); scena.add(l); }
+}
+
 function arredaRelax(R) {
   const { scena, mat } = S;
   const stoffa = new THREE.MeshStandardMaterial({ color: 0x8d9aa6, roughness: 0.9 });
@@ -4492,7 +4619,7 @@ function costruisci(dati) {
       if (R.lato === 'n') { muro(x, 0, x, R.d * 0.55, ALTO); muro(x, R.d * 0.55, x, R.d, BASSO + 0.25); }
       else { muro(x, R.z, x, R.z + R.d * 0.45, ALTO - 0.4); muro(x, R.z + R.d * 0.45, x, R.z + R.d, BASSO); }
     }
-    const porta = Math.min(R.w - 0.8, R.lato === 'n' ? R.w - 1.0 : 1.0);
+    const porta = R.porta || Math.min(R.w - 0.8, R.lato === 'n' ? R.w - 1.0 : 1.0);
     if (R.lato === 'n') muro(R.x, R.z + R.d, R.x + R.w, R.z + R.d, BASSO, porta);
     else { muro(R.x, R.z, R.x + R.w, R.z, ALTO - 0.4, porta); muro(R.x, R.z + R.d, R.x + R.w, R.z + R.d, BASSO); }
     const nome = R.nome || uffici[R.id]?.nome || R.id;
@@ -4500,9 +4627,10 @@ function costruisci(dati) {
     S.etAree.push({ id: R.id, nome: nome.split(' \xB7 ')[0].replace('Web & E-commerce', 'Web & Shop').replace('Booking & WhatsApp', 'Booking'), pos: new THREE.Vector3(R.x + R.w / 2, 0.1, R.lato === 'n' ? R.z + R.d - 0.15 : R.z + 0.55) });
     S.aree[R.id] = { x: R.x, z: R.z, w: R.w, d: R.d };
     if (R.id === 'relax') { arredaRelax(R); continue; }
+    if (R.id === 'direzione') arredaDirezione(R);
     const ags = dati.agenti.filter((a) => a.u === R.id);
     const righe = Math.max(1, Math.ceil(ags.length / R.col)), largo = R.col * POSTO;
-    const x0 = R.x + (R.w - largo) / 2, z0 = R.z + Math.max(0.9, (R.d - righe * FILA) / 2 + 0.25);
+    const x0 = R.x + (R.w - largo) / 2, z0 = R.scrivanie != null ? R.z + R.scrivanie : R.z + Math.max(0.9, (R.d - righe * FILA) / 2 + 0.25);
     for (let r = 0; r < righe; r++) {
       const zDesk = z0 + r * FILA;
       const nRiga = Math.min(R.col, ags.length - r * R.col);
@@ -4525,18 +4653,18 @@ function costruisci(dati) {
     const pi = agave(mat, 0.85); pi.position.set(R.x + R.w - 0.45, 0.05, R.lato === 'n' ? R.z + 0.5 : R.z + R.d - 0.5); scena.add(pi);
   }
   // arredi alle pareti di fondo: lavagna (marketing), TV (video), quadri (direzione e social)
-  const lav = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.2), new THREE.MeshStandardMaterial({ map: texLavagna(), roughness: 0.6 })); lav.position.set(6.7, 1.25, 0.08); scena.add(lav);
-  const cornice = box(2.7, 1.3, 0.04, mat.metallo, 0.01); cornice.position.set(6.7, 1.25, 0.06); scena.add(cornice);
-  const tv = box(3.0, 1.6, 0.08, mat.nero, 0.02); tv.position.set(18.3, 1.35, 0.1); scena.add(tv);
+  const lav = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.2), new THREE.MeshStandardMaterial({ map: texLavagna(), roughness: 0.6 })); lav.position.set(ST('marketing').x + 2.3, 1.25, 0.08); scena.add(lav);
+  const cornice = box(2.7, 1.3, 0.04, mat.metallo, 0.01); cornice.position.set(ST('marketing').x + 2.3, 1.25, 0.06); scena.add(cornice);
+  const tv = box(3.0, 1.6, 0.08, mat.nero, 0.02); tv.position.set(ST('video').x + 4.6, 1.35, 0.1); scena.add(tv);
   const tvT = texTv();
-  const tvS = new THREE.Mesh(new THREE.PlaneGeometry(2.86, 1.48), new THREE.MeshStandardMaterial({ map: tvT, emissive: 0xffffff, emissiveMap: tvT, emissiveIntensity: 0.55 })); tvS.position.set(18.3, 1.35, 0.145); scena.add(tvS);
-  [['#f6c1a0', '#d97757', 1.4], ['#b8c9ff', '#5a74d6', 2.3], ['#c7e6c0', '#5f9a5c', 11.3]].forEach(([a, b, x]) => {
+  const tvS = new THREE.Mesh(new THREE.PlaneGeometry(2.86, 1.48), new THREE.MeshStandardMaterial({ map: tvT, emissive: 0xffffff, emissiveMap: tvT, emissiveIntensity: 0.55 })); tvS.position.set(ST('video').x + 4.6, 1.35, 0.145); scena.add(tvS);
+  [['#f6c1a0', '#d97757', ST('direzione').x + 1.0], ['#b8c9ff', '#5a74d6', ST('direzione').x + 1.9], ['#f3d9a6', '#c98a2b', ST('direzione').x + 7.6], ['#c7e6c0', '#5f9a5c', ST('social').x + 2.3]].forEach(([a, b, x]) => {
     const q = box(0.6, 0.76, 0.04, mat.nero, 0.01); q.position.set(x, 1.4, 0.08); scena.add(q);
     const im = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.68), new THREE.MeshStandardMaterial({ map: texQuadro(a, b) })); im.position.set(x, 1.4, 0.105); scena.add(im);
   });
-  const ped = ombra(new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.42, 0.7, 32), mat.bianco)); ped.position.set(3.4, 0.36, 1.2); ped.userData.cervello = true; scena.add(ped);
+  const ped = ombra(new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.42, 0.7, 32), mat.bianco)); ped.position.set(ST('direzione').x + 1.1, 0.36, 4.9); ped.userData.cervello = true; scena.add(ped);
   const nucleo = new THREE.Mesh(new THREE.SphereGeometry(0.22, 24, 16), new THREE.MeshStandardMaterial({ color: 0x6f8dff, emissive: 0x2b59ff, emissiveIntensity: 0.8, transparent: true, opacity: 0.85 }));
-  nucleo.position.set(3.4, 1.15, 1.2); nucleo.userData.cervello = true; scena.add(nucleo);
+  nucleo.position.set(ST('direzione').x + 1.1, 1.15, 4.9); nucleo.userData.cervello = true; scena.add(nucleo);
   const punti = new THREE.Points(new THREE.IcosahedronGeometry(0.42, 3), new THREE.PointsMaterial({ color: 0x3b63ff, size: 0.045, sizeAttenuation: true }));
   punti.position.copy(nucleo.position); punti.userData.cervello = true; scena.add(punti);
   S.cervello = { nucleo, punti };
@@ -4633,7 +4761,7 @@ export function vaiAgente(a) {
 // ---------------------------------------------------------------- gente che cammina
 // chi \xE8 libero ogni tanto si alza: esce dalla porta, percorre il corridoio, va alla macchinetta o in un'altra stanza, torna
 function porta(R) {
-  const px = R.x + Math.min(R.w - 0.8, R.lato === 'n' ? R.w - 1.0 : 1.0);
+  const px = R.x + (R.porta || Math.min(R.w - 0.8, R.lato === 'n' ? R.w - 1.0 : 1.0));
   return R.lato === 'n' ? { dentro: new THREE.Vector3(px, 0, R.z + R.d - 0.7), fuori: new THREE.Vector3(px, 0, COR_Z + COR_D * 0.35) }
     : { dentro: new THREE.Vector3(px, 0, R.z + 0.7), fuori: new THREE.Vector3(px, 0, COR_Z + COR_D * 0.65) };
 }
@@ -4659,7 +4787,7 @@ function passeggiate(s) {
 function muovi(P, s, dt) {
   const C = P.cammino, o = P.U.o, obb = C.punti[C.i];
   if (obb === 'sosta') {
-    posaInPiedi(P.U, s);
+    if (P.G) glbMuovi(P.G, 'Idle', dt); else posaInPiedi(P.U, s);
     if (!C.sosta) C.sosta = s + 5 + Math.random() * 6;
     if (s > C.sosta) { C.i++; C.sosta = 0; }
     return;
@@ -4668,13 +4796,13 @@ function muovi(P, s, dt) {
   const dist = dir.length(), v = 1.25 * dt;
   if (dist < 0.05) {
     C.i++;
-    if (C.i >= C.punti.length) { P.cammino = null; P.seduto = true; o.position.copy(P.casa); o.rotation.y = 0; }
+    if (C.i >= C.punti.length) { P.cammino = null; P.seduto = true; o.position.copy(P.casa); o.rotation.y = 0; if (P.G) glbSiedi(P.G); }
     return;
   }
   o.position.addScaledVector(dir.normalize(), Math.min(v, dist));
   const ang = Math.atan2(-dir.x, -dir.z);
   let d = ang - o.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); o.rotation.y += d * Math.min(1, dt * 10);
-  P.fase += dt * 9; posaCammino(P.U, P.fase);
+  P.fase += dt * 9; if (P.G) glbMuovi(P.G, 'Walk', dt); else posaCammino(P.U, P.fase);
 }
 
 // solo per le prove automatiche: inquadra un punto e fa camminare qualcuno
@@ -4682,6 +4810,7 @@ export function prova(cosa, a) {
   if (!S) return;
   if (cosa === 'vista') { S.volo = null; S.controls.target.set(a[3], a[4], a[5]); S.camera.position.set(a[0], a[1], a[2]); S.camera.lookAt(S.controls.target); }
   if (cosa === 'cammina') { const P = S.agenti[a]; P.cammino = percorso(P); P.seduto = false; P.fase = 0; }
+  if (cosa === 'persone') return Object.values(S.agenti).filter((P) => P.G).length;
   if (cosa === 'dove') { const P = S.agenti[a]; return [P.U.o.position.x, P.U.o.position.z]; }
 }
 
@@ -4701,7 +4830,7 @@ function anima(t) {
   for (const id in S.agenti) {
     const P = S.agenti[id];
     if (P.cammino) muovi(P, s, dt);
-    else posaSeduto(P.U, s, P.stato === 'lavora');
+    else poseSeduto(P, s, P.stato === 'lavora');
     if (P.stato === 'lavora' && s - (P.ts || 0) > 0.12) { P.ts = s; disegnaSchermo(P, s); P.sm.emissiveIntensity = 0.8 + Math.sin(s * 3 + P.x) * 0.1; }
   }
   passeggiate(s);
@@ -4756,6 +4885,7 @@ export function avvia(cont, dati, cb) {
   S.ridim = () => { if (S) ridimensiona(); }; addEventListener('resize', S.ridim);
   ridimensiona();
   costruisci(dati);
+  caricaPersone().catch((e) => console.warn("persone 3D non caricate", e));
   grandangolo(true);
   const ray = new THREE.Raycaster(), pt = new THREE.Vector2(); let giu = null;
   renderer.domElement.addEventListener('pointerdown', (ev) => { giu = [ev.clientX, ev.clientY]; S.volo = null; });
