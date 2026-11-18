@@ -6,6 +6,7 @@ import { rilevaStile } from './stili.js';
 import { apiPiani, avanzaPiani, schemaPiani } from './copioni.js';
 import { apiAgenzia, avanzaUffici, schemaAgenzia } from './agenzia.js';
 import { apiRiunioni, avanzaRiunioni } from './riunioni.js';
+import { apiAvatar, avanzaAvatar } from './avatar.js';
 import { motoreApi } from './motore.js';
 import { PAGINA } from './pagina.js';
 import SALA3D_JS from './sala3d.txt';
@@ -217,6 +218,10 @@ async function api(req, env, url) {
       return json({ ok: true });
     }
   }
+  if (p.startsWith('/api/avatar')) {
+    const r = await apiAvatar(req, env, p, m, json);
+    if (r) return r;
+  }
   if (/^\/api\/(capo|riunioni)/.test(p)) {
     const r = await apiRiunioni(req, env, p, m, json);
     if (r) return r;
@@ -261,6 +266,6 @@ export default {
     await schema(env);
     await schemaPiani(env);
     await schemaAgenzia(env);
-    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env), avanzaRiunioni(env)]));
+    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env), avanzaRiunioni(env), avanzaAvatar(env)]));
   },
 };

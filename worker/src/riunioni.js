@@ -80,7 +80,9 @@ Rispondi SOLO JSON:
    "piano": {"cliente_id": numero o null, "nuovo_cliente": {"nome": "...", "nicchia": "..."} o null,
      "incarichi": [{"agente": "uno di: ${DELEGABILI.join(', ')}", "titolo": "...", "brief": "brief completo e autonomo", "dopo": null}],
      "reel": {"prompt": "descrizione completa del reel", "pcloud": "link o null"} o null,
-     "copioni": {"argomenti": ["..."], "numero": 20, "mesi": 3} o null, "note_gestionale": null}}],
+     "copioni": {"argomenti": ["..."], "numero": 20, "mesi": 3} o null,
+     "avatar": {"argomento": "...", "numero": 5, "note": "..."} o null (SOLO per i reel del PROFILO PERSONALE di Johnny fatti col suo avatar HeyGen: Sofia ricerca, Zoe studia i virali, Nora scrive i copioni, Ava genera, il comparto Reel monta),
+     "note_gestionale": null}}],
  "consigliata": indice della proposta che la riunione consiglia,
  "messaggio": "messaggio di Alba a Johnny: com'è andata la riunione e cosa consiglia, in 2-3 frasi"}
 Il verbale ha 6-12 interventi; parlano solo i capi presenti; Alba apre e chiude.`, { maxTokens: 14000 });

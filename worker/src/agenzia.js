@@ -5,6 +5,7 @@
 import { all, one, run, J, ora, configurazione, log } from './db.js';
 import * as S from './servizi.js';
 import { SKILL } from './skill_testi.js';
+import { nuovoPianoAvatar } from './avatar.js';
 
 export const UFFICI = [
   ['direzione', 'Direzione'], ['marketing', 'Ufficio Marketing'], ['social', 'Ufficio Social'], ['video', 'Ufficio Video'],
@@ -17,6 +18,7 @@ export const SQUADRA = {
   brand: { n: 'Bianca', r: 'Brand manager · scheda cliente', u: 'marketing', i: '🪪', c: '#c58cff', skill: ['brand-profile', 'voice-builder', 'audience-research'], d: 'Scrive la scheda di ogni cliente (chi è, a chi parla, come parla, cosa non dire). Tutti gli altri agenti la leggono prima di lavorare.' },
   stratega: { n: 'Marco', r: 'Stratega', u: 'marketing', i: '♟️', c: '#7aa2ff', skill: ['social-strategy', 'goals-and-kpis', 'content-pillars'], d: 'Strategia social, obiettivi, KPI e pilastri dei contenuti per il cliente.' },
   audit: { n: 'Greta', r: 'Audit e concorrenti', u: 'marketing', i: '🔎', c: '#ffb86b', skill: ['content-audit', 'competitor-analysis', 'profile-optimization'], d: 'Analizza il profilo del cliente e i concorrenti: cosa tenere, cosa buttare, dove c’è spazio. Base per le proposte ai nuovi clienti.' },
+  ricerca: { n: 'Sofia', r: 'Ricerca e documentazione', u: 'marketing', i: '📚', c: '#5aa9e6', skill: ['audience-research', 'trend-jacking'], d: 'Si documenta sul web su ogni argomento: fatti verificati con le fonti, numeri, errori comuni, domande della gente, angoli per i contenuti. Non inventa nulla.' },
   campagne: { n: 'Elio', r: 'Campagne e stagionalità', u: 'marketing', i: '📣', c: '#ff7a7a', skill: ['campaign-and-launch-planning', 'seasonal-and-moment-marketing', 'lead-magnets-and-funnels'], d: 'Lanci, promozioni, ricorrenze (Natale, estate, eventi locali) e funnel per portare contatti.' },
   report: { n: 'Dario', r: 'Report e KPI', u: 'marketing', i: '📊', c: '#4fd18b', skill: ['analytics-and-reporting', 'goals-and-kpis', 'experimentation-and-ab-testing'], d: 'Report mensile per il cliente dai numeri che gli dai: cosa ha funzionato e cosa cambiare. Non inventa numeri.' },
   copywriter: { n: 'Giulia', r: 'Copywriter', u: 'social', i: '✍️', c: '#f0b44c', skill: ['caption-writer', 'hook-writer', 'hashtag-strategy', 'instagram-seo'], d: 'Caption, ganci, hashtag e parole chiave per ogni post, nella voce del cliente.' },
@@ -30,10 +32,11 @@ export const SQUADRA = {
   web: { n: 'Walter', r: 'Sito e SEO', u: 'web', i: '🌐', c: '#8ecae6', skill: ['ai-search-optimization', 'social-seo', 'link-in-bio-and-traffic'], d: 'Testi del sito, SEO, visibilità su Google e sulle AI (ChatGPT, Perplexity), link in bio.' },
   ecommerce: { n: 'Elena', r: 'E-commerce', u: 'web', i: '🛒', c: '#ffafcc', skill: ['social-proof-and-testimonials', 'lead-magnets-and-funnels', 'email-and-newsletter'], d: 'Schede prodotto, recensioni, newsletter e funnel per vendere online.' },
   booking: { n: 'Bea', r: 'Booking e WhatsApp', u: 'booking', i: '🛎️', c: '#caffbf', skill: ['social-selling-and-dm', 'reply-and-comment-writer'], d: 'Risponde alle richieste di prenotazione e ai messaggi WhatsApp/DM. Per ora prepara le risposte; la risposta automatica arriva quando colleghiamo WhatsApp.' },
+  avatar: { n: 'Ava', r: 'Avatar HeyGen', u: 'video', i: '🎭', c: '#b388ff', speciale: true, d: 'Genera i video con l’avatar di Johnny (HeyGen) dai copioni approvati e li passa al comparto Reel per il montaggio.' },
   gestionale: { n: 'Gino', r: 'Segreteria gestionale', u: 'gestionale', i: '🗄️', c: '#90be6d', chat: true, d: 'Ha il pieno controllo del gestionale: gli scrivi “segnami uno shooting il 12” o “nuovo cliente…” e lui lo fa.' },
   contabile: { n: 'Dora', r: 'Contabile', u: 'contabilita', i: '🧾', c: '#f9c74f', chat: true, d: 'Preventivi dal listino, entrate e uscite, scadenze e incassi da sollecitare, sul gestionale.' },
 };
-export const DELEGABILI = Object.keys(SQUADRA).filter((k) => !SQUADRA[k].chat && k !== 'capo');
+export const DELEGABILI = Object.keys(SQUADRA).filter((k) => !SQUADRA[k].chat && !SQUADRA[k].speciale && k !== 'capo');
 const MAX_FIGLI = 2, MAX_PROFONDITA = 2, IN_PARALLELO = 6, BLOCCO_MIN = 15;
 
 export async function schemaAgenzia(env) {
@@ -324,8 +327,10 @@ export async function eseguiPiano(env, out, testo, clienteId, origine = '') {
     const r = await one(env, 'INSERT INTO piani (cliente, dati, creato, aggiornato) VALUES (?,?,?,?) RETURNING id', dati.cliente, JSON.stringify(dati), ora(), ora());
     piano = r.id;
   }
-  await log(env, null, 'capo', `🧭 ${creati.length} incarichi assegnati${reel ? ', 1 reel' : ''}${piano ? ', 1 piano copioni' : ''}: ${String(testo).slice(0, 80)}`);
-  return { cliente_id: cid, incarichi: creati, reel, piano };
+  let avatar = null;
+  if (out.avatar?.argomento) avatar = await nuovoPianoAvatar(env, out.avatar.argomento, out.avatar.numero, out.avatar.note);
+  await log(env, null, 'capo', `🧭 ${creati.length} incarichi assegnati${reel ? ', 1 reel' : ''}${piano ? ', 1 piano copioni' : ''}${avatar ? ', reel con avatar' : ''}: ${String(testo).slice(0, 80)}`);
+  return { cliente_id: cid, incarichi: creati, reel, piano, avatar };
 }
 
 // ------------------------------------------------------------------ API

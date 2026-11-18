@@ -90,6 +90,29 @@ r = await chiama('/persone/elenco.json'); ok(r.status === 200 && Array.isArray(r
 r = await chiama('/persone/Remy.glb'); ok(r.status === 404, 'personaggio mancante → 404 pulito');
 r = await chiama('/persone/prendi?t=x', { method: 'POST', body: {} }); ok(r.status === 403, 'senza gettone niente caricamenti');
 
+console.log('\n12) profilo IG con avatar');
+r = await chiama('/api/avatar', { method: 'POST', body: { argomento: 'perché i reel dei ristoranti non funzionano', numero: 3 } }); ok(r.status === 200 && r.j.id, 'argomento ricevuto');
+const aid = r.j.id;
+await cron();
+r = await chiama('/api/avatar/' + aid); ok(r.j.fase === 'virali' && r.j.ricerca?.fatti?.length === 1 && r.j.ricerca.fonti.length === 1, 'Sofia: ricerca con fonti, il fatto con fonte inventata è scartato');
+sblocca('avatar_piani'); await cron();
+r = await chiama('/api/avatar/' + aid); ok(r.j.fase === 'copioni' && r.j.virali?.ganci_che_funzionano?.length, 'Zoe: video virali studiati (' + (r.j.virali?.video?.length || 0) + ' video)');
+sblocca('avatar_piani'); await cron();
+r = await chiama('/api/avatar/' + aid); ok(r.j.stato === 'da_approvare' && r.j.copioni.length === 3, 'Nora: 3 copioni da approvare');
+r = await chiama('/api/avatar/' + aid + '/approva', { method: 'POST', body: { n: [1, 3], modifiche: { 3: 'testo modificato da Johnny' } } }); ok(r.status === 200, 'approvo 2 copioni, uno modificato');
+sblocca('avatar_piani'); await cron();
+r = await chiama('/api/avatar/' + aid); ok(r.j.stato === 'attende_avatar', 'senza chiave HeyGen aspetta (e lo dice)');
+env.HEYGEN_API_KEY = 'hg-finta'; sblocca('avatar_piani'); await cron();
+ok(stato.heygen.length === 2 && stato.heygen[1].video_inputs[0].voice.input_text === 'testo modificato da Johnny', 'Ava: 2 video chiesti a HeyGen con il testo approvato');
+ok(stato.heygen[0].video_inputs[0].character.avatar_id === '789cba3ed8ce45e98b0695720f3b8966', 'usa il tuo avatar');
+sblocca('avatar_piani'); await cron();
+r = await chiama('/api/avatar/' + aid); ok(r.j.fase === 'montaggio' && r.j.video.every((v) => v.stato === 'fatto'), 'video pronti');
+sblocca('avatar_piani'); await cron();
+r = await chiama('/api/avatar/' + aid); ok(r.j.stato === 'fatto' && r.j.lavori.length === 2, 'partono 2 montaggi nel comparto Reel');
+const lav = env.DB._db.prepare("SELECT fonte, stile, pcloud FROM lavori WHERE fonte='url'").all();
+ok(lav.length >= 2 && JSON.parse(lav.at(-1).stile).genere === 'educativo' && JSON.parse(lav.at(-1).pcloud)[0].url.startsWith('https://heygen.example/'), 'montaggio con stile educativo e video da link');
+r = await chiama('/api/avatar/' + aid + '/video', { method: 'POST', body: { video: [{ n: 1, url: 'https://altro.example/x.mp4' }] } }); ok(r.status === 200, 'si possono anche passare video generati fuori (Claude in chat)');
+
 console.log('\n11) pagina: lo script si compila');
 const html = await (await chiama('/', { grezzo: true })).text();
 const script = html.match(/<script>([\s\S]*?)<\/script>\s*<\/body>/);

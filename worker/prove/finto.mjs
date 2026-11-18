@@ -37,11 +37,14 @@ function kv() {
 
 // ---------------------------------------------------------------- Claude finto
 const chiamateClaude = [];
-export const stato = { modoClaude: 'ok' };
+export const stato = { modoClaude: 'ok', heygen: [] };
 function rispostaClaude(body) {
   const sys = typeof body.system === 'string' ? body.system : JSON.stringify(body.system);
   const msg = JSON.stringify(body.messages);
   chiamateClaude.push(sys.slice(0, 60));
+  if (sys.includes('Prepari le ricerche')) return { youtube: ['reel ristoranti errori', 'restaurant reels mistakes'], tiktok: ['reel ristorante'], hashtag: ['ristoranti'] };
+  if (sys.startsWith('Sei Zoe')) return { ganci_che_funzionano: ['Il motivo per cui… non è quello che pensi'], strutture: ['problema-tensione-soluzione'], angoli_scoperti: ['il menu'], durata_ideale_sec: 55, da_evitare: ['elenchi'], nota: 'ok' };
+  if (sys.startsWith('Sei Nora')) return { copioni: [1, 2, 3].map((n) => ({ titolo: 'Reel ' + n, angolo: 'angolo ' + n, testo: 'C\'è un motivo se i tuoi reel non li guarda nessuno. E non è quello che pensi. ' + 'parola '.repeat(120), gancio: 'C\'è un motivo…', soluzione: 'la luce', cartelli: [{ testo: 'NESSUNO', sulla_parola: 'nessuno', stile: 'fascia', colore: 'blu' }], caption: 'cap', hashtag: ['#a'], fonti: [] })) };
   if (sys.includes('RIUNIONE PREVENTIVA')) return {
     titolo: 'Post di dicembre per Villetta Prova',
     verbale: [{ chi: 'capo', testo: 'Apro la riunione.' }, { chi: 'stratega', testo: 'Serve la strategia.' }, { chi: 'calendario', testo: 'Calendario pronto in un giorno.' }, { chi: 'capo', testo: 'Chiudo.' }],
@@ -76,6 +79,11 @@ globalThis.fetch = async (url, opts = {}) => {
   if (u.startsWith('https://api.anthropic.com/')) {
     if (stato.modoClaude === 'credito') return new Response(JSON.stringify({ type: 'error', error: { message: 'Your credit balance is too low to access the Anthropic API' } }), { status: 400 });
     const body = JSON.parse(opts.body);
+    if (body.tools?.some((x) => x.name === 'web_search')) {
+      const testo = JSON.stringify(body.messages);
+      if (testo.includes('Cerca su YouTube Shorts')) return Response.json({ content: [{ type: 'web_search_tool_result', content: [{ url: 'https://www.youtube.com/shorts/abcdefghijk', title: 'Errore dei ristoranti' }] }, { type: 'text', text: 'https://www.youtube.com/shorts/abcdefghijk | Errore dei ristoranti' }] });
+      return Response.json({ content: [{ type: 'web_search_tool_result', content: [{ url: 'https://fonte.it/a', title: 'Fonte A' }] }, { type: 'text', text: JSON.stringify({ sintesi: 'ok', fatti: [{ fatto: 'vero', fonte: 'https://fonte.it/a' }, { fatto: 'inventato', fonte: 'https://falso.it' }], numeri: [], errori_comuni: ['luce'], domande_della_gente: ['perché?'], miti: [], angoli: ['a', 'b'] }) }] });
+    }
     if (body.tools) { // chat del gestionale con strumenti
       const ultimo = body.messages.at(-1).content;
       if (typeof ultimo === 'string') return Response.json({ stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 't1', name: 'crea', input: { sezione: 'eventi', campi: { titolo: 'Shooting', data: '2026-12-12', tipo: 'Shooting' } } }] });
@@ -84,6 +92,8 @@ globalThis.fetch = async (url, opts = {}) => {
     return new Response(sse(rispostaClaude(body)), { headers: { 'content-type': 'text/event-stream' } });
   }
   if (u.includes('api.github.com')) return new Response('', { status: 204 });
+  if (u.startsWith('https://api.heygen.com/v2/video/generate')) { const b = JSON.parse(opts.body); stato.heygen.push(b); return Response.json({ data: { video_id: 'vid' + stato.heygen.length } }); }
+  if (u.startsWith('https://api.heygen.com/v1/video_status.get')) return Response.json({ data: { status: 'completed', video_url: 'https://heygen.example/' + u.split('=')[1] + '.mp4', duration: 58 } });
   return new Response('{}', { status: 200 });
 };
 

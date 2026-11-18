@@ -223,7 +223,7 @@ async function chiama(path, opts = {}) {
 }
 
 function menu(on) {
-  $('#nav').innerHTML = on ? '<a class="btn sec" href="#/">Agenzia</a><a class="btn sec" href="#/riunioni">Riunioni</a><a class="btn sec" href="#/approvazioni">Approvazioni</a><a class="btn sec" href="#/clienti">Clienti</a><a class="btn sec" href="#/chat/gestionale">Gestionale</a><a class="btn sec" href="#/reel">Reel</a><a class="btn sec" href="#/copioni">Copioni</a><a class="btn sec" href="#/impostazioni" title="Impostazioni">⚙︎</a>' : '';
+  $('#nav').innerHTML = on ? '<a class="btn sec" href="#/">Agenzia</a><a class="btn sec" href="#/riunioni">Riunioni</a><a class="btn sec" href="#/profilo">Profilo IG</a><a class="btn sec" href="#/approvazioni">Approvazioni</a><a class="btn sec" href="#/clienti">Clienti</a><a class="btn sec" href="#/chat/gestionale">Gestionale</a><a class="btn sec" href="#/reel">Reel</a><a class="btn sec" href="#/copioni">Copioni</a><a class="btn sec" href="#/impostazioni" title="Impostazioni">⚙︎</a>' : '';
 }
 
 async function accesso() {
@@ -522,7 +522,7 @@ const PIANTA = [
   ['contabilita', 'Contabilità', 1080, 740, 360, 260, '#fff0d9'],
   ['meeting', 'Sala meeting', 1440, 740, 300, 260, '#eef2f7'],
 ];
-const VIDEO_TEAM = ['direttore', 'stella', 'scout_yt', 'scout_tt', 'scout_ig', 'occhi', 'analista', 'motore', 'regista', 'copy', 'editor', 'vfx', 'color', 'audio', 'sottotitoli', 'revisore'];
+const VIDEO_TEAM = ['direttore', 'avatar', 'stella', 'scout_yt', 'scout_tt', 'scout_ig', 'occhi', 'analista', 'motore', 'regista', 'copy', 'editor', 'vfx', 'color', 'audio', 'sottotitoli', 'revisore'];
 let SALA = { s: 1, x: 0, y: 0, dati: null, sel: null, ufficio: null };
 
 function statiAgenti(R) {
@@ -610,7 +610,7 @@ function apriCervello() {
 }
 
 async function azienda() {
-  const [R, lavori, riunioni] = await Promise.all([chiama('/api/azienda'), chiama('/api/lavori').catch(() => []), chiama('/api/riunioni').catch(() => [])]);
+  const [R, lavori, riunioni, avatarL] = await Promise.all([chiama('/api/azienda'), chiama('/api/lavori').catch(() => []), chiama('/api/riunioni').catch(() => []), chiama('/api/avatar').catch(() => [])]);
   Object.assign(AGENTI, R.squadra);
   R.riunioni = riunioni;
   SALA.dati = R;
@@ -638,7 +638,8 @@ async function azienda() {
   const C = await clientiSel('k_cli', '', 'cliente: lo capisce Alba');
   const daScegliere = riunioni.filter((x) => x.stato === 'proposte').map((x) => ({ t: '🗳️ PROPOSTE DA SCEGLIERE', b: x.titolo || x.richiesta || '', link: '#/riunione/' + x.id, img: null, i: '🗳️' }));
   const ultimoReport = riunioni.find((x) => x.tipo === 'settimanale' && x.stato === 'report');
-  const recenti = [...daScegliere, ...(ultimoReport ? [{ t: '📊 REPORT RIUNIONE OPERATIVA', b: ultimoReport.titolo, link: '#/riunione/' + ultimoReport.id, img: null, i: '📊' }] : []), ...lavori.slice(0, 4).map((L) => ({ t: 'REEL · ' + (L.stato === 'pronto' ? 'pronto' : L.stato === 'errore' ? 'errore' : 'in lavorazione'), b: (L.titolo || L.prompt || '').slice(0, 60), link: '#/lavoro/' + L.id, img: L.stato === 'pronto' ? '/api/lavori/' + L.id + '/anteprima.jpg' : null, i: '🎬' })),
+  const daApprovareAv = avatarL.filter((x) => x.stato === 'da_approvare').map((x) => ({ t: '🎭 COPIONI AVATAR DA APPROVARE', b: x.argomento, link: '#/profilo/' + x.id, img: null, i: '🎭' }));
+  const recenti = [...daScegliere, ...daApprovareAv, ...(ultimoReport ? [{ t: '📊 REPORT RIUNIONE OPERATIVA', b: ultimoReport.titolo, link: '#/riunione/' + ultimoReport.id, img: null, i: '📊' }] : []), ...lavori.slice(0, 4).map((L) => ({ t: 'REEL · ' + (L.stato === 'pronto' ? 'pronto' : L.stato === 'errore' ? 'errore' : 'in lavorazione'), b: (L.titolo || L.prompt || '').slice(0, 60), link: '#/lavoro/' + L.id, img: L.stato === 'pronto' ? '/api/lavori/' + L.id + '/anteprima.jpg' : null, i: '🎬' })),
     ...R.recenti.slice(0, 4).map((I) => ({ t: (AGENTI[I.agente]?.n || I.agente) + ' · ' + (ST_INC[I.stato] || I.stato), b: I.titolo, link: '#/incarico/' + I.id, img: null, i: AGENTI[I.agente]?.i || '📄' }))];
   $('#app').innerHTML = '<div id="saluto">' + saluto + '</div>' +
     '<div class="chiedi"><span>🧭</span><input id="k_t" placeholder="Chiedi all’agenzia… es. 6 post per dicembre per A’ Villetta, romantici">' + C + '<button id="k_go">Invia</button></div><div id="k_r"></div>' +
@@ -745,6 +746,53 @@ async function incarico(id) {
 
 const ST_RIU = { in_corso: 'in corso', proposte: 'proposte da scegliere', decisa: 'decisa', report: 'report pronto', chiusa: 'rifatta', errore: 'errore' };
 const PILL_RIU = { in_corso: 'corso', proposte: 'errore', decisa: 'pronto', report: 'pronto', chiusa: '', errore: 'errore' };
+// ---------------------------------------------------------------- PROFILO IG: reel con l'avatar di Johnny
+const FASI_AV = [['ricerca', '📚 Sofia si documenta'], ['virali', '🔥 Zoe studia i video virali'], ['copioni', '✍️ Nora scrive i copioni'], ['approvazione', '✅ Approvi tu'], ['avatar', '🎭 Ava genera con il tuo avatar'], ['montaggio', '🎬 Il comparto Reel monta'], ['fatto', 'Pronti']];
+async function profiloPagina() {
+  const L = await chiama('/api/avatar');
+  const fase = (x) => (FASI_AV.find((f) => f[0] === x.fase) || [0, x.fase])[1];
+  $('#app').innerHTML = '<h1>Profilo Instagram · reel con il tuo avatar</h1><p class="mut">Dai l’argomento ad Alba: Sofia si documenta sul web, Zoe guarda i video simili e quelli virali, Nora scrive i copioni gancio → problema → tensione → soluzione. Tu li approvi, poi Ava li genera con il tuo avatar HeyGen e il comparto Reel li monta con le grafiche del talking head educativo.</p>' +
+    '<div class="card"><label>Argomento</label><input id="av_a" placeholder="Es. perché i reel dei ristoranti non funzionano"><div class="riga" style="gap:12px;align-items:end"><div><label>Quanti reel</label><input id="av_n" type="number" min="1" max="10" value="5" style="width:90px"></div><div style="flex:1"><label>Indicazioni (facoltative)</label><input id="av_note" placeholder="Es. tono ironico, parla ai titolari di B&B"></div></div><div style="margin-top:12px"><button id="av_go">Manda ad Alba</button></div><div id="av_er" class="err"></div></div>' +
+    '<h2>Argomenti</h2>' + (L.map((x) => '<a class="card lav" href="#/profilo/' + x.id + '"><div class="riga"><b style="flex:1">' + e(x.argomento) + '</b><span class="pill ' + (x.stato === 'da_approvare' ? 'errore' : x.stato === 'fatto' ? 'pronto' : x.stato === 'errore' ? 'errore' : 'corso') + '">' + (x.stato === 'da_approvare' ? 'da approvare' : x.stato === 'attende_avatar' ? 'aspetta l’avatar' : x.stato === 'errore' ? 'errore' : fase(x)) + '</span></div><div class="mut">#' + x.id + ' · ' + x.numero + ' reel · ' + fa(x.aggiornato) + (x.errore ? ' · ' + e(x.errore.slice(0, 90)) : '') + '</div></a>').join('') || '<p class="mut">Ancora nessuno.</p>');
+  $('#av_go').onclick = async () => {
+    try { const r = await chiama('/api/avatar', { method: 'POST', body: { argomento: $('#av_a').value, numero: Number($('#av_n').value) || 5, note: $('#av_note').value } }); location.hash = '#/profilo/' + r.id; }
+    catch (x) { $('#av_er').textContent = x.message; }
+  };
+  if (L.some((x) => x.stato === 'in_corso')) timer = setTimeout(rotta, 8000);
+}
+
+async function profiloDettaglio(id) {
+  const A = await chiama('/api/avatar/' + id);
+  const i = FASI_AV.findIndex((f) => f[0] === A.fase);
+  const passi = '<div class="riga" style="flex-wrap:wrap;gap:6px;margin:10px 0">' + FASI_AV.map((f, k) => '<span class="pill ' + (k < i || A.fase === 'fatto' ? 'pronto' : k === i ? 'corso' : '') + '">' + f[1] + '</span>').join('') + '</div>';
+  const R = A.ricerca, V = A.virali;
+  const lista = (a) => (a || []).map((x) => '<li>' + e(typeof x === 'string' ? x : x.fatto || x.dato || '') + (x.fonte ? ' <a href="' + e(x.fonte) + '" target="_blank" rel="noopener" class="mut">fonte</a>' : '') + '</li>').join('');
+  const vid = (n) => (A.video || []).find((v) => v.n === n), lav = (n) => (A.lavori || []).find((v) => v.n === n);
+  const copioni = A.copioni.map((c) => '<div class="card"><div class="riga"><b style="flex:1">' + c.n + '. ' + e(c.titolo || '') + '</b><span class="pill">' + (c.parole || 0) + ' parole</span>' +
+    (A.stato === 'da_approvare' ? '<label style="display:flex;gap:6px;font-weight:400"><input type="checkbox" class="av_ok" data-n="' + c.n + '" checked style="width:auto"> approva</label>' : '<span class="pill ' + (c.stato === 'approvato' ? 'pronto' : '') + '">' + e(c.stato) + '</span>') + '</div>' +
+    '<p class="mut" style="margin:6px 0">' + e(c.angolo || '') + '</p>' +
+    (A.stato === 'da_approvare' ? '<textarea class="av_t" data-n="' + c.n + '" style="min-height:160px">' + e(c.testo || '') + '</textarea>' : '<div style="white-space:pre-wrap">' + e(c.testo || '') + '</div>') +
+    '<p class="mut"><b>Cartelli:</b> ' + (c.cartelli || []).map((k) => e(k.testo) + (k.stile === 'barrato' ? ' (barrato)' : '')).join(' · ') + '</p>' +
+    '<p class="mut"><b>Caption:</b> ' + e(c.caption || '') + ' ' + e((c.hashtag || []).join(' ')) + '</p>' +
+    (vid(c.n) ? '<p>🎭 Avatar: ' + e(vid(c.n).stato) + (vid(c.n).url ? ' · <a href="' + e(vid(c.n).url) + '" target="_blank" rel="noopener">video grezzo</a>' : '') + '</p>' : '') +
+    (lav(c.n) ? '<a class="btn" href="#/lavoro/' + lav(c.n).lavoro + '">Reel montato ▸</a>' : '') + '</div>').join('');
+  $('#app').innerHTML = '<a class="mut" href="#/profilo">← Profilo IG</a><h1>' + e(A.argomento) + '</h1><div class="mut">#' + A.id + ' · ' + A.numero + ' reel' + (A.note ? ' · ' + e(A.note) : '') + '</div>' + passi +
+    (A.errore ? '<div class="card err">' + e(A.errore) + ' <button class="sec" id="av_rp">Riprova</button></div>' : '') +
+    (A.stato === 'attende_avatar' ? '<div class="card">🎭 I copioni sono approvati. Ava li genera da sola appena inserisci la chiave HeyGen in ⚙︎ Impostazioni; intanto puoi chiedere a Claude in chat di generarli con il tuo avatar.</div>' : '') +
+    (A.copioni.length ? '<h2>Copioni</h2>' + copioni + (A.stato === 'da_approvare' ? '<div class="riga"><button id="av_ok">Approva i selezionati e genera</button></div><div id="av_er" class="err"></div>' : '') : '') +
+    (R ? '<h2>Ricerca di Sofia</h2><div class="card"><p>' + e(R.sintesi || '') + '</p><b>Fatti verificati</b><ul>' + lista(R.fatti) + '</ul><b>Numeri</b><ul>' + lista(R.numeri) + '</ul><b>Errori comuni</b><ul>' + lista(R.errori_comuni) + '</ul><b>Domande della gente</b><ul>' + lista(R.domande_della_gente) + '</ul></div>' : '') +
+    (V ? '<h2>Video virali studiati da Zoe</h2><div class="card"><b>Ganci che funzionano</b><ul>' + lista(V.ganci_che_funzionano) + '</ul><b>Angoli scoperti</b><ul>' + lista(V.angoli_scoperti) + '</ul><b>Da evitare</b><ul>' + lista(V.da_evitare) + '</ul><b>I video</b><ul>' + (V.video || []).map((v) => '<li><a href="' + e(v.url) + '" target="_blank" rel="noopener">' + e((v.titolo || v.url).slice(0, 90)) + '</a> <span class="mut">' + e(v.piattaforma || '') + (v.views ? ' · ' + Number(v.views).toLocaleString('it-IT') + ' views' : '') + '</span></li>').join('') + '</ul></div>' : '') +
+    '<div class="riga" style="margin-top:14px"><button class="sec" id="av_del">Elimina</button></div>';
+  if ($('#av_ok')) $('#av_ok').onclick = async () => {
+    const n = [...document.querySelectorAll('.av_ok')].filter((x) => x.checked).map((x) => Number(x.dataset.n));
+    const modifiche = {}; document.querySelectorAll('.av_t').forEach((x) => { const c = A.copioni.find((k) => k.n === Number(x.dataset.n)); if (c && x.value !== c.testo) modifiche[c.n] = x.value; });
+    try { await chiama('/api/avatar/' + id + '/approva', { method: 'POST', body: { n, modifiche } }); rotta(); } catch (x) { $('#av_er').textContent = x.message; }
+  };
+  if ($('#av_rp')) $('#av_rp').onclick = async () => { await chiama('/api/avatar/' + id + '/riprova', { method: 'POST' }); rotta(); };
+  $('#av_del').onclick = async () => { if (!confirm('Eliminare questo argomento?')) return; await chiama('/api/avatar/' + id, { method: 'DELETE' }); location.hash = '#/profilo'; };
+  if (['in_corso'].includes(A.stato)) timer = setTimeout(rotta, 8000);
+}
+
 async function riunioniPagina() {
   const L = await chiama('/api/riunioni');
   const riga = (x) => '<a class="card lav" href="#/riunione/' + x.id + '"><div class="riga"><b style="flex:1">' + (x.tipo === 'settimanale' ? '📊 ' : '🗳️ ') + e(x.titolo || x.richiesta || 'Riunione') + '</b><span class="pill ' + (PILL_RIU[x.stato] || '') + '">' + (ST_RIU[x.stato] || x.stato) + '</span></div><div class="mut">#' + x.id + ' · ' + new Date(x.creato).toLocaleString('it-IT', { dateStyle: 'medium', timeStyle: 'short' }) + (x.cliente ? ' · ' + e(x.cliente) : '') + (x.tipo === 'settimanale' ? ' · in direzione' : ' · in sala meeting') + '</div></a>';
@@ -881,6 +929,8 @@ async function rotta() {
     else if (h.startsWith('#/incarico/')) await incarico(h.split('/')[2]);
     else if (h === '#/approvazioni') await approvazioni();
     else if (h === '#/riunioni') await riunioniPagina();
+    else if (h === '#/profilo') await profiloPagina();
+    else if (h.startsWith('#/profilo/')) await profiloDettaglio(h.split('/')[2]);
     else if (h.startsWith('#/riunione/')) await riunionePagina(h.split('/')[2]);
     else if (h === '#/clienti') await clientiPagina();
     else if (h.startsWith('#/cliente/')) await clientePagina(h.split('/')[2]);

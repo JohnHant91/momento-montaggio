@@ -171,8 +171,8 @@ async function log(env, lavoroId, agente, messaggio, livello = "info") {
     ora()
   );
 }
-var CHIAVI_SEGRETE = ["ANTHROPIC_API_KEY", "YOUTUBE_API_KEY", "APIFY_TOKEN", "GITHUB_TOKEN"];
-var CHIAVI_OPZIONI = ["CLAUDE_MODEL", "CLAUDE_MODEL_LIGHT", "APIFY_TIKTOK_ACTOR", "APIFY_INSTAGRAM_ACTOR", "NUM_RIFERIMENTI", "DURATA_MAX", "MESI_RICERCA"];
+var CHIAVI_SEGRETE = ["ANTHROPIC_API_KEY", "YOUTUBE_API_KEY", "APIFY_TOKEN", "GITHUB_TOKEN", "HEYGEN_API_KEY"];
+var CHIAVI_OPZIONI = ["CLAUDE_MODEL", "CLAUDE_MODEL_LIGHT", "APIFY_TIKTOK_ACTOR", "APIFY_INSTAGRAM_ACTOR", "NUM_RIFERIMENTI", "DURATA_MAX", "MESI_RICERCA", "HEYGEN_AVATAR", "HEYGEN_VOCE"];
 async function configurazione(env) {
   const salvate = Object.fromEntries((await all(env, "SELECT chiave, valore FROM impostazioni")).map((r) => [r.chiave, r.valore]));
   const v = (k, d) => env[k] || salvate[k] || d;
@@ -182,6 +182,9 @@ async function configurazione(env) {
     YOUTUBE_API_KEY: v("YOUTUBE_API_KEY"),
     APIFY_TOKEN: v("APIFY_TOKEN"),
     GITHUB_TOKEN: v("GITHUB_TOKEN"),
+    HEYGEN_API_KEY: v("HEYGEN_API_KEY"),
+    HEYGEN_AVATAR: v("HEYGEN_AVATAR", "789cba3ed8ce45e98b0695720f3b8966"),
+    HEYGEN_VOCE: v("HEYGEN_VOCE", "e0a308623c8c4a3c99c8f66a900faccd"),
     CLAUDE_MODEL: v("CLAUDE_MODEL", "claude-sonnet-5-5"),
     CLAUDE_MODEL_LIGHT: v("CLAUDE_MODEL_LIGHT", "claude-haiku-5-5"),
     WEB_SEARCH_TOOL: v("WEB_SEARCH_TOOL", "web_search_20250305"),
@@ -344,6 +347,52 @@ async function claudeVisione(cfg, modello, sistema, testo, immagini, maxTokens =
   const out = estraiJson((d.content || []).filter((b) => b.type === "text").map((b) => b.text).join(""));
   out._uso = d.usage ? { in: d.usage.input_tokens, out: d.usage.output_tokens, modello } : void 0;
   return out;
+}
+var GBASE = "https://generativelanguage.googleapis.com";
+async function geminiGenera(cfg, parti, { bassa = false } = {}) {
+  if (!cfg.GEMINI_API_KEY) throw new Error("manca la chiave Gemini (Impostazioni)");
+  const generationConfig = { responseMimeType: "application/json", temperature: 0.2 };
+  if (bassa) generationConfig.mediaResolution = "MEDIA_RESOLUTION_LOW";
+  const corpo = JSON.stringify({ contents: [{ role: "user", parts: parti }], generationConfig });
+  const errori = [];
+  let quota = 0;
+  for (const modello of cfg.GEMINI_MODELS) {
+    let r;
+    try {
+      r = await richiesta(`${GBASE}/v1beta/models/${modello}:generateContent`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": cfg.GEMINI_API_KEY },
+        body: corpo
+      }, 2);
+    } catch (e) {
+      if (/HTTP 429/.test(e.message)) {
+        quota++;
+        errori.push(modello + ": quota");
+        continue;
+      }
+      throw e;
+    }
+    const t = await r.text();
+    if (r.status === 200) {
+      const d = JSON.parse(t);
+      const testo = (d.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("");
+      if (!testo) throw new Error("Gemini senza risposta: " + t.slice(0, 300));
+      return estraiJson(testo);
+    }
+    if ((r.status === 404 || r.status === 400) && /not found|not supported|is not available/i.test(t)) {
+      errori.push(modello);
+      continue;
+    }
+    throw new Error(`Gemini ${r.status} (${modello}): ${t.slice(0, 400)}`);
+  }
+  if (quota) throw new Error("QUOTA_GEMINI: quota gratuita di Gemini esaurita (" + errori.join(", ") + "). Attiva la fatturazione su aistudio.google.com o aspetta il reset giornaliero");
+  throw new Error("nessun modello Gemini disponibile tra: " + errori.join(", "));
+}
+function guardaYoutube(cfg, url, istruzioni, fps) {
+  return geminiGenera(cfg, [
+    { fileData: { fileUri: url }, videoMetadata: { fps: fps || cfg.FPS_ANALISI } },
+    { text: istruzioni }
+  ]);
 }
 var durataIso = (iso) => {
   const m = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/.exec(iso || "");
@@ -2724,6 +2773,300 @@ content-research-and-sourcing, and the piece published via WoopSocial; **no inve
 vulnerability, staged imperfection, or fabricated metrics**; and correctly distinguished from voice-builder,
 hook-writer, the format skills, and content-research-and-sourcing.` };
 
+// src/avatar.js
+var BLOCCO_MIN3 = 12;
+async function schemaAvatar(env) {
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS avatar_piani (id INTEGER PRIMARY KEY AUTOINCREMENT, argomento TEXT NOT NULL, numero INTEGER DEFAULT 5,
+    note TEXT, fase TEXT NOT NULL DEFAULT 'ricerca', stato TEXT NOT NULL DEFAULT 'in_corso', ricerca TEXT, virali TEXT, copioni TEXT, video TEXT, lavori TEXT,
+    errore TEXT, tentativi INTEGER DEFAULT 0, blocco_fino TEXT, riunione_id INTEGER, creato TEXT, aggiornato TEXT)`).run();
+}
+async function nuovoPianoAvatar(env, argomento, numero = 5, note = "", riunione = null) {
+  await schemaAvatar(env);
+  const r = await one(
+    env,
+    "INSERT INTO avatar_piani (argomento, numero, note, riunione_id, creato, aggiornato) VALUES (?,?,?,?,?,?) RETURNING id",
+    String(argomento).slice(0, 300),
+    Math.min(10, Math.max(1, Number(numero) || 5)),
+    String(note || "").slice(0, 2e3),
+    riunione,
+    ora(),
+    ora()
+  );
+  await log(env, null, "ricerca", `\u{1F50E} nuovo argomento per il profilo di Johnny: "${String(argomento).slice(0, 80)}" (${numero} reel): mi documento`);
+  return r.id;
+}
+async function claudeWeb(cfg, sistema, domanda, maxUses = 8) {
+  const r = await richiesta("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "x-api-key": cfg.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    body: JSON.stringify({ model: cfg.CLAUDE_MODEL, max_tokens: 8e3, system: sistema, tools: [{ type: cfg.WEB_SEARCH_TOOL, name: "web_search", max_uses: maxUses }], messages: [{ role: "user", content: domanda }] })
+  });
+  if (r.status !== 200) throw new Error(`Claude ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  const d = await r.json();
+  const fonti = /* @__PURE__ */ new Map();
+  for (const b of d.content || []) if (b.type === "web_search_tool_result" && Array.isArray(b.content)) b.content.forEach((x) => x.url && fonti.set(x.url, x.title || ""));
+  const testo = (d.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  return { out: estraiJson(testo), fonti };
+}
+async function faseRicerca2(env, cfg, A) {
+  const { out, fonti } = await claudeWeb(
+    cfg,
+    `Sei Sofia, ricercatrice di AGENZIA MOMENTO AI. Ti documenti su un argomento per i reel del profilo Instagram di Johnny (video in cui parla il suo avatar).
+Cerca sul web fonti affidabili e recenti (in italiano e in inglese). Usa SOLO quello che trovi: niente numeri o fatti inventati; se un dato non \xE8 verificabile non metterlo.
+
+===== SKILL: content-research-and-sourcing =====
+${(SKILL["content-research-and-sourcing"] || "").slice(0, 6e3)}`,
+    `ARGOMENTO: ${A.argomento}${A.note ? "\nINDICAZIONI DI JOHNNY: " + A.note : ""}
+OGGI: ${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}
+
+Rispondi SOLO JSON:
+{"sintesi": "5-8 frasi: cosa bisogna sapere",
+ "fatti": [{"fatto": "...", "fonte": "url"}],
+ "numeri": [{"dato": "...", "fonte": "url"}],
+ "errori_comuni": ["cosa sbaglia la gente su questo argomento"],
+ "domande_della_gente": ["domande vere che la gente si fa"],
+ "miti": ["convinzioni sbagliate da smontare"],
+ "angoli": ["5-10 angoli diversi per un reel, ognuno con un problema concreto e la sua soluzione"]}`
+  );
+  const valide = (x) => (x || []).filter((f) => !f.fonte || fonti.has(f.fonte) || [...fonti.keys()].some((u) => u.startsWith(String(f.fonte).slice(0, 40))));
+  const ricerca = { ...out, fatti: valide(out.fatti), numeri: valide(out.numeri), fonti: [...fonti].slice(0, 25).map(([url, titolo]) => ({ url, titolo })) };
+  await run(env, "UPDATE avatar_piani SET ricerca=?, fase='virali', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(ricerca), ora(), A.id);
+  await log(env, null, "ricerca", `\u{1F4DA} "${A.argomento.slice(0, 60)}": ${ricerca.fatti.length} fatti verificati, ${ricerca.fonti.length} fonti, ${(ricerca.angoli || []).length} angoli. Passo a Zoe i video virali`);
+}
+async function faseVirali(env, cfg, A) {
+  const ric = J(A.ricerca, {});
+  const q = await claude(
+    { ...cfg, CLAUDE_MODEL: cfg.CLAUDE_MODEL_LIGHT },
+    "Prepari le ricerche per trovare i reel pi\xF9 virali su un argomento.",
+    `ARGOMENTO: ${A.argomento}
+Rispondi SOLO JSON: {"youtube": ["2 ricerche brevi, una in italiano e una in inglese"], "tiktok": ["2 ricerche brevi"], "hashtag": ["3 hashtag instagram senza #"]}`,
+    { maxTokens: 600 }
+  );
+  const esiti = await Promise.allSettled([youtube(cfg, (q.youtube || [A.argomento]).slice(0, 2), 10), tiktok(cfg, (q.tiktok || []).slice(0, 2), [], 8), instagram(cfg, (q.hashtag || []).slice(0, 3), 8)]);
+  const lista = [];
+  for (const e of esiti) if (e.status === "fulfilled") lista.push(...Array.isArray(e.value) ? e.value : e.value.video || []);
+  const visti = /* @__PURE__ */ new Set();
+  const top = lista.filter((v) => v && !visti.has(v.url) && visti.add(v.url)).map((v) => ({ ...v, punteggio: punteggio(v) })).sort((a, b) => b.punteggio - a.punteggio).slice(0, 15);
+  await log(env, null, "trend", `\u{1F525} "${A.argomento.slice(0, 60)}": ${lista.length} video trovati, guardo i pi\xF9 virali`);
+  const guardati = [];
+  for (const v of top.filter((x) => x.piattaforma === "youtube").slice(0, 3)) {
+    try {
+      const g = await guardaYoutube(cfg, v.url, `Analizza questo reel come un esperto di contenuti virali. Rispondi SOLO JSON:
+{"gancio_testuale": "le prime parole dette o scritte, parola per parola", "struttura": "come \xE8 costruito secondo per secondo, in breve", "tensione": "come tiene lo spettatore fino alla fine", "soluzione": "cosa rivela alla fine", "perche_funziona": "...", "durata_sec": n}`, 1);
+      guardati.push({ url: v.url, titolo: v.titolo, views: v.views, ...g });
+    } catch (e) {
+      await log(env, null, "trend", `non riesco a guardare ${v.url}: ${String(e.message).slice(0, 120)}`, "warn");
+    }
+  }
+  const sintesi = await claude(
+    cfg,
+    `Sei Zoe, Trend e idee di AGENZIA MOMENTO AI. Ricavi dai video virali cosa funziona su un argomento, senza copiare.
+
+===== SKILL: viral-reverse-engineering =====
+${(SKILL["viral-reverse-engineering"] || "").slice(0, 6e3)}`,
+    `ARGOMENTO: ${A.argomento}
+VIDEO PI\xD9 VIRALI (titolo, visualizzazioni, piattaforma): ${JSON.stringify(top.map((v) => ({ p: v.piattaforma, titolo: (v.titolo || "").slice(0, 120), views: v.views, url: v.url })))}
+VIDEO GUARDATI DAVVERO: ${JSON.stringify(guardati)}
+DALLA RICERCA DI SOFIA: angoli ${JSON.stringify(ric.angoli || [])}; errori comuni ${JSON.stringify(ric.errori_comuni || [])}
+
+Rispondi SOLO JSON: {"ganci_che_funzionano": ["schemi di gancio (non copiati)"], "strutture": ["..."], "angoli_scoperti": ["angoli che nessuno ha ancora fatto bene"], "durata_ideale_sec": n, "da_evitare": ["..."], "nota": "2 frasi per Nora"}`,
+    { maxTokens: 4e3 }
+  );
+  const virali = { video: top.map((v) => ({ piattaforma: v.piattaforma, url: v.url, titolo: v.titolo, views: v.views })), guardati, ...sintesi };
+  await run(env, "UPDATE avatar_piani SET virali=?, fase='copioni', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(virali), ora(), A.id);
+  await log(env, null, "trend", `\u{1F9E0} "${A.argomento.slice(0, 60)}": ${(sintesi.ganci_che_funzionano || []).length} schemi di gancio, ${(sintesi.angoli_scoperti || []).length} angoli scoperti. Tocca a Nora`);
+}
+async function faseCopioni2(env, cfg, A) {
+  const out = await claude(
+    cfg,
+    `Sei Nora, Idee e copioni di AGENZIA MOMENTO AI. Scrivi i testi che dir\xE0 l'AVATAR di Johnny nei reel del suo profilo Instagram.
+${MANUALE_COPIONI}`,
+    `ARGOMENTO: ${A.argomento}${A.note ? "\nINDICAZIONI DI JOHNNY: " + A.note : ""}
+RICERCA DI SOFIA (usa SOLO questi fatti e numeri): ${JSON.stringify(J(A.ricerca, {})).slice(0, 12e3)}
+COSA FUNZIONA NEI VIRALI (Zoe): ${JSON.stringify({ ...J(A.virali, {}), video: void 0, guardati: void 0 }).slice(0, 6e3)}
+
+Scrivi ${A.numero} copioni DIVERSI (angoli diversi), formato AVATAR: GANCIO \u2192 PROBLEMA \u2192 TENSIONE (2-3 anelli aperti) \u2192 SOLUZIONE solo alla fine \u2192 CTA.
+Rispondi SOLO JSON:
+{"copioni": [{"titolo": "...", "angolo": "...", "testo": "tutto il testo detto dall'avatar, 120-180 parole",
+  "gancio": "la prima frase", "soluzione": "la rivelazione finale in una frase",
+  "cartelli": [{"testo": "1-4 parole", "sulla_parola": "parola detta su cui entra", "stile": "fascia|barrato", "colore": "blu|rosa"}],
+  "caption": "caption Instagram con gancio e CTA", "hashtag": ["5 hashtag"], "fonti": ["url usati"]}]}`,
+    { maxTokens: 16e3 }
+  );
+  const copioni = (out.copioni || []).slice(0, A.numero).map((c, i) => ({ n: i + 1, ...c, parole: String(c.testo || "").split(/\s+/).filter(Boolean).length, stato: "da_approvare" }));
+  if (!copioni.length) throw new Error("Nora non ha prodotto copioni");
+  await run(env, "UPDATE avatar_piani SET copioni=?, fase='approvazione', stato='da_approvare', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(copioni), ora(), A.id);
+  await log(env, null, "idee", `\u270D\uFE0F ${copioni.length} copioni pronti su "${A.argomento.slice(0, 60)}": aspettano la tua approvazione`);
+}
+async function heygen(cfg, metodo, percorso, corpo) {
+  const r = await richiesta("https://api.heygen.com" + percorso, { method: metodo, headers: { "x-api-key": cfg.HEYGEN_API_KEY, "content-type": "application/json", accept: "application/json" }, body: corpo ? JSON.stringify(corpo) : void 0 }, 2);
+  const t = await r.text();
+  let d;
+  try {
+    d = JSON.parse(t);
+  } catch {
+    d = {};
+  }
+  if (r.status >= 300 || d.error) throw new Error(`HeyGen ${r.status}: ${JSON.stringify(d.error || t).slice(0, 300)}`);
+  return d.data || d;
+}
+async function faseAvatar(env, cfg, A) {
+  const video = J(A.video, []) || [];
+  const copioni = J(A.copioni, []).filter((c) => c.stato === "approvato");
+  if (!cfg.HEYGEN_API_KEY) {
+    if (A.stato !== "attende_avatar") {
+      await run(env, "UPDATE avatar_piani SET stato='attende_avatar', blocco_fino=NULL, aggiornato=? WHERE id=?", ora(), A.id);
+      await log(env, null, "avatar", `\u{1F3AD} ${copioni.length} copioni approvati: per generarli da sola mi serve la chiave HeyGen (Impostazioni). Intanto puoi chiederlo a Claude in chat`, "warn");
+    }
+    return;
+  }
+  let cambiato = false;
+  for (const c of copioni) {
+    let v = video.find((x) => x.n === c.n);
+    if (!v) {
+      const d = await heygen(cfg, "POST", "/v2/video/generate", {
+        title: `IG Johnny \xB7 ${c.titolo}`.slice(0, 90),
+        dimension: { width: 720, height: 1280 },
+        video_inputs: [{ character: { type: "avatar", avatar_id: cfg.HEYGEN_AVATAR, avatar_style: "normal" }, voice: { type: "text", input_text: c.testo, voice_id: cfg.HEYGEN_VOCE } }]
+      });
+      v = { n: c.n, video_id: d.video_id, stato: "in_corso" };
+      video.push(v);
+      cambiato = true;
+      await log(env, null, "avatar", `\u{1F3AD} genero il reel ${c.n} "${c.titolo}" con il tuo avatar`);
+    } else if (v.stato === "in_corso" && v.video_id) {
+      const d = await heygen(cfg, "GET", "/v1/video_status.get?video_id=" + encodeURIComponent(v.video_id));
+      if (d.status === "completed" && d.video_url) {
+        Object.assign(v, { stato: "fatto", url: d.video_url, durata: d.duration || null });
+        cambiato = true;
+        await log(env, null, "avatar", `\u2705 reel ${c.n} generato (${Math.round(d.duration || 0)} s)`);
+      }
+      if (d.status === "failed") {
+        Object.assign(v, { stato: "errore", errore: JSON.stringify(d.error || "").slice(0, 200) });
+        cambiato = true;
+        await log(env, null, "avatar", `\u274C reel ${c.n}: ${v.errore}`, "errore");
+      }
+    }
+  }
+  const tutti = copioni.every((c) => video.some((x) => x.n === c.n && x.stato !== "in_corso"));
+  await run(
+    env,
+    "UPDATE avatar_piani SET video=?, fase=?, stato=?, blocco_fino=?, aggiornato=? WHERE id=?",
+    JSON.stringify(video),
+    tutti ? "montaggio" : "avatar",
+    "in_corso",
+    tutti ? null : new Date(Date.now() + 6e4).toISOString(),
+    ora(),
+    A.id
+  );
+  return cambiato;
+}
+async function faseMontaggio2(env, cfg, A) {
+  const copioni = J(A.copioni, []), video = (J(A.video, []) || []).filter((v) => v.stato === "fatto" && v.url), lavori = J(A.lavori, []) || [];
+  for (const v of video) {
+    if (lavori.some((l) => l.n === v.n)) continue;
+    const c = copioni.find((x) => x.n === v.n) || {};
+    const prompt = `Cliente: Johnny \xB7 profilo Instagram. Reel con l'avatar di Johnny, stile "Talking head educativo con grafiche": formato talking_head, sottotitoli piccoli_alto, cartelli sulle parole chiave, jump cut serrati, nessuna pausa.
+Titolo: ${c.titolo}. Gancio: ${c.gancio}. Soluzione finale: ${c.soluzione}.
+Testo detto: ${c.testo}
+Cartelli da usare (testo \u2192 parola su cui entra): ${(c.cartelli || []).map((k) => `${k.testo} \u2192 ${k.sulla_parola}${k.stile === "barrato" ? " (barrato)" : ""}${k.colore ? " " + k.colore : ""}`).join("; ")}`;
+    const r = await one(
+      env,
+      "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,'[]','url',?,?,?) RETURNING id",
+      prompt,
+      JSON.stringify([{ nome: `avatar_${A.id}_${v.n}.mp4`, url: v.url, durata: v.durata }]),
+      JSON.stringify({ genere: "educativo", mood: [] }),
+      ora(),
+      ora()
+    );
+    lavori.push({ n: v.n, lavoro: r.id });
+    await log(env, r.id, "regia", `\u{1F3AC} reel ${v.n} "${c.titolo}" (avatar): parte il montaggio`);
+  }
+  await run(env, "UPDATE avatar_piani SET lavori=?, fase='fatto', stato='fatto', blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(lavori), ora(), A.id);
+}
+async function avanzaAvatar(env) {
+  await schemaAvatar(env);
+  const adesso = ora();
+  const L = await all(env, "SELECT * FROM avatar_piani WHERE stato IN ('in_corso','attende_avatar') AND (blocco_fino IS NULL OR blocco_fino < ?) ORDER BY id LIMIT 2", adesso);
+  if (!L.length) return;
+  const cfg = await configurazione(env);
+  for (const A0 of L) {
+    if (A0.stato === "attende_avatar" && !cfg.HEYGEN_API_KEY) continue;
+    const A = await one(env, "UPDATE avatar_piani SET blocco_fino=?, tentativi=tentativi+1 WHERE id=? AND (blocco_fino IS NULL OR blocco_fino < ?) RETURNING *", new Date(Date.now() + BLOCCO_MIN3 * 6e4).toISOString(), A0.id, adesso);
+    if (!A) continue;
+    try {
+      if (A.fase === "ricerca") await faseRicerca2(env, cfg, A);
+      else if (A.fase === "virali") await faseVirali(env, cfg, A);
+      else if (A.fase === "copioni") await faseCopioni2(env, cfg, A);
+      else if (A.fase === "avatar") await faseAvatar(env, cfg, A);
+      else if (A.fase === "montaggio") await faseMontaggio2(env, cfg, A);
+    } catch (e) {
+      const msg = String(e?.message || e).slice(0, 400);
+      const credito = /credit balance|billing/i.test(msg);
+      const stop = !credito && A.tentativi >= 3;
+      await run(
+        env,
+        "UPDATE avatar_piani SET stato=?, errore=?, tentativi=?, blocco_fino=?, aggiornato=? WHERE id=?",
+        stop ? "errore" : A.stato === "attende_avatar" ? "attende_avatar" : "in_corso",
+        credito ? "Credito Claude esaurito: riparto da solo quando lo ricarichi" : msg,
+        credito ? 0 : A.tentativi,
+        stop ? null : new Date(Date.now() + (credito ? 10 : 3) * 6e4).toISOString(),
+        ora(),
+        A.id
+      );
+      const ag = { ricerca: "ricerca", virali: "trend", copioni: "idee", avatar: "avatar", montaggio: "regia" }[A.fase] || "ricerca";
+      await log(env, null, ag, credito ? "\u23F8\uFE0F credito Claude esaurito: riparto quando lo ricarichi" : `${stop ? "\u274C" : "\u26A0\uFE0F"} profilo IG #${A.id} (${A.fase}): ${msg}`, stop || credito ? "errore" : "warn");
+    }
+  }
+}
+async function apiAvatar(req, env, p, m, json3) {
+  await schemaAvatar(env);
+  const corpo = () => req.json().catch(() => ({}));
+  if (p === "/api/avatar" && m === "GET") {
+    const L = await all(env, "SELECT id, argomento, numero, fase, stato, errore, creato, aggiornato FROM avatar_piani ORDER BY id DESC LIMIT 40");
+    return json3(L);
+  }
+  if (p === "/api/avatar" && m === "POST") {
+    const d = await corpo();
+    if (String(d.argomento || "").trim().length < 3) return json3({ errore: "scrivi l'argomento" }, 400);
+    return json3({ id: await nuovoPianoAvatar(env, String(d.argomento).trim(), Number(d.numero) || 5, d.note) });
+  }
+  const mm = p.match(/^\/api\/avatar\/(\d+)(?:\/(approva|video|riprova))?$/);
+  if (!mm) return null;
+  const A = await one(env, "SELECT * FROM avatar_piani WHERE id=?", mm[1]);
+  if (!A) return json3({ errore: "non trovato" }, 404);
+  if (m === "GET" && !mm[2]) return json3({ ...A, ricerca: J(A.ricerca), virali: J(A.virali), copioni: J(A.copioni, []), video: J(A.video, []), lavori: J(A.lavori, []) });
+  if (m === "POST" && mm[2] === "approva") {
+    const d = await corpo();
+    const ok = new Set((d.n || []).map(Number));
+    const copioni = J(A.copioni, []).map((c) => ({ ...c, testo: d.modifiche?.[c.n] ? String(d.modifiche[c.n]).slice(0, 4e3) : c.testo, stato: ok.has(c.n) ? "approvato" : "scartato" }));
+    if (!copioni.some((c) => c.stato === "approvato")) return json3({ errore: "approva almeno un copione" }, 400);
+    await run(env, "UPDATE avatar_piani SET copioni=?, fase='avatar', stato='in_corso', blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(copioni), ora(), A.id);
+    await log(env, null, "avatar", `\u{1F3AD} ${ok.size} copioni approvati da Johnny su "${A.argomento.slice(0, 60)}"`);
+    return json3({ ok: true });
+  }
+  if (m === "POST" && mm[2] === "video") {
+    const d = await corpo();
+    const video = J(A.video, []) || [];
+    for (const v of d.video || []) if (/^https:\/\//.test(v.url || "")) {
+      const i = video.findIndex((x) => x.n === Number(v.n));
+      const nv = { n: Number(v.n), url: v.url, durata: Number(v.durata) || null, stato: "fatto" };
+      if (i >= 0) video[i] = nv;
+      else video.push(nv);
+    }
+    await run(env, "UPDATE avatar_piani SET video=?, fase='montaggio', stato='in_corso', blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(video), ora(), A.id);
+    return json3({ ok: true });
+  }
+  if (m === "POST" && mm[2] === "riprova") {
+    await run(env, "UPDATE avatar_piani SET stato='in_corso', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", ora(), A.id);
+    return json3({ ok: true });
+  }
+  if (m === "DELETE") {
+    await run(env, "DELETE FROM avatar_piani WHERE id=?", A.id);
+    return json3({ ok: true });
+  }
+  return null;
+}
+
 // src/agenzia.js
 var UFFICI = [
   ["direzione", "Direzione"],
@@ -2741,6 +3084,7 @@ var SQUADRA = {
   brand: { n: "Bianca", r: "Brand manager \xB7 scheda cliente", u: "marketing", i: "\u{1FAAA}", c: "#c58cff", skill: ["brand-profile", "voice-builder", "audience-research"], d: "Scrive la scheda di ogni cliente (chi \xE8, a chi parla, come parla, cosa non dire). Tutti gli altri agenti la leggono prima di lavorare." },
   stratega: { n: "Marco", r: "Stratega", u: "marketing", i: "\u265F\uFE0F", c: "#7aa2ff", skill: ["social-strategy", "goals-and-kpis", "content-pillars"], d: "Strategia social, obiettivi, KPI e pilastri dei contenuti per il cliente." },
   audit: { n: "Greta", r: "Audit e concorrenti", u: "marketing", i: "\u{1F50E}", c: "#ffb86b", skill: ["content-audit", "competitor-analysis", "profile-optimization"], d: "Analizza il profilo del cliente e i concorrenti: cosa tenere, cosa buttare, dove c\u2019\xE8 spazio. Base per le proposte ai nuovi clienti." },
+  ricerca: { n: "Sofia", r: "Ricerca e documentazione", u: "marketing", i: "\u{1F4DA}", c: "#5aa9e6", skill: ["audience-research", "trend-jacking"], d: "Si documenta sul web su ogni argomento: fatti verificati con le fonti, numeri, errori comuni, domande della gente, angoli per i contenuti. Non inventa nulla." },
   campagne: { n: "Elio", r: "Campagne e stagionalit\xE0", u: "marketing", i: "\u{1F4E3}", c: "#ff7a7a", skill: ["campaign-and-launch-planning", "seasonal-and-moment-marketing", "lead-magnets-and-funnels"], d: "Lanci, promozioni, ricorrenze (Natale, estate, eventi locali) e funnel per portare contatti." },
   report: { n: "Dario", r: "Report e KPI", u: "marketing", i: "\u{1F4CA}", c: "#4fd18b", skill: ["analytics-and-reporting", "goals-and-kpis", "experimentation-and-ab-testing"], d: "Report mensile per il cliente dai numeri che gli dai: cosa ha funzionato e cosa cambiare. Non inventa numeri." },
   copywriter: { n: "Giulia", r: "Copywriter", u: "social", i: "\u270D\uFE0F", c: "#f0b44c", skill: ["caption-writer", "hook-writer", "hashtag-strategy", "instagram-seo"], d: "Caption, ganci, hashtag e parole chiave per ogni post, nella voce del cliente." },
@@ -2754,14 +3098,15 @@ var SQUADRA = {
   web: { n: "Walter", r: "Sito e SEO", u: "web", i: "\u{1F310}", c: "#8ecae6", skill: ["ai-search-optimization", "social-seo", "link-in-bio-and-traffic"], d: "Testi del sito, SEO, visibilit\xE0 su Google e sulle AI (ChatGPT, Perplexity), link in bio." },
   ecommerce: { n: "Elena", r: "E-commerce", u: "web", i: "\u{1F6D2}", c: "#ffafcc", skill: ["social-proof-and-testimonials", "lead-magnets-and-funnels", "email-and-newsletter"], d: "Schede prodotto, recensioni, newsletter e funnel per vendere online." },
   booking: { n: "Bea", r: "Booking e WhatsApp", u: "booking", i: "\u{1F6CE}\uFE0F", c: "#caffbf", skill: ["social-selling-and-dm", "reply-and-comment-writer"], d: "Risponde alle richieste di prenotazione e ai messaggi WhatsApp/DM. Per ora prepara le risposte; la risposta automatica arriva quando colleghiamo WhatsApp." },
+  avatar: { n: "Ava", r: "Avatar HeyGen", u: "video", i: "\u{1F3AD}", c: "#b388ff", speciale: true, d: "Genera i video con l\u2019avatar di Johnny (HeyGen) dai copioni approvati e li passa al comparto Reel per il montaggio." },
   gestionale: { n: "Gino", r: "Segreteria gestionale", u: "gestionale", i: "\u{1F5C4}\uFE0F", c: "#90be6d", chat: true, d: "Ha il pieno controllo del gestionale: gli scrivi \u201Csegnami uno shooting il 12\u201D o \u201Cnuovo cliente\u2026\u201D e lui lo fa." },
   contabile: { n: "Dora", r: "Contabile", u: "contabilita", i: "\u{1F9FE}", c: "#f9c74f", chat: true, d: "Preventivi dal listino, entrate e uscite, scadenze e incassi da sollecitare, sul gestionale." }
 };
-var DELEGABILI = Object.keys(SQUADRA).filter((k) => !SQUADRA[k].chat && k !== "capo");
+var DELEGABILI = Object.keys(SQUADRA).filter((k) => !SQUADRA[k].chat && !SQUADRA[k].speciale && k !== "capo");
 var MAX_FIGLI = 2;
 var MAX_PROFONDITA = 2;
 var IN_PARALLELO = 6;
-var BLOCCO_MIN3 = 15;
+var BLOCCO_MIN4 = 15;
 async function schemaAgenzia(env) {
   await env.DB.batch([
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS clienti (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, nicchia TEXT, gest_id TEXT,
@@ -2894,7 +3239,7 @@ async function avanzaUffici(env) {
     const I = await one(
       env,
       "UPDATE incarichi SET stato='in_corso', blocco_fino=?, tentativi=tentativi+1, aggiornato=? WHERE id=? AND stato='in_coda' RETURNING *",
-      new Date(Date.now() + BLOCCO_MIN3 * 6e4).toISOString(),
+      new Date(Date.now() + BLOCCO_MIN4 * 6e4).toISOString(),
       ora(),
       I0.id
     );
@@ -3115,8 +3460,10 @@ async function eseguiPiano(env, out, testo, clienteId, origine = "") {
     const r = await one(env, "INSERT INTO piani (cliente, dati, creato, aggiornato) VALUES (?,?,?,?) RETURNING id", dati.cliente, JSON.stringify(dati), ora(), ora());
     piano2 = r.id;
   }
-  await log(env, null, "capo", `\u{1F9ED} ${creati.length} incarichi assegnati${reel ? ", 1 reel" : ""}${piano2 ? ", 1 piano copioni" : ""}: ${String(testo).slice(0, 80)}`);
-  return { cliente_id: cid, incarichi: creati, reel, piano: piano2 };
+  let avatar = null;
+  if (out.avatar?.argomento) avatar = await nuovoPianoAvatar(env, out.avatar.argomento, out.avatar.numero, out.avatar.note);
+  await log(env, null, "capo", `\u{1F9ED} ${creati.length} incarichi assegnati${reel ? ", 1 reel" : ""}${piano2 ? ", 1 piano copioni" : ""}${avatar ? ", reel con avatar" : ""}: ${String(testo).slice(0, 80)}`);
+  return { cliente_id: cid, incarichi: creati, reel, piano: piano2, avatar };
 }
 async function apiAgenzia(req, env, p, m, json3) {
   const corpo = () => req.json().catch(() => ({}));
@@ -3408,7 +3755,9 @@ Rispondi SOLO JSON:
    "piano": {"cliente_id": numero o null, "nuovo_cliente": {"nome": "...", "nicchia": "..."} o null,
      "incarichi": [{"agente": "uno di: ${DELEGABILI.join(", ")}", "titolo": "...", "brief": "brief completo e autonomo", "dopo": null}],
      "reel": {"prompt": "descrizione completa del reel", "pcloud": "link o null"} o null,
-     "copioni": {"argomenti": ["..."], "numero": 20, "mesi": 3} o null, "note_gestionale": null}}],
+     "copioni": {"argomenti": ["..."], "numero": 20, "mesi": 3} o null,
+     "avatar": {"argomento": "...", "numero": 5, "note": "..."} o null (SOLO per i reel del PROFILO PERSONALE di Johnny fatti col suo avatar HeyGen: Sofia ricerca, Zoe studia i virali, Nora scrive i copioni, Ava genera, il comparto Reel monta),
+     "note_gestionale": null}}],
  "consigliata": indice della proposta che la riunione consiglia,
  "messaggio": "messaggio di Alba a Johnny: com'\xE8 andata la riunione e cosa consiglia, in 2-3 frasi"}
 Il verbale ha 6-12 interventi; parlano solo i capi presenti; Alba apre e chiude.`,
@@ -4060,7 +4409,7 @@ async function chiama(path, opts = {}) {
 }
 
 function menu(on) {
-  $('#nav').innerHTML = on ? '<a class="btn sec" href="#/">Agenzia</a><a class="btn sec" href="#/riunioni">Riunioni</a><a class="btn sec" href="#/approvazioni">Approvazioni</a><a class="btn sec" href="#/clienti">Clienti</a><a class="btn sec" href="#/chat/gestionale">Gestionale</a><a class="btn sec" href="#/reel">Reel</a><a class="btn sec" href="#/copioni">Copioni</a><a class="btn sec" href="#/impostazioni" title="Impostazioni">\u2699\uFE0E</a>' : '';
+  $('#nav').innerHTML = on ? '<a class="btn sec" href="#/">Agenzia</a><a class="btn sec" href="#/riunioni">Riunioni</a><a class="btn sec" href="#/profilo">Profilo IG</a><a class="btn sec" href="#/approvazioni">Approvazioni</a><a class="btn sec" href="#/clienti">Clienti</a><a class="btn sec" href="#/chat/gestionale">Gestionale</a><a class="btn sec" href="#/reel">Reel</a><a class="btn sec" href="#/copioni">Copioni</a><a class="btn sec" href="#/impostazioni" title="Impostazioni">\u2699\uFE0E</a>' : '';
 }
 
 async function accesso() {
@@ -4359,7 +4708,7 @@ const PIANTA = [
   ['contabilita', 'Contabilit\xE0', 1080, 740, 360, 260, '#fff0d9'],
   ['meeting', 'Sala meeting', 1440, 740, 300, 260, '#eef2f7'],
 ];
-const VIDEO_TEAM = ['direttore', 'stella', 'scout_yt', 'scout_tt', 'scout_ig', 'occhi', 'analista', 'motore', 'regista', 'copy', 'editor', 'vfx', 'color', 'audio', 'sottotitoli', 'revisore'];
+const VIDEO_TEAM = ['direttore', 'avatar', 'stella', 'scout_yt', 'scout_tt', 'scout_ig', 'occhi', 'analista', 'motore', 'regista', 'copy', 'editor', 'vfx', 'color', 'audio', 'sottotitoli', 'revisore'];
 let SALA = { s: 1, x: 0, y: 0, dati: null, sel: null, ufficio: null };
 
 function statiAgenti(R) {
@@ -4447,7 +4796,7 @@ function apriCervello() {
 }
 
 async function azienda() {
-  const [R, lavori, riunioni] = await Promise.all([chiama('/api/azienda'), chiama('/api/lavori').catch(() => []), chiama('/api/riunioni').catch(() => [])]);
+  const [R, lavori, riunioni, avatarL] = await Promise.all([chiama('/api/azienda'), chiama('/api/lavori').catch(() => []), chiama('/api/riunioni').catch(() => []), chiama('/api/avatar').catch(() => [])]);
   Object.assign(AGENTI, R.squadra);
   R.riunioni = riunioni;
   SALA.dati = R;
@@ -4475,7 +4824,8 @@ async function azienda() {
   const C = await clientiSel('k_cli', '', 'cliente: lo capisce Alba');
   const daScegliere = riunioni.filter((x) => x.stato === 'proposte').map((x) => ({ t: '\u{1F5F3}\uFE0F PROPOSTE DA SCEGLIERE', b: x.titolo || x.richiesta || '', link: '#/riunione/' + x.id, img: null, i: '\u{1F5F3}\uFE0F' }));
   const ultimoReport = riunioni.find((x) => x.tipo === 'settimanale' && x.stato === 'report');
-  const recenti = [...daScegliere, ...(ultimoReport ? [{ t: '\u{1F4CA} REPORT RIUNIONE OPERATIVA', b: ultimoReport.titolo, link: '#/riunione/' + ultimoReport.id, img: null, i: '\u{1F4CA}' }] : []), ...lavori.slice(0, 4).map((L) => ({ t: 'REEL \xB7 ' + (L.stato === 'pronto' ? 'pronto' : L.stato === 'errore' ? 'errore' : 'in lavorazione'), b: (L.titolo || L.prompt || '').slice(0, 60), link: '#/lavoro/' + L.id, img: L.stato === 'pronto' ? '/api/lavori/' + L.id + '/anteprima.jpg' : null, i: '\u{1F3AC}' })),
+  const daApprovareAv = avatarL.filter((x) => x.stato === 'da_approvare').map((x) => ({ t: '\u{1F3AD} COPIONI AVATAR DA APPROVARE', b: x.argomento, link: '#/profilo/' + x.id, img: null, i: '\u{1F3AD}' }));
+  const recenti = [...daScegliere, ...daApprovareAv, ...(ultimoReport ? [{ t: '\u{1F4CA} REPORT RIUNIONE OPERATIVA', b: ultimoReport.titolo, link: '#/riunione/' + ultimoReport.id, img: null, i: '\u{1F4CA}' }] : []), ...lavori.slice(0, 4).map((L) => ({ t: 'REEL \xB7 ' + (L.stato === 'pronto' ? 'pronto' : L.stato === 'errore' ? 'errore' : 'in lavorazione'), b: (L.titolo || L.prompt || '').slice(0, 60), link: '#/lavoro/' + L.id, img: L.stato === 'pronto' ? '/api/lavori/' + L.id + '/anteprima.jpg' : null, i: '\u{1F3AC}' })),
     ...R.recenti.slice(0, 4).map((I) => ({ t: (AGENTI[I.agente]?.n || I.agente) + ' \xB7 ' + (ST_INC[I.stato] || I.stato), b: I.titolo, link: '#/incarico/' + I.id, img: null, i: AGENTI[I.agente]?.i || '\u{1F4C4}' }))];
   $('#app').innerHTML = '<div id="saluto">' + saluto + '</div>' +
     '<div class="chiedi"><span>\u{1F9ED}</span><input id="k_t" placeholder="Chiedi all\u2019agenzia\u2026 es. 6 post per dicembre per A\u2019 Villetta, romantici">' + C + '<button id="k_go">Invia</button></div><div id="k_r"></div>' +
@@ -4582,6 +4932,53 @@ async function incarico(id) {
 
 const ST_RIU = { in_corso: 'in corso', proposte: 'proposte da scegliere', decisa: 'decisa', report: 'report pronto', chiusa: 'rifatta', errore: 'errore' };
 const PILL_RIU = { in_corso: 'corso', proposte: 'errore', decisa: 'pronto', report: 'pronto', chiusa: '', errore: 'errore' };
+// ---------------------------------------------------------------- PROFILO IG: reel con l'avatar di Johnny
+const FASI_AV = [['ricerca', '\u{1F4DA} Sofia si documenta'], ['virali', '\u{1F525} Zoe studia i video virali'], ['copioni', '\u270D\uFE0F Nora scrive i copioni'], ['approvazione', '\u2705 Approvi tu'], ['avatar', '\u{1F3AD} Ava genera con il tuo avatar'], ['montaggio', '\u{1F3AC} Il comparto Reel monta'], ['fatto', 'Pronti']];
+async function profiloPagina() {
+  const L = await chiama('/api/avatar');
+  const fase = (x) => (FASI_AV.find((f) => f[0] === x.fase) || [0, x.fase])[1];
+  $('#app').innerHTML = '<h1>Profilo Instagram \xB7 reel con il tuo avatar</h1><p class="mut">Dai l\u2019argomento ad Alba: Sofia si documenta sul web, Zoe guarda i video simili e quelli virali, Nora scrive i copioni gancio \u2192 problema \u2192 tensione \u2192 soluzione. Tu li approvi, poi Ava li genera con il tuo avatar HeyGen e il comparto Reel li monta con le grafiche del talking head educativo.</p>' +
+    '<div class="card"><label>Argomento</label><input id="av_a" placeholder="Es. perch\xE9 i reel dei ristoranti non funzionano"><div class="riga" style="gap:12px;align-items:end"><div><label>Quanti reel</label><input id="av_n" type="number" min="1" max="10" value="5" style="width:90px"></div><div style="flex:1"><label>Indicazioni (facoltative)</label><input id="av_note" placeholder="Es. tono ironico, parla ai titolari di B&B"></div></div><div style="margin-top:12px"><button id="av_go">Manda ad Alba</button></div><div id="av_er" class="err"></div></div>' +
+    '<h2>Argomenti</h2>' + (L.map((x) => '<a class="card lav" href="#/profilo/' + x.id + '"><div class="riga"><b style="flex:1">' + e(x.argomento) + '</b><span class="pill ' + (x.stato === 'da_approvare' ? 'errore' : x.stato === 'fatto' ? 'pronto' : x.stato === 'errore' ? 'errore' : 'corso') + '">' + (x.stato === 'da_approvare' ? 'da approvare' : x.stato === 'attende_avatar' ? 'aspetta l\u2019avatar' : x.stato === 'errore' ? 'errore' : fase(x)) + '</span></div><div class="mut">#' + x.id + ' \xB7 ' + x.numero + ' reel \xB7 ' + fa(x.aggiornato) + (x.errore ? ' \xB7 ' + e(x.errore.slice(0, 90)) : '') + '</div></a>').join('') || '<p class="mut">Ancora nessuno.</p>');
+  $('#av_go').onclick = async () => {
+    try { const r = await chiama('/api/avatar', { method: 'POST', body: { argomento: $('#av_a').value, numero: Number($('#av_n').value) || 5, note: $('#av_note').value } }); location.hash = '#/profilo/' + r.id; }
+    catch (x) { $('#av_er').textContent = x.message; }
+  };
+  if (L.some((x) => x.stato === 'in_corso')) timer = setTimeout(rotta, 8000);
+}
+
+async function profiloDettaglio(id) {
+  const A = await chiama('/api/avatar/' + id);
+  const i = FASI_AV.findIndex((f) => f[0] === A.fase);
+  const passi = '<div class="riga" style="flex-wrap:wrap;gap:6px;margin:10px 0">' + FASI_AV.map((f, k) => '<span class="pill ' + (k < i || A.fase === 'fatto' ? 'pronto' : k === i ? 'corso' : '') + '">' + f[1] + '</span>').join('') + '</div>';
+  const R = A.ricerca, V = A.virali;
+  const lista = (a) => (a || []).map((x) => '<li>' + e(typeof x === 'string' ? x : x.fatto || x.dato || '') + (x.fonte ? ' <a href="' + e(x.fonte) + '" target="_blank" rel="noopener" class="mut">fonte</a>' : '') + '</li>').join('');
+  const vid = (n) => (A.video || []).find((v) => v.n === n), lav = (n) => (A.lavori || []).find((v) => v.n === n);
+  const copioni = A.copioni.map((c) => '<div class="card"><div class="riga"><b style="flex:1">' + c.n + '. ' + e(c.titolo || '') + '</b><span class="pill">' + (c.parole || 0) + ' parole</span>' +
+    (A.stato === 'da_approvare' ? '<label style="display:flex;gap:6px;font-weight:400"><input type="checkbox" class="av_ok" data-n="' + c.n + '" checked style="width:auto"> approva</label>' : '<span class="pill ' + (c.stato === 'approvato' ? 'pronto' : '') + '">' + e(c.stato) + '</span>') + '</div>' +
+    '<p class="mut" style="margin:6px 0">' + e(c.angolo || '') + '</p>' +
+    (A.stato === 'da_approvare' ? '<textarea class="av_t" data-n="' + c.n + '" style="min-height:160px">' + e(c.testo || '') + '</textarea>' : '<div style="white-space:pre-wrap">' + e(c.testo || '') + '</div>') +
+    '<p class="mut"><b>Cartelli:</b> ' + (c.cartelli || []).map((k) => e(k.testo) + (k.stile === 'barrato' ? ' (barrato)' : '')).join(' \xB7 ') + '</p>' +
+    '<p class="mut"><b>Caption:</b> ' + e(c.caption || '') + ' ' + e((c.hashtag || []).join(' ')) + '</p>' +
+    (vid(c.n) ? '<p>\u{1F3AD} Avatar: ' + e(vid(c.n).stato) + (vid(c.n).url ? ' \xB7 <a href="' + e(vid(c.n).url) + '" target="_blank" rel="noopener">video grezzo</a>' : '') + '</p>' : '') +
+    (lav(c.n) ? '<a class="btn" href="#/lavoro/' + lav(c.n).lavoro + '">Reel montato \u25B8</a>' : '') + '</div>').join('');
+  $('#app').innerHTML = '<a class="mut" href="#/profilo">\u2190 Profilo IG</a><h1>' + e(A.argomento) + '</h1><div class="mut">#' + A.id + ' \xB7 ' + A.numero + ' reel' + (A.note ? ' \xB7 ' + e(A.note) : '') + '</div>' + passi +
+    (A.errore ? '<div class="card err">' + e(A.errore) + ' <button class="sec" id="av_rp">Riprova</button></div>' : '') +
+    (A.stato === 'attende_avatar' ? '<div class="card">\u{1F3AD} I copioni sono approvati. Ava li genera da sola appena inserisci la chiave HeyGen in \u2699\uFE0E Impostazioni; intanto puoi chiedere a Claude in chat di generarli con il tuo avatar.</div>' : '') +
+    (A.copioni.length ? '<h2>Copioni</h2>' + copioni + (A.stato === 'da_approvare' ? '<div class="riga"><button id="av_ok">Approva i selezionati e genera</button></div><div id="av_er" class="err"></div>' : '') : '') +
+    (R ? '<h2>Ricerca di Sofia</h2><div class="card"><p>' + e(R.sintesi || '') + '</p><b>Fatti verificati</b><ul>' + lista(R.fatti) + '</ul><b>Numeri</b><ul>' + lista(R.numeri) + '</ul><b>Errori comuni</b><ul>' + lista(R.errori_comuni) + '</ul><b>Domande della gente</b><ul>' + lista(R.domande_della_gente) + '</ul></div>' : '') +
+    (V ? '<h2>Video virali studiati da Zoe</h2><div class="card"><b>Ganci che funzionano</b><ul>' + lista(V.ganci_che_funzionano) + '</ul><b>Angoli scoperti</b><ul>' + lista(V.angoli_scoperti) + '</ul><b>Da evitare</b><ul>' + lista(V.da_evitare) + '</ul><b>I video</b><ul>' + (V.video || []).map((v) => '<li><a href="' + e(v.url) + '" target="_blank" rel="noopener">' + e((v.titolo || v.url).slice(0, 90)) + '</a> <span class="mut">' + e(v.piattaforma || '') + (v.views ? ' \xB7 ' + Number(v.views).toLocaleString('it-IT') + ' views' : '') + '</span></li>').join('') + '</ul></div>' : '') +
+    '<div class="riga" style="margin-top:14px"><button class="sec" id="av_del">Elimina</button></div>';
+  if ($('#av_ok')) $('#av_ok').onclick = async () => {
+    const n = [...document.querySelectorAll('.av_ok')].filter((x) => x.checked).map((x) => Number(x.dataset.n));
+    const modifiche = {}; document.querySelectorAll('.av_t').forEach((x) => { const c = A.copioni.find((k) => k.n === Number(x.dataset.n)); if (c && x.value !== c.testo) modifiche[c.n] = x.value; });
+    try { await chiama('/api/avatar/' + id + '/approva', { method: 'POST', body: { n, modifiche } }); rotta(); } catch (x) { $('#av_er').textContent = x.message; }
+  };
+  if ($('#av_rp')) $('#av_rp').onclick = async () => { await chiama('/api/avatar/' + id + '/riprova', { method: 'POST' }); rotta(); };
+  $('#av_del').onclick = async () => { if (!confirm('Eliminare questo argomento?')) return; await chiama('/api/avatar/' + id, { method: 'DELETE' }); location.hash = '#/profilo'; };
+  if (['in_corso'].includes(A.stato)) timer = setTimeout(rotta, 8000);
+}
+
 async function riunioniPagina() {
   const L = await chiama('/api/riunioni');
   const riga = (x) => '<a class="card lav" href="#/riunione/' + x.id + '"><div class="riga"><b style="flex:1">' + (x.tipo === 'settimanale' ? '\u{1F4CA} ' : '\u{1F5F3}\uFE0F ') + e(x.titolo || x.richiesta || 'Riunione') + '</b><span class="pill ' + (PILL_RIU[x.stato] || '') + '">' + (ST_RIU[x.stato] || x.stato) + '</span></div><div class="mut">#' + x.id + ' \xB7 ' + new Date(x.creato).toLocaleString('it-IT', { dateStyle: 'medium', timeStyle: 'short' }) + (x.cliente ? ' \xB7 ' + e(x.cliente) : '') + (x.tipo === 'settimanale' ? ' \xB7 in direzione' : ' \xB7 in sala meeting') + '</div></a>';
@@ -4718,6 +5115,8 @@ async function rotta() {
     else if (h.startsWith('#/incarico/')) await incarico(h.split('/')[2]);
     else if (h === '#/approvazioni') await approvazioni();
     else if (h === '#/riunioni') await riunioniPagina();
+    else if (h === '#/profilo') await profiloPagina();
+    else if (h.startsWith('#/profilo/')) await profiloDettaglio(h.split('/')[2]);
     else if (h.startsWith('#/riunione/')) await riunionePagina(h.split('/')[2]);
     else if (h === '#/clienti') await clientiPagina();
     else if (h.startsWith('#/cliente/')) await clientePagina(h.split('/')[2]);
@@ -5737,6 +6136,10 @@ async function api(req, env, url) {
       return json2({ ok: true });
     }
   }
+  if (p.startsWith("/api/avatar")) {
+    const r = await apiAvatar(req, env, p, m, json2);
+    if (r) return r;
+  }
   if (/^\/api\/(capo|riunioni)/.test(p)) {
     const r = await apiRiunioni(req, env, p, m, json2);
     if (r) return r;
@@ -5791,7 +6194,7 @@ var index_default = {
     await schema(env);
     await schemaPiani(env);
     await schemaAgenzia(env);
-    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env), avanzaRiunioni(env)]));
+    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env), avanzaRiunioni(env), avanzaAvatar(env)]));
   }
 };
 export {
