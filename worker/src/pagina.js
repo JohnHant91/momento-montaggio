@@ -70,6 +70,7 @@ let timer = null;
 const AGENTI = {
   idee: { n: 'Nora', r: 'Idee e copioni', i: '💡', c: '#f0b44c', s: 'direzione', d: 'Riceve i tuoi argomenti e il numero di reel del contratto, costruisce strategia, calendario e giornate di ripresa, e scrive per ogni reel il copione da girare: scene, inquadrature, camera, durata, testi e caption.' },
   direttore: { n: 'Leo', r: 'Direttore creativo', i: '🎬', c: '#12a3a4', s: 'direzione', d: 'Legge il tuo prompt, capisce settore, obiettivo e pubblico, decide cosa cercare. Alla fine incrocia riferimenti e clip e scrive la scheda tecnica per tutta la squadra.' },
+  stella: { n: 'Stella', r: 'Ricercatrice di stile', i: '🎨', c: '#ff8fab', s: 'scouting', d: 'Capisce lo stile che chiedi (street, emozionale, romantico, natalizio…), manda gli scout a cercare reel montati così anche fuori settore e passa a Iris e Rocco la ricetta da applicare alle tue clip: ritmo, transizioni, color, camera, testi, musica.' },
   scout_yt: { n: 'Yuri', r: 'Scout YouTube Shorts', i: '▶️', c: '#e5483f', s: 'scouting', d: 'Cerca gli Shorts del settore pubblicati negli ultimi 18 mesi e li ordina per visualizzazioni e coinvolgimento (like, commenti).' },
   scout_tt: { n: 'Tea', r: 'Scout TikTok', i: '🎵', c: '#25d6ee', s: 'scouting', d: 'Cerca su TikTok per parole chiave e hashtag del settore (via Apify) e recupera il video per Max e Iris.' },
   scout_ig: { n: 'Ines', r: 'Scout Instagram', i: '📸', c: '#d6409f', s: 'scouting', d: 'Cerca i reel più visti sugli hashtag del settore (via Apify) e recupera il video per Max e Iris.' },
@@ -89,7 +90,7 @@ const AGENTI = {
 const VECCHI = { 'Direttore creativo': 'direttore', 'Occhi (Gemini)': 'occhi', 'Analista': 'analista', 'Regia': 'regia', 'Ricerca': 'scout_yt' };
 const AGID = (a) => AGENTI[a] ? a : VECCHI[a] || 'regia';
 const STANZE = [['direzione', 'Direzione creativa'], ['scouting', 'Scouting · ricerca di settore'], ['visione', 'Sala visione'], ['post', 'Post-produzione']];
-const FASE_AGENTI = { piano: ['direttore'], ricerca: ['scout_yt', 'scout_tt', 'scout_ig'], riferimenti: ['motore', 'occhi'], clip: ['motore', 'analista'], scheda: ['direttore'], regia: ['regista', 'copy'], montaggio: ['motore', 'editor', 'color', 'vfx', 'sottotitoli', 'audio', 'revisore'] };
+const FASE_AGENTI = { piano: ['direttore', 'stella'], ricerca: ['scout_yt', 'scout_tt', 'scout_ig'], riferimenti: ['motore', 'occhi'], clip: ['motore', 'analista'], scheda: ['direttore'], regia: ['regista', 'copy'], montaggio: ['motore', 'editor', 'color', 'vfx', 'sottotitoli', 'audio', 'revisore'] };
 const fa = (q) => { const s = (Date.now() - new Date(q)) / 1000; return s < 60 ? 'ora' : s < 3600 ? Math.round(s / 60) + ' min fa' : s < 86400 ? Math.round(s / 3600) + ' h fa' : new Date(q).toLocaleDateString('it-IT'); };
 
 async function regia() {
@@ -168,6 +169,8 @@ async function lista() {
 }
 const stato = (l) => l.stato === 'pronto' ? 'pronto' : l.stato === 'errore' ? 'errore' : (FASI.find((f) => f[0] === l.fase) || [0, l.fase])[1] + '…';
 
+const GENERI_UI = { broll: 'B-roll / atmosfera', street: 'Street', spot: 'Spot di prodotto', evento: 'Evento / festa', food: 'Food', viaggio: 'Viaggio / luogo', immobiliare: 'Immobiliare / struttura', moda: 'Moda', racconto: 'Racconto / documentario' };
+const MOOD_UI = { emozionale: 'Emozionale', romantico: 'Romantico', amichevole: 'Amichevole', energico: 'Energico', elegante: 'Elegante / lusso', natalizio: 'Natalizio', nostalgico: 'Nostalgico / vintage' };
 function nuovo() {
   $('#app').innerHTML = '<h1>Nuovo reel</h1><p class="mut">Il Direttore creativo cerca i video che funzionano nel settore su YouTube, TikTok e Instagram, il motore li misura, Iris li studia, l\\'Analista studia le tue clip e alla fine ricevi la scheda tecnica.</p>' +
     '<label>Cosa deve essere il reel</label><textarea id="pr" placeholder="Es. Reel per la pizzeria Da Gino a Salerno, 30 secondi, clip in cucina e in sala. Deve far venire fame e portare prenotazioni. Target 25-40 anni, tono giovane ma non volgare."></textarea>' +
@@ -176,11 +179,13 @@ function nuovo() {
     '<label>Cartella delle clip su pCloud (facoltativo)</label><input id="pc" placeholder="https://e.pcloud.link/publink/show?code=…">' +
     '<div class="aiuto">Su pCloud: tasto destro sulla cartella → Condividi → Link di condivisione → copia. Senza clip ottieni scheda e lista delle riprese, e il girato lo aggiungi dopo.</div>' +
     '<label>Reel MODELLO: lo stile che vuoi (facoltativo, ma fa la differenza)</label><textarea id="lr" style="min-height:70px" placeholder="Un link per riga: Instagram, TikTok, Pinterest, YouTube, Vimeo… La squadra copia il suo linguaggio (look, ritmo, testi sì/no, finale), non i contenuti."></textarea>' +
+    '<label>Stile di montaggio</label><div class="riga" style="gap:10px"><select id="sg" style="flex:1"><option value="">Genere: lo capisce Stella</option>' + Object.entries(GENERI_UI).map(([k, v]) => '<option value="' + k + '">' + v + '</option>').join('') + '</select><select id="sm" style="flex:1"><option value="">Mood: lo capisce Stella</option>' + Object.entries(MOOD_UI).map(([k, v]) => '<option value="' + k + '">' + v + '</option>').join('') + '</select></div>' +
+    '<div class="aiuto">Puoi anche solo scriverlo nella richiesta (es. “street emozionale”, “romantico”, “natalizio”): Stella cerca reel montati così e la squadra applica quello stile alle tue clip.</div>' +
     '<div style="margin-top:18px"><button id="go">Avvia la squadra</button></div><div id="er" class="err"></div>';
   if (PREFILL) { $('#pr').value = PREFILL; PREFILL = ''; }
   $('#go').onclick = async () => {
     $('#go').disabled = true;
-    try { const r = await chiama('/api/lavori', { method: 'POST', body: { prompt: $('#pr').value, pcloud: $('#pc').value, link_rif: $('#lr').value } }); location.hash = '#/lavoro/' + r.id; }
+    try { const r = await chiama('/api/lavori', { method: 'POST', body: { prompt: $('#pr').value, pcloud: $('#pc').value, link_rif: $('#lr').value, stile: ($('#sg').value || '') + '+' + ($('#sm').value || '') } }); location.hash = '#/lavoro/' + r.id; }
     catch (x) { $('#er').textContent = x.message; $('#go').disabled = false; }
   };
 }
@@ -214,7 +219,7 @@ function vistaScheda(s) {
     '<h2>Caption</h2><div class="card"><p style="white-space:pre-wrap">' + e(s.caption) + '</p><p class="mut">' + e((s.hashtag || []).map((h) => '#' + String(h).replace(/^#/, '')).join(' ')) + '</p></div>';
 }
 
-const LOOKS_UI = [['', 'come prima'], ['caldo_cinematico', 'Caldo cinematico'], ['pulito_commerciale', 'Pulito commerciale'], ['teal_orange', 'Teal & orange'], ['moody_scuro', 'Moody scuro'], ['naturale_vivace', 'Naturale vivace'], ['bn_contrasto', 'Bianco e nero'], ['pastello_soft', 'Pastello'], ['vintage_film', 'Vintage film']];
+const LOOKS_UI = [['', 'come prima'], ['street_urbano', 'Street urbano'], ['emozionale_film', 'Emozionale film'], ['romantico_soft', 'Romantico soft'], ['amichevole_solare', 'Amichevole solare'], ['natalizio_caldo', 'Natalizio caldo'], ['caldo_cinematico', 'Caldo cinematico'], ['pulito_commerciale', 'Pulito commerciale'], ['teal_orange', 'Teal & orange'], ['moody_scuro', 'Moody scuro'], ['naturale_vivace', 'Naturale vivace'], ['bn_contrasto', 'Bianco e nero'], ['pastello_soft', 'Pastello'], ['vintage_film', 'Vintage film']];
 
 function boxGirato(L) {
   return '<div class="card"><b>Aggiungi il girato</b><p class="mut">Link pubblico della cartella pCloud con le clip: Max le scarica e le misura, poi scheda, piano e montaggio.</p>' +

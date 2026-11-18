@@ -3,6 +3,7 @@
 import { J, all, log, one, ora, run, configurazione } from './db.js';
 import { libreriaTesto } from './libreria.js';
 import * as S from './servizi.js';
+import { rilevaStile, ricetta, ricercaStile } from './stili.js';
 import { MANUALE_AUDIO, MANUALE_COPY, MANUALE_DIRETTORE, MANUALE_FORMATI, MANUALE_IRIS, MANUALE_MODELLO, MANUALE_PUBBLICAZIONE, MANUALE_REGISTA, MANUALE_SPOT } from './manuali.js';
 
 const FASI = ['piano', 'ricerca', 'riferimenti', 'clip', 'scheda', 'regia', 'montaggio', 'fatto'];
@@ -176,6 +177,16 @@ async function cache(env, chiave, calcola) {
 async function fasePiano(env, cfg, L) {
   await log(env, L.id, 'direttore', 'leggo la richiesta e preparo la ricerca');
   const p = await S.claude(cfg, SISTEMA_PIANO, piano(L.prompt), { maxTokens: 1500 });
+  // Stella: se Johnny ha chiesto uno stile (street, emozionale, natalizio…) metà della ricerca va su reel montati in quello stile
+  const stile = J(L.stile, null) || rilevaStile(L.prompt);
+  if (stile) {
+    const q = ricercaStile(stile, p.settore), R = ricetta(stile);
+    p.youtube_query = [...q.yt, ...(p.youtube_query || [])].slice(0, 4);
+    p.tiktok_query = [...q.tt, ...(p.tiktok_query || [])].slice(0, 4);
+    p.instagram_hashtag = [...q.ig, ...(p.instagram_hashtag || [])].slice(0, 5);
+    await run(env, 'UPDATE lavori SET stile=? WHERE id=?', JSON.stringify(stile), L.id);
+    await log(env, L.id, 'stella', `🎨 stile ${R.nome}: cerco reel montati così (${[...q.yt, ...q.tt].join(' · ')}) e ne estraggo la ricetta da applicare alle tue clip`);
+  }
   await run(env, 'UPDATE lavori SET piano=? WHERE id=?', JSON.stringify(p), L.id);
   await log(env, L.id, 'direttore', `settore: ${p.settore} · obiettivo: ${p.obiettivo || '-'}`);
 }
@@ -325,17 +336,19 @@ async function faseScheda(env, cfg, L) {
   const clip = (J(L.clip, []) || []).filter((c) => c.stato === 'fatto').map((c) => (c.tipo === 'musica' || c.tecnico?.tipo === 'musica'
     ? { file: c.nome, tipo: 'MUSICA del reel (brano con licenza)', durata_sec: c.tecnico?.durata_sec, bpm: c.analisi?.musica?.bpm, parte_forte_da_sec: c.analisi?.musica?.entrata }
     : { file: c.nome, tecnico: c.tecnico, ...c.analisi }));
-  const s = await S.claude(cfg, SISTEMA_SCHEDA, scheda(L.prompt, J(L.piano, {}), rif, clip), { maxTokens: 24000 });
+  const R = ricetta(J(L.stile, null));
+  const extraStile = R ? `\n\nSTILE DI MONTAGGIO CHIESTO DA JOHNNY: ${R.nome}\n${R.regole}\nNei riferimenti ci sono anche reel montati in questo stile (fuori settore): studiali per il LINGUAGGIO (ritmo, durata dei pezzi, transizioni, movimenti, color, testi, uso del rallenty, apertura e finale), non per i contenuti. Nella scheda aggiungi "ricetta_stile": {"ritmo": "...", "durata_pezzi_sec": [min, max], "transizioni": "...", "movimenti": "...", "color": "...", "testi": "...", "rallenty": "...", "apertura_finale": "...", "musica": "...", "da_evitare": "..."} da applicare alle clip di Johnny.` : '';
+  const s = await S.claude(cfg, SISTEMA_SCHEDA, scheda(L.prompt, J(L.piano, {}), rif, clip) + extraStile, { maxTokens: 24000 });
   await run(env, 'UPDATE lavori SET scheda=? WHERE id=?', JSON.stringify(s), L.id);
   await log(env, L.id, 'direttore', `scheda pronta: ${s.titolo_lavoro || ''}`);
 }
 
 // ------------------------------------------------------------------ motore
 // ------------------------------------------------------------------ Regista: dalla scheda al piano di montaggio
-const LOOKS = ['spot_contrasto', 'moody_caldo', 'caldo_cinematico', 'pulito_commerciale', 'teal_orange', 'moody_scuro', 'naturale_vivace', 'bn_contrasto', 'pastello_soft', 'vintage_film'];
+const LOOKS = ['street_urbano', 'emozionale_film', 'romantico_soft', 'amichevole_solare', 'natalizio_caldo', 'spot_contrasto', 'moody_caldo', 'caldo_cinematico', 'pulito_commerciale', 'teal_orange', 'moody_scuro', 'naturale_vivace', 'bn_contrasto', 'pastello_soft', 'vintage_film'];
 const TRANSIZIONI = ['taglio_netto', 'dissolvenza', 'flash_bianco', 'whip_pan', 'zoom', 'glitch', 'slide', 'fadenero'];
 const EFFETTI_PEZZO = ['dolly_in', 'slider_dx', 'slider_sx', 'punch_in', 'zoom_lento', 'zoom_out', 'shake', 'nessuno'];
-const EFFETTI_GLOBALI = ['grana', 'vignettatura', 'bande_cinema', 'light_leak'];
+const EFFETTI_GLOBALI = ['grana', 'vignettatura', 'bande_cinema', 'light_leak', 'glow'];
 const FORMATI_REEL = ['montaggio', 'talking_head', 'carosello'];
 
 const SISTEMA_REGISTA = `Sei il Regista e il Copy di Momento Produzione. Trasformi la SCHEDA TECNICA del Direttore creativo in un
@@ -444,7 +457,13 @@ REGOLE: il reel dura quanto la musica o finisce su una frase musicale (durata_ta
 ogni pezzo dura un multiplo di mezza battuta (il montatore aggancia i tagli ai battiti); sull'intro piano usa inquadrature
 lente e d'atmosfera, all'entrata della parte forte metti il taglio più forte e accelera il ritmo; i rallenty sugli
 accenti; l'audio delle clip va basso (0-0.25) perché comanda la musica; "riser" a null e niente effetti sonori forti.` : '';
-  const p = await S.claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda, clip) + extraMusica + extra, { maxTokens: 12000 });
+  const R = ricetta(J(L.stile, null));
+  const extraStile = R ? `\n\nSTILE DI MONTAGGIO SCELTO DA JOHNNY (vincolante): ${R.nome}
+${R.regole}
+RICETTA RICAVATA DAI REEL DI RIFERIMENTO IN QUESTO STILE: ${JSON.stringify(scheda.ricetta_stile || {})}
+VINCOLI: look ${R.look}; durata dei pezzi ${R.durata ? R.durata.map((x) => x.toFixed(1)).join('-') + ' s' : 'libera'}; transizioni solo tra: ${R.transizioni.join(', ')}; ${R.effetti ? 'effetti solo tra: ' + R.effetti.join(', ') + '; ' : ''}rallenty: ${R.rallenty}; camera: ${R.camera === 'ferma' ? 'tutto bloccato come su treppiede' : R.camera === 'a_mano' ? 'camera a mano viva, non bloccarla' : 'stabile ma con i movimenti morbidi'}${R.musica ? '; musica adatta: ' + R.musica : ''}.
+Applica questo linguaggio alle clip di Johnny: scegli i momenti che si prestano a questo stile.` : '';
+  const p = await S.claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda, clip) + extraMusica + extraStile + extra, { maxTokens: 12000 });
   // controllo del piano: valori ammessi, clip esistenti, tempi dentro le clip
   const tutte = J(L.clip, []);
   const eImm = (c) => c?.tipo === 'immagine' || c?.tecnico?.tipo === 'immagine';
@@ -484,6 +503,14 @@ accenti; l'audio delle clip va basso (0-0.25) perché comanda la musica; "riser"
     };
   });
   if (!seg.length && formato !== 'carosello') throw new Error('il piano del Regista non contiene pezzi validi');
+  // lo stile è vincolante: transizioni ed effetti fuori stile vengono sostituiti
+  if (R) {
+    for (const s of seg) {
+      if (s.transizione_in && !R.transizioni.includes(s.transizione_in)) s.transizione_in = R.transizioni.includes('taglio_netto') ? 'taglio_netto' : R.transizioni[0];
+      if (R.effetti && !R.effetti.includes(s.effetto)) s.effetto = 'nessuno';
+      if (R.rallenty === 'mai') s.rallenty = false;
+    }
+  }
   const broll = formato !== 'talking_head' ? [] : (p.broll || []).filter((b) => tutte[b.clip]?.stato === 'fatto' && !eImm(tutte[b.clip]) && b.sulla_parola).slice(0, 8).map((b) => {
     const c = tutte[b.clip];
     const durata = Math.min(Math.max(Number(b.durata) || 2, 1), 3.5);
@@ -504,14 +531,16 @@ accenti; l'audio delle clip va basso (0-0.25) perché comanda la musica; "riser"
   const piano = {
     ...p, formato, pannello,
     logo: prima?.logo || null,
-    stabilizza_tutto: !!(indicazioni?.stabilizza_tutto || prima?.piano?.stabilizza_tutto || p.stabilizza_tutto),
-    camera_ferma: !!(indicazioni?.camera_ferma || prima?.piano?.camera_ferma || p.camera_ferma),
-    apertura: ['nero', 'bianco'].includes(indicazioni?.apertura) ? indicazioni.apertura : (['nero', 'bianco'].includes(p.apertura) ? p.apertura : null),
-    finale: ['nero', 'bianco'].includes(indicazioni?.finale) ? indicazioni.finale : (['nero', 'bianco'].includes(p.finale) ? p.finale : null),
+    stabilizza_tutto: !!(indicazioni?.stabilizza_tutto || prima?.piano?.stabilizza_tutto || p.stabilizza_tutto || R?.camera === 'morbida'),
+    camera_ferma: R?.camera === 'a_mano' ? false : !!(indicazioni?.camera_ferma || prima?.piano?.camera_ferma || p.camera_ferma || R?.camera === 'ferma'),
+    camera_a_mano: R?.camera === 'a_mano' || undefined,
+    stile: R ? R.nome : undefined,
+    apertura: ['nero', 'bianco'].includes(indicazioni?.apertura) ? indicazioni.apertura : (['nero', 'bianco'].includes(p.apertura) ? p.apertura : (R?.apertura || null)),
+    finale: ['nero', 'bianco'].includes(indicazioni?.finale) ? indicazioni.finale : (['nero', 'bianco'].includes(p.finale) ? p.finale : (R?.finale || null)),
     musica: brano ? { fileid: brano.c.fileid, nome: brano.c.nome, durata: brano.c.tecnico?.durata_sec, bpm: mu?.bpm, battuta: mu?.battuta_sec, primo_battito: mu?.primo_battito, volume: 0.9 } : null,
     sfx: brano ? false : p.sfx, segmenti: formato === 'carosello' ? [] : seg, broll, slide: formato === 'carosello' ? slide : [],
-    chiusura: formato === 'montaggio' ? p.chiusura : null, look: lookVoluto || (LOOKS.includes(p.look) ? p.look : (LOOKS.includes(scheda.colore?.look) ? scheda.colore.look : 'naturale_vivace')),
-    effetti_globali: (p.effetti_globali || []).filter((e) => EFFETTI_GLOBALI.includes(e)), copertina: cop,
+    chiusura: formato === 'montaggio' ? p.chiusura : null, look: lookVoluto || (R?.look && LOOKS.includes(R.look) ? R.look : (LOOKS.includes(p.look) ? p.look : (LOOKS.includes(scheda.colore?.look) ? scheda.colore.look : 'naturale_vivace'))),
+    effetti_globali: [...new Set([...(p.effetti_globali || []), ...(R?.globali || [])])].filter((e) => EFFETTI_GLOBALI.includes(e)), copertina: cop,
   };
   const versione = (prima?.versione || 0) + 1;
   await run(env, 'UPDATE lavori SET montaggio=? WHERE id=?', JSON.stringify({ stato: 'da_fare', piano, versione, creato: ora(), indicazioni: indicazioni || null }), L.id);

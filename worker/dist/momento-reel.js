@@ -25,7 +25,7 @@ async function schema(env) {
     env.DB.prepare("CREATE INDEX IF NOT EXISTS registro_lavoro ON registro(lavoro_id, id)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS cache_analisi (chiave TEXT PRIMARY KEY, dati TEXT, quando TEXT)")
   ]);
-  for (const c of ["motore_pass TEXT", "motore_fino TEXT", "motore_visto TEXT", "motore_svegliato INTEGER", "montaggio TEXT", "fonte TEXT DEFAULT 'pcloud'"]) {
+  for (const c of ["motore_pass TEXT", "motore_fino TEXT", "motore_visto TEXT", "motore_svegliato INTEGER", "montaggio TEXT", "fonte TEXT DEFAULT 'pcloud'", "stile TEXT"]) {
     try {
       await env.DB.prepare(`ALTER TABLE lavori ADD COLUMN ${c}`).run();
     } catch {
@@ -474,6 +474,285 @@ async function pcloudClip(link) {
   return out;
 }
 
+// src/stili.js
+var GENERI = {
+  broll: {
+    nome: "B-roll / atmosfera",
+    parole: ["b-roll", "broll", "b roll", "atmosfera", "ambient", "cinematic", "cinematico"],
+    regole: "Racconto per immagini senza parlato: dettagli, mani, materia, luce. Movimenti lenti e puliti (slider, dolly), camera stabile. Pezzi 1,5-3 s, tagli netti sul battito, rallenty sui gesti belli. Testi assenti o un solo titolo elegante.",
+    look: "caldo_cinematico",
+    camera: "morbida",
+    durata: [1.5, 3],
+    transizioni: ["taglio_netto", "dissolvenza"],
+    effetti: ["dolly_in", "slider_dx", "slider_sx", "zoom_lento", "nessuno"],
+    globali: [],
+    rallenty: "spesso",
+    finale: "nero",
+    cerca: { yt: ["cinematic b-roll reel"], tt: ["cinematic broll"], ig: ["cinematicbroll", "brollvideo"] }
+  },
+  street: {
+    nome: "Street",
+    parole: ["street", "urbano", "urban", "strada", "citt\xE0", "citta"],
+    regole: "Linguaggio urbano: camera a mano viva (si sente l\u2019operatore ma senza tremolio fastidioso), angoli bassi, passanti, insegne, riflessi, ombre dure. Tagli veloci sul battito (0,6-1,5 s), whip pan e flash sugli accenti, punch-in sui colpi di cassa, qualche rallenty sui movimenti delle persone. Testi grandi, bold, maiuscoli, pochi.",
+    look: "street_urbano",
+    camera: "a_mano",
+    durata: [0.6, 1.6],
+    transizioni: ["taglio_netto", "whip_pan", "flash_bianco", "glitch"],
+    effetti: ["punch_in", "shake", "nessuno", "zoom_out"],
+    globali: ["grana"],
+    rallenty: "a_volte",
+    finale: "nero",
+    cerca: { yt: ["street cinematic edit reel", "street photography video edit"], tt: ["street edit", "cinematic street"], ig: ["streetcinematography", "streetvideography"] }
+  },
+  spot: {
+    nome: "Spot di prodotto",
+    parole: ["spot", "prodotto", "pubblicit\xE0", "pubblicita", "commercial", "adv"],
+    regole: "Il prodotto \xE8 l\u2019eroe: macro, luce controllata, neri profondi, movimenti precisi. Pezzi 1-2,5 s, tagli secchi sul ritmo, rallenty su liquidi e particelle, zoom sul dettaglio. Finale con logo/claim.",
+    look: "spot_contrasto",
+    camera: "ferma",
+    durata: [1, 2.5],
+    transizioni: ["taglio_netto", "flash_bianco"],
+    effetti: ["dolly_in", "punch_in", "zoom_lento", "nessuno"],
+    globali: [],
+    rallenty: "spesso",
+    finale: "nero",
+    cerca: { yt: ["product commercial cinematic"], tt: ["product video commercial"], ig: ["productvideography", "commercialvideo"] }
+  },
+  evento: {
+    nome: "Evento / festa",
+    parole: ["evento", "festa", "matrimonio", "party", "serata", "inaugurazione", "concerto"],
+    regole: "Energia delle persone: sorrisi, abbracci, brindisi, luci, ballo. Si alternano totali della folla e dettagli. Ritmo che cresce verso il momento clou, rallenty sui gesti di festa, highlight finale.",
+    look: "naturale_vivace",
+    camera: "morbida",
+    durata: [0.8, 2.2],
+    transizioni: ["taglio_netto", "flash_bianco", "zoom"],
+    effetti: ["punch_in", "zoom_lento", "nessuno"],
+    globali: ["light_leak"],
+    rallenty: "spesso",
+    finale: "nero",
+    cerca: { yt: ["event highlight reel cinematic"], tt: ["event recap video"], ig: ["eventvideography", "recapvideo"] }
+  },
+  food: {
+    nome: "Food",
+    parole: ["food", "cibo", "piatto", "ricetta", "cucina", "ristorante", "pizza", "dolce"],
+    regole: "Fame visiva: macro su texture, vapore, filo della mozzarella, versate in rallenty, mani dello chef. Pezzi brevi 0,8-2 s, ordine di preparazione, piatto finito come climax.",
+    look: "caldo_cinematico",
+    camera: "ferma",
+    durata: [0.8, 2],
+    transizioni: ["taglio_netto"],
+    effetti: ["dolly_in", "punch_in", "nessuno"],
+    globali: [],
+    rallenty: "spesso",
+    finale: "nero",
+    cerca: { yt: ["food cinematic b-roll"], tt: ["food cinematic"], ig: ["foodvideography", "foodcinematography"] }
+  },
+  viaggio: {
+    nome: "Viaggio / luogo",
+    parole: ["viaggio", "travel", "luogo", "territorio", "borgo", "mare", "vacanza", "turismo"],
+    regole: "Senso del luogo: panorami ampi alternati a dettagli e persone che vivono il posto. Movimenti fluidi, transizioni di movimento (whip pan) tra un luogo e l\u2019altro, ritmo sul battito, luce dorata.",
+    look: "teal_orange",
+    camera: "morbida",
+    durata: [1, 2.5],
+    transizioni: ["taglio_netto", "whip_pan", "dissolvenza"],
+    effetti: ["slider_dx", "slider_sx", "zoom_lento", "nessuno"],
+    globali: [],
+    rallenty: "a_volte",
+    finale: "nero",
+    cerca: { yt: ["cinematic travel reel"], tt: ["travel edit cinematic"], ig: ["travelreels", "cinematictravel"] }
+  },
+  immobiliare: {
+    nome: "Immobiliare / struttura",
+    parole: ["immobiliare", "casa", "appartamento", "camere", "struttura", "b&b", "hotel", "interni", "villa"],
+    regole: "Spazi ariosi e puliti: linee dritte, movimenti lentissimi (slider, dolly), luce naturale, nessun tremolio. Si passa da stanza a stanza seguendo un percorso, dettagli di design, finale sulla vista migliore.",
+    look: "pulito_commerciale",
+    camera: "ferma",
+    durata: [1.8, 3.2],
+    transizioni: ["taglio_netto", "dissolvenza"],
+    effetti: ["slider_dx", "slider_sx", "dolly_in", "nessuno"],
+    globali: [],
+    rallenty: "mai",
+    finale: "bianco",
+    cerca: { yt: ["real estate cinematic reel"], tt: ["real estate video tour"], ig: ["realestatevideo", "hotelvideography"] }
+  },
+  moda: {
+    nome: "Moda",
+    parole: ["moda", "fashion", "abbigliamento", "outfit", "collezione", "boutique", "lookbook"],
+    regole: "Ritmo da passerella: pose, tessuti in movimento, dettagli di cuciture e accessori. Tagli sul battito, speed e rallenty alternati, flash sugli accenti.",
+    look: "pulito_commerciale",
+    camera: "morbida",
+    durata: [0.7, 1.8],
+    transizioni: ["taglio_netto", "flash_bianco", "glitch"],
+    effetti: ["punch_in", "zoom_out", "nessuno"],
+    globali: [],
+    rallenty: "a_volte",
+    finale: "nero",
+    cerca: { yt: ["fashion film edit"], tt: ["fashion edit"], ig: ["fashionfilm", "fashionvideography"] }
+  },
+  racconto: {
+    nome: "Racconto / documentario",
+    parole: ["racconto", "storia", "documentario", "intervista", "chi siamo", "artigiano", "mestiere"],
+    regole: "Una persona e la sua storia: inquadrature di lavoro vero, volti, mani, ambienti. Pezzi pi\xF9 lunghi (2-4 s), il suono originale conta, montaggio che respira. Sottotitoli se si parla.",
+    look: "moody_caldo",
+    camera: "morbida",
+    durata: [2, 4],
+    transizioni: ["taglio_netto", "dissolvenza"],
+    effetti: ["zoom_lento", "dolly_in", "nessuno"],
+    globali: ["grana"],
+    rallenty: "a_volte",
+    finale: "nero",
+    cerca: { yt: ["mini documentary craftsman cinematic"], tt: ["mini documentary"], ig: ["minidocumentary", "artisanvideo"] }
+  }
+};
+var MOOD2 = {
+  natalizio: {
+    nome: "Natalizio",
+    parole: ["natalizio", "natale", "christmas", "xmas", "feste", "capodanno", "dicembre"],
+    regole: "Atmosfera delle feste: luci calde, bokeh, decorazioni, rossi e oro, mani che preparano, regali, brindisi. Alone luminoso (glow) e bagliori, dissolvenze morbide, rallenty su luci e polvere dorata. Si apre e si chiude nel bianco o in una luce calda. Testi serif dorati.",
+    look: "natalizio_caldo",
+    durata: [1.5, 3],
+    transizioni: ["dissolvenza", "taglio_netto", "flash_bianco"],
+    globali: ["glow", "light_leak"],
+    rallenty: "spesso",
+    apertura: "bianco",
+    finale: "bianco",
+    musica: "natalizia libera da diritti (campanelli, archi, swing), 80-120 BPM",
+    cerca: ["christmas cinematic"],
+    ig: "christmasreels"
+  },
+  romantico: {
+    nome: "Romantico",
+    parole: ["romantico", "romantica", "amore", "coppia", "san valentino", "sposi"],
+    regole: "Luce morbida e dorata, alone delicato (glow), dissolvenze, rallenty su sguardi, mani che si sfiorano, dettagli. Ritmo lento e fluido, colori pastello caldi, finale nel bianco. Testi in corsivo/serif, pochi.",
+    look: "romantico_soft",
+    durata: [2, 3.5],
+    transizioni: ["dissolvenza", "taglio_netto"],
+    globali: ["glow"],
+    rallenty: "spesso",
+    apertura: "bianco",
+    finale: "bianco",
+    musica: "acustica o piano romantico, 60-85 BPM",
+    cerca: ["romantic cinematic"],
+    ig: "romanticvideo"
+  },
+  emozionale: {
+    nome: "Emozionale",
+    parole: ["emozionale", "emozionante", "emozione", "emotivo", "commovente", "toccante"],
+    regole: "Deve toccare: il montaggio respira, pezzi pi\xF9 lunghi sui volti e sui gesti, rallenty sui momenti umani, silenzio o musica che cresce (piano, archi). Si apre dal nero, colori morbidi e caldi, grana e vignettatura leggere, chiusura lenta al nero. Pochissimi testi, eleganti.",
+    look: "emozionale_film",
+    durata: [1.8, 3.5],
+    transizioni: ["taglio_netto", "dissolvenza", "fadenero"],
+    globali: ["grana", "vignettatura"],
+    rallenty: "spesso",
+    apertura: "nero",
+    finale: "nero",
+    musica: "piano/archi o ambient che cresce, 60-90 BPM",
+    cerca: ["emotional cinematic"],
+    ig: "cinematicreels"
+  },
+  nostalgico: {
+    nome: "Nostalgico / vintage",
+    parole: ["nostalgico", "vintage", "retro", "ricordi", "anni 80", "anni 90", "pellicola"],
+    regole: "Sapore di pellicola: grana evidente, colori sbiaditi caldi, bande cinema, dissolvenze, ritmo morbido.",
+    look: "vintage_film",
+    durata: [1.8, 3],
+    transizioni: ["dissolvenza", "taglio_netto"],
+    globali: ["grana", "bande_cinema", "vignettatura"],
+    rallenty: "a_volte",
+    apertura: "nero",
+    finale: "nero",
+    musica: "lo-fi / vintage, 70-95 BPM",
+    cerca: ["vintage film edit"],
+    ig: "vintagefilm"
+  },
+  elegante: {
+    nome: "Elegante / lusso",
+    parole: ["elegante", "lusso", "luxury", "raffinato", "esclusivo", "boutique"],
+    regole: "Lentezza voluta, composizioni pulite, movimenti lunghissimi, niente effetti n\xE9 flash, colori sobri, testi sottili e spaziati.",
+    look: "moody_scuro",
+    durata: [2.2, 4],
+    transizioni: ["taglio_netto", "dissolvenza"],
+    globali: ["vignettatura"],
+    rallenty: "a_volte",
+    apertura: "nero",
+    finale: "nero",
+    musica: "piano/ambient minimal, 60-90 BPM",
+    cerca: ["luxury cinematic"],
+    ig: "luxuryvideo"
+  },
+  energico: {
+    nome: "Energico",
+    parole: ["energico", "dinamico", "veloce", "grintoso", "hype", "sportivo", "sport"],
+    regole: "Tagli su mezza battuta, flash e zoom sugli accenti, shake sui drop, contrasto alto. Mai un secondo morto.",
+    look: "teal_orange",
+    durata: [0.5, 1.3],
+    transizioni: ["taglio_netto", "flash_bianco", "zoom", "whip_pan"],
+    globali: [],
+    rallenty: "a_volte",
+    apertura: null,
+    finale: null,
+    musica: "elettronica/hip hop/rock, 115-140 BPM",
+    cerca: ["fast edit"],
+    ig: "fastedit"
+  },
+  amichevole: {
+    nome: "Amichevole",
+    parole: ["amichevole", "simpatico", "allegro", "divertente", "informale", "friendly", "gioioso", "solare"],
+    regole: "Caldo e alla mano: persone che sorridono e interagiscono, ritmo vivace (1-2 s), tagli netti e punch-in giocosi, colori luminosi e saturi, testi informali in box colorati, sottotitoli se si parla. Si chiude su un sorriso o un saluto.",
+    look: "amichevole_solare",
+    durata: [0.9, 2],
+    transizioni: ["taglio_netto", "zoom", "slide"],
+    globali: [],
+    rallenty: "a_volte",
+    apertura: null,
+    finale: null,
+    musica: "acustica allegra/ukulele/pop leggero, 100-125 BPM",
+    cerca: ["fun upbeat"],
+    ig: "behindthescenes"
+  }
+};
+var trova = (testo, catalogo) => {
+  const t = " " + String(testo || "").toLowerCase() + " ";
+  return Object.keys(catalogo).filter((k) => catalogo[k].parole.some((p) => t.includes(p.length <= 4 ? " " + p + " " : p)));
+};
+function rilevaStile(testo, scelta) {
+  const [g0, m0] = String(scelta || "").split("+");
+  const genere = GENERI[g0] ? g0 : trova(testo, GENERI)[0] || null;
+  const mood = MOOD2[m0] ? [m0] : trova(testo, MOOD2).slice(0, 2);
+  if (!genere && !mood.length) return null;
+  return { genere, mood };
+}
+function ricetta(stile) {
+  if (!stile) return null;
+  const G = GENERI[stile.genere] || null, Ms = (stile.mood || []).map((m) => MOOD2[m]).filter(Boolean);
+  const M = Ms[0] || null;
+  const uniq = (a) => [...new Set(a.filter(Boolean))];
+  const durate = [G?.durata, M?.durata].filter(Boolean);
+  return {
+    nome: [G?.nome, ...Ms.map((m) => m.nome)].filter(Boolean).join(" + "),
+    look: M?.look || G?.look || null,
+    camera: G?.camera || "morbida",
+    durata: durate.length ? [Math.min(...durate.map((d) => d[0])), Math.max(...durate.map((d) => d[1]))].map((x, i) => durate.length > 1 ? (durate[0][i] + durate[1][i]) / 2 : x) : null,
+    transizioni: uniq([...M?.transizioni || [], ...G?.transizioni || []]),
+    effetti: G?.effetti || null,
+    globali: uniq([...G?.globali || [], ...Ms.flatMap((m) => m.globali || [])]),
+    rallenty: M?.rallenty || G?.rallenty || "a_volte",
+    apertura: M?.apertura ?? null,
+    finale: M?.finale ?? G?.finale ?? null,
+    musica: Ms.map((m) => m.musica).join(" / ") || null,
+    regole: [G && `GENERE ${G.nome.toUpperCase()}: ${G.regole}`, ...Ms.map((m) => `MOOD ${m.nome.toUpperCase()}: ${m.regole}`)].filter(Boolean).join("\n")
+  };
+}
+function ricercaStile(stile, settore) {
+  const G = GENERI[stile?.genere], Ms = (stile?.mood || []).map((m2) => MOOD2[m2]).filter(Boolean);
+  const m = Ms[0]?.cerca?.[0] || "";
+  const s = String(settore || "").split(/[,·(]/)[0].trim();
+  const yt = [...(G?.cerca.yt || []).map((q) => (m ? m + " " : "") + q), m && s ? `${m} ${s} reel` : ""].filter(Boolean).slice(0, 2);
+  const tt = [...(G?.cerca.tt || []).map((q) => (m ? m.split(" ")[0] + " " : "") + q), m ? m + " edit" : ""].filter(Boolean).slice(0, 2);
+  const ig = [...(G?.cerca.ig || []).slice(0, Ms[0]?.ig ? 1 : 2), ...Ms[0]?.ig ? [Ms[0].ig] : []];
+  return { yt, tt, ig };
+}
+var ELENCO_STILI = { generi: Object.fromEntries(Object.entries(GENERI).map(([k, v]) => [k, v.nome])), mood: Object.fromEntries(Object.entries(MOOD2).map(([k, v]) => [k, v.nome])) };
+
 // src/manuali.js
 var MANUALE_DIRETTORE = `MANUALE DEL DIRETTORE CREATIVO (dalle skill short-form-video-script + reels-script)
 - Lo scopo del reel \xE8 essere impossibile da saltare: conta la visione fino in fondo, non i like.
@@ -771,6 +1050,15 @@ Produci la scheda:
 async function fasePiano(env, cfg, L) {
   await log(env, L.id, "direttore", "leggo la richiesta e preparo la ricerca");
   const p = await claude(cfg, SISTEMA_PIANO, piano(L.prompt), { maxTokens: 1500 });
+  const stile = J(L.stile, null) || rilevaStile(L.prompt);
+  if (stile) {
+    const q = ricercaStile(stile, p.settore), R = ricetta(stile);
+    p.youtube_query = [...q.yt, ...p.youtube_query || []].slice(0, 4);
+    p.tiktok_query = [...q.tt, ...p.tiktok_query || []].slice(0, 4);
+    p.instagram_hashtag = [...q.ig, ...p.instagram_hashtag || []].slice(0, 5);
+    await run(env, "UPDATE lavori SET stile=? WHERE id=?", JSON.stringify(stile), L.id);
+    await log(env, L.id, "stella", `\u{1F3A8} stile ${R.nome}: cerco reel montati cos\xEC (${[...q.yt, ...q.tt].join(" \xB7 ")}) e ne estraggo la ricetta da applicare alle tue clip`);
+  }
   await run(env, "UPDATE lavori SET piano=? WHERE id=?", JSON.stringify(p), L.id);
   await log(env, L.id, "direttore", `settore: ${p.settore} \xB7 obiettivo: ${p.obiettivo || "-"}`);
 }
@@ -917,14 +1205,20 @@ async function faseScheda(env, cfg, L) {
     analisi: r.analisi
   }));
   const clip = (J(L.clip, []) || []).filter((c) => c.stato === "fatto").map((c) => c.tipo === "musica" || c.tecnico?.tipo === "musica" ? { file: c.nome, tipo: "MUSICA del reel (brano con licenza)", durata_sec: c.tecnico?.durata_sec, bpm: c.analisi?.musica?.bpm, parte_forte_da_sec: c.analisi?.musica?.entrata } : { file: c.nome, tecnico: c.tecnico, ...c.analisi });
-  const s = await claude(cfg, SISTEMA_SCHEDA, scheda(L.prompt, J(L.piano, {}), rif, clip), { maxTokens: 24e3 });
+  const R = ricetta(J(L.stile, null));
+  const extraStile = R ? `
+
+STILE DI MONTAGGIO CHIESTO DA JOHNNY: ${R.nome}
+${R.regole}
+Nei riferimenti ci sono anche reel montati in questo stile (fuori settore): studiali per il LINGUAGGIO (ritmo, durata dei pezzi, transizioni, movimenti, color, testi, uso del rallenty, apertura e finale), non per i contenuti. Nella scheda aggiungi "ricetta_stile": {"ritmo": "...", "durata_pezzi_sec": [min, max], "transizioni": "...", "movimenti": "...", "color": "...", "testi": "...", "rallenty": "...", "apertura_finale": "...", "musica": "...", "da_evitare": "..."} da applicare alle clip di Johnny.` : "";
+  const s = await claude(cfg, SISTEMA_SCHEDA, scheda(L.prompt, J(L.piano, {}), rif, clip) + extraStile, { maxTokens: 24e3 });
   await run(env, "UPDATE lavori SET scheda=? WHERE id=?", JSON.stringify(s), L.id);
   await log(env, L.id, "direttore", `scheda pronta: ${s.titolo_lavoro || ""}`);
 }
-var LOOKS = ["spot_contrasto", "moody_caldo", "caldo_cinematico", "pulito_commerciale", "teal_orange", "moody_scuro", "naturale_vivace", "bn_contrasto", "pastello_soft", "vintage_film"];
+var LOOKS = ["street_urbano", "emozionale_film", "romantico_soft", "amichevole_solare", "natalizio_caldo", "spot_contrasto", "moody_caldo", "caldo_cinematico", "pulito_commerciale", "teal_orange", "moody_scuro", "naturale_vivace", "bn_contrasto", "pastello_soft", "vintage_film"];
 var TRANSIZIONI = ["taglio_netto", "dissolvenza", "flash_bianco", "whip_pan", "zoom", "glitch", "slide", "fadenero"];
 var EFFETTI_PEZZO = ["dolly_in", "slider_dx", "slider_sx", "punch_in", "zoom_lento", "zoom_out", "shake", "nessuno"];
-var EFFETTI_GLOBALI = ["grana", "vignettatura", "bande_cinema", "light_leak"];
+var EFFETTI_GLOBALI = ["grana", "vignettatura", "bande_cinema", "light_leak", "glow"];
 var FORMATI_REEL = ["montaggio", "talking_head", "carosello"];
 var SISTEMA_REGISTA = `Sei il Regista e il Copy di Momento Produzione. Trasformi la SCHEDA TECNICA del Direttore creativo in un
 PIANO DI MONTAGGIO preciso che un montatore automatico eseguir\xE0 alla lettera. Scegli i pezzi migliori dalle clip analizzate
@@ -1045,7 +1339,15 @@ REGOLE: il reel dura quanto la musica o finisce su una frase musicale (durata_ta
 ogni pezzo dura un multiplo di mezza battuta (il montatore aggancia i tagli ai battiti); sull'intro piano usa inquadrature
 lente e d'atmosfera, all'entrata della parte forte metti il taglio pi\xF9 forte e accelera il ritmo; i rallenty sugli
 accenti; l'audio delle clip va basso (0-0.25) perch\xE9 comanda la musica; "riser" a null e niente effetti sonori forti.` : "";
-  const p = await claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda2, clip) + extraMusica + extra, { maxTokens: 12e3 });
+  const R = ricetta(J(L.stile, null));
+  const extraStile = R ? `
+
+STILE DI MONTAGGIO SCELTO DA JOHNNY (vincolante): ${R.nome}
+${R.regole}
+RICETTA RICAVATA DAI REEL DI RIFERIMENTO IN QUESTO STILE: ${JSON.stringify(scheda2.ricetta_stile || {})}
+VINCOLI: look ${R.look}; durata dei pezzi ${R.durata ? R.durata.map((x) => x.toFixed(1)).join("-") + " s" : "libera"}; transizioni solo tra: ${R.transizioni.join(", ")}; ${R.effetti ? "effetti solo tra: " + R.effetti.join(", ") + "; " : ""}rallenty: ${R.rallenty}; camera: ${R.camera === "ferma" ? "tutto bloccato come su treppiede" : R.camera === "a_mano" ? "camera a mano viva, non bloccarla" : "stabile ma con i movimenti morbidi"}${R.musica ? "; musica adatta: " + R.musica : ""}.
+Applica questo linguaggio alle clip di Johnny: scegli i momenti che si prestano a questo stile.` : "";
+  const p = await claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda2, clip) + extraMusica + extraStile + extra, { maxTokens: 12e3 });
   const tutte = J(L.clip, []);
   const eImm = (c) => c?.tipo === "immagine" || c?.tecnico?.tipo === "immagine";
   const sorg = (c) => ({ fileid: c.sorgente?.tipo === "url" ? null : c.fileid, url: c.sorgente?.tipo === "url" ? c.sorgente.url : null, nome: c.nome });
@@ -1090,6 +1392,13 @@ accenti; l'audio delle clip va basso (0-0.25) perch\xE9 comanda la musica; "rise
     };
   });
   if (!seg.length && formato !== "carosello") throw new Error("il piano del Regista non contiene pezzi validi");
+  if (R) {
+    for (const s of seg) {
+      if (s.transizione_in && !R.transizioni.includes(s.transizione_in)) s.transizione_in = R.transizioni.includes("taglio_netto") ? "taglio_netto" : R.transizioni[0];
+      if (R.effetti && !R.effetti.includes(s.effetto)) s.effetto = "nessuno";
+      if (R.rallenty === "mai") s.rallenty = false;
+    }
+  }
   const broll = formato !== "talking_head" ? [] : (p.broll || []).filter((b) => tutte[b.clip]?.stato === "fatto" && !eImm(tutte[b.clip]) && b.sulla_parola).slice(0, 8).map((b) => {
     const c = tutte[b.clip];
     const durata = Math.min(Math.max(Number(b.durata) || 2, 1), 3.5);
@@ -1121,18 +1430,20 @@ accenti; l'audio delle clip va basso (0-0.25) perch\xE9 comanda la musica; "rise
     formato,
     pannello,
     logo: prima?.logo || null,
-    stabilizza_tutto: !!(indicazioni?.stabilizza_tutto || prima?.piano?.stabilizza_tutto || p.stabilizza_tutto),
-    camera_ferma: !!(indicazioni?.camera_ferma || prima?.piano?.camera_ferma || p.camera_ferma),
-    apertura: ["nero", "bianco"].includes(indicazioni?.apertura) ? indicazioni.apertura : ["nero", "bianco"].includes(p.apertura) ? p.apertura : null,
-    finale: ["nero", "bianco"].includes(indicazioni?.finale) ? indicazioni.finale : ["nero", "bianco"].includes(p.finale) ? p.finale : null,
+    stabilizza_tutto: !!(indicazioni?.stabilizza_tutto || prima?.piano?.stabilizza_tutto || p.stabilizza_tutto || R?.camera === "morbida"),
+    camera_ferma: R?.camera === "a_mano" ? false : !!(indicazioni?.camera_ferma || prima?.piano?.camera_ferma || p.camera_ferma || R?.camera === "ferma"),
+    camera_a_mano: R?.camera === "a_mano" || void 0,
+    stile: R ? R.nome : void 0,
+    apertura: ["nero", "bianco"].includes(indicazioni?.apertura) ? indicazioni.apertura : ["nero", "bianco"].includes(p.apertura) ? p.apertura : R?.apertura || null,
+    finale: ["nero", "bianco"].includes(indicazioni?.finale) ? indicazioni.finale : ["nero", "bianco"].includes(p.finale) ? p.finale : R?.finale || null,
     musica: brano ? { fileid: brano.c.fileid, nome: brano.c.nome, durata: brano.c.tecnico?.durata_sec, bpm: mu?.bpm, battuta: mu?.battuta_sec, primo_battito: mu?.primo_battito, volume: 0.9 } : null,
     sfx: brano ? false : p.sfx,
     segmenti: formato === "carosello" ? [] : seg,
     broll,
     slide: formato === "carosello" ? slide : [],
     chiusura: formato === "montaggio" ? p.chiusura : null,
-    look: lookVoluto || (LOOKS.includes(p.look) ? p.look : LOOKS.includes(scheda2.colore?.look) ? scheda2.colore.look : "naturale_vivace"),
-    effetti_globali: (p.effetti_globali || []).filter((e) => EFFETTI_GLOBALI.includes(e)),
+    look: lookVoluto || (R?.look && LOOKS.includes(R.look) ? R.look : LOOKS.includes(p.look) ? p.look : LOOKS.includes(scheda2.colore?.look) ? scheda2.colore.look : "naturale_vivace"),
+    effetti_globali: [.../* @__PURE__ */ new Set([...p.effetti_globali || [], ...R?.globali || []])].filter((e) => EFFETTI_GLOBALI.includes(e)),
     copertina: cop
   };
   const versione = (prima?.versione || 0) + 1;
@@ -2454,6 +2765,7 @@ let timer = null;
 const AGENTI = {
   idee: { n: 'Nora', r: 'Idee e copioni', i: '\u{1F4A1}', c: '#f0b44c', s: 'direzione', d: 'Riceve i tuoi argomenti e il numero di reel del contratto, costruisce strategia, calendario e giornate di ripresa, e scrive per ogni reel il copione da girare: scene, inquadrature, camera, durata, testi e caption.' },
   direttore: { n: 'Leo', r: 'Direttore creativo', i: '\u{1F3AC}', c: '#12a3a4', s: 'direzione', d: 'Legge il tuo prompt, capisce settore, obiettivo e pubblico, decide cosa cercare. Alla fine incrocia riferimenti e clip e scrive la scheda tecnica per tutta la squadra.' },
+  stella: { n: 'Stella', r: 'Ricercatrice di stile', i: '\u{1F3A8}', c: '#ff8fab', s: 'scouting', d: 'Capisce lo stile che chiedi (street, emozionale, romantico, natalizio\u2026), manda gli scout a cercare reel montati cos\xEC anche fuori settore e passa a Iris e Rocco la ricetta da applicare alle tue clip: ritmo, transizioni, color, camera, testi, musica.' },
   scout_yt: { n: 'Yuri', r: 'Scout YouTube Shorts', i: '\u25B6\uFE0F', c: '#e5483f', s: 'scouting', d: 'Cerca gli Shorts del settore pubblicati negli ultimi 18 mesi e li ordina per visualizzazioni e coinvolgimento (like, commenti).' },
   scout_tt: { n: 'Tea', r: 'Scout TikTok', i: '\u{1F3B5}', c: '#25d6ee', s: 'scouting', d: 'Cerca su TikTok per parole chiave e hashtag del settore (via Apify) e recupera il video per Max e Iris.' },
   scout_ig: { n: 'Ines', r: 'Scout Instagram', i: '\u{1F4F8}', c: '#d6409f', s: 'scouting', d: 'Cerca i reel pi\xF9 visti sugli hashtag del settore (via Apify) e recupera il video per Max e Iris.' },
@@ -2473,7 +2785,7 @@ const AGENTI = {
 const VECCHI = { 'Direttore creativo': 'direttore', 'Occhi (Gemini)': 'occhi', 'Analista': 'analista', 'Regia': 'regia', 'Ricerca': 'scout_yt' };
 const AGID = (a) => AGENTI[a] ? a : VECCHI[a] || 'regia';
 const STANZE = [['direzione', 'Direzione creativa'], ['scouting', 'Scouting \xB7 ricerca di settore'], ['visione', 'Sala visione'], ['post', 'Post-produzione']];
-const FASE_AGENTI = { piano: ['direttore'], ricerca: ['scout_yt', 'scout_tt', 'scout_ig'], riferimenti: ['motore', 'occhi'], clip: ['motore', 'analista'], scheda: ['direttore'], regia: ['regista', 'copy'], montaggio: ['motore', 'editor', 'color', 'vfx', 'sottotitoli', 'audio', 'revisore'] };
+const FASE_AGENTI = { piano: ['direttore', 'stella'], ricerca: ['scout_yt', 'scout_tt', 'scout_ig'], riferimenti: ['motore', 'occhi'], clip: ['motore', 'analista'], scheda: ['direttore'], regia: ['regista', 'copy'], montaggio: ['motore', 'editor', 'color', 'vfx', 'sottotitoli', 'audio', 'revisore'] };
 const fa = (q) => { const s = (Date.now() - new Date(q)) / 1000; return s < 60 ? 'ora' : s < 3600 ? Math.round(s / 60) + ' min fa' : s < 86400 ? Math.round(s / 3600) + ' h fa' : new Date(q).toLocaleDateString('it-IT'); };
 
 async function regia() {
@@ -2552,6 +2864,8 @@ async function lista() {
 }
 const stato = (l) => l.stato === 'pronto' ? 'pronto' : l.stato === 'errore' ? 'errore' : (FASI.find((f) => f[0] === l.fase) || [0, l.fase])[1] + '\u2026';
 
+const GENERI_UI = { broll: 'B-roll / atmosfera', street: 'Street', spot: 'Spot di prodotto', evento: 'Evento / festa', food: 'Food', viaggio: 'Viaggio / luogo', immobiliare: 'Immobiliare / struttura', moda: 'Moda', racconto: 'Racconto / documentario' };
+const MOOD_UI = { emozionale: 'Emozionale', romantico: 'Romantico', amichevole: 'Amichevole', energico: 'Energico', elegante: 'Elegante / lusso', natalizio: 'Natalizio', nostalgico: 'Nostalgico / vintage' };
 function nuovo() {
   $('#app').innerHTML = '<h1>Nuovo reel</h1><p class="mut">Il Direttore creativo cerca i video che funzionano nel settore su YouTube, TikTok e Instagram, il motore li misura, Iris li studia, l\\'Analista studia le tue clip e alla fine ricevi la scheda tecnica.</p>' +
     '<label>Cosa deve essere il reel</label><textarea id="pr" placeholder="Es. Reel per la pizzeria Da Gino a Salerno, 30 secondi, clip in cucina e in sala. Deve far venire fame e portare prenotazioni. Target 25-40 anni, tono giovane ma non volgare."></textarea>' +
@@ -2560,11 +2874,13 @@ function nuovo() {
     '<label>Cartella delle clip su pCloud (facoltativo)</label><input id="pc" placeholder="https://e.pcloud.link/publink/show?code=\u2026">' +
     '<div class="aiuto">Su pCloud: tasto destro sulla cartella \u2192 Condividi \u2192 Link di condivisione \u2192 copia. Senza clip ottieni scheda e lista delle riprese, e il girato lo aggiungi dopo.</div>' +
     '<label>Reel MODELLO: lo stile che vuoi (facoltativo, ma fa la differenza)</label><textarea id="lr" style="min-height:70px" placeholder="Un link per riga: Instagram, TikTok, Pinterest, YouTube, Vimeo\u2026 La squadra copia il suo linguaggio (look, ritmo, testi s\xEC/no, finale), non i contenuti."></textarea>' +
+    '<label>Stile di montaggio</label><div class="riga" style="gap:10px"><select id="sg" style="flex:1"><option value="">Genere: lo capisce Stella</option>' + Object.entries(GENERI_UI).map(([k, v]) => '<option value="' + k + '">' + v + '</option>').join('') + '</select><select id="sm" style="flex:1"><option value="">Mood: lo capisce Stella</option>' + Object.entries(MOOD_UI).map(([k, v]) => '<option value="' + k + '">' + v + '</option>').join('') + '</select></div>' +
+    '<div class="aiuto">Puoi anche solo scriverlo nella richiesta (es. \u201Cstreet emozionale\u201D, \u201Cromantico\u201D, \u201Cnatalizio\u201D): Stella cerca reel montati cos\xEC e la squadra applica quello stile alle tue clip.</div>' +
     '<div style="margin-top:18px"><button id="go">Avvia la squadra</button></div><div id="er" class="err"></div>';
   if (PREFILL) { $('#pr').value = PREFILL; PREFILL = ''; }
   $('#go').onclick = async () => {
     $('#go').disabled = true;
-    try { const r = await chiama('/api/lavori', { method: 'POST', body: { prompt: $('#pr').value, pcloud: $('#pc').value, link_rif: $('#lr').value } }); location.hash = '#/lavoro/' + r.id; }
+    try { const r = await chiama('/api/lavori', { method: 'POST', body: { prompt: $('#pr').value, pcloud: $('#pc').value, link_rif: $('#lr').value, stile: ($('#sg').value || '') + '+' + ($('#sm').value || '') } }); location.hash = '#/lavoro/' + r.id; }
     catch (x) { $('#er').textContent = x.message; $('#go').disabled = false; }
   };
 }
@@ -2598,7 +2914,7 @@ function vistaScheda(s) {
     '<h2>Caption</h2><div class="card"><p style="white-space:pre-wrap">' + e(s.caption) + '</p><p class="mut">' + e((s.hashtag || []).map((h) => '#' + String(h).replace(/^#/, '')).join(' ')) + '</p></div>';
 }
 
-const LOOKS_UI = [['', 'come prima'], ['caldo_cinematico', 'Caldo cinematico'], ['pulito_commerciale', 'Pulito commerciale'], ['teal_orange', 'Teal & orange'], ['moody_scuro', 'Moody scuro'], ['naturale_vivace', 'Naturale vivace'], ['bn_contrasto', 'Bianco e nero'], ['pastello_soft', 'Pastello'], ['vintage_film', 'Vintage film']];
+const LOOKS_UI = [['', 'come prima'], ['street_urbano', 'Street urbano'], ['emozionale_film', 'Emozionale film'], ['romantico_soft', 'Romantico soft'], ['amichevole_solare', 'Amichevole solare'], ['natalizio_caldo', 'Natalizio caldo'], ['caldo_cinematico', 'Caldo cinematico'], ['pulito_commerciale', 'Pulito commerciale'], ['teal_orange', 'Teal & orange'], ['moody_scuro', 'Moody scuro'], ['naturale_vivace', 'Naturale vivace'], ['bn_contrasto', 'Bianco e nero'], ['pastello_soft', 'Pastello'], ['vintage_film', 'Vintage film']];
 
 function boxGirato(L) {
   return '<div class="card"><b>Aggiungi il girato</b><p class="mut">Link pubblico della cartella pCloud con le clip: Max le scarica e le misura, poi scheda, piano e montaggio.</p>' +
@@ -3117,7 +3433,8 @@ async function api(req, env, url) {
     const pcloud = String(d.pcloud || "").trim() || null;
     if (pcloud && !/code=/.test(pcloud)) return json2({ errore: 'il link pCloud deve essere il link pubblico della cartella (contiene "code=")' }, 400);
     const link = String(d.link_rif || "").split(/\s+/).filter((l) => /^https?:\/\//.test(l)).slice(0, 10);
-    const r = await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, creato, aggiornato) VALUES (?,?,?,'pcloud',?,?) RETURNING id", prompt, pcloud, JSON.stringify(link), ora(), ora());
+    const stile = rilevaStile(prompt, d.stile);
+    const r = await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,?,'pcloud',?,?,?) RETURNING id", prompt, pcloud, JSON.stringify(link), stile ? JSON.stringify(stile) : null, ora(), ora());
     await log(env, r.id, "regia", "\u{1F3AC} nuovo lavoro in coda: il Direttore creativo parte entro un minuto");
     return json2({ id: r.id });
   }
@@ -3172,6 +3489,8 @@ async function api(req, env, url) {
       const mont = J(L?.montaggio, null);
       if (!mont?.piano) return json2({ errore: "questo lavoro non ha ancora un montaggio da rifare" }, 400);
       mont.indicazioni_rimonta = { testo: String(d.testo || "").slice(0, 800), look: d.look || null, durata: Number(d.durata) || null, ritmo: d.ritmo || null, formato: ["montaggio", "talking_head", "carosello"].includes(d.formato) ? d.formato : null };
+      const nuovoStile = rilevaStile(String(d.testo || ""), d.stile);
+      if (nuovoStile) await run(env, "UPDATE lavori SET stile=? WHERE id=?", JSON.stringify(nuovoStile), id);
       await run(env, "UPDATE lavori SET montaggio=?, fase='regia', stato='in_corso', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(mont), ora(), id);
       await log(env, id, "regia", `\u{1F3AC} rimontaggio richiesto${d.testo ? ": " + String(d.testo).slice(0, 120) : ""}`);
       return json2({ ok: true });

@@ -84,6 +84,12 @@ class Montatore:
         # spot di prodotto: neri profondi, contrasto pieno, colori naturali e ricchi, nessuna dominante
         "spot_contrasto":     (1.20, 1.06, (0.00, 0.00, 0.01), (0.015, 0.005, -0.01), 0.00, 0.98, False),
         "moody_caldo":        (1.14, 0.95, (0.015, 0.005, -0.005), (0.06, 0.025, -0.06), 0.015, 0.93, False),
+        # stili di montaggio (catalogo di Stella)
+        "street_urbano":      (1.18, 0.80, (-0.02, 0.01, 0.04), (0.03, 0.02, -0.01), 0.02, 0.97, False),
+        "emozionale_film":    (1.04, 0.85, (0.01, 0.01, 0.03), (0.05, 0.025, -0.03), 0.05, 0.95, False),
+        "romantico_soft":     (0.92, 0.92, (0.03, 0.015, 0.02), (0.05, 0.03, 0.00), 0.07, 0.98, False),
+        "amichevole_solare":  (1.06, 1.20, (0.00, 0.00, 0.00), (0.04, 0.02, -0.02), 0.00, 1.00, False),
+        "natalizio_caldo":    (1.10, 1.08, (0.02, 0.00, -0.01), (0.08, 0.04, -0.05), 0.03, 0.97, False),
     }
 
     def crea_lut(self, nome, intensita=1.0):
@@ -310,11 +316,12 @@ class Montatore:
             try:
                 self.ff(["-ss", f"{t_in:.3f}", "-t", f"{sorgente + 0.2:.3f}", "-i", src, "-vf",
                          f"vidstabdetect=shakiness=8:accuracy=15:stepsize=6:mincontrast=0.2:result={trf}", "-f", "null", "-"], "stabilizza")
-                if cam["deriva"] < 0.025 or ferma:  # inquadratura bloccata come su un treppiede
+                a_mano = bool(self.p.get("camera_a_mano"))  # stile street: tolgo il tremolio ma tengo la camera viva
+                if (cam["deriva"] < 0.025 or ferma) and not a_mano:  # inquadratura bloccata come su un treppiede
                     filtri.append(f"vidstabtransform=input={trf}:tripod=1:maxangle=0:optzoom=1:interpol=bicubic")
                     modo = "bloccata come su treppiede" + (f", la ripresa si spostava del {cam['deriva'] * 100:.0f}%" if cam["deriva"] >= 0.025 else "")
                 else:  # movimento voluto: lo tengo ma lo rendo morbido (finestra di ~1,2 s)
-                    sm = int(min(80, max(20, info["fps"] * 1.2)))
+                    sm = int(min(80, max(20, info["fps"] * (0.5 if a_mano else 1.2))))
                     filtri.append(f"vidstabtransform=input={trf}:smoothing={sm}:maxangle=0:optzoom=1:interpol=bicubic")
                     modo = "movimento ammorbidito"
                 self.report.append(f"pezzo {i + 1}: stabilizzato ({modo}, tremolio {cam['tremolio']:.2f})")
@@ -354,6 +361,8 @@ class Montatore:
         filtri.append(f"lut3d='{lut}'")
         # rifinitura da consegna: nitidezza leggera per lo schermo del telefono + grana finissima contro le bande nei cieli/sfumature
         filtri.append("unsharp=5:5:0.35:5:5:0")
+        if "glow" in globali:  # alone luminoso morbido (romantico, natalizio)
+            filtri.append("split[ga][gb];[gb]gblur=sigma=22[gg];[ga][gg]blend=all_mode=screen:all_opacity=0.18")
         if "grana" in globali:
             filtri.append("noise=alls=6:allf=t")
         else:
