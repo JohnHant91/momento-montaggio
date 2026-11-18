@@ -1,9 +1,9 @@
-# Esplora le CLUT di G'MIC (oltre 1000 look di pellicole e grading) e prova l'esportazione in .cube per il motore.
+# Esplora le LUT gratuite di G'MIC (pellicole e grading): scarica i pacchetti .cube, elenca i nomi e fa una tavola di prova.
 name: prova-lut
 on:
   workflow_dispatch: {}
   push:
-    paths: ['.github/workflows/prova-lut.yml', 'motore/lut.py']
+    paths: ['.github/workflows/prova-lut.yml']
 permissions:
   contents: write
 jobs:
@@ -11,29 +11,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - name: Installa G'MIC
-        timeout-minutes: 8
-        env:
-          DEBIAN_FRONTEND: noninteractive
+      - name: Scarica i pacchetti
         run: |
-          pip install -q gmic || true
-          python3 -c "import gmic; print('gmic python ok')" || (sudo -E apt-get update -qq && sudo -E apt-get install -y -qq --no-install-recommends gmic)
-      - name: Elenco e prova
+          mkdir -p /tmp/lut /tmp/pub && cd /tmp/lut
+          for p in print negative_color negative_new negative_old slide_color instant_consumer instant_pro bw black_white others pixlsus picturefx berat editingcorp kylerholland ohadperetz jtsemple inavision lutify cinematic fuji kodak films colorful moviz; do
+            if curl -sfL --max-time 120 -o $p.zip "https://gmic.eu/color_presets/$p/${p}_cube.zip"; then
+              mkdir -p $p && (unzip -qo $p.zip -d $p || true); echo "$p: $(find $p -name '*.cube' | wc -l) lut" >> /tmp/pub/pacchetti.txt
+            else echo "$p: non trovato" >> /tmp/pub/pacchetti.txt; fi
+          done
+          find . -name '*.cube' | sed 's|^\./||' | sort > /tmp/pub/elenco.txt
+          wc -l /tmp/pub/elenco.txt; cat /tmp/pub/pacchetti.txt
+          head -15 "$(find . -name '*.cube' | head -1)" > /tmp/pub/esempio_cube.txt || true
+          du -sh /tmp/lut >> /tmp/pub/pacchetti.txt
+      - name: Pubblica elenco
         run: |
-          mkdir -p /tmp/pub && cd /tmp/pub
-          python3 - > prova_export.txt 2>&1 <<'PY' || true
-          import gmic, traceback
-          g = gmic.Gmic()
-          for cmd in ['help clut', 'help output_cube']:
-              try: g.run(cmd)
-              except Exception as e: print('ERR', cmd, e)
-          try:
-              g.run('clut kodak_2383_constlmap,33 output_cube k2383.cube'); print('export ok')
-          except Exception: traceback.print_exc()
-          PY
-          (gmic -h clut > aiuto_clut.txt 2>&1) || true
-          ls -la >> prova_export.txt; head -12 k2383.cube >> prova_export.txt 2>/dev/null || true
-          git init -q && git checkout -q -b prove-lut && git add . 
+          cd /tmp/pub && git init -q && git checkout -q -b prove-lut && git add .
           git -c user.name=motore -c user.email=motore@momento commit -qm prova
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" prove-lut
