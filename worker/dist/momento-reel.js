@@ -4389,7 +4389,7 @@ function umano(id) {
 // ---------------------------------------------------------------- persone vere (modelli 3D animati, scheletro Mixamo)
 // Michelle per le donne, il soldato di three.js rivestito per gli uomini; colori dei vestiti e pelle diversi per ognuno.
 // Se i modelli non si caricano restano le figure disegnate a mano.
-const MODELLI = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/models/gltf/';
+const MODELLI = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/models/gltf/';
 const PELLE_K = [1.0, 0.86, 0.72, 0.58, 1.06, 0.93];
 const qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), va = new THREE.Vector3(), vb = new THREE.Vector3();
 function tingi(m, tinta, pelle) {
