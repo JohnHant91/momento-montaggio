@@ -197,7 +197,7 @@ function costruisci(dati) {
   const uffici = Object.fromEntries(dati.uffici.map((u) => [u.id, u]));
   for (const R of STANZE) {
     // pavimento della stanza
-    const fl = new THREE.Mesh(new RoundedBoxGeometry(R.w - 0.14, 0.014, R.d - 0.14, 2, 0.006), new THREE.MeshStandardMaterial({ color: new THREE.Color(TINTE[R.id] || '#f3f3f1'), roughness: 0.6 }));
+    const fl = new THREE.Mesh(new RoundedBoxGeometry(R.w - 0.14, 0.014, R.d - 0.14, 2, 0.006), new THREE.MeshStandardMaterial({ color: new THREE.Color(TINTE[R.id] || '#f3f3f1').offsetHSL(0, 0.15, -0.03), roughness: 0.6 }));
     fl.position.set(R.x + R.w / 2, 0.04, R.z + R.d / 2); fl.receiveShadow = true; fl.userData.uff = R.id; scena.add(fl);
     // pareti laterali (alte verso il fondo, basse verso chi guarda) e parete sul corridoio con la porta
     const xs = [R.x, R.x + R.w];
@@ -210,7 +210,7 @@ function costruisci(dati) {
     else { muro(R.x, R.z, R.x + R.w, R.z, ALTO - 0.4, porta); muro(R.x, R.z + R.d, R.x + R.w, R.z + R.d, BASSO); }
     const nome = R.nome || uffici[R.id]?.nome || R.id;
     // targa della stanza accanto alla porta (sul corridoio)
-    S.etAree.push({ id: R.id, nome, pos: new THREE.Vector3(R.x + porta, 0.1, R.lato === 'n' ? R.z + R.d + 0.35 : R.z - 0.35) });
+    S.etAree.push({ id: R.id, nome: nome.split(' · ')[0].replace('Web & E-commerce', 'Web & Shop').replace('Booking & WhatsApp', 'Booking'), pos: new THREE.Vector3(R.x + R.w / 2, 0.1, R.lato === 'n' ? R.z + R.d - 0.15 : R.z + R.d - 0.35) });
     S.aree[R.id] = { x: R.x, z: R.z, w: R.w, d: R.d };
     if (R.id === 'relax') { arredaRelax(R); continue; }
     const ags = dati.agenti.filter((a) => a.u === R.id);
