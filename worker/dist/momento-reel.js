@@ -4517,7 +4517,18 @@ function umano(id) {
 // 4 uomini e 4 donne; animazioni vere: seduto che scrive, seduto fermo, camminata (maschile/femminile), in piedi.
 // Finch\xE9 non sono caricati restano le figure disegnate a mano.
 const UOMINI = ['Remy', 'Leonard', 'James', 'Brian'], DONNE_M = ['Kate', 'Megan', 'Jody', 'Louise'];
-const ALTEZZA = 1.72;
+const ALTEZZA = 1.72, SEDUTA_DZ = 0.45;
+// ogni personaggio Mixamo ha il suo prefisso sulle ossa (mixamorig, mixamorig1, mixamorig9\u2026): rinomino le tracce delle animazioni
+function clipPer(M, prefisso) {
+  if (M.perPrefisso[prefisso]) return M.perPrefisso[prefisso];
+  const out = {};
+  for (const [n, c] of Object.entries(M.clip)) {
+    const k = c.clone();
+    for (const tr of k.tracks) tr.name = tr.name.replace(/^mixamorig\\d*/, prefisso);
+    out[n] = k;
+  }
+  return (M.perPrefisso[prefisso] = out);
+}
 const va = new THREE.Vector3();
 function creaGLB(id, M) {
   const h = hash(id), donna = DONNE.has(id);
@@ -4527,14 +4538,15 @@ function creaGLB(id, M) {
   modello.scale.setScalar(base.scala);
   modello.traverse((m) => { if (m.isMesh) { m.castShadow = true; m.frustumCulled = false; } });
   const o = new THREE.Group(), w = new THREE.Group(); w.add(modello); o.add(w);
-  w.rotation.y = Math.PI; // i personaggi Mixamo guardano +z, la scrivania \xE8 verso -z
+  w.rotation.y = Math.PI; w.position.z = SEDUTA_DZ; // i personaggi Mixamo guardano +z, la scrivania \xE8 verso -z
   const mixer = new THREE.AnimationMixer(modello);
+  const C = clipPer(M, base.prefisso);
   const az = {
-    scrive: mixer.clipAction(M.clip.Typing), fermo: mixer.clipAction(M.clip.SittingIdle || M.clip.Typing),
-    Walk: mixer.clipAction((donna && M.clip.FemaleWalk) || M.clip.StandardWalk), Idle: mixer.clipAction(M.clip.StandingIdle),
+    scrive: mixer.clipAction(C.Typing), fermo: mixer.clipAction(C.SittingIdle || C.Typing),
+    Walk: mixer.clipAction((donna && C.FemaleWalk) || C.StandardWalk), Idle: mixer.clipAction(C.StandingIdle),
   };
   for (const a of Object.values(az)) a.time = Math.random() * 3;
-  return { o, w, modello, mixer, az, corrente: null, seduto: true };
+  return { o, w, modello, mixer, az, corrente: null, seduto: true, dz: SEDUTA_DZ };
 }
 function glbVai(G, nome, dissolvi = 0.4) {
   if (G.corrente === nome) return;
@@ -4553,13 +4565,15 @@ async function caricaPersone() {
   const corpi = [...UOMINI.slice(0, piccolo ? 1 : 4), ...DONNE_M.slice(0, piccolo ? 1 : 4)].filter((n) => pronti.includes(n));
   if (!corpi.length) return;
   const L = new GLTFLoader();
-  const M = { corpi: {}, clip: {} };
+  const M = { corpi: {}, clip: {}, perPrefisso: {} };
   await Promise.all([
     ...anim.map(async (n) => { const g = await L.loadAsync('/persone/anim_' + n + '.glb'); M.clip[n] = g.animations[0]; }),
     ...corpi.map(async (n) => {
       const g = await L.loadAsync('/persone/' + n + '.glb');
       const b = new THREE.Box3().setFromObject(g.scene);
       g.scala = ALTEZZA / Math.max(1e-3, b.max.y - b.min.y);
+      g.scene.traverse((o) => { if (o.isBone && /Hips$/.test(o.name) && !g.prefisso) g.prefisso = o.name.slice(0, -4); });
+      g.prefisso ||= 'mixamorig';
       M.corpi[n] = g;
     }),
   ]);
