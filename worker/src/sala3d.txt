@@ -232,10 +232,12 @@ function creaGLB(id, M) {
   const ossa = {}; modello.traverse((b) => { if (b.isBone) ossa[nomeOsso(b)] = b; });
   const mixer = new THREE.AnimationMixer(modello);
   const az = { Walk: mixer.clipAction(donna ? M.walkD : M.walk), Idle: mixer.clipAction(donna ? M.idleD : M.idle) };
-  az.Idle.play(); mixer.update(0); az.Idle.stop();
+  az.Idle.play(); mixer.update(0);
   const G = { o, w, modello, ossa, mixer, az, hips: ossa.Hips, asse: new THREE.Vector3() };
+  // la posa di riposo va presa PRIMA di fermare l'azione: fermandola il mixer rimette la posa a T
   G.riposo = new Map(); modello.traverse((b) => { if (b.isBone) G.riposo.set(b, b.quaternion.clone()); });
   G.hipsPos = G.hips.position.clone();
+  az.Idle.stop();
   // verso dove guarda (dal tallone alla punta del piede) e lo giro verso -z, cioè verso la scrivania
   o.updateMatrixWorld(true);
   const f = (ossa.LeftToeBase || ossa.LeftToe_End).getWorldPosition(va).sub(ossa.LeftFoot.getWorldPosition(vb)); f.y = 0; f.normalize();
