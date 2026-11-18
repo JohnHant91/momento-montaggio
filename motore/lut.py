@@ -63,4 +63,16 @@ if __name__ == "__main__":  # tavola di prova: python3 lut.py foto1 foto2 cartel
                 pass
         d.text((x + 4, y + 4), nome, fill=(255, 255, 255))
     tav.save(os.path.join(out, "tavola_lut.jpg"), quality=82)
+    # diagnosi: file trovato? quanto cambia l'immagine? è in bianco e nero?
+    import numpy as np
+    base = np.asarray(Image.open(celle[0][1][0]).convert("RGB"), dtype=np.float32)
+    with open(os.path.join(out, "diagnosi.txt"), "w") as f:
+        for nome, riga in celle[1:]:
+            try:
+                im = np.asarray(Image.open(riga[0]).convert("RGB"), dtype=np.float32)
+                diff = float(np.abs(im - base).mean())
+                sat = float((im.max(axis=2) - im.min(axis=2)).mean())
+                f.write(f"{nome}\tfile={'si' if file_lut(nome) else 'NO'}\tdiff={diff:.1f}\tsat={sat:.1f}\tluma={im.mean():.0f}\n")
+            except Exception as e:
+                f.write(f"{nome}\terrore {e}\n")
     print(len(celle), "lut provate")

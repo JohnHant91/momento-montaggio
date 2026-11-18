@@ -3,7 +3,7 @@ name: prova-lut
 on:
   workflow_dispatch: {}
   push:
-    paths: ['.github/workflows/prova-lut.yml', 'motore/lut_catalogo.json']
+    paths: ['.github/workflows/prova-lut.yml', 'motore/lut_catalogo.json', 'motore/lut.py']
 permissions:
   contents: write
 jobs:
@@ -15,7 +15,7 @@ jobs:
       - name: Tavola
         run: |
           sudo apt-get install -y -qq ffmpeg > /dev/null 2>&1 || true
-          pip install -q pillow
+          pip install -q pillow numpy
           mkdir -p /tmp/pub
           curl -sfL -o /tmp/a.jpg "https://upload.wikimedia.org/wikipedia/commons/9/9d/San_Marco_di_Castellabate.jpg"
           curl -sfL -o /tmp/b.jpg "https://upload.wikimedia.org/wikipedia/commons/b/b2/Castellabate%2C_July_2021_01.jpg"
