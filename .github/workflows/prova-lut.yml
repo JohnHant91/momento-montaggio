@@ -13,13 +13,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Installa G'MIC
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq gmic ffmpeg > /dev/null && gmic -version | head -3
+        timeout-minutes: 8
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          pip install -q gmic || true
+          python3 -c "import gmic; print('gmic python ok')" || (sudo -E apt-get update -qq && sudo -E apt-get install -y -qq --no-install-recommends gmic)
       - name: Elenco e prova
         run: |
           mkdir -p /tmp/pub && cd /tmp/pub
-          gmic -h clut > aiuto_clut.txt 2>&1 || true
-          gmic -h output_cube > aiuto_cube.txt 2>&1 || true
-          (gmic clut kodak_2383_constlmap,33 output_cube k2383.cube 2>&1 | tail -5) > prova_export.txt || true
+          python3 - > prova_export.txt 2>&1 <<'PY' || true
+          import gmic, traceback
+          g = gmic.Gmic()
+          for cmd in ['help clut', 'help output_cube']:
+              try: g.run(cmd)
+              except Exception as e: print('ERR', cmd, e)
+          try:
+              g.run('clut kodak_2383_constlmap,33 output_cube k2383.cube'); print('export ok')
+          except Exception: traceback.print_exc()
+          PY
+          (gmic -h clut > aiuto_clut.txt 2>&1) || true
           ls -la >> prova_export.txt; head -12 k2383.cube >> prova_export.txt 2>/dev/null || true
           git init -q && git checkout -q -b prove-lut && git add . 
           git -c user.name=motore -c user.email=motore@momento commit -qm prova
