@@ -2540,10 +2540,10 @@ var SQUADRA = {
   capo: { n: "Alba", r: "Capo dell\u2019agenzia", u: "direzione", i: "\u{1F9ED}", c: "#3fd0c9", skill: ["social-strategy"], d: "Legge le tue richieste, capisce per quale cliente sono e le smista agli uffici giusti, tutti insieme. Ti risponde in chat." },
   brand: { n: "Bianca", r: "Brand manager \xB7 scheda cliente", u: "marketing", i: "\u{1FAAA}", c: "#c58cff", skill: ["brand-profile", "voice-builder", "audience-research"], d: "Scrive la scheda di ogni cliente (chi \xE8, a chi parla, come parla, cosa non dire). Tutti gli altri agenti la leggono prima di lavorare." },
   stratega: { n: "Marco", r: "Stratega", u: "marketing", i: "\u265F\uFE0F", c: "#7aa2ff", skill: ["social-strategy", "goals-and-kpis", "content-pillars"], d: "Strategia social, obiettivi, KPI e pilastri dei contenuti per il cliente." },
-  analista: { n: "Greta", r: "Audit e concorrenti", u: "marketing", i: "\u{1F50E}", c: "#ffb86b", skill: ["content-audit", "competitor-analysis", "profile-optimization"], d: "Analizza il profilo del cliente e i concorrenti: cosa tenere, cosa buttare, dove c\u2019\xE8 spazio. Base per le proposte ai nuovi clienti." },
+  audit: { n: "Greta", r: "Audit e concorrenti", u: "marketing", i: "\u{1F50E}", c: "#ffb86b", skill: ["content-audit", "competitor-analysis", "profile-optimization"], d: "Analizza il profilo del cliente e i concorrenti: cosa tenere, cosa buttare, dove c\u2019\xE8 spazio. Base per le proposte ai nuovi clienti." },
   campagne: { n: "Elio", r: "Campagne e stagionalit\xE0", u: "marketing", i: "\u{1F4E3}", c: "#ff7a7a", skill: ["campaign-and-launch-planning", "seasonal-and-moment-marketing", "lead-magnets-and-funnels"], d: "Lanci, promozioni, ricorrenze (Natale, estate, eventi locali) e funnel per portare contatti." },
   report: { n: "Dario", r: "Report e KPI", u: "marketing", i: "\u{1F4CA}", c: "#4fd18b", skill: ["analytics-and-reporting", "goals-and-kpis", "experimentation-and-ab-testing"], d: "Report mensile per il cliente dai numeri che gli dai: cosa ha funzionato e cosa cambiare. Non inventa numeri." },
-  copy: { n: "Giulia", r: "Copywriter", u: "social", i: "\u270D\uFE0F", c: "#f0b44c", skill: ["caption-writer", "hook-writer", "hashtag-strategy", "instagram-seo"], d: "Caption, ganci, hashtag e parole chiave per ogni post, nella voce del cliente." },
+  copywriter: { n: "Giulia", r: "Copywriter", u: "social", i: "\u270D\uFE0F", c: "#f0b44c", skill: ["caption-writer", "hook-writer", "hashtag-strategy", "instagram-seo"], d: "Caption, ganci, hashtag e parole chiave per ogni post, nella voce del cliente." },
   caroselli: { n: "Pietro", r: "Caroselli e grafiche", u: "social", i: "\u{1F5C2}\uFE0F", c: "#e58bd0", skill: ["carousel-writer", "quote-cards-and-text-graphics", "design-and-templates"], d: "Caroselli slide per slide e grafiche: testi, impaginazione e indicazioni per Canva." },
   calendario: { n: "Rita", r: "Calendario e programmazione", u: "social", i: "\u{1F5D3}\uFE0F", c: "#12a3a4", skill: ["content-calendar", "batch-content-plan", "scheduling-and-queue"], d: "Costruisce il calendario editoriale e mette in programmazione i contenuti che approvi." },
   community: { n: "Luca", r: "Community e risposte", u: "social", i: "\u{1F4AC}", c: "#66d9ef", skill: ["reply-and-comment-writer", "community-management", "crisis-and-moderation"], d: "Risposte a commenti, recensioni e messaggi, e gestione dei momenti critici. Tu approvi prima che esca." },
@@ -3369,61 +3369,115 @@ Rispondi SOLO con il JSON richiesto.`;
 var PAGINA = `<!DOCTYPE html>
 <html lang="it"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0b1113">
+<meta name="theme-color" content="#F4F2EE">
 <title>AGENZIA MOMENTO AI</title>
 <style>
 @media print{header,.noprint,button{display:none!important}body{background:#fff;color:#000}.card{border-color:#ccc;background:#fff}.mut{color:#555}a{color:#000}}
 details.copione summary{cursor:pointer;list-style:none}details.copione[open]{border-color:var(--teal)}
-:root{--teal:#12a3a4;--teal2:#3fd0c9;--bg:#0b1113;--card:#141c1f;--line:#223035;--txt:#e8eef0;--mut:#8fa3a8;--warn:#f0b44c;--err:#ef6b6b;--ok:#4fd18b}
-*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--txt);font-size:15px}
-header{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(11,17,19,.95);backdrop-filter:blur(8px);z-index:5}
-.logo{font-weight:700;font-size:20px;color:var(--teal2);letter-spacing:-.5px}.logo small{color:var(--mut);font-weight:400;font-size:13px;margin-left:6px}
-header nav{margin-left:auto;display:flex;gap:6px;overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch}header nav .btn{white-space:nowrap;padding:8px 12px;font-size:14px}@media(max-width:700px){header{flex-wrap:wrap}header nav{margin-left:0;width:100%}}
-main{max-width:980px;margin:auto;padding:18px}
-a{color:var(--teal2)}h2{margin:26px 0 10px;font-size:17px;color:var(--teal2)}h1{font-size:21px;margin:6px 0 4px}
-button,.btn{background:var(--teal);color:#fff;border:0;border-radius:10px;padding:10px 16px;font-size:15px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-block}
-button.sec,.btn.sec{background:transparent;border:1px solid var(--line);color:var(--txt)}button.rosso{background:transparent;border:1px solid #5a2a2a;color:var(--err)}
+:root{--teal:#2B59FF;--teal2:#2B59FF;--bg:#F4F2EE;--card:#FFFFFF;--line:#E6E2DA;--txt:#17171A;--mut:#8A8780;--warn:#E8930C;--err:#E5484D;--ok:#22A55B;--nero:#141416;--legno:#E9D9BC;--legno2:#D9C29A}
+*{box-sizing:border-box}body{margin:0;font-family:"Inter",system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--txt);font-size:15px;-webkit-font-smoothing:antialiased}
+header{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(255,255,255,.88);backdrop-filter:blur(14px);z-index:30}
+.logo{font-weight:800;font-size:17px;color:var(--txt);letter-spacing:-.3px;display:flex;align-items:center;gap:9px}.logo:before{content:'M';display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:var(--nero);color:#fff;font-size:15px}.logo small{color:var(--mut);font-weight:500;font-size:12px}
+header nav{margin-left:auto;display:flex;gap:4px;overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch;scrollbar-width:none}header nav .btn{white-space:nowrap;padding:7px 12px;font-size:14px}header nav .btn.sec{border:0;color:#55534e;font-weight:500}header nav .btn.sec:hover{background:#efece6}
+@media(max-width:700px){header{flex-wrap:wrap;padding:10px 12px}header nav{margin-left:0;width:100%}}
+main{max-width:1180px;margin:auto;padding:22px}
+a{color:var(--teal)}h2{margin:28px 0 10px;font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:1.2px;font-weight:600}h1{font-size:24px;margin:6px 0 4px;letter-spacing:-.5px}
+button,.btn{background:var(--teal);color:#fff;border:0;border-radius:999px;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-block;transition:transform .15s,box-shadow .15s}
+button:hover,.btn:hover{box-shadow:0 6px 18px -8px rgba(43,89,255,.7)}
+button.sec,.btn.sec{background:#fff;border:1px solid var(--line);color:var(--txt);box-shadow:none}button.rosso{background:#fff;border:1px solid #f3c9ca;color:var(--err)}
 button:disabled{opacity:.5}
-input,textarea,select{width:100%;background:#0f1619;border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:11px 12px;font:inherit}
-textarea{min-height:110px;resize:vertical}label{display:block;margin:16px 0 6px;font-weight:600}.aiuto{color:var(--mut);font-size:13px;margin-top:5px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:10px 0}
-.lav{display:block;color:inherit;text-decoration:none}.lav:hover{border-color:var(--teal)}
+input,textarea,select{width:100%;background:#fff;border:1px solid var(--line);color:var(--txt);border-radius:12px;padding:11px 12px;font:inherit}
+input:focus,textarea:focus,select:focus{outline:2px solid #c9d5ff;border-color:var(--teal)}
+textarea{min-height:110px;resize:vertical}label{display:block;margin:16px 0 6px;font-weight:600;font-size:14px}.aiuto{color:var(--mut);font-size:13px;margin-top:5px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px 18px;margin:10px 0;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+.lav{display:block;color:inherit;text-decoration:none}.lav:hover{border-color:#c9d5ff}
 .mut{color:var(--mut);font-size:13px}.riga{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.pill{font-size:12px;padding:3px 9px;border-radius:20px;background:#1d2a2e;color:var(--mut);white-space:nowrap}
-.pill.pronto{background:#123526;color:var(--ok)}.pill.in_corso{background:#10323a;color:var(--teal2)}.pill.errore{background:#3a1717;color:var(--err)}
-.fasi{display:flex;gap:4px;margin:14px 0}.fasi div{flex:1;height:6px;border-radius:4px;background:var(--line)}.fasi .ok{background:var(--teal)}.fasi .ora{background:var(--teal2);animation:p 1.2s infinite}
+.pill{font-size:12px;padding:3px 10px;border-radius:20px;background:#f0ede7;color:#5f5c56;white-space:nowrap;font-weight:500}
+.pill.pronto{background:#e3f6ea;color:var(--ok)}.pill.in_corso{background:#e7edff;color:var(--teal)}.pill.errore{background:#fde8e8;color:var(--err)}
+.fasi{display:flex;gap:4px;margin:14px 0}.fasi div{flex:1;height:6px;border-radius:4px;background:var(--line)}.fasi .ok{background:var(--teal)}.fasi .ora{background:var(--teal);animation:p 1.2s infinite}
 @keyframes p{50%{opacity:.4}}
 .fasinomi{display:flex;gap:4px;font-size:11px;color:var(--mut)}.fasinomi span{flex:1;text-align:center}
-.log{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;max-height:320px;overflow:auto;background:#0f1619;border-radius:10px;padding:10px}
-.log div{padding:3px 0;border-bottom:1px solid #18242a}.log .warn{color:var(--warn)}.log .errore{color:var(--err)}.log b{color:var(--teal2);font-weight:600}
+.log{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;max-height:320px;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+.log div{padding:4px 0;border-bottom:1px solid #f1eee8}.log .warn{color:var(--warn)}.log .errore{color:var(--err)}.log b{color:var(--txt);font-weight:600}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
-.tag{font-size:11px;text-transform:uppercase;padding:2px 8px;border-radius:6px;font-weight:700}
-.youtube{background:#c4302b}.tiktok{background:#111;border:1px solid #25f4ee}.instagram{background:#c13584}
+.tag{font-size:11px;text-transform:uppercase;padding:2px 8px;border-radius:6px;font-weight:700;color:#fff}
+.youtube{background:#c4302b}.tiktok{background:#111}.instagram{background:#c13584}
 table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top;font-size:14px}th{color:var(--mut);font-weight:500}
 ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 .kv{display:grid;grid-template-columns:130px 1fr;gap:6px 12px;font-size:14px}.kv b{color:var(--mut);font-weight:500}
 .vuoto{text-align:center;padding:40px 10px;color:var(--mut)}
 .err{color:var(--err);margin-top:10px}
 .studio{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin-top:12px}
-.stanza{background:linear-gradient(180deg,#121b1e,#0f1619);border:1px solid var(--line);border-radius:18px;padding:12px 12px 6px;position:relative}
+.stanza{background:#fff;border:1px solid var(--line);border-radius:18px;padding:12px 12px 6px;position:relative}
 .stanza h3{margin:0 0 10px;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mut);font-weight:600}
 .stanza.spenta{grid-column:1/-1}.posti{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:2px}.posti .scrivania{padding:6px;margin:0}.posti .av{width:40px;height:40px;font-size:19px}
 .scrivania{display:flex;gap:12px;align-items:flex-start;padding:10px;border-radius:14px;cursor:pointer;margin-bottom:6px;transition:background .2s}
-.scrivania:hover{background:#18252a}
-.av{width:52px;height:52px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:26px;background:#1a272b;border:3px solid var(--c,#345);position:relative}
-.av:after{content:'';position:absolute;right:-2px;bottom:-2px;width:14px;height:14px;border-radius:50%;background:#46555a;border:2px solid var(--card)}
-.lavora .av{animation:bob 1.4s ease-in-out infinite;box-shadow:0 0 0 0 var(--c);animation:bob 1.4s ease-in-out infinite,alone 1.8s infinite}
+.scrivania:hover{background:#f6f4f0}
+.av{width:52px;height:52px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:26px;background:#f3f0ea;border:3px solid var(--c,#345);position:relative}
+.av:after{content:'';position:absolute;right:-2px;bottom:-2px;width:14px;height:14px;border-radius:50%;background:#c9c5bd;border:2px solid #fff}
+.lavora .av{animation:bob 1.4s ease-in-out infinite,alone 1.8s infinite}
 .riposo{opacity:.4}.lavora .av:after{background:var(--ok)}.coda .av:after{background:var(--warn)}.errore .av:after{background:var(--err)}
 @keyframes bob{50%{transform:translateY(-3px)}}@keyframes alone{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--c) 60%,transparent)}100%{box-shadow:0 0 0 14px transparent}}
 .chi{flex:1;min-width:0}.chi b{font-size:15px}.chi .ruolo{color:var(--mut);font-size:12px}
-.schermo{margin-top:7px;background:#071012;border:1px solid #1d3036;border-radius:8px;padding:7px 9px;font:12.5px/1.35 ui-monospace,Menlo,monospace;color:#9fd9d4;min-height:34px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
-.lavora .schermo{border-color:color-mix(in srgb,var(--c) 60%,#1d3036);box-shadow:0 0 18px -6px var(--c)}
+.schermo{margin-top:7px;background:#f7f5f1;border:1px solid var(--line);border-radius:10px;padding:7px 9px;font:12.5px/1.35 ui-monospace,Menlo,monospace;color:#3b3a37;min-height:34px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.lavora .schermo{border-color:color-mix(in srgb,var(--c) 50%,var(--line))}
 .lavora .schermo:after{content:'\u258B';animation:cur 1s steps(1) infinite;margin-left:2px}@keyframes cur{50%{opacity:0}}
 .stato-ag{font-size:11px;font-weight:600;margin-left:6px;color:var(--mut)}.lavora .stato-ag{color:var(--ok)}.coda .stato-ag{color:var(--warn)}.errore .stato-ag{color:var(--err)}
 .attivo{display:block;text-decoration:none;color:inherit}
-.pannello{position:fixed;inset:auto 0 0 0;max-height:78vh;background:#101719;border-top:1px solid var(--teal);border-radius:18px 18px 0 0;padding:16px 18px 24px;overflow:auto;z-index:20;box-shadow:0 -20px 60px #000a;max-width:760px;margin:auto}
-.velo{position:fixed;inset:0;background:#0008;z-index:19}
-@media(max-width:600px){header{padding:10px 12px}.logo small{display:none}header nav .btn{padding:8px 10px;font-size:14px;white-space:nowrap}.posti{grid-template-columns:1fr 1fr}main{padding:12px}.kv{grid-template-columns:1fr}.kv b{margin-top:6px}}
+.pannello{position:fixed;inset:auto 0 0 0;max-height:78vh;background:#fff;border-top:1px solid var(--line);border-radius:22px 22px 0 0;padding:16px 18px 24px;overflow:auto;z-index:40;box-shadow:0 -20px 60px rgba(0,0,0,.15);max-width:760px;margin:auto}
+.velo{position:fixed;inset:0;background:rgba(20,20,22,.25);z-index:39}
+/* ---------- la sala: l'agenzia vista dall'alto ---------- */
+.bb>*{position:absolute}.bb>.omino{left:-32px;top:-84px}.etichetta-stanza{cursor:pointer}.bb>.cervello{left:-35px;top:-70px}.bb>.pianta{left:-13px;top:-40px}.bb>.etichetta-stanza{left:0;top:-18px}
+
+.saluto h1{font-size:30px;margin:0}.saluto p{margin:6px 0 0;color:#5f5c56;font-size:14px;line-height:1.5}.saluto b.n{font-weight:600}
+.chiedi{display:flex;gap:8px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 6px 6px 16px;margin:16px 0 4px;box-shadow:0 8px 30px -18px rgba(0,0,0,.25)}
+.chiedi input{border:0;padding:8px 0;outline:none!important;background:transparent}.chiedi select{width:auto;max-width:170px;border:0;background:#f4f2ee;border-radius:999px;padding:8px 10px;font-size:13px}
+.sala{position:relative;height:min(68vh,720px);min-height:420px;margin:14px -22px 0;overflow:hidden;cursor:grab;touch-action:none;background:radial-gradient(120% 90% at 50% 40%,#fbfaf7 0%,#efebe3 70%,#e7e2d8 100%);border-top:1px solid var(--line);border-bottom:1px solid var(--line);user-select:none;-webkit-user-select:none}
+.camera{position:absolute;left:0;top:0;transform-origin:0 0;transition:transform .9s cubic-bezier(.2,.75,.2,1)}
+.pavimento{position:relative;width:1440px;height:1000px;transform:rotateX(57deg) rotateZ(-38deg);transform-style:preserve-3d}
+.stanza3d{position:absolute;border-radius:22px;background:#f8f5ef;box-shadow:inset 0 0 0 2px #e4dccd,0 30px 40px -30px rgba(80,60,30,.25);transform-style:preserve-3d;cursor:pointer;transition:background .3s}
+.stanza3d:hover{background:#fbf9f4}.stanza3d.sel{background:#fffdf8;box-shadow:inset 0 0 0 3px #c9d5ff}
+.stanza3d .tappeto{position:absolute;inset:16px;border-radius:16px;opacity:.55}
+.muro{position:absolute;left:0;top:0;height:46px;background:linear-gradient(#efe9df,#e2d9c9);transform-origin:top;transform:rotateX(-90deg);border-radius:6px 6px 0 0}
+.muro.sx{width:46px;height:100%;transform-origin:left;transform:rotateY(90deg);background:linear-gradient(90deg,#e6dece,#efe9df)}
+.cartello{position:absolute;transform-style:preserve-3d}
+.attori{position:absolute;left:0;top:0;width:0;height:0}.bb{position:absolute;width:0;height:0}
+.etichetta-stanza{transform-origin:0 0;white-space:nowrap;font:700 15px/1 Inter,system-ui;letter-spacing:1.6px;text-transform:uppercase;color:#a8a194;transform:translate(-50%,0)}
+.banco{position:absolute;width:96px;height:46px;border-radius:8px;background:linear-gradient(135deg,var(--legno),var(--legno2));box-shadow:0 10px 0 -4px #cdb68c,0 18px 22px -10px rgba(60,40,10,.35);transform-style:preserve-3d}
+.monitor{position:absolute;left:28px;top:4px;width:40px;height:26px;border-radius:4px;background:#1c1c20;transform-origin:bottom;transform:translateZ(1px) rotateX(-80deg);box-shadow:0 0 0 2px #2a2a2e}
+.monitor i{position:absolute;inset:3px;border-radius:2px;background:#2a3140}
+.lavora .monitor i{background:linear-gradient(120deg,var(--c),#2B59FF);animation:schermo 2.4s ease-in-out infinite}
+@keyframes schermo{50%{filter:brightness(1.35)}}
+.omino{position:absolute;width:64px;height:84px;cursor:pointer}
+.omino svg{width:100%;height:100%;overflow:visible;filter:drop-shadow(0 6px 4px rgba(60,40,10,.25))}
+.lavora .omino svg{animation:digita .5s ease-in-out infinite alternate}
+@keyframes digita{to{transform:translateY(-2px)}}
+.nome{position:absolute;left:50%;bottom:92px;transform:translateX(-50%) scale(var(--inv,1));transform-origin:50% 100%;width:max-content;white-space:nowrap;background:var(--nero);color:#fff;border-radius:999px;padding:5px 10px 5px 8px;font:600 12px/1 Inter,system-ui;display:flex;gap:6px;align-items:center;box-shadow:0 6px 16px -6px rgba(0,0,0,.5);cursor:pointer}
+.nome .pt{width:7px;height:7px;border-radius:50%;background:#8b8780}.lavora .nome .pt{background:#3ddc84;box-shadow:0 0 0 3px rgba(61,220,132,.25)}.coda .nome .pt{background:#ffb020}.errore .nome .pt{background:#ff5a5f}
+.nome .gu{background:#fff;color:#111;border-radius:999px;padding:3px 7px;font-size:11px}
+.nome small{color:#bdb8ae;font-weight:500;max-width:150px;overflow:hidden;text-overflow:ellipsis}
+.fumetto{position:absolute;left:50%;bottom:calc(92px + 32px * var(--inv,1));transform:translateX(-50%) scale(var(--inv,1));transform-origin:50% 100%;background:#fff;color:#222;border-radius:12px;padding:6px 9px;font:500 11px/1.3 Inter,system-ui;width:170px;box-shadow:0 8px 20px -8px rgba(0,0,0,.3);text-align:left;display:none}
+.lavora .fumetto,.scelto .fumetto{display:block}.sala:not(.vicino) .bb:not(.scelto) .fumetto{display:none}.scelto .omino svg{filter:drop-shadow(0 0 0 #fff) drop-shadow(0 0 10px var(--c))}.scelto .nome{background:var(--teal)}
+.cervello{position:absolute;width:70px;height:70px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#dfe6ff,#7f9bff 55%,#2B59FF);box-shadow:0 0 0 8px rgba(43,89,255,.12),0 0 40px rgba(43,89,255,.5);animation:pulsa 3s ease-in-out infinite;cursor:pointer}
+@keyframes pulsa{50%{box-shadow:0 0 0 16px rgba(43,89,255,.06),0 0 60px rgba(43,89,255,.6)}}
+.pianta{position:absolute;width:26px;height:40px}
+.comandi{position:absolute;left:14px;top:14px;display:flex;gap:6px;z-index:5}
+.comandi button{padding:7px 12px;font-size:13px}
+.legenda{position:absolute;right:14px;bottom:12px;background:rgba(255,255,255,.85);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12px;color:#5f5c56;z-index:5}
+.lato{position:fixed;right:16px;top:76px;bottom:16px;width:min(380px,calc(100vw - 32px));background:#fff;border:1px solid var(--line);border-radius:22px;box-shadow:0 30px 80px -30px rgba(0,0,0,.35);z-index:35;overflow:auto;padding:20px;transform:translateX(120%);transition:transform .45s cubic-bezier(.2,.75,.2,1)}
+.lato.aperto{transform:none}
+.lato .x{position:absolute;right:14px;top:14px;border-radius:50%;width:34px;height:34px;padding:0}
+.lato .faccia{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;font-size:30px;background:color-mix(in srgb,var(--c) 18%,#fff);border:3px solid var(--c)}
+.lato .ora{background:#f6f4f0;border-radius:14px;padding:12px;margin:14px 0;font-size:14px;line-height:1.45}
+.lato .ora b{display:block;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--mut);margin-bottom:4px}
+.chip{display:inline-block;font-size:12px;background:#f0ede7;border-radius:999px;padding:4px 10px;margin:3px 4px 0 0;color:#4d4b46}
+.lavori{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-top:8px}
+.lavoro-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:12px;display:flex;gap:12px;align-items:center;text-decoration:none;color:inherit}
+.lavoro-card .min{width:52px;height:70px;border-radius:10px;background:#1c1c20 center/cover;flex:none;display:grid;place-items:center;font-size:22px}
+.lavoro-card small{display:block;color:var(--mut);font-size:11px;letter-spacing:1px;text-transform:uppercase}
+.lavoro-card b{display:block;font-size:14px;margin:2px 0 6px;line-height:1.25}
+@media(max-width:700px){main{padding:14px}.sala{margin:12px -14px 0;height:62vh}.saluto h1{font-size:24px}.lato{top:auto;bottom:0;right:0;left:0;width:auto;max-height:70vh;border-radius:22px 22px 0 0;transform:translateY(110%)}.chiedi select{display:none}}
+@media(max-width:600px){.logo small{display:none}.posti{grid-template-columns:1fr 1fr}.kv{grid-template-columns:1fr}.kv b{margin-top:6px}}
 </style></head><body>
 <header><div class="logo">momento<small>agenzia AI</small></div><nav id="nav"></nav></header>
 <main id="app"><div class="vuoto">Carico\u2026</div></main>
@@ -3797,45 +3851,279 @@ async function clientiSel(id, scelto, vuoto) {
   return '<select id="' + id + '"><option value="">' + (vuoto || '\u2014 nessun cliente \u2014') + '</option>' + CLIENTI_CACHE.map((c) => '<option value="' + c.id + '"' + (String(scelto) === String(c.id) ? ' selected' : '') + '>' + e(c.nome) + (c.ha_scheda ? '' : ' (senza scheda)') + '</option>').join('') + '</select>';
 }
 
+// ---------------------------------------------------------------- LA SALA: l'agenzia vista dall'alto
+// Grandangolo isometrico con tutti gli uffici; tocchi un ufficio e la camera entra; tocchi un agente e si avvicina,
+// a destra (o in basso sul telefono) vedi cosa sta facendo.
+const PIANTA = [
+  // [ufficio, nome, x, y, larghezza, altezza, colore tappeto]
+  ['direzione', 'Direzione', 0, 0, 480, 300, '#dfe6ff'],
+  ['marketing', 'Marketing', 480, 0, 480, 300, '#ffe4d6'],
+  ['social', 'Social', 960, 0, 480, 300, '#ffe9f2'],
+  ['video', 'Video \xB7 comparto Reel', 0, 300, 960, 440, '#e4f3ea'],
+  ['foto', 'Foto', 960, 300, 480, 440, '#fff3d6'],
+  ['web', 'Web & E-commerce', 0, 740, 360, 260, '#e3f1fb'],
+  ['booking', 'Booking & WhatsApp', 360, 740, 360, 260, '#eaf8df'],
+  ['gestionale', 'Gestionale', 720, 740, 360, 260, '#efe9ff'],
+  ['contabilita', 'Contabilit\xE0', 1080, 740, 360, 260, '#fff0d9'],
+];
+const VIDEO_TEAM = ['direttore', 'stella', 'scout_yt', 'scout_tt', 'scout_ig', 'occhi', 'analista', 'motore', 'regista', 'copy', 'editor', 'vfx', 'color', 'audio', 'sottotitoli', 'revisore'];
+let SALA = { s: 1, x: 0, y: 0, dati: null, sel: null, ufficio: null };
+
+function omino(c) {
+  // personaggio stilizzato visto in 3/4: sedia, corpo col colore dell'agente, testa, capelli
+  return '<svg viewBox="0 0 64 84"><ellipse cx="32" cy="80" rx="20" ry="5" fill="rgba(60,40,10,.18)"/>' +
+    '<rect x="14" y="46" width="36" height="30" rx="10" fill="#2b2b30"/>' +
+    '<path d="M18 74 C18 52 24 44 32 44 C40 44 46 52 46 74 Z" fill="' + c + '"/>' +
+    '<rect x="25" y="40" width="14" height="8" rx="4" fill="#f1c7a3"/>' +
+    '<circle cx="32" cy="30" r="13" fill="#f6d2b1"/>' +
+    '<path d="M19 29 C19 16 45 14 45 29 C45 22 38 19 32 19 C26 19 21 22 19 29 Z" fill="#2a211c"/>' +
+    '<circle cx="27" cy="31" r="1.6" fill="#2a211c"/><circle cx="37" cy="31" r="1.6" fill="#2a211c"/>' +
+    '<path d="M28 36 Q32 39 36 36" stroke="#c0876b" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>';
+}
+
+function statiAgenti(R) {
+  const st = {}, cosa = {}, ultimo = {};
+  for (const r of R.feed) { const a = AGID(r.agente); if (!ultimo[a]) ultimo[a] = r; }
+  for (const I of R.attivi) {
+    const s = I.stato === 'in_corso' && I.blocco_fino > R.adesso ? 'lavora' : 'coda';
+    if (st[I.agente] !== 'lavora') { st[I.agente] = s; cosa[I.agente] = { testo: I.titolo, link: '#/incarico/' + I.id }; }
+  }
+  for (const L of R.reel) for (const a of FASE_AGENTI[L.fase] || []) {
+    const s = L.blocco_fino && L.blocco_fino > R.adesso ? 'lavora' : 'coda';
+    if (st[a] !== 'lavora') { st[a] = s; cosa[a] = { testo: 'Reel #' + L.id + ' \xB7 fase ' + L.fase, link: '#/lavoro/' + L.id }; }
+  }
+  if (R.piani.length) { st.idee = 'lavora'; cosa.idee = { testo: 'Piano copioni #' + R.piani[0].id, link: '#/copioni/' + R.piani[0].id }; }
+  for (const [a, u] of Object.entries(ultimo)) if (!st[a] && u.livello === 'errore' && Date.now() - new Date(u.quando) < 30 * 60e3) st[a] = 'errore';
+  return { st, cosa, ultimo };
+}
+
+function agentiUfficio(R, u) {
+  if (u === 'video') return VIDEO_TEAM.filter((a) => AGENTI[a]);
+  const ids = Object.keys(R.squadra).filter((k) => R.squadra[k].u === u);
+  return u === 'direzione' ? ids.concat(['idee']) : ids;
+}
+
+// proiezione di un punto del pavimento (coordinate della pianta) sul piano della camera
+let PROIEZIONE = null;
+function proietta(x, y) {
+  if (!PROIEZIONE) PROIEZIONE = new DOMMatrix().translate(720, 500).rotateAxisAngle(1, 0, 0, 57).rotate(0, 0, -38).translate(-720, -500);
+  const q = PROIEZIONE.transformPoint(new DOMPoint(x, y, 0));
+  return [q.x, q.y];
+}
+function attore(x, y, html, cls, u, c) {
+  const [px, py] = proietta(x, y);
+  return '<div class="bb ' + (cls || '') + '" data-uff="' + (u || '') + '" style="left:' + px.toFixed(1) + 'px;top:' + py.toFixed(1) + 'px;z-index:' + Math.round(py + 1000) + (c ? ';--c:' + c : '') + '">' + html + '</div>';
+}
+function disegnaSala(R) {
+  const { st, cosa, ultimo } = statiAgenti(R);
+  SALA.info = { st, cosa, ultimo };
+  let pav = '', att = '';
+  for (const [u, nome, x, y, w, hh, col] of PIANTA) {
+    const ids = agentiUfficio(R, u);
+    const cols = Math.max(1, Math.floor((w - 60) / 150)), passoX = (w - 40) / cols;
+    const righe = Math.max(1, Math.ceil(ids.length / cols)), passoY = Math.min(150, (hh - 70) / righe);
+    const X = x + 8, Y = y + 8;
+    let dentro = '<div class="tappeto" style="background:' + col + '"></div>';
+    att += attore(X + w / 2, Y + hh - 26, '<div class="etichetta-stanza" data-uff="' + u + '">' + e(nome) + '</div>', '', u);
+    ids.forEach((a, k) => {
+      const A = AGENTI[a]; if (!A) return;
+      const cx = 20 + passoX * (k % cols) + passoX / 2, cy = 60 + passoY * Math.floor(k / cols);
+      const s = st[a] || '';
+      const msg = cosa[a]?.testo || ultimo[a]?.messaggio || '';
+      dentro += '<div class="' + s + '" style="--c:' + (A.c || '#888') + '"><div class="banco" style="left:' + (cx - 48) + 'px;top:' + (cy - 8) + 'px"><div class="monitor"><i></i></div></div></div>';
+      att += attore(X + cx, Y + cy + 44, '<div class="omino" data-ag="' + a + '">' + omino(A.c || '#888') +
+        '<div class="nome" data-ag="' + a + '"><span class="pt"></span>' + e(A.n) + (s === 'lavora' ? ' <span class="gu">Guarda \u25B8</span>' : '') + '</div>' +
+        (msg ? '<div class="fumetto">' + e(msg.slice(0, 90)) + '</div>' : '') + '</div>', s, u, A.c);
+    });
+    if (u === 'direzione') att += attore(X + w - 90, Y + hh - 70, '<div class="cervello" id="cervello" title="Cervello condiviso"></div>', '', u);
+    att += attore(X + w - 40, Y + 40, '<svg class="pianta" viewBox="0 0 26 40"><rect x="7" y="26" width="12" height="13" rx="3" fill="#d8cdb8"/><path d="M13 27 C4 20 5 8 13 2 C21 8 22 20 13 27Z" fill="#7fb07a"/><path d="M13 27 C8 22 2 18 3 12 C9 14 12 20 13 27Z" fill="#5f9a5c"/></svg>', '', u);
+    pav += '<div class="stanza3d" data-uff="' + u + '" style="left:' + X + 'px;top:' + Y + 'px;width:' + (w - 16) + 'px;height:' + (hh - 16) + 'px">' + dentro + '</div>';
+  }
+  return { pav, att };
+}
+
+function camera(s, x, y, subito) {
+  SALA.s = s; SALA.x = x; SALA.y = y;
+  const c = $('#camera'); if (!c) return;
+  if (subito) c.style.transition = 'none';
+  c.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + s + ')';
+  const at = $('#attori'); if (at) at.style.setProperty('--inv', String(Math.min(1.6, Math.max(0.45, 0.85 / s))));
+  if (subito) { c.offsetHeight; c.style.transition = ''; }
+}
+function inquadra(el, margine, maxS) {
+  // porta l'elemento al centro della sala, ingrandito quanto basta
+  const sala = $('#sala').getBoundingClientRect(), r = el.getBoundingClientRect();
+  const lx = (r.left - sala.left - SALA.x) / SALA.s, ly = (r.top - sala.top - SALA.y) / SALA.s, lw = r.width / SALA.s, lh = r.height / SALA.s;
+  const s = Math.min(maxS || 3, Math.min(sala.width / (lw * margine), sala.height / (lh * margine)));
+  camera(s, sala.width / 2 - (lx + lw / 2) * s, sala.height / 2 - (ly + lh / 2) * s);
+}
+function grandangolo(subito) {
+  const pav = $('#pavimento'); if (!pav) return;
+  camera(1, 0, 0, true);
+  inquadra(pav, innerWidth < 700 ? 0.55 : 1.04, 2);
+  if (subito) { const c = $('#camera'); c.style.transition = 'none'; c.offsetHeight; c.style.transition = ''; }
+  SALA.ufficio = null; SALA.sel = null;
+  $('#sala').classList.remove('vicino');
+  document.querySelectorAll('.stanza3d.sel').forEach((x) => x.classList.remove('sel'));
+  $('#torna').style.display = 'none';
+  chiudiLato();
+}
+function entraUfficio(u) {
+  const el = document.querySelector('.stanza3d[data-uff="' + u + '"]'); if (!el) return;
+  document.querySelectorAll('.stanza3d.sel').forEach((x) => x.classList.remove('sel'));
+  el.classList.add('sel');
+  SALA.ufficio = u; SALA.sel = null;
+  document.querySelectorAll('.bb.scelto').forEach((x) => x.classList.remove('scelto'));
+  $('#sala').classList.add('vicino');
+  inquadra(el, 1.08, 2.6);
+  $('#torna').style.display = '';
+}
+function vaiAgente(a) {
+  const el = document.querySelector('.omino[data-ag="' + a + '"]'); if (!el) return;
+  const u = el.closest('.bb')?.dataset.uff, st = u && document.querySelector('.stanza3d[data-uff="' + u + '"]');
+  if (st) { document.querySelectorAll('.stanza3d.sel').forEach((x) => x.classList.remove('sel')); st.classList.add('sel'); SALA.ufficio = u; }
+  SALA.sel = a;
+  $('#sala').classList.add('vicino');
+  document.querySelectorAll('.bb.scelto').forEach((x) => x.classList.remove('scelto'));
+  el.closest('.bb').classList.add('scelto');
+  inquadra(el, 2.6, 2.4);
+  $('#torna').style.display = '';
+  apriLato(a);
+}
+function chiudiLato() { const l = $('#lato'); if (l) l.classList.remove('aperto'); }
+
+async function apriLato(a) {
+  const A = AGENTI[a], R = SALA.dati, I = SALA.info;
+  const s = I.st[a];
+  const testoStato = { lavora: 'al lavoro', coda: 'parte a breve', errore: 'bloccato' }[s] || 'libero';
+  const miei = R.feed.filter((r) => AGID(r.agente) === a).slice(0, 8);
+  const ora = I.cosa[a] ? '<div class="ora"><b>Sta facendo</b>' + e(I.cosa[a].testo) + (I.ultimo[a] ? '<div class="mut" style="margin-top:6px">' + e(I.ultimo[a].messaggio) + '</div>' : '') + '<div style="margin-top:10px"><a class="btn" href="' + I.cosa[a].link + '">Guarda il lavoro \u25B8</a></div></div>' :
+    '<div class="ora"><b>Adesso</b>' + (I.ultimo[a] ? 'Ultima cosa fatta: ' + e(I.ultimo[a].messaggio) + ' <span class="mut">(' + fa(I.ultimo[a].quando) + ')</span>' : 'Libero, aspetta un lavoro.') + '</div>';
+  const azione = A.chat ? '<a class="btn" href="#/chat/' + a + '">Scrivi a ' + e(A.n) + '</a>' : R.squadra[a] ? '<a class="btn" href="#/agente/' + a + '">Dagli un incarico</a>' : a === 'idee' ? '<a class="btn" href="#/copioni/nuovo">Nuovo piano copioni</a>' : '<a class="btn" href="#/nuovo">+ Nuovo reel</a>';
+  $('#lato').style.setProperty('--c', A.c || '#888');
+  $('#lato').innerHTML = '<button class="sec x" id="lato_x">\u2715</button><div class="riga"><div class="faccia">' + A.i + '</div><div><h1 style="font-size:21px">' + e(A.n) + '</h1><div class="mut">' + e(A.r) + ' \xB7 <b style="color:' + (s === 'lavora' ? 'var(--ok)' : s === 'errore' ? 'var(--err)' : 'var(--mut)') + '">' + testoStato + '</b></div></div></div>' +
+    ora + '<p style="font-size:14px;line-height:1.5;color:#4d4b46">' + e(A.d || '') + '</p>' +
+    ((A.skill || []).length ? '<div style="margin:8px 0 14px">' + A.skill.map((k) => '<span class="chip">' + e(k) + '</span>').join('') + '</div>' : '') +
+    '<div class="riga">' + azione + '</div>' +
+    (miei.length ? '<h2>Ultime attivit\xE0</h2><div class="log" style="max-height:none">' + miei.map((r) => '<div class="' + r.livello + '"><span class="mut">' + new Date(r.quando).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) + '</span> ' + e(r.messaggio) + '</div>').join('') + '</div>' : '');
+  $('#lato').classList.add('aperto');
+  $('#lato_x').onclick = () => { chiudiLato(); if (SALA.ufficio) entraUfficio(SALA.ufficio); };
+}
+
+function apriCervello() {
+  const R = SALA.dati;
+  const tot = R.conti.reduce((a, c) => a + c.n, 0);
+  $('#lato').style.setProperty('--c', '#2B59FF');
+  $('#lato').innerHTML = '<button class="sec x" id="lato_x">\u2715</button><div class="riga"><div class="faccia">\u{1F9E0}</div><div><h1 style="font-size:21px">Cervello condiviso</h1><div class="mut">quello che l\u2019agenzia sa e ha fatto</div></div></div>' +
+    '<div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px">' +
+    [[R.clienti, 'clienti con scheda'], [tot, 'incarichi in 30 giorni'], [R.da_approvare, 'da approvare'], [R.reel.length, 'reel in lavorazione']].map(([n, t]) => '<div style="background:#141416;color:#fff;border-radius:14px;padding:14px"><div style="font-size:26px;font-weight:700">' + n + '</div><div style="font-size:12px;color:#bdb8ae">' + t + '</div></div>').join('') + '</div>' +
+    '<p class="mut" style="margin-top:14px">Ogni agente legge la scheda del cliente, le tue correzioni e il lavoro dei colleghi prima di partire.</p><div class="riga"><a class="btn" href="#/clienti">Schede clienti</a><a class="btn sec" href="#/approvazioni">Approvazioni</a></div>';
+  $('#lato').classList.add('aperto');
+  $('#lato_x').onclick = chiudiLato;
+}
+
 async function azienda() {
-  const R = await chiama('/api/azienda');
+  const [R, lavori] = await Promise.all([chiama('/api/azienda'), chiama('/api/lavori').catch(() => [])]);
   Object.assign(AGENTI, R.squadra);
-  const stato = {};
-  for (const I of R.attivi) { const s = I.stato === 'in_corso' && I.blocco_fino > R.adesso ? 'lavora' : 'coda'; if (stato[I.agente] !== 'lavora') stato[I.agente] = s; }
-  if (R.piani.length) stato.idee = 'lavora';
-  const reelAttivo = R.reel.length;
-  const card = (id) => {
-    const A = AGENTI[id], s = stato[id];
-    const link = A.chat ? '#/chat/' + id : id === 'idee' ? '#/copioni' : '#/agente/' + id;
-    return '<a class="scrivania ' + (s || '') + '" style="--c:' + (A.c || '#345') + ';text-decoration:none;color:inherit" href="' + link + '"><div class="av">' + A.i + '</div><div class="chi"><b>' + e(A.n) + '</b><span class="stato-ag">' + (s === 'lavora' ? 'al lavoro' : s === 'coda' ? 'in coda' : A.chat ? 'scrivigli' : 'libero') + '</span><div class="ruolo">' + e(A.r) + '</div></div></a>';
-  };
-  const stanza = (u, nome) => {
-    let ids = Object.keys(R.squadra).filter((k) => R.squadra[k].u === u);
-    if (u === 'direzione') ids = ids.concat(['idee']);
-    const video = u === 'video' ? '<a class="card attivo" href="#/reel" style="display:block;text-decoration:none;color:inherit"><b>\u{1F3AC} Comparto Reel</b> \xB7 Leo, Yuri, Iris, Rocco e la squadra di montaggio<div class="mut">' + (reelAttivo ? reelAttivo + ' reel in lavorazione' : 'nessun reel in corso') + ' \xB7 tocca per entrare</div></a>' : '';
-    return '<div class="stanza"><h3>' + nome + '</h3>' + video + '<div>' + ids.map(card).join('') + '</div></div>';
-  };
+  SALA.dati = R;
+  const prima = !$('#sala');
+  // se la sala \xE8 gi\xE0 aperta aggiorno solo i dati (stati, fumetti, saluto) senza muovere la camera
+  const { st } = statiAgenti(R);
+  const nomi = (ids, col) => ids.slice(0, 3).map((a) => '<b class="n" style="color:' + col + '">' + e(AGENTI[a]?.n || a) + '</b>').join(', ') + (ids.length > 3 ? ' e altri ' + (ids.length - 3) : '');
+  const lavorano = Object.keys(st).filter((a) => st[a] === 'lavora'), coda = Object.keys(st).filter((a) => st[a] === 'coda');
+  const tutti = Object.keys(AGENTI).filter((a) => a !== 'regia').length;
+  const h = new Date().getHours();
+  const frase = [
+    R.da_approvare ? '<b class="n" style="color:var(--warn)">' + R.da_approvare + ' contenuti</b> ti aspettano in approvazione.' : '',
+    lavorano.length ? nomi(lavorano, 'var(--teal)') + (lavorano.length === 1 ? ' sta' : ' stanno') + ' lavorando.' : 'Nessuno sta lavorando adesso.',
+    coda.length ? nomi(coda, 'var(--warn)') + (coda.length === 1 ? ' parte' : ' partono') + ' a breve.' : '',
+    (tutti - lavorano.length - coda.length) + ' sono liberi.',
+  ].filter(Boolean).join(' ');
+  const saluto = '<div class="saluto"><h1>' + (h < 13 ? 'Buongiorno' : h < 18 ? 'Buon pomeriggio' : 'Buonasera') + ', Johnny</h1><p>' + frase + '</p></div>';
+  if (!prima) {
+    $('#saluto').innerHTML = saluto;
+    const D = disegnaSala(R);
+    $('#pavimento').innerHTML = D.pav; $('#attori').innerHTML = D.att;
+    agganciaSala();
+    if (SALA.sel && $('#lato').classList.contains('aperto')) apriLato(SALA.sel);
+    timer = setTimeout(rotta, R.attivi.length || R.reel.length ? 5000 : 15000);
+    return;
+  }
   const C = await clientiSel('k_cli', '', 'cliente: lo capisce Alba');
-  $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">AGENZIA MOMENTO AI</h1>' + (R.da_approvare ? '<a class="btn" href="#/approvazioni">\u2705 ' + R.da_approvare + ' da approvare</a>' : '') + '</div>' +
-    '<div class="card"><b>\u{1F9ED} Chiedi all\u2019agenzia</b><div class="mut">Scrivi cosa ti serve: Alba lo smista agli uffici e partono tutti insieme.</div>' +
-    '<textarea id="k_t" style="min-height:80px;margin-top:8px" placeholder="Es. Nuovo cliente: pizzeria Da Gino a Salerno. Fammi scheda, strategia per 3 mesi e i post della prima settimana."></textarea>' +
-    '<div class="riga" style="margin-top:8px"><div style="flex:1;min-width:180px">' + C + '</div><button id="k_go">Invia</button></div><div id="k_r"></div></div>' +
-    '<div class="studio">' + R.uffici.map(([u, n]) => stanza(u, n)).join('') + '</div>' +
-    '<h2>Ultimi incarichi</h2>' + (R.recenti.map((I) => '<a class="card lav" href="#/incarico/' + I.id + '"><div class="riga"><span>' + (AGENTI[I.agente]?.i || '') + '</span><b style="flex:1">#' + I.id + ' \xB7 ' + e(I.titolo) + '</b><span class="pill ' + (I.stato === 'fatto' ? 'pronto' : I.stato === 'errore' ? 'errore' : 'in_corso') + '">' + (ST_INC[I.stato] || I.stato) + '</span></div><div class="mut">' + e(AGENTI[I.agente]?.n || I.agente) + (I.cliente ? ' \xB7 ' + e(I.cliente) : '') + ' \xB7 ' + fa(I.aggiornato) + '</div></a>').join('') || '<p class="mut">Ancora nessun incarico.</p>') +
-    '<h2>In diretta</h2><div class="log">' + (R.feed.map((r) => { const A = AGENTI[AGID(r.agente)] || AGENTI.regia; return '<div class="' + r.livello + '"><span class="mut">' + new Date(r.quando).toLocaleTimeString('it-IT') + '</span> ' + A.i + ' <b>' + e(A.n) + '</b> ' + e(r.messaggio) + '</div>'; }).join('') || '<div class="mut">ancora niente</div>') + '</div>';
+  const D0 = disegnaSala(R);
+  const recenti = [...lavori.slice(0, 4).map((L) => ({ t: 'REEL \xB7 ' + (L.stato === 'pronto' ? 'pronto' : L.stato === 'errore' ? 'errore' : 'in lavorazione'), b: (L.titolo || L.prompt || '').slice(0, 60), link: '#/lavoro/' + L.id, img: L.stato === 'pronto' ? '/api/lavori/' + L.id + '/anteprima.jpg' : null, i: '\u{1F3AC}' })),
+    ...R.recenti.slice(0, 4).map((I) => ({ t: (AGENTI[I.agente]?.n || I.agente) + ' \xB7 ' + (ST_INC[I.stato] || I.stato), b: I.titolo, link: '#/incarico/' + I.id, img: null, i: AGENTI[I.agente]?.i || '\u{1F4C4}' }))];
+  $('#app').innerHTML = '<div id="saluto">' + saluto + '</div>' +
+    '<div class="chiedi"><span>\u{1F9ED}</span><input id="k_t" placeholder="Chiedi all\u2019agenzia\u2026 es. 6 post per dicembre per A\u2019 Villetta, romantici">' + C + '<button id="k_go">Invia</button></div><div id="k_r"></div>' +
+    '<div class="sala" id="sala"><div class="comandi"><button class="sec" id="torna" style="display:none">\u2190 Tutta l\u2019agenzia</button></div>' +
+    '<div class="camera" id="camera"><div class="pavimento" id="pavimento">' + D0.pav + '</div><div class="attori" id="attori">' + D0.att + '</div></div>' +
+    '<div class="legenda"><span style="color:#22A55B">\u25CF</span> al lavoro &nbsp; <span style="color:#E8930C">\u25CF</span> in coda &nbsp; <span style="color:#8b8780">\u25CF</span> libero</div></div>' +
+    '<h2>Il tuo lavoro</h2><div class="lavori">' + (recenti.map((x) => '<a class="lavoro-card" href="' + x.link + '"><div class="min" style="' + (x.img ? 'background-image:url(' + x.img + ')' : '') + '">' + (x.img ? '' : x.i) + '</div><div style="min-width:0"><small>' + e(x.t) + '</small><b>' + e(x.b) + '</b><span class="btn" style="padding:5px 12px;font-size:12px">Guarda \u25B8</span></div></a>').join('') || '<p class="mut">Ancora niente.</p>') + '</div>' +
+    '<h2>In diretta</h2><div class="log">' + (R.feed.slice(0, 25).map((r) => { const A = AGENTI[AGID(r.agente)] || AGENTI.regia; return '<div class="' + r.livello + '"><span class="mut">' + new Date(r.quando).toLocaleTimeString('it-IT') + '</span> ' + A.i + ' <b>' + e(A.n) + '</b> ' + e(r.messaggio) + '</div>'; }).join('') || '<div class="mut">ancora niente</div>') + '</div>' +
+    '<div class="lato" id="lato"></div>';
+  requestAnimationFrame(() => grandangolo(true));
+  agganciaSala();
+  $('#torna').onclick = () => { if (SALA.sel && SALA.ufficio) { SALA.sel = null; chiudiLato(); entraUfficio(SALA.ufficio); } else grandangolo(); };
   $('#k_go').onclick = async () => {
     const t = $('#k_t').value.trim(); if (!t) return;
     $('#k_go').disabled = true; $('#k_r').innerHTML = '<p class="mut">Alba sta smistando\u2026</p>';
     try {
       const r = await chiama('/api/capo', { method: 'POST', body: { testo: t, cliente_id: $('#k_cli').value || null } });
       $('#k_t').value = '';
-      $('#k_r').innerHTML = '<div class="card" style="margin-top:10px">\u{1F9ED} ' + e(r.risposta) + '<div class="mut" style="margin-top:6px">' + r.incarichi.map((i) => '<a href="#/incarico/' + i + '">#' + i + '</a>').join(' \xB7 ') + (r.reel ? ' \xB7 <a href="#/lavoro/' + r.reel + '">reel #' + r.reel + '</a>' : '') + (r.piano ? ' \xB7 <a href="#/copioni/' + r.piano + '">copioni #' + r.piano + '</a>' : '') + '</div></div>';
-      timer = setTimeout(rotta, 4000);
+      $('#k_r').innerHTML = '<div class="card">\u{1F9ED} ' + e(r.risposta) + '<div class="mut" style="margin-top:6px">' + r.incarichi.map((i) => '<a href="#/incarico/' + i + '">#' + i + '</a>').join(' \xB7 ') + (r.reel ? ' \xB7 <a href="#/lavoro/' + r.reel + '">reel #' + r.reel + '</a>' : '') + (r.piano ? ' \xB7 <a href="#/copioni/' + r.piano + '">copioni #' + r.piano + '</a>' : '') + '</div></div>';
     } catch (x) { $('#k_r').innerHTML = '<div class="err">' + e(x.message) + '</div>'; }
     $('#k_go').disabled = false;
   };
-  $('#k_t').onfocus = () => clearTimeout(timer);
-  timer = setTimeout(() => { if (!$('#k_t') || !$('#k_t').value) rotta(); }, R.attivi.length || reelAttivo ? 5000 : 15000);
+  if (!window.__salaResize) window.__salaResize = addEventListener('resize', () => { if (!$('#sala')) return; if (SALA.sel) vaiAgente(SALA.sel); else if (SALA.ufficio) entraUfficio(SALA.ufficio); else grandangolo(true); });
+  timer = setTimeout(rotta, R.attivi.length || R.reel.length ? 5000 : 15000);
+}
+
+function trascinaSala() {
+  const sala = $('#sala'); if (!sala || sala.__ok) return; sala.__ok = true;
+  const dita = new Map(); let inizio = null, mosso = false, pz = null;
+  sala.addEventListener('pointerdown', (ev) => {
+    dita.set(ev.pointerId, [ev.clientX, ev.clientY]);
+    if (dita.size === 1) { inizio = { x: ev.clientX, y: ev.clientY, cx: SALA.x, cy: SALA.y }; mosso = false; }
+    if (dita.size === 2) { const [a, b] = [...dita.values()]; pz = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), s: SALA.s, x: SALA.x, y: SALA.y, mx: (a[0] + b[0]) / 2, my: (a[1] + b[1]) / 2 }; }
+  });
+  sala.addEventListener('pointermove', (ev) => {
+    if (!dita.has(ev.pointerId)) return;
+    dita.set(ev.pointerId, [ev.clientX, ev.clientY]);
+    const c = $('#camera'), r = sala.getBoundingClientRect();
+    if (dita.size === 2 && pz) {
+      const [a, b] = [...dita.values()];
+      const s = Math.min(4, Math.max(0.2, pz.s * Math.hypot(a[0] - b[0], a[1] - b[1]) / pz.d));
+      const mx = pz.mx - r.left, my = pz.my - r.top;
+      c.style.transition = 'none'; camera(s, mx - (mx - pz.x) * s / pz.s, my - (my - pz.y) * s / pz.s); mosso = true; return;
+    }
+    if (!inizio) return;
+    const dx = ev.clientX - inizio.x, dy = ev.clientY - inizio.y;
+    if (!mosso && Math.hypot(dx, dy) < 6) return;
+    mosso = true; c.style.transition = 'none';
+    camera(SALA.s, inizio.cx + dx, inizio.cy + dy);
+  });
+  const fine = (ev) => { dita.delete(ev.pointerId); if (dita.size < 2) pz = null; if (!dita.size) { inizio = null; $('#camera').style.transition = ''; } };
+  sala.addEventListener('pointerup', fine); sala.addEventListener('pointercancel', fine);
+  sala.addEventListener('click', (ev) => { if (mosso) { ev.stopPropagation(); ev.preventDefault(); mosso = false; } }, true);
+  sala.addEventListener('wheel', (ev) => {
+    ev.preventDefault();
+    const r = sala.getBoundingClientRect(), mx = ev.clientX - r.left, my = ev.clientY - r.top;
+    const s = Math.min(4, Math.max(0.2, SALA.s * Math.exp(-ev.deltaY * 0.0015)));
+    $('#camera').style.transition = 'none';
+    camera(s, mx - (mx - SALA.x) * s / SALA.s, my - (my - SALA.y) * s / SALA.s);
+    clearTimeout(sala.__w); sala.__w = setTimeout(() => { $('#camera').style.transition = ''; }, 120);
+  }, { passive: false });
+}
+
+function agganciaSala() {
+  trascinaSala();
+  document.querySelectorAll('.etichetta-stanza').forEach((x) => x.onclick = () => entraUfficio(x.dataset.uff));
+  document.querySelectorAll('.stanza3d').forEach((st) => st.onclick = (ev) => {
+    if (ev.target.closest('[data-ag]') || ev.target.closest('#cervello')) return;
+    entraUfficio(st.dataset.uff);
+  });
+  document.querySelectorAll('.sala [data-ag]').forEach((el) => el.onclick = (ev) => { ev.stopPropagation(); vaiAgente(el.dataset.ag); });
+  const cv = $('#cervello'); if (cv) cv.onclick = (ev) => { ev.stopPropagation(); apriCervello(); };
 }
 
 async function agentePagina(id) {
@@ -3949,13 +4237,13 @@ async function chatPagina(canale) {
   const M = await chiama('/api/chat/' + canale);
   const es = canale === 'gestionale' ? ['Segnami uno shooting il 12 da Torretta alle 9', 'Nuovo cliente Pizzeria Da Gino, referente Gino Rossi, 333 1234567', 'Cosa abbiamo in calendario questa settimana?'] : ['Fammi un preventivo per Da Gino: 8 reel e 2 shooting foto', 'Chi ci deve ancora pagare?', 'Registra un\u2019uscita di 49 \u20AC per Canva, oggi'];
   $('#app').innerHTML = '<div class="riga"><a class="mut" href="#/">\u2190 Agenzia</a><span style="flex:1"></span><button class="sec" id="ch_pul">Nuova chat</button></div><h1>' + A.i + ' ' + e(A.n) + ' \xB7 ' + e(A.r) + '</h1><div class="mut">' + e(A.d) + '</div>' +
-    '<div id="ch_m" class="card" style="max-height:55vh;overflow:auto">' + (M.map((x) => '<div style="margin:8px 0;' + (x.ruolo === 'user' ? 'text-align:right' : '') + '"><span style="display:inline-block;padding:8px 12px;border-radius:12px;white-space:pre-wrap;text-align:left;background:' + (x.ruolo === 'user' ? 'var(--teal)' : '#1d2a2e') + '">' + e(x.testo) + '</span></div>').join('') || '<div class="mut">Scrivigli cosa fare, per esempio:<ul>' + es.map((x) => '<li>' + e(x) + '</li>').join('') + '</ul></div>') + '</div>' +
+    '<div id="ch_m" class="card" style="max-height:55vh;overflow:auto">' + (M.map((x) => '<div style="margin:8px 0;' + (x.ruolo === 'user' ? 'text-align:right' : '') + '"><span style="display:inline-block;padding:8px 12px;border-radius:12px;white-space:pre-wrap;text-align:left;background:' + (x.ruolo === 'user' ? 'var(--teal);color:#fff' : '#f1eee8') + '">' + e(x.testo) + '</span></div>').join('') || '<div class="mut">Scrivigli cosa fare, per esempio:<ul>' + es.map((x) => '<li>' + e(x) + '</li>').join('') + '</ul></div>') + '</div>' +
     '<div class="riga"><textarea id="ch_t" style="flex:1;min-height:60px" placeholder="Scrivi a ' + e(A.n) + '\u2026"></textarea><button id="ch_go">Invia</button></div><div id="ch_er" class="err"></div>';
   const box = $('#ch_m'); box.scrollTop = box.scrollHeight;
   $('#ch_go').onclick = async () => {
     const t = $('#ch_t').value.trim(); if (!t) return;
     $('#ch_go').disabled = true;
-    box.innerHTML += '<div style="text-align:right;margin:8px 0"><span style="display:inline-block;padding:8px 12px;border-radius:12px;background:var(--teal);white-space:pre-wrap;text-align:left">' + e(t) + '</span></div><div class="mut" id="ch_w">' + e(A.n) + ' sta lavorando sul gestionale\u2026</div>';
+    box.innerHTML += '<div style="text-align:right;margin:8px 0"><span style="display:inline-block;padding:8px 12px;border-radius:12px;background:var(--teal);color:#fff;white-space:pre-wrap;text-align:left">' + e(t) + '</span></div><div class="mut" id="ch_w">' + e(A.n) + ' sta lavorando sul gestionale\u2026</div>';
     box.scrollTop = box.scrollHeight; $('#ch_t').value = '';
     try { await chiama('/api/chat/' + canale, { method: 'POST', body: { testo: t } }); rotta(); }
     catch (x) { $('#ch_er').textContent = x.message; $('#ch_go').disabled = false; }
