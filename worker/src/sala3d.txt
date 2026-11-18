@@ -196,6 +196,7 @@ function umano(id) {
 // ---------------------------------------------------------------- persone vere (modelli 3D animati, scheletro Mixamo)
 // Michelle per le donne, il soldato di three.js rivestito per gli uomini; colori dei vestiti e pelle diversi per ognuno.
 // Se i modelli non si caricano restano le figure disegnate a mano.
+const PERSONE_VERE = false; // si accende quando ci sono i personaggi Mixamo
 const MODELLI = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/models/gltf/';
 const PELLE_K = [1.0, 0.86, 0.72, 0.58, 1.06, 0.93];
 const qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), va = new THREE.Vector3(), vb = new THREE.Vector3();
@@ -694,7 +695,7 @@ export function avvia(cont, dati, cb) {
   S.ridim = () => { if (S) ridimensiona(); }; addEventListener('resize', S.ridim);
   ridimensiona();
   costruisci(dati);
-  caricaPersone().catch((e) => console.warn("persone 3D non caricate", e));
+  if (PERSONE_VERE) caricaPersone().catch((e) => console.warn("persone 3D non caricate", e));
   grandangolo(true);
   const ray = new THREE.Raycaster(), pt = new THREE.Vector2(); let giu = null;
   renderer.domElement.addEventListener('pointerdown', (ev) => { giu = [ev.clientX, ev.clientY]; S.volo = null; });
