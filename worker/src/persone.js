@@ -89,10 +89,12 @@ const ul = document.getElementById('l'), log = [];
 const scrivi = (s) => { log.push(s); const li = document.createElement('li'); li.textContent = s; ul.appendChild(li); fetch('/persone/log?t=' + t, { method: 'POST', body: log.join('\\n') }); };
 const tutti = await (await fetch('/persone/fbx-elenco?t=' + t)).json();
 const solo = new URLSearchParams(location.search).get('solo');
-const elenco = solo ? tutti.filter((n) => solo.split(',').includes(n)) : tutti;
+const elenco = solo ? solo.split(',').filter((n) => tutti.includes(n)) : tutti;
 for (const nome of elenco) {
   try {
     const anim = nome.startsWith('anim_');
+    scrivi('… ' + nome);
+    await new Promise((r) => setTimeout(r, 50));
     const buf = await (await fetch('/persone/fbx/' + nome + '?t=' + t)).arrayBuffer();
     const o = new FBXLoader().parse(buf, '');
     // aspetto le texture incorporate
