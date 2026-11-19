@@ -568,7 +568,7 @@ function disegnaEtichette() {
     if (S.scelto === A.id) { // agente scelto: scheda completa con cosa sta facendo
       h += '<div class="et-ag carta ' + (A.stato || '') + ' scelto" data-ag="' + A.id + '"><b><span class="pt"></span>' + (A.i ? '<span class="ic">' + A.i + '</span>' : '') + esc(A.n) + (A.stato === 'lavora' ? ' <em>al lavoro</em>' : A.stato === 'coda' ? ' <em>in coda</em>' : '') + '</b><span>' + esc((A.msg || A.r || '').slice(0, 90)) + '</span><i>' + (A.stato === 'coda' ? 'Tra poco' : 'Guarda ▸') + '</i></div>';
     } else if (A.stato === 'lavora' || A.stato === 'coda') { // fumetto sopra la testa: icona, nome e puntini che scrivono (in coda: clessidra)
-      h += '<div class="et-ag fumetto ' + A.stato + '" data-ag="' + A.id + '" title="' + esc(A.msg || '') + '">' + (A.i ? '<span class="ic">' + A.i + '</span>' : '') + '<b>' + esc(A.n) + '</b>' +
+      h += '<div class="et-ag nuvola ' + A.stato + '" data-ag="' + A.id + '" title="' + esc(A.msg || '') + '">' + (A.i ? '<span class="ic">' + A.i + '</span>' : '') + '<b>' + esc(A.n) + '</b>' +
         (A.stato === 'lavora' ? '<span class="dd"><i></i><i></i><i></i></span>' : '<span class="cl">⏳</span>') + '</div>';
     } else h += '<div class="et-ag pillola ' + (A.stato || '') + '" data-ag="' + A.id + '"><span class="pt"></span>' + esc(A.n) + '</div>';
   }
