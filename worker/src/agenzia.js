@@ -343,7 +343,7 @@ export async function apiAgenzia(req, env, p, m, json) {
   const corpo = () => req.json().catch(() => ({}));
   if (p === '/api/azienda' && m === 'GET') {
     const adesso = ora();
-    const [attivi, recenti, approvare, conti, clienti, reelAttivi, pianiAttivi] = await Promise.all([
+    const [attivi, recenti, approvare, conti, clienti, reelAttivi, pianiAttivi, profilo, postl] = await Promise.all([
       all(env, "SELECT id, agente, titolo, stato, blocco_fino FROM incarichi WHERE stato IN ('in_coda','in_corso') ORDER BY id"),
       all(env, "SELECT i.id, i.agente, i.titolo, i.stato, i.aggiornato, k.nome AS cliente FROM incarichi i LEFT JOIN clienti k ON k.id=i.cliente_id ORDER BY i.id DESC LIMIT 25"),
       one(env, "SELECT COUNT(*) AS n FROM contenuti WHERE stato IN ('da_approvare','da_pubblicare')"),
@@ -351,9 +351,11 @@ export async function apiAgenzia(req, env, p, m, json) {
       one(env, 'SELECT COUNT(*) AS n FROM clienti'),
       all(env, "SELECT id, fase, blocco_fino FROM lavori WHERE stato='in_corso'"),
       all(env, "SELECT id FROM piani WHERE stato='in_corso'").catch(() => []),
+      all(env, "SELECT id, fase, argomento, blocco_fino FROM avatar_piani WHERE stato='in_corso'").catch(() => []),
+      all(env, "SELECT id, fase, cliente, blocco_fino FROM post_lavori WHERE stato='in_corso'").catch(() => []),
     ]);
     const feed = await all(env, 'SELECT agente, messaggio, livello, quando, lavoro_id FROM registro ORDER BY id DESC LIMIT 40');
-    return json({ adesso, uffici: UFFICI, squadra: SQUADRA, attivi, recenti, da_approvare: approvare.n, conti, clienti: clienti.n, reel: reelAttivi, piani: pianiAttivi, feed, gestionale: !!env.GEST });
+    return json({ adesso, uffici: UFFICI, squadra: SQUADRA, attivi, recenti, da_approvare: approvare.n, conti, clienti: clienti.n, reel: reelAttivi, piani: pianiAttivi, profilo, postl, feed, gestionale: !!env.GEST });
   }
   const ch = p.match(/^\/api\/chat\/(capo|gestionale|contabile)$/);
   if (ch && m === 'GET') return json((await all(env, 'SELECT ruolo, testo, quando FROM chat WHERE canale=? ORDER BY id DESC LIMIT 40', ch[1])).reverse());

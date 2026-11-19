@@ -4154,17 +4154,19 @@ async function apiAgenzia(req, env, p, m, json3) {
   const corpo = () => req.json().catch(() => ({}));
   if (p === "/api/azienda" && m === "GET") {
     const adesso = ora();
-    const [attivi, recenti, approvare, conti, clienti, reelAttivi, pianiAttivi] = await Promise.all([
+    const [attivi, recenti, approvare, conti, clienti, reelAttivi, pianiAttivi, profilo, postl] = await Promise.all([
       all(env, "SELECT id, agente, titolo, stato, blocco_fino FROM incarichi WHERE stato IN ('in_coda','in_corso') ORDER BY id"),
       all(env, "SELECT i.id, i.agente, i.titolo, i.stato, i.aggiornato, k.nome AS cliente FROM incarichi i LEFT JOIN clienti k ON k.id=i.cliente_id ORDER BY i.id DESC LIMIT 25"),
       one(env, "SELECT COUNT(*) AS n FROM contenuti WHERE stato IN ('da_approvare','da_pubblicare')"),
       all(env, "SELECT agente, COUNT(*) AS n FROM incarichi WHERE creato > ? GROUP BY agente", new Date(Date.now() - 30 * 864e5).toISOString()),
       one(env, "SELECT COUNT(*) AS n FROM clienti"),
       all(env, "SELECT id, fase, blocco_fino FROM lavori WHERE stato='in_corso'"),
-      all(env, "SELECT id FROM piani WHERE stato='in_corso'").catch(() => [])
+      all(env, "SELECT id FROM piani WHERE stato='in_corso'").catch(() => []),
+      all(env, "SELECT id, fase, argomento, blocco_fino FROM avatar_piani WHERE stato='in_corso'").catch(() => []),
+      all(env, "SELECT id, fase, cliente, blocco_fino FROM post_lavori WHERE stato='in_corso'").catch(() => [])
     ]);
     const feed = await all(env, "SELECT agente, messaggio, livello, quando, lavoro_id FROM registro ORDER BY id DESC LIMIT 40");
-    return json3({ adesso, uffici: UFFICI, squadra: SQUADRA, attivi, recenti, da_approvare: approvare.n, conti, clienti: clienti.n, reel: reelAttivi, piani: pianiAttivi, feed, gestionale: !!env.GEST });
+    return json3({ adesso, uffici: UFFICI, squadra: SQUADRA, attivi, recenti, da_approvare: approvare.n, conti, clienti: clienti.n, reel: reelAttivi, piani: pianiAttivi, profilo, postl, feed, gestionale: !!env.GEST });
   }
   const ch = p.match(/^\/api\/chat\/(capo|gestionale|contabile)$/);
   if (ch && m === "GET") return json3((await all(env, "SELECT ruolo, testo, quando FROM chat WHERE canale=? ORDER BY id DESC LIMIT 40", ch[1])).reverse());
@@ -4975,7 +4977,10 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 .et-ag.pillola{background:rgba(20,20,22,.9);color:#fff;border-radius:999px;padding:5px 10px 5px 8px;font:600 12px/1 Inter,system-ui;display:flex;gap:6px;align-items:center;white-space:nowrap;box-shadow:0 6px 16px -6px rgba(0,0,0,.45);cursor:pointer;flex-direction:row}
 .et-ag.pillola .pt{width:7px;height:7px;border-radius:50%;background:#9a968f}
 .et-ag.carta{background:#fff;border-radius:14px;padding:9px 11px;min-width:150px;max-width:220px;box-shadow:0 12px 30px -12px rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.05);display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;cursor:pointer;font-family:Inter,system-ui}
-.et-ag.carta b{font-size:13px;color:#141416;grid-column:1}.et-ag.carta span{font-size:11px;color:#77736b;grid-column:1;line-height:1.3}.et-ag.carta i{grid-column:2;grid-row:1/3;font-style:normal;background:#141416;color:#fff;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:600;white-space:nowrap}
+.et-ag.carta b{font-size:13px;color:#141416;grid-column:1}.et-ag.carta>span{font-size:11px;color:#77736b;grid-column:1;line-height:1.3}.et-ag.carta i{grid-column:2;grid-row:1/3;font-style:normal;background:#141416;color:#fff;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:600;white-space:nowrap}
+.et-ag.carta b{display:flex;align-items:center;gap:6px}.et-ag.carta b .pt{width:8px;height:8px;border-radius:50%;background:#9a968f;flex:0 0 8px}.et-ag.carta.lavora b .pt{background:#22A55B;--c:#22A55B;animation:alone 1.3s ease-out infinite}.et-ag.carta.coda b .pt{background:#E8930C}
+.et-ag.carta b em{font-style:normal;font-size:10.5px;font-weight:600;color:#22A55B;text-transform:uppercase;letter-spacing:.03em}.et-ag.carta.coda b em{color:#8a6a1f}.et-ag.carta .pp{display:inline-block;animation:p 1.2s infinite}
+.et-ag.carta>span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.et-ag.carta.lavora{box-shadow:0 0 0 2px rgba(34,165,91,.45),0 12px 30px -12px rgba(0,0,0,.35)}
 .et-ag.carta.coda i{background:#f3efe7;color:#8a6a1f}.et-ag.carta.scelto{box-shadow:0 0 0 2px var(--teal),0 12px 30px -12px rgba(0,0,0,.35)}
 .etichette:not(.vicino) .et-ag.pillola{display:none}
 .filtri{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 0 0}.filtri button{background:#fff;color:#4d4b46;border:1px solid var(--line);padding:6px 12px;font-size:13px;font-weight:500;white-space:nowrap}.filtri button.on{background:var(--nero);color:#fff;border-color:var(--nero)}
@@ -4993,6 +4998,11 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 
 .bb>*{position:absolute}.bb>.omino{left:-32px;top:-84px}.etichetta-stanza{cursor:pointer}.bb>.cervello{left:-35px;top:-70px}.bb>.pianta{left:-13px;top:-40px}.bb>.etichetta-stanza{left:0;top:-18px}
 
+.attivi{display:flex;gap:8px;overflow-x:auto;margin-top:12px;padding:2px 2px 6px;scrollbar-width:thin}
+.saluto button.att{flex:0 0 auto;display:flex;align-items:flex-start;gap:9px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:9px 12px;max-width:300px;text-align:left;color:var(--txt);font-weight:400;box-shadow:none}
+.att .pt{flex:0 0 9px;height:9px;border-radius:50%;margin-top:5px;background:#22A55B;--c:#22A55B;animation:alone 1.3s ease-out infinite}.att.coda .pt{background:#E8930C;animation:none}
+.att .fa{font-size:18px;line-height:1}.att .tx{display:flex;flex-direction:column;gap:2px;min-width:0}.att b{font-size:13px}.att em{font-style:normal;font-size:11px;font-weight:600;color:#22A55B;margin-left:4px}.att.coda em{color:#8a6a1f}
+.att small{font-size:12px;color:#6b675f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}.att small.su{color:#141416;font-weight:500}
 .saluto h1{font-size:30px;margin:0}.saluto p{margin:6px 0 0;color:#5f5c56;font-size:14px;line-height:1.5}.saluto b.n{font-weight:600}
 .chiedi{display:flex;gap:8px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 6px 6px 16px;margin:16px 0 4px;box-shadow:0 8px 30px -18px rgba(0,0,0,.25)}
 .chiedi input{border:0;padding:8px 0;outline:none!important;background:transparent}.chiedi select{width:auto;max-width:170px;border:0;background:#f4f2ee;border-radius:999px;padding:8px 10px;font-size:13px}
@@ -5606,6 +5616,8 @@ const PIANTA = [
   ['contabilita', 'Contabilit\xE0', 1080, 740, 360, 260, '#fff0d9'],
   ['meeting', 'Sala meeting', 1440, 740, 300, 260, '#eef2f7'],
 ];
+const FASE_PROFILO = { ricerca: ['ricerca'], virali: ['trend'], copioni: ['idee'], avatar: ['avatar'], montaggio: ['avatar'] };
+const FASE_POST_AG = { ricerca: ['scout_ig'], studio: ['occhi'], foto: ['analista'], contenuti: ['caroselli'], scarica: ['caroselli'] };
 const VIDEO_TEAM = ['direttore', 'avatar', 'stella', 'scout_yt', 'scout_tt', 'scout_ig', 'occhi', 'analista', 'motore', 'regista', 'copy', 'editor', 'vfx', 'color', 'audio', 'sottotitoli', 'revisore'];
 let SALA = { s: 1, x: 0, y: 0, dati: null, sel: null, ufficio: null };
 
@@ -5621,6 +5633,17 @@ function statiAgenti(R) {
     if (st[a] !== 'lavora') { st[a] = s; cosa[a] = { testo: 'Reel #' + L.id + ' \xB7 fase ' + L.fase, link: '#/lavoro/' + L.id }; }
   }
   if (R.piani.length) { st.idee = 'lavora'; cosa.idee = { testo: 'Piano copioni #' + R.piani[0].id, link: '#/copioni/' + R.piani[0].id }; }
+  // reel del profilo di Johnny e caroselli: chi lavora dipende dalla fase
+  for (const A of R.profilo || []) for (const a of FASE_PROFILO[A.fase] || []) {
+    const s = A.blocco_fino && A.blocco_fino > R.adesso ? 'lavora' : 'coda';
+    if (st[a] !== 'lavora') { st[a] = s; cosa[a] = { testo: 'Profilo IG \xB7 \u201C' + String(A.argomento || '').slice(0, 40) + '\u201D', link: '#/profilo/' + A.id }; }
+  }
+  for (const Q of R.postl || []) for (const a of FASE_POST_AG[Q.fase] || []) {
+    const s = Q.blocco_fino && Q.blocco_fino > R.adesso ? 'lavora' : 'coda';
+    if (st[a] !== 'lavora') { st[a] = s; cosa[a] = { testo: 'Caroselli #' + Q.id + (Q.cliente ? ' \xB7 ' + Q.cliente : ''), link: '#/post/' + Q.id }; }
+  }
+  // cosa sta facendo in questo momento: l'ultimo messaggio nel registro (se recente)
+  for (const a of Object.keys(st)) { const u = ultimo[a]; if (cosa[a] && u && Date.now() - new Date(u.quando) < 20 * 60e3) cosa[a].ora = u.messaggio; }
   for (const Q of (R.riunioni || []).filter((x) => x.in_sala)) for (const a of Q.partecipanti) cosa[a] = { testo: 'In riunione: ' + (Q.titolo || ''), link: '#/riunione/' + Q.id };
   for (const [a, u] of Object.entries(ultimo)) if (!st[a] && u.livello === 'errore' && Date.now() - new Date(u.quando) < 30 * 60e3) st[a] = 'errore';
   return { st, cosa, ultimo };
@@ -5639,7 +5662,7 @@ function datiSala(R) {
   const registro = {};
   for (const r of R.feed) { const a = AGID(r.agente); (registro[a] ||= []).length < 4 && registro[a].push(r.messaggio); }
   const reelImg = (a) => { const L = R.reel.find((x) => (FASE_AGENTI[x.fase] || []).includes(a)); return L && L.fase === 'fatto' ? '/api/lavori/' + L.id + '/anteprima.jpg' : null; };
-  for (const [u] of PIANTA) for (const a of agentiUfficio(R, u)) { const A = AGENTI[a]; if (A) agenti.push({ id: a, n: A.n, r: A.r, c: A.c || '#888888', u, stato: st[a] || '', msg: cosa[a]?.testo || ultimo[a]?.messaggio || '', log: registro[a] || [], img: reelImg(a) }); }
+  for (const [u] of PIANTA) for (const a of agentiUfficio(R, u)) { const A = AGENTI[a]; if (A) agenti.push({ id: a, n: A.n, r: A.r, c: A.c || '#888888', u, stato: st[a] || '', msg: cosa[a]?.ora || cosa[a]?.testo || ultimo[a]?.messaggio || '', lavoro: cosa[a]?.testo || '', log: registro[a] || [], img: reelImg(a) }); }
   const riunioni = (R.riunioni || []).filter((x) => x.in_sala).map((x) => ({ id: x.id, stanza: x.tipo === 'settimanale' ? 'direzione' : 'meeting', partecipanti: x.partecipanti, titolo: x.titolo }));
   return { uffici: PIANTA.map(([id, nome, x, y, w, h, col]) => ({ id, nome, x, y, w, h, col })), agenti, riunioni };
 }
@@ -5700,7 +5723,7 @@ async function azienda() {
   SALA.dati = R;
   const prima = !$('#sala');
   // se la sala \xE8 gi\xE0 aperta aggiorno solo i dati (stati, fumetti, saluto) senza muovere la camera
-  const { st } = statiAgenti(R);
+  const { st, cosa } = statiAgenti(R);
   const nomi = (ids, col) => ids.slice(0, 3).map((a) => '<b class="n" style="color:' + col + '">' + e(AGENTI[a]?.n || a) + '</b>').join(', ') + (ids.length > 3 ? ' e altri ' + (ids.length - 3) : '');
   const lavorano = Object.keys(st).filter((a) => st[a] === 'lavora'), coda = Object.keys(st).filter((a) => st[a] === 'coda');
   const tutti = Object.keys(AGENTI).filter((a) => a !== 'regia').length;
@@ -5711,12 +5734,15 @@ async function azienda() {
     coda.length ? nomi(coda, 'var(--warn)') + (coda.length === 1 ? ' parte' : ' partono') + ' a breve.' : '',
     (tutti - lavorano.length - coda.length) + ' sono liberi.',
   ].filter(Boolean).join(' ');
-  const saluto = '<div class="saluto"><h1>' + (h < 13 ? 'Buongiorno' : h < 18 ? 'Buon pomeriggio' : 'Buonasera') + ', Johnny</h1><p>' + frase + '</p></div>';
+  // striscia "al lavoro adesso": chi lavora, su cosa e l'ultima cosa che ha fatto; toccando vola dall'agente
+  const striscia = [...lavorano, ...coda].filter((a) => AGENTI[a]).map((a) => '<button class="att ' + st[a] + '" data-va="' + a + '"><span class="pt"></span><span class="fa">' + (AGENTI[a].i || '\u2022') + '</span><span class="tx"><b>' + e(AGENTI[a].n) + ' <em>' + (st[a] === 'lavora' ? 'al lavoro' : 'in coda') + '</em></b>' +
+    (cosa[a]?.testo ? '<small class="su">' + e(cosa[a].testo) + '</small>' : '') + (cosa[a]?.ora ? '<small>' + e(cosa[a].ora) + '</small>' : '') + '</span></button>').join('');
+  const saluto = '<div class="saluto"><h1>' + (h < 13 ? 'Buongiorno' : h < 18 ? 'Buon pomeriggio' : 'Buonasera') + ', Johnny</h1><p>' + frase + '</p>' + (striscia ? '<div class="attivi">' + striscia + '</div>' : '') + '</div>';
   if (!prima) {
     $('#saluto').innerHTML = saluto;
     if (SALA3D) SALA3D.aggiorna(datiSala(R)); else datiSala(R);
     if (SALA.sel && $('#lato').classList.contains('aperto')) apriLato(SALA.sel);
-    timer = setTimeout(rotta, R.attivi.length || R.reel.length ? 5000 : 15000);
+    timer = setTimeout(rotta, R.attivi.length || R.reel.length || (R.profilo || []).length || (R.postl || []).length ? 5000 : 15000);
     return;
   }
   const C = await clientiSel('k_cli', '', 'cliente: lo capisce Alba');
@@ -5735,6 +5761,7 @@ async function azienda() {
     '<h2>Tocca a te</h2><div class="lavori">' + (recenti.map((x) => '<a class="lavoro-card" href="' + x.link + '"><div class="min" style="' + (x.img ? 'background-image:url(' + x.img + ')' : '') + '">' + (x.img ? '' : x.i) + '</div><div style="min-width:0"><small>' + e(x.t) + '</small><b>' + e(x.b) + '</b><span class="btn" style="padding:5px 12px;font-size:12px">Guarda \u25B8</span></div></a>').join('') || '<p class="mut">Ancora niente.</p>') + '</div>' +
     '<h2>In diretta</h2><div class="log">' + (R.feed.slice(0, 25).map((r) => { const A = AGENTI[AGID(r.agente)] || AGENTI.regia; return '<div class="' + r.livello + '"><span class="mut">' + new Date(r.quando).toLocaleTimeString('it-IT') + '</span> ' + A.i + ' <b>' + e(A.n) + '</b> ' + e(r.messaggio) + '</div>'; }).join('') || '<div class="mut">ancora niente</div>') + '</div>' +
     '<div class="lato" id="lato"></div>';
+  $('#saluto').onclick = (ev) => { const b = ev.target.closest('[data-va]'); if (!b) return; $('#sala').scrollIntoView({ behavior: 'smooth', block: 'center' }); vaiAgente(b.dataset.va); };
   const D = datiSala(R);
   import('/sala3d.js').then((m) => {
     if (!$('#sala')) return;
@@ -5762,7 +5789,7 @@ async function azienda() {
     } catch (x) { $('#k_r').innerHTML = '<div class="err">' + e(x.message) + '</div>'; }
     $('#k_go').disabled = false;
   };
-  timer = setTimeout(rotta, R.attivi.length || R.reel.length ? 5000 : 15000);
+  timer = setTimeout(rotta, R.attivi.length || R.reel.length || (R.profilo || []).length || (R.postl || []).length ? 5000 : 15000);
 }
 
 async function agentePagina(id) {
@@ -6591,7 +6618,7 @@ function disegnaEtichette() {
     if (!S.agenti[A.id]) continue;
     const viva = (A.stato === 'lavora' || A.stato === 'coda' || S.scelto === A.id) && (!S.agenti[A.id]?.riunione || S.scelto === A.id);
     h += viva
-      ? '<div class="et-ag carta ' + (A.stato || '') + (S.scelto === A.id ? ' scelto' : '') + '" data-ag="' + A.id + '"><b>' + esc(A.n) + '</b><span>' + esc((A.msg || A.r || '').slice(0, 46)) + '</span><i>' + (A.stato === 'coda' ? 'In coda' : 'Guarda \u25B8') + '</i></div>'
+      ? '<div class="et-ag carta ' + (A.stato || '') + (S.scelto === A.id ? ' scelto' : '') + '" data-ag="' + A.id + '"><b><span class="pt"></span>' + esc(A.n) + (A.stato === 'lavora' ? ' <em>al lavoro<span class="pp">...</span></em>' : A.stato === 'coda' ? ' <em>in coda</em>' : '') + '</b><span>' + esc((A.msg || A.r || '').slice(0, 90)) + '</span><i>' + (A.stato === 'coda' ? 'Tra poco' : 'Guarda \u25B8') + '</i></div>'
       : '<div class="et-ag pillola ' + (A.stato || '') + '" data-ag="' + A.id + '"><span class="pt"></span>' + esc(A.n) + '</div>';
   }
   el.innerHTML = h;
@@ -6634,7 +6661,7 @@ function vola(target, dist, ms = 1000) {
 export function grandangolo(subito) {
   S.scelto = null; disegnaEtichette();
   const t = new THREE.Vector3(CX, 0, CZ - 0.4), d = distanzaPer(LARGO + 1.0, FONDO + 1.2);
-  S.distTutto = d;
+  S.distTutto = d; S.controls.maxDistance = Math.max(90, d * 1.2); // sul telefono (schermo stretto) la vista intera \xE8 pi\xF9 lontana
   if (subito) { S.controls.target.copy(t); S.camera.position.copy(t).addScaledVector(DIREZIONE, d); S.camera.lookAt(t); }
   else { vola(t, d); S.volo.dir1 = DIREZIONE.clone(); }
   S.cb.vista && S.cb.vista('tutto');
@@ -6843,10 +6870,20 @@ export function avvia(cont, dati, cb) {
   renderer.shadowMap.needsUpdate = true;
   caricaPersone().catch((e) => console.warn("persone 3D non caricate", e));
   grandangolo(true);
-  const ray = new THREE.Raycaster(), pt = new THREE.Vector2(); let giu = null;
-  renderer.domElement.addEventListener('pointerdown', (ev) => { giu = [ev.clientX, ev.clientY]; S.volo = null; });
+  const ray = new THREE.Raycaster(), pt = new THREE.Vector2(); let giu = null, multi = false; const dita = new Set();
+  // un tocco vola su stanza/agente solo se \xE8 UN dito, fermo e breve: un pizzico per lo zoom non deve mai far partire il volo
+  renderer.domElement.addEventListener('pointerdown', (ev) => {
+    dita.add(ev.pointerId); S.volo = null;
+    if (dita.size > 1) { multi = true; giu = null; } else { multi = false; giu = [ev.clientX, ev.clientY, performance.now()]; }
+  });
+  const via = (ev) => { dita.delete(ev.pointerId); };
+  renderer.domElement.addEventListener('pointercancel', (ev) => { via(ev); giu = null; });
+  renderer.domElement.addEventListener('wheel', () => { S.volo = null; }, { passive: true });
   renderer.domElement.addEventListener('pointerup', (ev) => {
-    if (!giu || Math.hypot(ev.clientX - giu[0], ev.clientY - giu[1]) > 6) return;
+    via(ev);
+    if (multi) { if (!dita.size) multi = false; giu = null; return; }
+    const g = giu; giu = null;
+    if (!g || Math.hypot(ev.clientX - g[0], ev.clientY - g[1]) > 8 || performance.now() - g[2] > 450) return;
     const r = renderer.domElement.getBoundingClientRect();
     pt.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(pt, camera);

@@ -540,7 +540,7 @@ function disegnaEtichette() {
     if (!S.agenti[A.id]) continue;
     const viva = (A.stato === 'lavora' || A.stato === 'coda' || S.scelto === A.id) && (!S.agenti[A.id]?.riunione || S.scelto === A.id);
     h += viva
-      ? '<div class="et-ag carta ' + (A.stato || '') + (S.scelto === A.id ? ' scelto' : '') + '" data-ag="' + A.id + '"><b>' + esc(A.n) + '</b><span>' + esc((A.msg || A.r || '').slice(0, 46)) + '</span><i>' + (A.stato === 'coda' ? 'In coda' : 'Guarda ▸') + '</i></div>'
+      ? '<div class="et-ag carta ' + (A.stato || '') + (S.scelto === A.id ? ' scelto' : '') + '" data-ag="' + A.id + '"><b><span class="pt"></span>' + esc(A.n) + (A.stato === 'lavora' ? ' <em>al lavoro<span class="pp">...</span></em>' : A.stato === 'coda' ? ' <em>in coda</em>' : '') + '</b><span>' + esc((A.msg || A.r || '').slice(0, 90)) + '</span><i>' + (A.stato === 'coda' ? 'Tra poco' : 'Guarda ▸') + '</i></div>'
       : '<div class="et-ag pillola ' + (A.stato || '') + '" data-ag="' + A.id + '"><span class="pt"></span>' + esc(A.n) + '</div>';
   }
   el.innerHTML = h;
@@ -583,7 +583,7 @@ function vola(target, dist, ms = 1000) {
 export function grandangolo(subito) {
   S.scelto = null; disegnaEtichette();
   const t = new THREE.Vector3(CX, 0, CZ - 0.4), d = distanzaPer(LARGO + 1.0, FONDO + 1.2);
-  S.distTutto = d;
+  S.distTutto = d; S.controls.maxDistance = Math.max(90, d * 1.2); // sul telefono (schermo stretto) la vista intera è più lontana
   if (subito) { S.controls.target.copy(t); S.camera.position.copy(t).addScaledVector(DIREZIONE, d); S.camera.lookAt(t); }
   else { vola(t, d); S.volo.dir1 = DIREZIONE.clone(); }
   S.cb.vista && S.cb.vista('tutto');
@@ -792,10 +792,20 @@ export function avvia(cont, dati, cb) {
   renderer.shadowMap.needsUpdate = true;
   caricaPersone().catch((e) => console.warn("persone 3D non caricate", e));
   grandangolo(true);
-  const ray = new THREE.Raycaster(), pt = new THREE.Vector2(); let giu = null;
-  renderer.domElement.addEventListener('pointerdown', (ev) => { giu = [ev.clientX, ev.clientY]; S.volo = null; });
+  const ray = new THREE.Raycaster(), pt = new THREE.Vector2(); let giu = null, multi = false; const dita = new Set();
+  // un tocco vola su stanza/agente solo se è UN dito, fermo e breve: un pizzico per lo zoom non deve mai far partire il volo
+  renderer.domElement.addEventListener('pointerdown', (ev) => {
+    dita.add(ev.pointerId); S.volo = null;
+    if (dita.size > 1) { multi = true; giu = null; } else { multi = false; giu = [ev.clientX, ev.clientY, performance.now()]; }
+  });
+  const via = (ev) => { dita.delete(ev.pointerId); };
+  renderer.domElement.addEventListener('pointercancel', (ev) => { via(ev); giu = null; });
+  renderer.domElement.addEventListener('wheel', () => { S.volo = null; }, { passive: true });
   renderer.domElement.addEventListener('pointerup', (ev) => {
-    if (!giu || Math.hypot(ev.clientX - giu[0], ev.clientY - giu[1]) > 6) return;
+    via(ev);
+    if (multi) { if (!dita.size) multi = false; giu = null; return; }
+    const g = giu; giu = null;
+    if (!g || Math.hypot(ev.clientX - g[0], ev.clientY - g[1]) > 8 || performance.now() - g[2] > 450) return;
     const r = renderer.domElement.getBoundingClientRect();
     pt.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(pt, camera);
