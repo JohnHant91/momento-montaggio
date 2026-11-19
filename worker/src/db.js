@@ -29,11 +29,16 @@ export async function schema(env) {
 }
 
 export async function log(env, lavoroId, agente, messaggio, livello = 'info') {
+  // gli avvisi di pausa (credito finito) si ripetono a ogni giro: li scrivo una volta ogni ora per agente
+  if (String(messaggio).startsWith('⏸️')) {
+    const r = await env.DB.prepare('SELECT 1 FROM registro WHERE agente=? AND messaggio=? AND quando > ? LIMIT 1').bind(agente, String(messaggio).slice(0, 600), new Date(Date.now() - 3600e3).toISOString()).first().catch(() => null);
+    if (r) return;
+  }
   await run(env, 'INSERT INTO registro (lavoro_id, agente, messaggio, livello, quando) VALUES (?,?,?,?,?)',
     lavoroId, agente, String(messaggio).slice(0, 600), livello, ora());
 }
 
-export const CHIAVI_SEGRETE = ['ANTHROPIC_API_KEY', 'YOUTUBE_API_KEY', 'APIFY_TOKEN', 'GITHUB_TOKEN', 'HEYGEN_API_KEY'];
+export const CHIAVI_SEGRETE = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'YOUTUBE_API_KEY', 'APIFY_TOKEN', 'GITHUB_TOKEN', 'HEYGEN_API_KEY'];
 export const CHIAVI_OPZIONI = ['CLAUDE_MODEL', 'CLAUDE_MODEL_LIGHT', 'APIFY_TIKTOK_ACTOR', 'APIFY_INSTAGRAM_ACTOR', 'NUM_RIFERIMENTI', 'DURATA_MAX', 'MESI_RICERCA', 'HEYGEN_AVATAR', 'HEYGEN_VOCE', 'HEYGEN_DOLLARI_MINUTO', 'COSTI_FISSI', 'CAMBIO_USD_EUR', 'IG_CLIENTE_ID'];
 
 // configurazione: i segreti di Cloudflare hanno la precedenza su quelli salvati dalla pagina Impostazioni
@@ -45,7 +50,7 @@ export async function configurazione(env) {
     YOUTUBE_API_KEY: v('YOUTUBE_API_KEY'), APIFY_TOKEN: v('APIFY_TOKEN'), GITHUB_TOKEN: v('GITHUB_TOKEN'),
     HEYGEN_API_KEY: v('HEYGEN_API_KEY'), HEYGEN_AVATAR: v('HEYGEN_AVATAR', '789cba3ed8ce45e98b0695720f3b8966'), HEYGEN_VOCE: v('HEYGEN_VOCE', 'e0a308623c8c4a3c99c8f66a900faccd'),
     CLAUDE_MODEL: v('CLAUDE_MODEL', 'claude-sonnet-5-5'), CLAUDE_MODEL_LIGHT: v('CLAUDE_MODEL_LIGHT', 'claude-haiku-5-5'), WEB_SEARCH_TOOL: v('WEB_SEARCH_TOOL', 'web_search_20250305'),
-    GEMINI_MODELS: String(v('GEMINI_MODELS', 'gemini-3.6-flash,gemini-3-flash-preview,gemini-2.5-flash')).split(',').map((s) => s.trim()).filter(Boolean),
+    GEMINI_MODELS: String(v('GEMINI_MODELS', 'gemini-3.6-flash,gemini-3-flash-preview')).split(',').map((s) => s.trim()).filter(Boolean),
     APIFY_TIKTOK_ACTOR: v('APIFY_TIKTOK_ACTOR', 'clockworks/tiktok-scraper'),
     APIFY_INSTAGRAM_ACTOR: v('APIFY_INSTAGRAM_ACTOR', 'apify/instagram-scraper'),
     NUM_RIFERIMENTI: Number(v('NUM_RIFERIMENTI', 9)), DURATA_MAX: Number(v('DURATA_MAX', 90)),

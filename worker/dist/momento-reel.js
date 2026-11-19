@@ -161,6 +161,10 @@ async function schema(env) {
   pronto = true;
 }
 async function log(env, lavoroId, agente, messaggio, livello = "info") {
+  if (String(messaggio).startsWith("\u23F8\uFE0F")) {
+    const r = await env.DB.prepare("SELECT 1 FROM registro WHERE agente=? AND messaggio=? AND quando > ? LIMIT 1").bind(agente, String(messaggio).slice(0, 600), new Date(Date.now() - 36e5).toISOString()).first().catch(() => null);
+    if (r) return;
+  }
   await run(
     env,
     "INSERT INTO registro (lavoro_id, agente, messaggio, livello, quando) VALUES (?,?,?,?,?)",
@@ -171,7 +175,7 @@ async function log(env, lavoroId, agente, messaggio, livello = "info") {
     ora()
   );
 }
-var CHIAVI_SEGRETE = ["ANTHROPIC_API_KEY", "YOUTUBE_API_KEY", "APIFY_TOKEN", "GITHUB_TOKEN", "HEYGEN_API_KEY"];
+var CHIAVI_SEGRETE = ["ANTHROPIC_API_KEY", "GEMINI_API_KEY", "YOUTUBE_API_KEY", "APIFY_TOKEN", "GITHUB_TOKEN", "HEYGEN_API_KEY"];
 var CHIAVI_OPZIONI = ["CLAUDE_MODEL", "CLAUDE_MODEL_LIGHT", "APIFY_TIKTOK_ACTOR", "APIFY_INSTAGRAM_ACTOR", "NUM_RIFERIMENTI", "DURATA_MAX", "MESI_RICERCA", "HEYGEN_AVATAR", "HEYGEN_VOCE", "HEYGEN_DOLLARI_MINUTO", "COSTI_FISSI", "CAMBIO_USD_EUR", "IG_CLIENTE_ID"];
 async function configurazione(env) {
   const salvate = Object.fromEntries((await all(env, "SELECT chiave, valore FROM impostazioni")).map((r) => [r.chiave, r.valore]));
@@ -188,7 +192,7 @@ async function configurazione(env) {
     CLAUDE_MODEL: v("CLAUDE_MODEL", "claude-sonnet-5-5"),
     CLAUDE_MODEL_LIGHT: v("CLAUDE_MODEL_LIGHT", "claude-haiku-5-5"),
     WEB_SEARCH_TOOL: v("WEB_SEARCH_TOOL", "web_search_20250305"),
-    GEMINI_MODELS: String(v("GEMINI_MODELS", "gemini-3.6-flash,gemini-3-flash-preview,gemini-2.5-flash")).split(",").map((s) => s.trim()).filter(Boolean),
+    GEMINI_MODELS: String(v("GEMINI_MODELS", "gemini-3.6-flash,gemini-3-flash-preview")).split(",").map((s) => s.trim()).filter(Boolean),
     APIFY_TIKTOK_ACTOR: v("APIFY_TIKTOK_ACTOR", "clockworks/tiktok-scraper"),
     APIFY_INSTAGRAM_ACTOR: v("APIFY_INSTAGRAM_ACTOR", "apify/instagram-scraper"),
     NUM_RIFERIMENTI: Number(v("NUM_RIFERIMENTI", 9)),
@@ -2125,7 +2129,8 @@ async function fasePiano(env, cfg, L) {
   const sm = p.stile_montaggio;
   if (sm?.descrizione && (!stile || !stile.genere && !stile.mood?.length)) stile = { genere: null, mood: [], libero: String(sm.descrizione).slice(0, 120), ricerca: (sm.ricerca_en || []).slice(0, 2) };
   else if (stile && sm?.ricerca_en?.length && !stile.ricerca) stile.ricerca = sm.ricerca_en.slice(0, 2);
-  if (stile) {
+  if (stile?.avatar) await run(env, "UPDATE lavori SET stile=? WHERE id=?", JSON.stringify(stile), L.id);
+  else if (stile) {
     const q = ricercaStile(stile, p.settore), R = ricetta(stile);
     p.youtube_query = [...q.yt, ...p.youtube_query || []].slice(0, 4);
     p.tiktok_query = [...q.tt, ...p.tiktok_query || []].slice(0, 4);
@@ -2134,7 +2139,7 @@ async function fasePiano(env, cfg, L) {
     await log(env, L.id, "stella", `\u{1F3A8} stile ${R.nome}: cerco reel montati cos\xEC (${[...q.yt, ...q.tt].join(" \xB7 ")}) e ne estraggo la ricetta da applicare alle tue clip`);
   }
   await run(env, "UPDATE lavori SET piano=? WHERE id=?", JSON.stringify(p), L.id);
-  await log(env, L.id, "direttore", `settore: ${p.settore} \xB7 obiettivo: ${p.obiettivo || "-"}`);
+  await log(env, L.id, "direttore", `settore: ${p.settore || "-"} \xB7 obiettivo: ${p.obiettivo || "-"}`);
 }
 async function faseRicerca(env, cfg, L) {
   const p = J(L.piano, {});
@@ -2607,6 +2612,10 @@ async function lavora(env, cfg, L, scadenza) {
     if (!finita) return "attesa";
     let prossima = FASI[FASI.indexOf(L.fase) + 1];
     if (finita === "salta") prossima = "fatto";
+    if (L.fase === "piano" && J(L.stile, null)?.avatar) {
+      prossima = "clip";
+      await log(env, L.id, "direttore", "reel con il tuo avatar: i virali li ha gi\xE0 studiati Zoe, salto la ricerca dei riferimenti");
+    }
     await run(
       env,
       "UPDATE lavori SET fase=?, stato=?, tentativi=0, aggiornato=? WHERE id=?",
@@ -2639,11 +2648,12 @@ async function avanza(env) {
         else await run(env, "UPDATE lavori SET blocco_fino=NULL WHERE id=?", L.id);
       } catch (e) {
         const msg = String(e?.message || e).slice(0, 500);
-        const stop = L.tentativi >= 3 || /manca la chiave/.test(msg);
-        const pausa = new Date(Date.now() + 2 * 6e4).toISOString();
-        await run(env, "UPDATE lavori SET stato=?, errore=?, blocco_fino=?, aggiornato=? WHERE id=?", stop ? "errore" : "in_corso", msg, stop ? null : pausa, ora(), L.id);
+        const credito = /credit balance|billing/i.test(msg);
+        const stop = !credito && (L.tentativi >= 3 || /manca la chiave/.test(msg));
+        const pausa = new Date(Date.now() + (credito ? 10 : 2) * 6e4).toISOString();
+        await run(env, "UPDATE lavori SET stato=?, errore=?, blocco_fino=?, tentativi=?, aggiornato=? WHERE id=?", stop ? "errore" : "in_corso", credito ? "Credito Claude esaurito: riparto da solo quando lo ricarichi" : msg, stop ? null : pausa, credito ? 0 : L.tentativi, ora(), L.id);
         const fase = (await one(env, "SELECT fase FROM lavori WHERE id=?", L.id))?.fase || L.fase;
-        await log(env, L.id, "regia", `${stop ? "\u274C fermo" : "\u26A0\uFE0F riprovo tra 2 minuti"} (fase ${fase}): ${msg}`, stop ? "errore" : "warn");
+        await log(env, L.id, "regia", credito ? "\u23F8\uFE0F credito Claude esaurito: il reel riparte da solo quando lo ricarichi" : `${stop ? "\u274C fermo" : "\u26A0\uFE0F riprovo tra 2 minuti"} (fase ${fase}): ${msg}`, stop || credito ? "errore" : "warn");
       }
     }
   };
@@ -2804,17 +2814,19 @@ async function avanzaPiani(env) {
     await run(env, "UPDATE piani SET blocco_fino=NULL, tentativi=0, errore=NULL WHERE id=?", P2.id);
   } catch (e) {
     const msg = String(e?.message || e).slice(0, 400);
-    const stop = P2.tentativi >= 3 || /manca la chiave/.test(msg);
+    const credito = /credit balance|billing/i.test(msg);
+    const stop = !credito && (P2.tentativi >= 3 || /manca la chiave/.test(msg));
     await run(
       env,
-      "UPDATE piani SET stato=?, errore=?, blocco_fino=?, aggiornato=? WHERE id=?",
+      "UPDATE piani SET stato=?, errore=?, blocco_fino=?, tentativi=?, aggiornato=? WHERE id=?",
       stop ? "errore" : "in_corso",
-      msg,
-      stop ? null : new Date(Date.now() + 2 * 6e4).toISOString(),
+      credito ? "Credito Claude esaurito: riparto da solo quando lo ricarichi" : msg,
+      stop ? null : new Date(Date.now() + (credito ? 10 : 2) * 6e4).toISOString(),
+      credito ? 0 : P2.tentativi,
       ora(),
       P2.id
     );
-    await log(env, null, "idee", `${stop ? "\u274C fermo" : "\u26A0\uFE0F riprovo tra 2 minuti"} (piano #${P2.id}): ${msg}`, stop ? "errore" : "warn");
+    await log(env, null, "idee", credito ? "\u23F8\uFE0F credito Claude esaurito: riparto quando lo ricarichi" : `${stop ? "\u274C fermo" : "\u26A0\uFE0F riprovo tra 2 minuti"} (piano #${P2.id}): ${msg}`, stop || credito ? "errore" : "warn");
   }
 }
 async function apiPiani(req, env, p, m, json3) {
@@ -3006,9 +3018,10 @@ function orariPubblicazione(quanti, da = /* @__PURE__ */ new Date()) {
   for (let i = 0; i < quanti; i++) {
     const d = new Date(giorno);
     d.setUTCDate(d.getUTCDate() + i);
-    const iso = d.toISOString().slice(0, 10);
-    const inverno = !(d.getUTCMonth() > 2 && d.getUTCMonth() < 10);
-    out.push((/* @__PURE__ */ new Date(`${iso}T${i % 2 ? "13" : "19"}:00:00${inverno ? "+01:00" : "+02:00"}`)).toISOString());
+    const iso = d.toISOString().slice(0, 10), h = i % 2 ? 13 : 19;
+    const prova = /* @__PURE__ */ new Date(`${iso}T${String(h).padStart(2, "0")}:00:00Z`);
+    const roma = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Rome", hour: "2-digit", hourCycle: "h23" }).format(prova));
+    out.push(new Date(prova.getTime() - (roma - h + 24) % 24 * 36e5).toISOString());
   }
   return out;
 }
@@ -3018,7 +3031,7 @@ function richiestaProfilo(testo) {
   const nm = t.match(/(\d+)\s*(reel|video|contenut|carosell|post|grafich)/i) || t.match(/\b(uno|due|tre|quattro|cinque|sei|sette|otto|nove|dieci)\s+(reel|video|contenut|carosell|post|grafich)/i);
   const parole = { uno: 1, due: 2, tre: 3, quattro: 4, cinque: 5, sei: 6, sette: 7, otto: 8, nove: 9, dieci: 10 };
   const numero = Math.min(10, Math.max(1, nm ? Number(nm[1]) || parole[nm[1].toLowerCase()] : 5));
-  const am = t.match(/\b(?:su|sul|sullo|sulla|sui|sugli|sulle|riguardo(?:\s+a(?:l|lla|gli|i)?)?|argomento:?|tema:?|parlando\s+di|che\s+parlano\s+di)\s+(.{3,})/i);
+  const am = t.match(/\b(?:(?:su|sul|sullo|sulla|sui|sugli|sulle|riguardo(?:\s+a(?:l|lla|gli|i)?)?|argomento:?|tema:?|parlando\s+di|che\s+parlano\s+di)\s+|sull['’]\s*)(.{2,})/i);
   const argomento = am && am[1].replace(/\s+/g, " ").replace(/[.!?]+$/, "").trim().slice(0, 300);
   return { numero, argomento: argomento || null };
 }
@@ -3224,14 +3237,24 @@ Idee per le grafiche (concetto \u2192 parola su cui entra): ${(c.cartelli || [])
       "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,'[]','url',?,?,?) RETURNING id",
       prompt,
       JSON.stringify([{ nome: `avatar_${A.id}_${v.n}.mp4`, url: v.url, durata: v.durata }]),
-      JSON.stringify({ genere: "split", mood: [] }),
+      JSON.stringify({ genere: "split", mood: [], avatar: true }),
       ora(),
       ora()
     );
     lavori.push({ n: v.n, lavoro: r.id });
     await log(env, r.id, "regia", `\u{1F3AC} reel ${v.n} "${c.titolo}" (avatar): parte il montaggio`);
   }
-  await run(env, "UPDATE avatar_piani SET lavori=?, fase='fatto', stato='fatto', blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(lavori), ora(), A.id);
+  const persi = (J(A.video, []) || []).filter((v) => v.stato === "errore");
+  if (persi.length) await log(env, null, "avatar", `\u26A0\uFE0F ${persi.length} video avatar non generati da HeyGen (reel ${persi.map((v) => v.n).join(", ")}): non vanno al montaggio. ${persi[0].errore || ""}`.slice(0, 400), "warn");
+  await run(
+    env,
+    "UPDATE avatar_piani SET lavori=?, fase='fatto', stato=?, errore=?, blocco_fino=NULL, aggiornato=? WHERE id=?",
+    JSON.stringify(lavori),
+    lavori.length ? "fatto" : "errore",
+    lavori.length ? null : "nessun video avatar da montare: HeyGen non li ha generati",
+    ora(),
+    A.id
+  );
 }
 async function avanzaAvatar(env) {
   await schemaAvatar(env);
@@ -3456,6 +3479,7 @@ Rispondi SOLO JSON: {"hashtag": ["5 hashtag instagram senza #, di nicchia ma con
     if (ig.status === "fulfilled") lista.push(...ig.value.map(normIg));
     else await log(env, null, "scout_ig", `Instagram non risponde: ${String(ig.reason?.message || ig.reason).slice(0, 120)}`, "warn");
     if (tt.status === "fulfilled") lista.push(...tt.value.map(normTt));
+    else await log(env, null, "scout_tt", `TikTok non risponde: ${String(tt.reason?.message || tt.reason).slice(0, 120)}`, "warn");
     if (miei.status === "fulfilled") lista.push(...miei.value.map((x) => ({ ...normIg(x), scelto_da_johnny: true })));
   } else {
     await log(env, null, "scout_ig", "senza token Apify cerco esempi sul web (niente numeri di like)", "warn");
@@ -3721,7 +3745,8 @@ async function apiPost(req, env, p, m, json3) {
     const d = await corpo();
     const post = (d.post || []).map((x) => ({ n: Number(x.n), design_id: String(x.design_id || ""), link: /^https:\/\//.test(x.link || "") ? x.link : null, png: (x.png || []).filter((u) => /^https:\/\//.test(u)).slice(0, 20) })).filter((x) => x.png.length);
     if (!post.length) return json3({ errore: "servono le immagini esportate da Canva" }, 400);
-    await run(env, "UPDATE post_lavori SET canva=?, fase='scarica', stato='in_corso', blocco_fino=NULL, tentativi=0, aggiornato=? WHERE id=?", JSON.stringify({ post, quando: ora() }), ora(), P2.id);
+    for (const k of Object.keys(J(P2.slide_file, {}) || {})) await env.VIDEO.delete(k);
+    await run(env, "UPDATE post_lavori SET canva=?, slide_file=NULL, fase='scarica', stato='in_corso', blocco_fino=NULL, tentativi=0, aggiornato=? WHERE id=?", JSON.stringify({ post, quando: ora() }), ora(), P2.id);
     return json3({ ok: true });
   }
   if (m === "POST" && mm[2] === "pubblica") {
@@ -4415,7 +4440,8 @@ async function chiediDirettrice(env, testo, clienteId) {
   await run(env, "INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)", "capo", "user", testo, ora());
   const prof = richiestaProfilo(testo);
   if (prof && !prof.argomento) {
-    const risposta2 = `Ok, ${prof.numero} reel per il tuo profilo. Su che argomento? Scrivimi per esempio: "per il mio profilo ${prof.numero} reel su come trovare clienti con Instagram".`;
+    const cosa = /carosell|slide/i.test(testo) ? "caroselli" : /\bpost\b|grafich/i.test(testo) ? "post" : "reel";
+    const risposta2 = `Ok, ${prof.numero} ${cosa} per il tuo profilo. Su che argomento? Scrivimi per esempio: "per il mio profilo ${prof.numero} ${cosa} su come trovare clienti con Instagram".`;
     await run(env, "INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)", "capo", "assistant", risposta2, ora());
     return { risposta: risposta2, incarichi: [] };
   }
@@ -5360,12 +5386,12 @@ async function dettaglio(id) {
   if (L.stato === 'in_corso') timer = setTimeout(() => { if (!document.activeElement || !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) rotta(); else timer = setTimeout(rotta, 6000); }, 6000);
 }
 
-const NOMI = { ANTHROPIC_API_KEY: ['Claude', 'console.anthropic.com \u2192 API Keys'], GEMINI_API_KEY: ['Gemini (gli occhi)', 'aistudio.google.com/apikey'], YOUTUBE_API_KEY: ['YouTube Data API v3 (facoltativa: senza, Yuri cerca sul web)', 'console.cloud.google.com \u2192 abilita \u201CYouTube Data API v3\u201D \u2192 Credenziali \u2192 Chiave API'], APIFY_TOKEN: ['Apify (facoltativa: TikTok e Instagram)', 'console.apify.com \u2192 Settings \u2192 API & Integrations'], GITHUB_TOKEN: ['GitHub (avvio immediato del motore)', 'github.com/settings/personal-access-tokens/new \u2192 solo il repository momento-montaggio \u2192 permesso Actions: Read and write'] };
+const NOMI = { ANTHROPIC_API_KEY: ['Claude', 'console.anthropic.com \u2192 API Keys'], GEMINI_API_KEY: ['Gemini (gli occhi)', 'aistudio.google.com/apikey'], YOUTUBE_API_KEY: ['YouTube Data API v3 (facoltativa: senza, Yuri cerca sul web)', 'console.cloud.google.com \u2192 abilita \u201CYouTube Data API v3\u201D \u2192 Credenziali \u2192 Chiave API'], APIFY_TOKEN: ['Apify (facoltativa: TikTok e Instagram)', 'console.apify.com \u2192 Settings \u2192 API & Integrations'], HEYGEN_API_KEY: ['HeyGen (avatar: genera i video da solo)', 'app.heygen.com \u2192 Settings \u2192 API (serve un piano con API)'], GITHUB_TOKEN: ['GitHub (avvio immediato del motore)', 'github.com/settings/personal-access-tokens/new \u2192 solo il repository momento-montaggio \u2192 permesso Actions: Read and write'] };
 async function impostazioni() {
   const d = await chiama('/api/impostazioni');
-  $('#app').innerHTML = '<h1>Impostazioni</h1><p class="mut">Le chiavi restano sul tuo Cloudflare. Lascia vuoto un campo per non cambiarlo.</p>' +
-    Object.entries(d.segreti).map(([k, v]) => '<label>' + NOMI[k][0] + ' ' + (v.impostata ? '<span class="pill pronto">impostata ' + e(v.anteprima) + '</span>' : '<span class="pill errore">manca</span>') + '</label>' +
-      (v.da_cloudflare ? '<div class="aiuto">Impostata come segreto su Cloudflare.</div>' : '<input data-k="' + k + '" type="password" autocomplete="off" placeholder="incolla qui"><div class="aiuto">' + NOMI[k][1] + '</div>')).join('') +
+  $('#app').innerHTML = '<h1>Impostazioni</h1><p class="mut">Le chiavi API stanno solo nei segreti di Cloudflare, mai nel database.</p>' +
+    Object.entries(d.segreti).map(([k, v]) => '<label>' + (NOMI[k] || [k])[0] + ' ' + (v.impostata ? '<span class="pill pronto">impostata ' + e(v.anteprima) + '</span>' : '<span class="pill errore">manca</span>') + '</label>' +
+      '<div class="aiuto">' + (v.da_cloudflare ? 'Impostata come segreto su Cloudflare.' : (NOMI[k] || ['', ''])[1] + ' \xB7 Per sicurezza non si incolla qui: chiedi a Claude in chat di metterla come segreto su Cloudflare.') + '</div>').join('') +
     '<h2>Avanzate</h2>' + Object.entries(d.opzioni).map(([k, v]) => '<label>' + k + '</label><input data-k="' + k + '" data-o="1" value="' + e(v) + '">').join('') +
     '<div class="riga" style="margin-top:18px"><button id="sv">Salva</button><button class="sec" id="out">Esci</button></div><div id="er" class="err"></div>';
   $('#sv').onclick = async () => {
@@ -7015,12 +7041,19 @@ async function api(req, env, url) {
   if (p === "/api/accedi" && m === "POST") {
     const { password } = await req.json().catch(() => ({}));
     if (!password || String(password).length < 6) return json2({ errore: "password di almeno 6 caratteri" }, 400);
+    const kip = "accesso_ko:" + (req.headers.get("cf-connecting-ip") || "x");
+    const falliti = Number(await env.VIDEO.get(kip).catch(() => 0)) || 0;
+    if (falliti >= 8) return json2({ errore: "troppi tentativi sbagliati: riprova tra 15 minuti" }, 429);
     let h = await hashPassword(env);
     const nuovo = sha("momento-reel|" + password);
     if (!h) {
       h = await nuovo;
       await run(env, "INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES ('ADMIN_HASH', ?)", h);
-    } else if (await nuovo !== h) return json2({ errore: "password errata" }, 401);
+    } else if (await nuovo !== h) {
+      await env.VIDEO.put(kip, String(falliti + 1), { expirationTtl: 900 }).catch(() => {
+      });
+      return json2({ errore: "password errata" }, 401);
+    }
     return json2({ ok: true }, 200, { "set-cookie": cookie(await firma(h), 60 * 60 * 24 * 60) });
   }
   if (p === "/api/esci") return json2({ ok: true }, 200, { "set-cookie": cookie("", 0) });
@@ -7037,7 +7070,8 @@ async function api(req, env, url) {
   if (p === "/api/impostazioni" && m === "POST") {
     const d = await req.json().catch(() => ({}));
     const stmt = [];
-    for (const k of [...CHIAVI_SEGRETE, ...CHIAVI_OPZIONI]) {
+    if (CHIAVI_SEGRETE.some((k) => typeof d[k] === "string" && d[k].trim())) return json2({ errore: "Le chiavi API non si salvano qui: vanno messe come segreti su Cloudflare (chiedilo a Claude in chat)." }, 400);
+    for (const k of CHIAVI_OPZIONI) {
       if (typeof d[k] !== "string") continue;
       const v = d[k].trim();
       stmt.push(v ? env.DB.prepare("INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES (?,?)").bind(k, v) : env.DB.prepare("DELETE FROM impostazioni WHERE chiave=?").bind(k));

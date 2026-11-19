@@ -437,12 +437,12 @@ async function dettaglio(id) {
   if (L.stato === 'in_corso') timer = setTimeout(() => { if (!document.activeElement || !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) rotta(); else timer = setTimeout(rotta, 6000); }, 6000);
 }
 
-const NOMI = { ANTHROPIC_API_KEY: ['Claude', 'console.anthropic.com → API Keys'], GEMINI_API_KEY: ['Gemini (gli occhi)', 'aistudio.google.com/apikey'], YOUTUBE_API_KEY: ['YouTube Data API v3 (facoltativa: senza, Yuri cerca sul web)', 'console.cloud.google.com → abilita “YouTube Data API v3” → Credenziali → Chiave API'], APIFY_TOKEN: ['Apify (facoltativa: TikTok e Instagram)', 'console.apify.com → Settings → API & Integrations'], GITHUB_TOKEN: ['GitHub (avvio immediato del motore)', 'github.com/settings/personal-access-tokens/new → solo il repository momento-montaggio → permesso Actions: Read and write'] };
+const NOMI = { ANTHROPIC_API_KEY: ['Claude', 'console.anthropic.com → API Keys'], GEMINI_API_KEY: ['Gemini (gli occhi)', 'aistudio.google.com/apikey'], YOUTUBE_API_KEY: ['YouTube Data API v3 (facoltativa: senza, Yuri cerca sul web)', 'console.cloud.google.com → abilita “YouTube Data API v3” → Credenziali → Chiave API'], APIFY_TOKEN: ['Apify (facoltativa: TikTok e Instagram)', 'console.apify.com → Settings → API & Integrations'], HEYGEN_API_KEY: ['HeyGen (avatar: genera i video da solo)', 'app.heygen.com → Settings → API (serve un piano con API)'], GITHUB_TOKEN: ['GitHub (avvio immediato del motore)', 'github.com/settings/personal-access-tokens/new → solo il repository momento-montaggio → permesso Actions: Read and write'] };
 async function impostazioni() {
   const d = await chiama('/api/impostazioni');
-  $('#app').innerHTML = '<h1>Impostazioni</h1><p class="mut">Le chiavi restano sul tuo Cloudflare. Lascia vuoto un campo per non cambiarlo.</p>' +
-    Object.entries(d.segreti).map(([k, v]) => '<label>' + NOMI[k][0] + ' ' + (v.impostata ? '<span class="pill pronto">impostata ' + e(v.anteprima) + '</span>' : '<span class="pill errore">manca</span>') + '</label>' +
-      (v.da_cloudflare ? '<div class="aiuto">Impostata come segreto su Cloudflare.</div>' : '<input data-k="' + k + '" type="password" autocomplete="off" placeholder="incolla qui"><div class="aiuto">' + NOMI[k][1] + '</div>')).join('') +
+  $('#app').innerHTML = '<h1>Impostazioni</h1><p class="mut">Le chiavi API stanno solo nei segreti di Cloudflare, mai nel database.</p>' +
+    Object.entries(d.segreti).map(([k, v]) => '<label>' + (NOMI[k] || [k])[0] + ' ' + (v.impostata ? '<span class="pill pronto">impostata ' + e(v.anteprima) + '</span>' : '<span class="pill errore">manca</span>') + '</label>' +
+      '<div class="aiuto">' + (v.da_cloudflare ? 'Impostata come segreto su Cloudflare.' : (NOMI[k] || ['', ''])[1] + ' · Per sicurezza non si incolla qui: chiedi a Claude in chat di metterla come segreto su Cloudflare.') + '</div>').join('') +
     '<h2>Avanzate</h2>' + Object.entries(d.opzioni).map(([k, v]) => '<label>' + k + '</label><input data-k="' + k + '" data-o="1" value="' + e(v) + '">').join('') +
     '<div class="riga" style="margin-top:18px"><button id="sv">Salva</button><button class="sec" id="out">Esci</button></div><div id="er" class="err"></div>';
   $('#sv').onclick = async () => {

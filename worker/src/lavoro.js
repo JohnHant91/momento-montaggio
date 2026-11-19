@@ -187,7 +187,8 @@ async function fasePiano(env, cfg, L) {
   const sm = p.stile_montaggio;
   if (sm?.descrizione && (!stile || (!stile.genere && !stile.mood?.length))) stile = { genere: null, mood: [], libero: String(sm.descrizione).slice(0, 120), ricerca: (sm.ricerca_en || []).slice(0, 2) };
   else if (stile && sm?.ricerca_en?.length && !stile.ricerca) stile.ricerca = sm.ricerca_en.slice(0, 2);
-  if (stile) {
+  if (stile?.avatar) await run(env, 'UPDATE lavori SET stile=? WHERE id=?', JSON.stringify(stile), L.id);
+  else if (stile) {
     const q = ricercaStile(stile, p.settore), R = ricetta(stile);
     p.youtube_query = [...q.yt, ...(p.youtube_query || [])].slice(0, 4);
     p.tiktok_query = [...q.tt, ...(p.tiktok_query || [])].slice(0, 4);
@@ -196,7 +197,7 @@ async function fasePiano(env, cfg, L) {
     await log(env, L.id, 'stella', `🎨 stile ${R.nome}: cerco reel montati così (${[...q.yt, ...q.tt].join(' · ')}) e ne estraggo la ricetta da applicare alle tue clip`);
   }
   await run(env, 'UPDATE lavori SET piano=? WHERE id=?', JSON.stringify(p), L.id);
-  await log(env, L.id, 'direttore', `settore: ${p.settore} · obiettivo: ${p.obiettivo || '-'}`);
+  await log(env, L.id, 'direttore', `settore: ${p.settore || "-"} · obiettivo: ${p.obiettivo || '-'}`);
 }
 
 async function faseRicerca(env, cfg, L) {
@@ -621,6 +622,8 @@ async function lavora(env, cfg, L, scadenza) {
     if (!finita) return 'attesa';
     let prossima = FASI[FASI.indexOf(L.fase) + 1];
     if (finita === 'salta') prossima = 'fatto';
+    // reel col mio avatar: lo studio dei virali l'ha già fatto Zoe nel piano del profilo, niente seconda ricerca (risparmia Apify, Claude e Gemini)
+    if (L.fase === 'piano' && J(L.stile, null)?.avatar) { prossima = 'clip'; await log(env, L.id, 'direttore', 'reel con il tuo avatar: i virali li ha già studiati Zoe, salto la ricerca dei riferimenti'); }
     await run(env, 'UPDATE lavori SET fase=?, stato=?, tentativi=0, aggiornato=? WHERE id=?',
       prossima, prossima === 'fatto' ? 'pronto' : 'in_corso', ora(), L.id);
     if (prossima === 'fatto') { await log(env, L.id, 'regia', J((await one(env, 'SELECT montaggio FROM lavori WHERE id=?', L.id))?.montaggio, null)?.stato === 'fatto' ? '✅ reel montato: aprilo e guardalo' : '✅ lavoro pronto: apri la scheda'); return; }
@@ -647,12 +650,13 @@ export async function avanza(env) {
         else await run(env, 'UPDATE lavori SET blocco_fino=NULL WHERE id=?', L.id);
       } catch (e) {
         const msg = String(e?.message || e).slice(0, 500);
-        const stop = L.tentativi >= 3 || /manca la chiave/.test(msg); // senza chiave è inutile riprovare
-        // pausa di 2 minuti prima del nuovo tentativo (prima ripartiva subito e bruciava i 3 tentativi in un secondo)
-        const pausa = new Date(Date.now() + 2 * 60e3).toISOString();
-        await run(env, 'UPDATE lavori SET stato=?, errore=?, blocco_fino=?, aggiornato=? WHERE id=?', stop ? 'errore' : 'in_corso', msg, stop ? null : pausa, ora(), L.id);
+        const credito = /credit balance|billing/i.test(msg); // credito Claude finito: pausa senza bruciare i tentativi
+        const stop = !credito && (L.tentativi >= 3 || /manca la chiave/.test(msg)); // senza chiave è inutile riprovare
+        // pausa prima del nuovo tentativo (prima ripartiva subito e bruciava i 3 tentativi in un secondo)
+        const pausa = new Date(Date.now() + (credito ? 10 : 2) * 60e3).toISOString();
+        await run(env, 'UPDATE lavori SET stato=?, errore=?, blocco_fino=?, tentativi=?, aggiornato=? WHERE id=?', stop ? 'errore' : 'in_corso', credito ? 'Credito Claude esaurito: riparto da solo quando lo ricarichi' : msg, stop ? null : pausa, credito ? 0 : L.tentativi, ora(), L.id);
         const fase = (await one(env, 'SELECT fase FROM lavori WHERE id=?', L.id))?.fase || L.fase;
-        await log(env, L.id, 'regia', `${stop ? '❌ fermo' : '⚠️ riprovo tra 2 minuti'} (fase ${fase}): ${msg}`, stop ? 'errore' : 'warn');
+        await log(env, L.id, 'regia', credito ? '⏸️ credito Claude esaurito: il reel riparte da solo quando lo ricarichi' : `${stop ? '❌ fermo' : '⚠️ riprovo tra 2 minuti'} (fase ${fase}): ${msg}`, stop || credito ? 'errore' : 'warn');
       }
     }
   };

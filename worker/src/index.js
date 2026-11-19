@@ -71,12 +71,16 @@ async function api(req, env, url) {
   if (p === '/api/accedi' && m === 'POST') {
     const { password } = await req.json().catch(() => ({}));
     if (!password || String(password).length < 6) return json({ errore: 'password di almeno 6 caratteri' }, 400);
+    // troppi tentativi sbagliati dallo stesso indirizzo: blocco per 15 minuti (contro chi prova password a raffica)
+    const kip = 'accesso_ko:' + (req.headers.get('cf-connecting-ip') || 'x');
+    const falliti = Number(await env.VIDEO.get(kip).catch(() => 0)) || 0;
+    if (falliti >= 8) return json({ errore: 'troppi tentativi sbagliati: riprova tra 15 minuti' }, 429);
     let h = await hashPassword(env);
     const nuovo = sha('momento-reel|' + password);
     if (!h) { // primo accesso: la password scelta diventa quella della regia
       h = await nuovo;
       await run(env, "INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES ('ADMIN_HASH', ?)", h);
-    } else if (await nuovo !== h) return json({ errore: 'password errata' }, 401);
+    } else if (await nuovo !== h) { await env.VIDEO.put(kip, String(falliti + 1), { expirationTtl: 900 }).catch(() => {}); return json({ errore: 'password errata' }, 401); }
     return json({ ok: true }, 200, { 'set-cookie': cookie(await firma(h), 60 * 60 * 24 * 60) });
   }
   if (p === '/api/esci') return json({ ok: true }, 200, { 'set-cookie': cookie('', 0) });
@@ -95,7 +99,9 @@ async function api(req, env, url) {
   if (p === '/api/impostazioni' && m === 'POST') {
     const d = await req.json().catch(() => ({}));
     const stmt = [];
-    for (const k of [...CHIAVI_SEGRETE, ...CHIAVI_OPZIONI]) {
+    // le chiavi API non finiscono mai nel database: vanno messe come segreti del worker su Cloudflare
+    if (CHIAVI_SEGRETE.some((k) => typeof d[k] === 'string' && d[k].trim())) return json({ errore: 'Le chiavi API non si salvano qui: vanno messe come segreti su Cloudflare (chiedilo a Claude in chat).' }, 400);
+    for (const k of CHIAVI_OPZIONI) {
       if (typeof d[k] !== 'string') continue;
       const v = d[k].trim();
       stmt.push(v ? env.DB.prepare('INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES (?,?)').bind(k, v)

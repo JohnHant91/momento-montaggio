@@ -44,7 +44,8 @@ export async function chiediDirettrice(env, testo, clienteId) {
   // contenuti per il profilo personale di Johnny: niente riunione preventiva, parte subito tutta la catena del Profilo IG
   const prof = richiestaProfilo(testo);
   if (prof && !prof.argomento) {
-    const risposta = `Ok, ${prof.numero} reel per il tuo profilo. Su che argomento? Scrivimi per esempio: "per il mio profilo ${prof.numero} reel su come trovare clienti con Instagram".`;
+    const cosa = /carosell|slide/i.test(testo) ? 'caroselli' : /\bpost\b|grafich/i.test(testo) ? 'post' : 'reel';
+    const risposta = `Ok, ${prof.numero} ${cosa} per il tuo profilo. Su che argomento? Scrivimi per esempio: "per il mio profilo ${prof.numero} ${cosa} su come trovare clienti con Instagram".`;
     await run(env, 'INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)', 'capo', 'assistant', risposta, ora());
     return { risposta, incarichi: [] };
   }

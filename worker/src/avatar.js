@@ -33,9 +33,11 @@ function orariPubblicazione(quanti, da = new Date()) {
   const out = [], giorno = new Date(da); giorno.setUTCDate(giorno.getUTCDate() + 1);
   for (let i = 0; i < quanti; i++) {
     const d = new Date(giorno); d.setUTCDate(d.getUTCDate() + i);
-    const iso = d.toISOString().slice(0, 10);
-    const inverno = !(d.getUTCMonth() > 2 && d.getUTCMonth() < 10); // approssimazione: ora legale da aprile a ottobre
-    out.push(new Date(`${iso}T${i % 2 ? '13' : '19'}:00:00${inverno ? '+01:00' : '+02:00'}`).toISOString());
+    const iso = d.toISOString().slice(0, 10), h = i % 2 ? 13 : 19;
+    // ora di Roma esatta (ora legale compresa): calcolo lo scarto del fuso a quella data
+    const prova = new Date(`${iso}T${String(h).padStart(2, '0')}:00:00Z`);
+    const roma = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Rome', hour: '2-digit', hourCycle: 'h23' }).format(prova));
+    out.push(new Date(prova.getTime() - ((roma - h + 24) % 24) * 3600e3).toISOString());
   }
   return out;
 }
@@ -47,7 +49,7 @@ export function richiestaProfilo(testo) {
   const nm = t.match(/(\d+)\s*(reel|video|contenut|carosell|post|grafich)/i) || t.match(/\b(uno|due|tre|quattro|cinque|sei|sette|otto|nove|dieci)\s+(reel|video|contenut|carosell|post|grafich)/i);
   const parole = { uno: 1, due: 2, tre: 3, quattro: 4, cinque: 5, sei: 6, sette: 7, otto: 8, nove: 9, dieci: 10 };
   const numero = Math.min(10, Math.max(1, nm ? Number(nm[1]) || parole[nm[1].toLowerCase()] : 5));
-  const am = t.match(/\b(?:su|sul|sullo|sulla|sui|sugli|sulle|riguardo(?:\s+a(?:l|lla|gli|i)?)?|argomento:?|tema:?|parlando\s+di|che\s+parlano\s+di)\s+(.{3,})/i);
+  const am = t.match(/\b(?:(?:su|sul|sullo|sulla|sui|sugli|sulle|riguardo(?:\s+a(?:l|lla|gli|i)?)?|argomento:?|tema:?|parlando\s+di|che\s+parlano\s+di)\s+|sull['’]\s*)(.{2,})/i);
   const argomento = am && (am[1].replace(/\s+/g, ' ').replace(/[.!?]+$/, '').trim().slice(0, 300));
   return { numero, argomento: argomento || null };
 }
@@ -214,11 +216,14 @@ Titolo: ${c.titolo}. Gancio: ${c.gancio}. Soluzione finale: ${c.soluzione}.
 Testo detto: ${c.testo}
 Idee per le grafiche (concetto → parola su cui entra): ${(c.cartelli || []).map((k) => `${k.testo} → ${k.sulla_parola}`).join('; ')}`;
     const r = await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,'[]','url',?,?,?) RETURNING id",
-      prompt, JSON.stringify([{ nome: `avatar_${A.id}_${v.n}.mp4`, url: v.url, durata: v.durata }]), JSON.stringify({ genere: 'split', mood: [] }), ora(), ora());
+      prompt, JSON.stringify([{ nome: `avatar_${A.id}_${v.n}.mp4`, url: v.url, durata: v.durata }]), JSON.stringify({ genere: 'split', mood: [], avatar: true }), ora(), ora());
     lavori.push({ n: v.n, lavoro: r.id });
     await log(env, r.id, 'regia', `🎬 reel ${v.n} "${c.titolo}" (avatar): parte il montaggio`);
   }
-  await run(env, "UPDATE avatar_piani SET lavori=?, fase='fatto', stato='fatto', blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(lavori), ora(), A.id);
+  const persi = (J(A.video, []) || []).filter((v) => v.stato === 'errore');
+  if (persi.length) await log(env, null, 'avatar', `⚠️ ${persi.length} video avatar non generati da HeyGen (reel ${persi.map((v) => v.n).join(', ')}): non vanno al montaggio. ${persi[0].errore || ''}`.slice(0, 400), 'warn');
+  await run(env, "UPDATE avatar_piani SET lavori=?, fase='fatto', stato=?, errore=?, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(lavori), lavori.length ? 'fatto' : 'errore',
+    lavori.length ? null : 'nessun video avatar da montare: HeyGen non li ha generati', ora(), A.id);
 }
 
 // ------------------------------------------------------------------ cron

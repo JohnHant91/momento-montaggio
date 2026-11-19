@@ -163,10 +163,11 @@ export async function avanzaPiani(env) {
     await run(env, 'UPDATE piani SET blocco_fino=NULL, tentativi=0, errore=NULL WHERE id=?', P.id);
   } catch (e) {
     const msg = String(e?.message || e).slice(0, 400);
-    const stop = P.tentativi >= 3 || /manca la chiave/.test(msg);
-    await run(env, 'UPDATE piani SET stato=?, errore=?, blocco_fino=?, aggiornato=? WHERE id=?', stop ? 'errore' : 'in_corso', msg,
-      stop ? null : new Date(Date.now() + 2 * 60e3).toISOString(), ora(), P.id);
-    await log(env, null, 'idee', `${stop ? '❌ fermo' : '⚠️ riprovo tra 2 minuti'} (piano #${P.id}): ${msg}`, stop ? 'errore' : 'warn');
+    const credito = /credit balance|billing/i.test(msg);
+    const stop = !credito && (P.tentativi >= 3 || /manca la chiave/.test(msg));
+    await run(env, 'UPDATE piani SET stato=?, errore=?, blocco_fino=?, tentativi=?, aggiornato=? WHERE id=?', stop ? 'errore' : 'in_corso', credito ? 'Credito Claude esaurito: riparto da solo quando lo ricarichi' : msg,
+      stop ? null : new Date(Date.now() + (credito ? 10 : 2) * 60e3).toISOString(), credito ? 0 : P.tentativi, ora(), P.id);
+    await log(env, null, 'idee', credito ? '⏸️ credito Claude esaurito: riparto quando lo ricarichi' : `${stop ? '❌ fermo' : '⚠️ riprovo tra 2 minuti'} (piano #${P.id}): ${msg}`, stop || credito ? 'errore' : 'warn');
   }
 }
 

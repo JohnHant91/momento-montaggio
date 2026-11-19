@@ -71,6 +71,7 @@ async function faseRicerca(env, cfg, P) {
     if (ig.status === 'fulfilled') lista.push(...ig.value.map(normIg));
     else await log(env, null, 'scout_ig', `Instagram non risponde: ${String(ig.reason?.message || ig.reason).slice(0, 120)}`, 'warn');
     if (tt.status === 'fulfilled') lista.push(...tt.value.map(normTt));
+    else await log(env, null, 'scout_tt', `TikTok non risponde: ${String(tt.reason?.message || tt.reason).slice(0, 120)}`, 'warn');
     if (miei.status === 'fulfilled') lista.push(...miei.value.map((x) => ({ ...normIg(x), scelto_da_johnny: true })));
   } else {
     await log(env, null, 'scout_ig', 'senza token Apify cerco esempi sul web (niente numeri di like)', 'warn');
@@ -287,7 +288,9 @@ export async function apiPost(req, env, p, m, json) {
     const d = await corpo();
     const post = (d.post || []).map((x) => ({ n: Number(x.n), design_id: String(x.design_id || ''), link: /^https:\/\//.test(x.link || '') ? x.link : null, png: (x.png || []).filter((u) => /^https:\/\//.test(u)).slice(0, 20) })).filter((x) => x.png.length);
     if (!post.length) return json({ errore: 'servono le immagini esportate da Canva' }, 400);
-    await run(env, "UPDATE post_lavori SET canva=?, fase='scarica', stato='in_corso', blocco_fino=NULL, tentativi=0, aggiornato=? WHERE id=?", JSON.stringify({ post, quando: ora() }), ora(), P.id);
+    // nuova esportazione (es. rifatta in JPG): le slide vecchie si buttano, altrimenti resterebbero quelle
+    for (const k of Object.keys(J(P.slide_file, {}) || {})) await env.VIDEO.delete(k);
+    await run(env, "UPDATE post_lavori SET canva=?, slide_file=NULL, fase='scarica', stato='in_corso', blocco_fino=NULL, tentativi=0, aggiornato=? WHERE id=?", JSON.stringify({ post, quando: ora() }), ora(), P.id);
     return json({ ok: true });
   }
   if (m === 'POST' && mm[2] === 'pubblica') { // {n:[numeri], quando:{n: ISO}} → in coda sul profilo Instagram collegato (solo dopo l'ok di Johnny)
