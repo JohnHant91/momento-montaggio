@@ -827,6 +827,21 @@ var GENERI = {
     finale: null,
     cerca: { yt: ["ai tools explained reel motion graphics"], tt: ["strumenti ai gratis"], ig: ["strumentiai", "aitools"] }
   },
+  dietro: {
+    nome: "Parole giganti dietro la persona",
+    parole: ["parole dietro", "testo dietro", "scritte dietro", "text behind", "kinetic typography"],
+    formato: "parole_dietro",
+    regole: "La persona a tutto schermo, ritagliata: ogni frase diventa 1-3 righe di parole GIGANTI dietro di lei (maiuscole bianche, parole chiave colorate e in rilievo 3D, una riga in serif corsivo), la parola detta in piccolo bianca sul petto, adesivi che esplodono (cuore, fuoco, like, logo) sulle parole forti, schede di vetro che fluttuano ai lati per i concetti, capitoli a tutto schermo con il numero enorme in serif per le liste. Push-in lento continuo e piccolo punch sulle parole chiave.",
+    look: "naturale_vivace",
+    camera: "ferma",
+    durata: [2, 5],
+    transizioni: ["taglio_netto"],
+    effetti: ["nessuno"],
+    globali: [],
+    rallenty: "mai",
+    finale: null,
+    cerca: { yt: ["text behind person talking head reel"], tt: ["testo dietro persona"], ig: ["videoediting", "reelsediting"] }
+  },
   educativo: {
     nome: "Talking head educativo con grafiche",
     parole: ["talking head", "parlato in camera", "educativo", "tutorial", "consigli", "tips", "spiegazione", "divulgativo", "faccio vedere", "ti spiego"],
@@ -1918,6 +1933,14 @@ var MANUALE_FORMATI = `FORMATI DEL MONTATORE (scegli "formato" nel piano, in bas
   #0E9F9A), "secondario" = l'accento molto chiaro, "tenue" = rgba dell'inchiostro all'8-10%. Font: titoli serif elegante
   (Instrument Serif di base; Playfair/Fraunces per temi lusso o food; Space Grotesk se l'argomento \xE8 molto tech), testo
   Inter, mono JetBrains Mono. Niente "cartelli", "schede", "broll", "pannello" in questo formato. Durata 30-70 s.
+- "parole_dietro": la persona che parla a TUTTO SCHERMO (ritagliata in automatico). Ogni frase del discorso diventa
+  1-3 righe di parole GIGANTI DIETRO di lei (si generano da sole dai sottotitoli: maiuscole bianche, parole chiave colorate
+  in rilievo 3D, una riga in serif corsivo) e la parola detta compare piccola sul petto. Tu decidi: "evidenzia" (le parole
+  chiave, 8-14), "adesivi" (3-5 icone che esplodono dietro di lei sulle parole forti: cuore, like, fuoco, stella, soldi,
+  razzo, check, instagram, ai), "grafiche" poche e mirate: card/titolo/lista = scheda di vetro che fluttua di lato per
+  2-3 s (max 5 in tutto), numero con "pieno": true = capitolo a tutto schermo col numero enorme (per i video a lista),
+  "effetti": ["coriandoli"] sul gancio o sul finale; "palette" (l'accento colora capitoli e anelli) e "font_split.titoli"
+  (serif). Niente terminale, sito, chat, barre in questo formato. Durata 30-70 s.
 Se il girato non si presta al formato (es. talking_head senza parlato), usa "montaggio".`;
 var MANUALE_MODELLO = `REEL MODELLO DI JOHNNY (regola che vince su tutte le altre)
 - I riferimenti "scelto_da_johnny" sono il MODELLO dello stile che Johnny vuole: replica il loro linguaggio, non la
@@ -2327,7 +2350,9 @@ var LOOKS = ["neon_notte", "estate_luminosa", "autunno_caldo", "inverno_freddo",
 var TRANSIZIONI = ["taglio_netto", "dissolvenza", "flash_bianco", "whip_pan", "zoom", "glitch", "slide", "fadenero"];
 var EFFETTI_PEZZO = ["dolly_in", "slider_dx", "slider_sx", "punch_in", "zoom_lento", "zoom_out", "shake", "nessuno"];
 var EFFETTI_GLOBALI = ["grana", "vignettatura", "bande_cinema", "light_leak", "glow", "vhs"];
-var FORMATI_REEL = ["montaggio", "talking_head", "carosello", "split_grafico"];
+var FORMATI_REEL = ["montaggio", "talking_head", "carosello", "split_grafico", "parole_dietro"];
+var SPLITTISH = (f) => f === "split_grafico" || f === "parole_dietro";
+var ADESIVI = ["cuore", "like", "fuoco", "stella", "soldi", "razzo", "check", "instagram", "ai"];
 var TIPI_GRAFICA = ["oggetto", "titolo", "numero", "sito", "terminale", "contatore", "lista", "confronto", "card", "chat", "barre", "riepilogo"];
 var EFFETTI_SPLIT = ["scrivi", "cornice", "cursore", "coriandoli", "fantasma", "icone", "lente", "successo", "scossa", "dietro", "esce", "adesivo"];
 var FONT_SPLIT = { titoli: ["Instrument Serif", "Playfair Display", "Fraunces", "DM Serif Display", "Inter", "Space Grotesk", "Manrope"], testo: ["Inter", "Space Grotesk", "Manrope"], mono: ["JetBrains Mono", "IBM Plex Mono"] };
@@ -2363,12 +2388,14 @@ VALORI AMMESSI
 - effetti_globali: ${EFFETTI_GLOBALI.join(", ")}
 - lut (facoltativa, LUT vere di pellicole e colorist; se la scegli, comanda lei il colore): ${LUT_NOMI.join(", ")}
 - stile testi: titolo_grande_centrale, etichetta_box, sottotitolo_classico; posizione: alto, centro, terzo_inferiore
-- formato: montaggio, talking_head, carosello, split_grafico (vedi FORMATI DEL MONTATORE)
+- formato: montaggio, talking_head, carosello, split_grafico, parole_dietro (vedi FORMATI DEL MONTATORE)
+- adesivi (solo parole_dietro): ${ADESIVI.join(", ")}
 - grafiche (solo split_grafico): ${TIPI_GRAFICA.join(", ")}; effetti delle grafiche: ${EFFETTI_SPLIT.join(", ")}; font_split.titoli: ${FONT_SPLIT.titoli.join(", ")}; testo: ${FONT_SPLIT.testo.join(", ")}; mono: ${FONT_SPLIT.mono.join(", ")}
 
 JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel formato):
 {
-  "formato": "montaggio|talking_head|carosello|split_grafico",
+  "formato": "montaggio|talking_head|carosello|split_grafico|parole_dietro",
+  "adesivi": [{"sulla_parola": "parola detta", "tipo": "cuore|like|fuoco|stella|soldi|razzo|check|instagram|ai"}] (solo parole_dietro, 3-5 in tutto il video),
   "durata_target": n,
   "look": "...", "intensita_look": 0.6-1.0,
   "lut": {"nome": "una LUT della libreria (pellicola o grading vero, prende il posto del look)", "intensita": 0.3-1.0, "perche": "..."} oppure null,
@@ -2483,12 +2510,12 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
     else formato = "montaggio";
   }
   const parla = (c) => c?.analisi?.misure?.parlato?.presente || c?.analisi?.parlato?.presente;
-  const parlato = formato === "talking_head" || formato === "split_grafico";
+  const parlato = formato === "talking_head" || SPLITTISH(formato);
   if (parlato && !(p.segmenti || []).some((s) => parla(tutte[s.clip]))) formato = "montaggio";
-  const seg = (p.segmenti || []).filter((s) => tutte[s.clip]?.stato === "fatto" && !eImm(tutte[s.clip])).slice(0, formato === "talking_head" || formato === "split_grafico" ? 30 : 40).map((s, k) => {
+  const seg = (p.segmenti || []).filter((s) => tutte[s.clip]?.stato === "fatto" && !eImm(tutte[s.clip])).slice(0, formato === "talking_head" || SPLITTISH(formato) ? 30 : 40).map((s, k) => {
     const c = tutte[s.clip];
     const durClip = Number(c.tecnico?.durata_sec) || 9999;
-    const durata = Math.min(Math.max(Number(s.durata) || 1.5, 0.4), formato === "talking_head" || formato === "split_grafico" ? 90 : 12);
+    const durata = Math.min(Math.max(Number(s.durata) || 1.5, 0.4), formato === "talking_head" || SPLITTISH(formato) ? 90 : 12);
     const rallenty = !!s.rallenty;
     const serve = durata * (rallenty ? 0.6 : 1);
     let inizio = Math.max(0, Math.min(Number(s.in) || 0, Math.max(0, durClip - serve - 0.05)));
@@ -2566,16 +2593,17 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
     }
   }
   const hex3 = (v) => typeof v === "string" && /^(#[0-9a-f]{6}|rgba?\([0-9., ]+\))$/i.test(v.trim()) ? v.trim() : void 0;
-  const grafiche = formato !== "split_grafico" ? [] : (p.grafiche || []).filter((g) => g && TIPI_GRAFICA.includes(g.tipo) && g.sulla_parola).slice(0, 40).map((g) => ({
+  const grafiche = !SPLITTISH(formato) ? [] : (p.grafiche || []).filter((g) => g && TIPI_GRAFICA.includes(g.tipo) && g.sulla_parola).slice(0, 40).map((g) => ({
     tipo: g.tipo,
     sulla_parola: String(g.sulla_parola).slice(0, 40),
     pieno: g.pieno === true,
     dati: g.dati && typeof g.dati === "object" ? JSON.parse(JSON.stringify(g.dati).slice(0, 3e3) || "{}") : {},
     ...Array.isArray(g.effetti) && g.effetti.length ? { effetti: g.effetti.filter((e) => EFFETTI_SPLIT.includes(e)).slice(0, 5) } : {}
   })).map((g) => g.pieno && g.effetti ? { ...g, effetti: g.effetti.filter((e) => !["dietro", "esce", "adesivo"].includes(e)) } : g).map((g) => g.tipo === "sito" && !/^https:\/\/[\w.-]+\.[a-z]{2,}/i.test(g.dati.url || "") ? { ...g, tipo: "card", dati: { titolo: g.dati.titolo || g.dati.url || "sito", testo: g.dati.testo || "" } } : g);
-  const palette = formato !== "split_grafico" ? null : Object.fromEntries(["fondo", "inchiostro", "accento", "secondario", "tenue"].map((k) => [k, hex3(p.palette?.[k])]).filter(([, v]) => v));
-  const font_split = formato !== "split_grafico" ? null : Object.fromEntries(Object.entries(FONT_SPLIT).map(([k, ok]) => [k, ok.includes(p.font_split?.[k]) ? p.font_split[k] : ok[0]]));
+  const palette = !SPLITTISH(formato) ? null : Object.fromEntries(["fondo", "inchiostro", "accento", "secondario", "tenue"].map((k) => [k, hex3(p.palette?.[k])]).filter(([, v]) => v));
+  const font_split = !SPLITTISH(formato) ? null : Object.fromEntries(Object.entries(FONT_SPLIT).map(([k, ok]) => [k, ok.includes(p.font_split?.[k]) ? p.font_split[k] : ok[0]]));
   const tracker = formato === "split_grafico" && p.tracker?.voci?.length ? { totale: Math.min(10, Math.max(1, Number(p.tracker.totale) || p.tracker.voci.length)), voci: p.tracker.voci.slice(0, 10).map((v) => ({ etichetta: String(v.etichetta || "").slice(0, 24), sulla_parola: String(v.sulla_parola || "").slice(0, 40) })).filter((v) => v.sulla_parola) } : null;
+  const adesivi = formato === "parole_dietro" ? (p.adesivi || []).filter((a) => a && a.sulla_parola && ADESIVI.includes(a.tipo)).slice(0, 8).map((a) => ({ sulla_parola: String(a.sulla_parola).slice(0, 40), tipo: a.tipo })) : [];
   const avatar = !!J(L.stile, null)?.avatar;
   const piano2 = {
     ...p,
@@ -2587,6 +2615,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
     palette,
     font_split,
     tracker,
+    adesivi,
     ...avatar ? { taglia_silenzi: false } : {},
     logo: prima?.logo || null,
     stabilizza_tutto: !!(indicazioni?.stabilizza_tutto || prima?.piano?.stabilizza_tutto || p.stabilizza_tutto || R?.camera === "morbida"),
@@ -2610,7 +2639,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
   const versione = (prima?.versione || 0) + 1;
   await run(env, "UPDATE lavori SET montaggio=? WHERE id=?", JSON.stringify({ stato: "da_fare", piano: piano2, versione, creato: ora(), indicazioni: indicazioni || null }), L.id);
   const tot = seg.reduce((a, s) => a + s.durata, 0);
-  const nomeF = { montaggio: "montaggio", talking_head: "talking-head", carosello: "carosello", split_grafico: "split con grafiche animate" }[formato];
+  const nomeF = { montaggio: "montaggio", talking_head: "talking-head", carosello: "carosello", split_grafico: "split con grafiche animate", parole_dietro: "parole giganti dietro la persona" }[formato];
   await log(env, L.id, "regista", formato === "carosello" ? `piano pronto: formato carosello, ${slide.length} slide` : `piano pronto: formato ${nomeF}${piano2.lut ? `, LUT ${piano2.lut.nome} al ${Math.round(piano2.lut.intensita * 100)}%` : ""}, ${seg.length} ${parlato ? "tratti di parlato" : "pezzi"}${grafiche.length ? ` + ${grafiche.length} grafiche animate` : ""}${broll.length ? ` + ${broll.length} b-roll` : ""}${pannello ? ` + pannello ${pannello.tipo}` : ""}, ~${Math.round(tot + (piano2.chiusura?.durata || 0))} s, look ${piano2.look}`);
   if (seg.some((s) => s.testo) || piano2.chiusura) await log(env, L.id, "copy", `testi: ${[...seg.filter((s) => s.testo).map((s) => '"' + s.testo.testo + '"'), piano2.chiusura?.testo ? '"' + piano2.chiusura.testo + '"' : ""].filter(Boolean).join(" \xB7 ").slice(0, 300)}`);
   await log(env, L.id, "motore", "chiamo il motore GitHub per il montaggio");
@@ -3253,7 +3282,9 @@ async function faseMontaggio2(env, cfg, A) {
   for (const v of video) {
     if (lavori.some((l) => l.n === v.n)) continue;
     const c = copioni.find((x) => x.n === v.n) || {};
-    const prompt = `Cliente: Johnny \xB7 profilo Instagram. Reel con l'avatar di Johnny, stile "Split educativo con grafiche animate": formato split_grafico (sopra le grafiche animate che seguono il discorso, al centro la pillola dei sottotitoli, sotto Johnny), palette e font scelti in base all'argomento, nessuna pausa.
+    const fatti = (await one(env, `SELECT count(*) AS n FROM lavori WHERE stile LIKE '%"avatar":true%'`))?.n || 0;
+    const formato = fatti % 2 ? "split_grafico" : "parole_dietro";
+    const prompt = `Cliente: Johnny \xB7 profilo Instagram. Reel con l'avatar di Johnny. ${formato === "parole_dietro" ? "Formato parole_dietro (come i reel di riferimento di Johnny: lui a tutto schermo, le frasi diventano parole GIGANTI e colorate dietro di lui, adesivi che esplodono, schede di vetro ai lati, capitoli col numero enorme)" : "Formato split_grafico (sopra le grafiche animate che seguono il discorso, al centro la pillola dei sottotitoli, sotto Johnny)"}, palette e font scelti in base all'argomento, effetti da super montatore, nessuna pausa.
 Argomento del piano (per la palette): ${A.argomento}
 Titolo: ${c.titolo}. Gancio: ${c.gancio}. Soluzione finale: ${c.soluzione}.
 Testo detto: ${c.testo}
@@ -3263,7 +3294,7 @@ Idee per le grafiche (concetto \u2192 parola su cui entra): ${(c.cartelli || [])
       "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,'[]','url',?,?,?) RETURNING id",
       prompt,
       JSON.stringify([{ nome: `avatar_${A.id}_${v.n}.mp4`, url: v.url, durata: v.durata }]),
-      JSON.stringify({ genere: "split", mood: [], avatar: true }),
+      JSON.stringify({ genere: formato === "parole_dietro" ? "dietro" : "split", mood: [], avatar: true }),
       ora(),
       ora()
     );

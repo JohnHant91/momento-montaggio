@@ -145,6 +145,14 @@ export const MANUALE_FORMATI = `FORMATI DEL MONTATORE (scegli "formato" nel pian
   #0E9F9A), "secondario" = l'accento molto chiaro, "tenue" = rgba dell'inchiostro all'8-10%. Font: titoli serif elegante
   (Instrument Serif di base; Playfair/Fraunces per temi lusso o food; Space Grotesk se l'argomento è molto tech), testo
   Inter, mono JetBrains Mono. Niente "cartelli", "schede", "broll", "pannello" in questo formato. Durata 30-70 s.
+- "parole_dietro": la persona che parla a TUTTO SCHERMO (ritagliata in automatico). Ogni frase del discorso diventa
+  1-3 righe di parole GIGANTI DIETRO di lei (si generano da sole dai sottotitoli: maiuscole bianche, parole chiave colorate
+  in rilievo 3D, una riga in serif corsivo) e la parola detta compare piccola sul petto. Tu decidi: "evidenzia" (le parole
+  chiave, 8-14), "adesivi" (3-5 icone che esplodono dietro di lei sulle parole forti: cuore, like, fuoco, stella, soldi,
+  razzo, check, instagram, ai), "grafiche" poche e mirate: card/titolo/lista = scheda di vetro che fluttua di lato per
+  2-3 s (max 5 in tutto), numero con "pieno": true = capitolo a tutto schermo col numero enorme (per i video a lista),
+  "effetti": ["coriandoli"] sul gancio o sul finale; "palette" (l'accento colora capitoli e anelli) e "font_split.titoli"
+  (serif). Niente terminale, sito, chat, barre in questo formato. Durata 30-70 s.
 Se il girato non si presta al formato (es. talking_head senza parlato), usa "montaggio".`;
 
 export const MANUALE_MODELLO = `REEL MODELLO DI JOHNNY (regola che vince su tutte le altre)

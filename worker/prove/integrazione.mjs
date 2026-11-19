@@ -125,7 +125,7 @@ r = await chiama('/api/avatar/' + aid); ok(r.j.fase === 'montaggio' && r.j.video
 sblocca('avatar_piani'); await cron();
 r = await chiama('/api/avatar/' + aid); ok(r.j.stato === 'fatto' && r.j.lavori.length === 2, 'partono 2 montaggi nel comparto Reel');
 const lav = env.DB._db.prepare("SELECT fonte, stile, pcloud FROM lavori WHERE fonte='url'").all();
-ok(lav.length >= 2 && JSON.parse(lav.at(-1).stile).genere === 'split' && JSON.parse(lav.at(-1).pcloud)[0].url.startsWith('https://heygen.example/'), 'montaggio nello stile split e video da link');
+ok(lav.length >= 2 && lav.slice(-2).map((x) => JSON.parse(x.stile).genere).sort().join() === 'dietro,split' && JSON.parse(lav.at(-1).pcloud)[0].url.startsWith('https://heygen.example/'), 'i due reel alternano split e parole dietro, video da link');
 r = await chiama('/api/avatar/' + aid + '/video', { method: 'POST', body: { video: [{ n: 1, url: 'https://altro.example/x.mp4' }] } }); ok(r.status === 200, 'si possono anche passare video generati fuori (Claude in chat)');
 
 console.log('\n13) "per il mio profilo personale" → parte tutto, poi Instagram');

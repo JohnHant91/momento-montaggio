@@ -210,13 +210,18 @@ async function faseMontaggio(env, cfg, A) {
   for (const v of video) {
     if (lavori.some((l) => l.n === v.n)) continue;
     const c = copioni.find((x) => x.n === v.n) || {};
-    const prompt = `Cliente: Johnny · profilo Instagram. Reel con l'avatar di Johnny, stile "Split educativo con grafiche animate": formato split_grafico (sopra le grafiche animate che seguono il discorso, al centro la pillola dei sottotitoli, sotto Johnny), palette e font scelti in base all'argomento, nessuna pausa.
+    // si alternano i due stili dei reel di riferimento di Johnny (contando tutti i reel avatar già fatti)
+    const fatti = (await one(env, `SELECT count(*) AS n FROM lavori WHERE stile LIKE '%"avatar":true%'`))?.n || 0;
+    const formato = fatti % 2 ? 'split_grafico' : 'parole_dietro';
+    const prompt = `Cliente: Johnny · profilo Instagram. Reel con l'avatar di Johnny. ${formato === 'parole_dietro'
+      ? 'Formato parole_dietro (come i reel di riferimento di Johnny: lui a tutto schermo, le frasi diventano parole GIGANTI e colorate dietro di lui, adesivi che esplodono, schede di vetro ai lati, capitoli col numero enorme)'
+      : 'Formato split_grafico (sopra le grafiche animate che seguono il discorso, al centro la pillola dei sottotitoli, sotto Johnny)'}, palette e font scelti in base all'argomento, effetti da super montatore, nessuna pausa.
 Argomento del piano (per la palette): ${A.argomento}
 Titolo: ${c.titolo}. Gancio: ${c.gancio}. Soluzione finale: ${c.soluzione}.
 Testo detto: ${c.testo}
 Idee per le grafiche (concetto → parola su cui entra): ${(c.cartelli || []).map((k) => `${k.testo} → ${k.sulla_parola}`).join('; ')}`;
     const r = await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,'[]','url',?,?,?) RETURNING id",
-      prompt, JSON.stringify([{ nome: `avatar_${A.id}_${v.n}.mp4`, url: v.url, durata: v.durata }]), JSON.stringify({ genere: 'split', mood: [], avatar: true }), ora(), ora());
+      prompt, JSON.stringify([{ nome: `avatar_${A.id}_${v.n}.mp4`, url: v.url, durata: v.durata }]), JSON.stringify({ genere: formato === 'parole_dietro' ? 'dietro' : 'split', mood: [], avatar: true }), ora(), ora());
     lavori.push({ n: v.n, lavoro: r.id });
     await log(env, r.id, 'regia', `🎬 reel ${v.n} "${c.titolo}" (avatar): parte il montaggio`);
   }

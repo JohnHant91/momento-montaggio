@@ -803,6 +803,9 @@ class SplitGrafico(TalkingHead):
     """Sopra: foglio color carta con le grafiche animate (Remotion) che seguono il discorso; al centro il sottotitolo a
     pillola nera; sotto la persona che parla. Colori e font arrivano dalla "palette" scelta dal Regista per l'argomento."""
     ZOOM = [1.0]  # niente punch: la persona sta ferma nel suo riquadro, il movimento lo fanno le grafiche
+    COMPOSIZIONE = "Split"
+    RITAGLIO_SEMPRE = False
+    NOME = "split_grafico"
 
     def monta(self, out_finale):
         t0, P, segmenti, righe, tratti, totale, video, voce, lut = self.parlato()
@@ -873,20 +876,21 @@ class SplitGrafico(TalkingHead):
         base = os.path.join(pub, f"{sigla}_base.mp4")
         self.ff(["-i", video, "-an", "-c:v", "copy", base], "persona")
         rit = None
-        if any(set(s.get("effetti") or []) & EFFETTI_ADDOSSO for s in scene):
+        if self.RITAGLIO_SEMPRE or any(set(s.get("effetti") or []) & EFFETTI_ADDOSSO for s in scene):
             rit = ritaglia_persona(base, os.path.join(pub, f"{sigla}_ritaglio.webm"), self.avvisa)
         volto = segmenti[0].get("_volto") or {"cx": 0.5, "cy": 0.32}
         props = {"durata": round(totale, 3), "fps": FPS, "video": os.path.basename(base), "volto": {"cx": volto["cx"], "cy": volto["cy"]},
                  "palette": pal, "font": P.get("font_split") or {}, "parole": parole, "righe": rr, "scene": scene, "tracker": tracker,
                  "ritaglio": os.path.basename(rit) if rit else None,
-                 "finale": (P.get("finale") or "bianco").lower()}  # chiusura con dissolvenza (bianco di base), mai troncata
+                 "finale": (P.get("finale") or "bianco").lower(),  # chiusura con dissolvenza (bianco di base), mai troncata
+                 "adesivi": self.adesivi(parole)}
         pj = os.path.join(self.tmp, "split.json")
         with open(pj, "w") as f:
             json.dump(props, f, ensure_ascii=False)
         self.avvisa("vfx", f"animo {len(scene)} grafiche sopra la persona" + (f" con la barra {len(tracker['voci'])}/{tracker['totale']}" if tracker else "") + " (Remotion)")
         anim = os.path.join(self.tmp, "split.mp4")
         try:
-            p = subprocess.run(["npx", "remotion", "render", "src/index.ts", "Split", anim, f"--props={pj}", "--codec=h264", "--crf=16", "--muted",
+            p = subprocess.run(["npx", "remotion", "render", "src/index.ts", self.COMPOSIZIONE, anim, f"--props={pj}", "--codec=h264", "--crf=16", "--muted",
                                 "--concurrency=2", "--log=error"], cwd=GRAFICHE, capture_output=True, text=True, timeout=2400)
             if p.returncode != 0 or not os.path.exists(anim):
                 raise RuntimeError("render delle grafiche non riuscito: " + (p.stderr or p.stdout)[-500:])
@@ -917,13 +921,37 @@ class SplitGrafico(TalkingHead):
         self.finale(anim, ass, mixwav, totale, out_finale)
         rep = self.revisiona(out_finale)
         rep["secondi_di_lavoro"] = round(time.time() - t0)
-        rep["formato"] = "split_grafico"
+        rep["formato"] = self.NOME
         rep["grafiche"] = len(scene)
         self.avvisa("revisore", f"controllo: {rep['durata']}s · {len(scene)} grafiche · {rep['lufs']} LUFS" + (" · ⚠ " + "; ".join(rep["problemi"]) if rep["problemi"] else " · tutto ok"))
         return rep
 
 
-FORMATI = {"talking_head": TalkingHead, "carosello": Carosello, "split_grafico": SplitGrafico}
+def _adesivi(self, parole):
+    """Adesivi (cuore, fuoco, like, logo…) sulle parole indicate dal Regista: [{"sulla_parola", "tipo"}]."""
+    out, pos = [], 0
+    for a in (self.p.get("adesivi") or [])[:8]:
+        ch = re.sub(r"[^a-z0-9]", "", str(a.get("sulla_parola", "")).split(" ")[0].lower())
+        k = next((i for i in range(pos, len(parole)) if ch and re.sub(r"[^a-z0-9]", "", parole[i]["t"].lower()).startswith(ch)), None)
+        if k is not None:
+            out.append({"da": parole[k]["da"], "tipo": str(a.get("tipo") or "ai")[:12]})
+            pos = k + 1
+    return out
+
+
+SplitGrafico.adesivi = _adesivi
+
+
+class ParoleDietro(SplitGrafico):
+    """La persona a tutto schermo; le frasi diventano parole giganti e colorate DIETRO di lei (persona ritagliata),
+    la parola detta piccola sul petto, adesivi che esplodono, schede di vetro ai lati, capitoli a tutto schermo.
+    Ricavato dai reel di riferimento di Johnny per il profilo personale."""
+    COMPOSIZIONE = "Dietro"
+    RITAGLIO_SEMPRE = True
+    NOME = "parole_dietro"
+
+
+FORMATI = {"talking_head": TalkingHead, "carosello": Carosello, "split_grafico": SplitGrafico, "parole_dietro": ParoleDietro}
 
 
 def montatore_per(piano):

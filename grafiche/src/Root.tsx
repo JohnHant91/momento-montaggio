@@ -3,6 +3,7 @@ import { Composition } from "remotion";
 import { Pannello, PannelloProps } from "./Pannello";
 import { FPS } from "./theme";
 import { Split, SplitProps } from "./Split";
+import { Dietro, DietroProps } from "./Dietro";
 
 const esempio: PannelloProps = {
   chip: "TIP",
@@ -41,6 +42,16 @@ export const Root: React.FC = () => (
     fps={FPS}
     durationInFrames={FPS * 6}
     defaultProps={esempioSplit}
+    calculateMetadata={({ props }) => ({ fps: props.fps || FPS, durationInFrames: Math.max(30, Math.ceil((props.durata || 6) * (props.fps || FPS))) })}
+  />
+  <Composition
+    id="Dietro"
+    component={Dietro}
+    width={1080}
+    height={1920}
+    fps={FPS}
+    durationInFrames={FPS * 6}
+    defaultProps={{ ...esempioSplit, adesivi: [] } as DietroProps}
     calculateMetadata={({ props }) => ({ fps: props.fps || FPS, durationInFrames: Math.max(30, Math.ceil((props.durata || 6) * (props.fps || FPS))) })}
   />
   <Composition
