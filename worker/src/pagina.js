@@ -5,7 +5,7 @@ export const PAGINA = `<!DOCTYPE html>
 <html lang="it"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#F4F2EE">
-<title>AGENZIA MOMENTO AI</title>
+<title>MOMENTO AGENCY AI</title>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <style>
 @media print{header,.noprint,button{display:none!important}body{background:#fff;color:#000}.card{border-color:#ccc;background:#fff}.mut{color:#555}a{color:#000}}
@@ -160,7 +160,7 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 @media(max-width:700px){main{padding:14px}.sala{margin:12px -14px 0;height:62vh}.saluto h1{font-size:24px}.lato{top:auto;bottom:0;right:0;left:0;width:auto;max-height:70vh;border-radius:22px 22px 0 0;transform:translateY(110%)}.chiedi select{display:none}}
 @media(max-width:600px){.posti{grid-template-columns:1fr 1fr}.kv{grid-template-columns:1fr}.kv b{margin-top:6px}}
 </style></head><body>
-<div class="barra"><button class="vm ham" id="ham" aria-label="Menu" hidden><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><a class="logo" href="#/" aria-label="momento, agenzia AI"><b>momento</b><small>agenzia AI</small></a><span class="tit" id="sez"></span></div><header id="testa"><a class="logo" href="#/" aria-label="momento, agenzia AI"><b>momento</b><small>agenzia AI</small></a><nav id="nav"></nav></header><div class="velo-menu" id="velo_menu"></div>
+<div class="barra"><button class="vm ham" id="ham" aria-label="Menu" hidden><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><a class="logo" href="#/" aria-label="MOMENTO AGENCY AI"><b>momento</b><small>agency AI</small></a><span class="tit" id="sez"></span></div><header id="testa"><a class="logo" href="#/" aria-label="MOMENTO AGENCY AI"><b>momento</b><small>agency AI</small></a><nav id="nav"></nav></header><div class="velo-menu" id="velo_menu"></div>
 <main id="app"><div class="vuoto">Carico…</div></main>
 <script>
 const $ = (s) => document.querySelector(s);
@@ -293,11 +293,16 @@ addEventListener('hashchange', () => { if ($('#nav').innerHTML) evidenzia(); });
 async function accesso() {
   menu(false);
   const s = await fetch('/api/stato').then((r) => r.json());
-  $('#app').innerHTML = '<div class="card" style="max-width:420px;margin:40px auto"><h1>' + (s.configurato ? 'Accedi' : 'Scegli la password') + '</h1>' +
-    '<p class="mut">' + (s.configurato ? 'Password della regia.' : 'Primo accesso: la password che scrivi diventa quella della regia (minimo 6 caratteri).') + '</p>' +
-    '<input id="pw" type="password" autocomplete="current-password"><div style="margin-top:14px"><button id="go">Entra</button></div><div id="er" class="err"></div></div>';
-  const vai = async () => { try { await chiama('/api/accedi', { method: 'POST', body: { password: $('#pw').value } }); location.hash = '#/'; rotta(); } catch (x) { $('#er').textContent = x.message; } };
-  $('#go').onclick = vai; $('#pw').onkeydown = (ev) => ev.key === 'Enter' && vai(); $('#pw').focus();
+  $('#app').innerHTML = '<div class="card" style="max-width:420px;margin:40px auto"><div class="mut" style="font-size:12px;letter-spacing:.12em;font-weight:600">MOMENTO AGENCY AI</div><h1>' + (s.configurato ? 'Accedi' : 'Crea l’accesso') + '</h1>' +
+    '<p class="mut">' + (s.configurato ? (s.email ? 'Email e password dell’agenzia.' : 'Email e password: l’email che scrivi ora diventa quella dell’accesso.') : 'Primo accesso: email e password che scrivi diventano quelle dell’agenzia (password di almeno 8 caratteri).') + '</p>' +
+    '<label>Email</label><input id="em" type="email" autocomplete="username" placeholder="nome@esempio.it">' +
+    '<label>Password</label><input id="pw" type="password" autocomplete="current-password"><div style="margin-top:14px"><button id="go">Entra</button></div><div id="er" class="err"></div></div>';
+  const vai = async () => {
+    $('#er').textContent = '';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test($('#em').value.trim())) { $('#er').textContent = 'scrivi un’email valida'; return; }
+    try { await chiama('/api/accedi', { method: 'POST', body: { email: $('#em').value.trim(), password: $('#pw').value } }); location.hash = '#/'; rotta(); } catch (x) { $('#er').textContent = x.message; }
+  };
+  $('#go').onclick = vai; $('#pw').onkeydown = (ev) => ev.key === 'Enter' && vai(); $('#em').onkeydown = (ev) => ev.key === 'Enter' && $('#pw').focus(); $('#em').focus();
 }
 
 async function lista() {

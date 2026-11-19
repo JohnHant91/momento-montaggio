@@ -6,8 +6,11 @@ const ok = (cond, cosa) => { if (cond) console.log('  ✓', cosa); else { consol
 console.log('\n1) pagina e accesso');
 let r = await chiama('/'); ok(r.status === 200 && String(r.j).includes('<html'), 'la pagina si apre');
 r = await chiama('/api/azienda'); ok(r.status === 401 || r.status === 403, 'senza accesso le API sono chiuse (' + r.status + ')');
-r = await chiama('/api/accedi', { method: 'POST', body: { password: 'sbagliata1' } }); ok(r.status === 401, 'password errata rifiutata');
-r = await chiama('/api/accedi', { method: 'POST', body: { password: 'provaprova' } }); ok(r.status === 200, 'accesso con la password giusta');
+r = await chiama('/api/accedi', { method: 'POST', body: { email: 'johnny@prova.it', password: 'sbagliata1' } }); ok(r.status === 401, 'password errata rifiutata');
+r = await chiama('/api/accedi', { method: 'POST', body: { password: 'provaprova' } }); ok(r.status === 400, 'senza email rifiutato');
+r = await chiama('/api/accedi', { method: 'POST', body: { email: 'johnny@prova.it', password: 'provaprova' } }); ok(r.status === 200, 'accesso con email e password giuste');
+r = await chiama('/api/accedi', { method: 'POST', body: { email: 'altro@prova.it', password: 'provaprova' } }); ok(r.status === 401, 'email diversa da quella registrata rifiutata');
+r = await chiama('/api/accedi', { method: 'POST', body: { email: 'Johnny@Prova.it', password: 'provaprova' } }); ok(r.status === 200, 'email con maiuscole accettata');
 r = await chiama('/sala3d.js'); ok(r.status === 200, 'modulo sala 3D servito');
 
 console.log('\n2) agenzia e sala');
@@ -163,7 +166,7 @@ ok(/Path=\/gestionale\//.test(gr.headers.get('set-cookie') || ''), 'la sessione 
 const fuori = await W.fetch(new Request('https://x/gestionale/api/data'), env, {}); ok(fuori.status === 401, 'senza accesso alla regia il gestionale non si raggiunge da qui');
 
 console.log('\n16) post e caroselli');
-await chiama('/api/accedi', { method: 'POST', body: { password: 'provaprova' } });
+await chiama('/api/accedi', { method: 'POST', body: { email: 'johnny@prova.it', password: 'provaprova' } });
 r = await chiama('/api/post', { method: 'POST', body: { cliente: 'Torretta', nicchia: 'caffetteria Salerno', tipo: 'carosello', numero: 3, slide: 7, brief: '3 caroselli sulla tostatura e le miscele della casa', pcloud: 'https://e.pcloud.link/publink/show?code=XYZ' } });
 ok(r.status === 200 && r.j.id, 'nuovo lavoro post (#' + r.j.id + ') ' + (r.j.errore || ''));
 const pid2 = r.j.id;

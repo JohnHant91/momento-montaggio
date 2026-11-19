@@ -4954,7 +4954,7 @@ var PAGINA = `<!DOCTYPE html>
 <html lang="it"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#F4F2EE">
-<title>AGENZIA MOMENTO AI</title>
+<title>MOMENTO AGENCY AI</title>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}<\/script>
 <style>
 @media print{header,.noprint,button{display:none!important}body{background:#fff;color:#000}.card{border-color:#ccc;background:#fff}.mut{color:#555}a{color:#000}}
@@ -5109,7 +5109,7 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 @media(max-width:700px){main{padding:14px}.sala{margin:12px -14px 0;height:62vh}.saluto h1{font-size:24px}.lato{top:auto;bottom:0;right:0;left:0;width:auto;max-height:70vh;border-radius:22px 22px 0 0;transform:translateY(110%)}.chiedi select{display:none}}
 @media(max-width:600px){.posti{grid-template-columns:1fr 1fr}.kv{grid-template-columns:1fr}.kv b{margin-top:6px}}
 </style></head><body>
-<div class="barra"><button class="vm ham" id="ham" aria-label="Menu" hidden><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><a class="logo" href="#/" aria-label="momento, agenzia AI"><b>momento</b><small>agenzia AI</small></a><span class="tit" id="sez"></span></div><header id="testa"><a class="logo" href="#/" aria-label="momento, agenzia AI"><b>momento</b><small>agenzia AI</small></a><nav id="nav"></nav></header><div class="velo-menu" id="velo_menu"></div>
+<div class="barra"><button class="vm ham" id="ham" aria-label="Menu" hidden><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><a class="logo" href="#/" aria-label="MOMENTO AGENCY AI"><b>momento</b><small>agency AI</small></a><span class="tit" id="sez"></span></div><header id="testa"><a class="logo" href="#/" aria-label="MOMENTO AGENCY AI"><b>momento</b><small>agency AI</small></a><nav id="nav"></nav></header><div class="velo-menu" id="velo_menu"></div>
 <main id="app"><div class="vuoto">Carico\u2026</div></main>
 <script>
 const $ = (s) => document.querySelector(s);
@@ -5242,11 +5242,16 @@ addEventListener('hashchange', () => { if ($('#nav').innerHTML) evidenzia(); });
 async function accesso() {
   menu(false);
   const s = await fetch('/api/stato').then((r) => r.json());
-  $('#app').innerHTML = '<div class="card" style="max-width:420px;margin:40px auto"><h1>' + (s.configurato ? 'Accedi' : 'Scegli la password') + '</h1>' +
-    '<p class="mut">' + (s.configurato ? 'Password della regia.' : 'Primo accesso: la password che scrivi diventa quella della regia (minimo 6 caratteri).') + '</p>' +
-    '<input id="pw" type="password" autocomplete="current-password"><div style="margin-top:14px"><button id="go">Entra</button></div><div id="er" class="err"></div></div>';
-  const vai = async () => { try { await chiama('/api/accedi', { method: 'POST', body: { password: $('#pw').value } }); location.hash = '#/'; rotta(); } catch (x) { $('#er').textContent = x.message; } };
-  $('#go').onclick = vai; $('#pw').onkeydown = (ev) => ev.key === 'Enter' && vai(); $('#pw').focus();
+  $('#app').innerHTML = '<div class="card" style="max-width:420px;margin:40px auto"><div class="mut" style="font-size:12px;letter-spacing:.12em;font-weight:600">MOMENTO AGENCY AI</div><h1>' + (s.configurato ? 'Accedi' : 'Crea l\u2019accesso') + '</h1>' +
+    '<p class="mut">' + (s.configurato ? (s.email ? 'Email e password dell\u2019agenzia.' : 'Email e password: l\u2019email che scrivi ora diventa quella dell\u2019accesso.') : 'Primo accesso: email e password che scrivi diventano quelle dell\u2019agenzia (password di almeno 8 caratteri).') + '</p>' +
+    '<label>Email</label><input id="em" type="email" autocomplete="username" placeholder="nome@esempio.it">' +
+    '<label>Password</label><input id="pw" type="password" autocomplete="current-password"><div style="margin-top:14px"><button id="go">Entra</button></div><div id="er" class="err"></div></div>';
+  const vai = async () => {
+    $('#er').textContent = '';
+    if (!/^[^s@]+@[^s@]+.[^s@]+$/.test($('#em').value.trim())) { $('#er').textContent = 'scrivi un\u2019email valida'; return; }
+    try { await chiama('/api/accedi', { method: 'POST', body: { email: $('#em').value.trim(), password: $('#pw').value } }); location.hash = '#/'; rotta(); } catch (x) { $('#er').textContent = x.message; }
+  };
+  $('#go').onclick = vai; $('#pw').onkeydown = (ev) => ev.key === 'Enter' && vai(); $('#em').onkeydown = (ev) => ev.key === 'Enter' && $('#pw').focus(); $('#em').focus();
 }
 
 async function lista() {
@@ -7029,15 +7034,18 @@ async function hashPassword(env) {
   if (env.ADMIN_PASSWORD) return sha("momento-reel|" + env.ADMIN_PASSWORD);
   return (await one(env, "SELECT valore FROM impostazioni WHERE chiave='ADMIN_HASH'"))?.valore || null;
 }
-async function firma(hash) {
+async function firma(hash, email) {
   const k = await crypto.subtle.importKey("raw", new TextEncoder().encode(hash), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  return hex2(await crypto.subtle.sign("HMAC", k, new TextEncoder().encode("momento-reel-sessione")));
+  return hex2(await crypto.subtle.sign("HMAC", k, new TextEncoder().encode("momento-agency-sessione|" + email)));
 }
+var emailAccesso = async (env) => (await one(env, "SELECT valore FROM impostazioni WHERE chiave='ADMIN_EMAIL'"))?.valore || "";
 async function autorizzato(req, env) {
   const h = await hashPassword(env);
   if (!h) return false;
+  const email = await emailAccesso(env);
+  if (!email) return false;
   const c = /(?:^|;\s*)mr_s=([a-f0-9]{64})/.exec(req.headers.get("cookie") || "");
-  return !!c && c[1] === await firma(h);
+  return !!c && c[1] === await firma(h, email);
 }
 var cookie = (v, maxAge) => `mr_s=${v}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
 async function videoAPezzi(env, req, url, chiave, primo2, md, vv) {
@@ -7072,24 +7080,29 @@ async function videoAPezzi(env, req, url, chiave, primo2, md, vv) {
 }
 async function api(req, env, url) {
   const p = url.pathname, m = req.method;
-  if (p === "/api/stato") return json2({ configurato: !!await hashPassword(env), dentro: await autorizzato(req, env) });
+  if (p === "/api/stato") return json2({ configurato: !!await hashPassword(env), email: !!await one(env, "SELECT 1 AS x FROM impostazioni WHERE chiave='ADMIN_EMAIL'"), dentro: await autorizzato(req, env) });
   if (p === "/api/accedi" && m === "POST") {
-    const { password } = await req.json().catch(() => ({}));
+    const { password, email: em } = await req.json().catch(() => ({}));
+    const email = String(em || "").trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json2({ errore: "scrivi un\u2019email valida" }, 400);
     if (!password || String(password).length < 6) return json2({ errore: "password di almeno 6 caratteri" }, 400);
+    const emailSalvata = (await one(env, "SELECT valore FROM impostazioni WHERE chiave='ADMIN_EMAIL'"))?.valore || "";
     const kip = "accesso_ko:" + (req.headers.get("cf-connecting-ip") || "x");
     const falliti = Number(await env.VIDEO.get(kip).catch(() => 0)) || 0;
     if (falliti >= 8) return json2({ errore: "troppi tentativi sbagliati: riprova tra 15 minuti" }, 429);
     let h = await hashPassword(env);
     const nuovo = sha("momento-reel|" + password);
     if (!h) {
+      if (String(password).length < 8) return json2({ errore: "password di almeno 8 caratteri" }, 400);
       h = await nuovo;
       await run(env, "INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES ('ADMIN_HASH', ?)", h);
-    } else if (await nuovo !== h) {
+    } else if (await nuovo !== h || emailSalvata && emailSalvata !== email) {
       await env.VIDEO.put(kip, String(falliti + 1), { expirationTtl: 900 }).catch(() => {
       });
-      return json2({ errore: "password errata" }, 401);
+      return json2({ errore: "email o password errata" }, 401);
     }
-    return json2({ ok: true }, 200, { "set-cookie": cookie(await firma(h), 60 * 60 * 24 * 60) });
+    if (!emailSalvata) await run(env, "INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES ('ADMIN_EMAIL', ?)", email);
+    return json2({ ok: true }, 200, { "set-cookie": cookie(await firma(h, email), 60 * 60 * 24 * 60) });
   }
   if (p === "/api/esci") return json2({ ok: true }, 200, { "set-cookie": cookie("", 0) });
   if (!await autorizzato(req, env)) return json2({ errore: "accesso richiesto" }, 401);

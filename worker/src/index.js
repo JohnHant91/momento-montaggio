@@ -22,15 +22,19 @@ async function hashPassword(env) {
   if (env.ADMIN_PASSWORD) return sha('momento-reel|' + env.ADMIN_PASSWORD);
   return (await one(env, "SELECT valore FROM impostazioni WHERE chiave='ADMIN_HASH'"))?.valore || null;
 }
-async function firma(hash) {
+// la sessione è legata a password ED email: cambiando una delle due, tutti gli accessi vecchi decadono
+async function firma(hash, email) {
   const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(hash), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  return hex(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode('momento-reel-sessione')));
+  return hex(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode('momento-agency-sessione|' + email)));
 }
+const emailAccesso = async (env) => (await one(env, "SELECT valore FROM impostazioni WHERE chiave='ADMIN_EMAIL'"))?.valore || '';
 async function autorizzato(req, env) {
   const h = await hashPassword(env);
   if (!h) return false;
+  const email = await emailAccesso(env);
+  if (!email) return false; // serve l'accesso con email
   const c = /(?:^|;\s*)mr_s=([a-f0-9]{64})/.exec(req.headers.get('cookie') || '');
-  return !!c && c[1] === await firma(h);
+  return !!c && c[1] === await firma(h, email);
 }
 const cookie = (v, maxAge) => `mr_s=${v}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
 
@@ -66,22 +70,28 @@ async function videoAPezzi(env, req, url, chiave, primo, md, vv) {
 async function api(req, env, url) {
   const p = url.pathname, m = req.method;
 
-  if (p === '/api/stato') return json({ configurato: !!(await hashPassword(env)), dentro: await autorizzato(req, env) });
+  if (p === '/api/stato') return json({ configurato: !!(await hashPassword(env)), email: !!(await one(env, "SELECT 1 AS x FROM impostazioni WHERE chiave='ADMIN_EMAIL'")), dentro: await autorizzato(req, env) });
 
   if (p === '/api/accedi' && m === 'POST') {
-    const { password } = await req.json().catch(() => ({}));
+    const { password, email: em } = await req.json().catch(() => ({}));
+    const email = String(em || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ errore: 'scrivi un’email valida' }, 400);
     if (!password || String(password).length < 6) return json({ errore: 'password di almeno 6 caratteri' }, 400);
+    const emailSalvata = (await one(env, "SELECT valore FROM impostazioni WHERE chiave='ADMIN_EMAIL'"))?.valore || '';
     // troppi tentativi sbagliati dallo stesso indirizzo: blocco per 15 minuti (contro chi prova password a raffica)
     const kip = 'accesso_ko:' + (req.headers.get('cf-connecting-ip') || 'x');
     const falliti = Number(await env.VIDEO.get(kip).catch(() => 0)) || 0;
     if (falliti >= 8) return json({ errore: 'troppi tentativi sbagliati: riprova tra 15 minuti' }, 429);
     let h = await hashPassword(env);
     const nuovo = sha('momento-reel|' + password);
-    if (!h) { // primo accesso: la password scelta diventa quella della regia
+    if (!h) { // primo accesso: email e password scelte diventano quelle dell'agenzia
+      if (String(password).length < 8) return json({ errore: 'password di almeno 8 caratteri' }, 400);
       h = await nuovo;
       await run(env, "INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES ('ADMIN_HASH', ?)", h);
-    } else if (await nuovo !== h) { await env.VIDEO.put(kip, String(falliti + 1), { expirationTtl: 900 }).catch(() => {}); return json({ errore: 'password errata' }, 401); }
-    return json({ ok: true }, 200, { 'set-cookie': cookie(await firma(h), 60 * 60 * 24 * 60) });
+    } else if (await nuovo !== h || (emailSalvata && emailSalvata !== email)) { await env.VIDEO.put(kip, String(falliti + 1), { expirationTtl: 900 }).catch(() => {}); return json({ errore: 'email o password errata' }, 401); }
+    // l'email si fissa al primo accesso riuscito (anche per chi aveva già solo la password)
+    if (!emailSalvata) await run(env, "INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES ('ADMIN_EMAIL', ?)", email);
+    return json({ ok: true }, 200, { 'set-cookie': cookie(await firma(h, email), 60 * 60 * 24 * 60) });
   }
   if (p === '/api/esci') return json({ ok: true }, 200, { 'set-cookie': cookie('', 0) });
 
