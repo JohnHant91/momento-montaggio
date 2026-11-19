@@ -5029,6 +5029,11 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 .et-ag.pillola .pt{width:7px;height:7px;border-radius:50%;background:#9a968f}
 .et-ag.carta{background:#fff;border-radius:14px;padding:9px 11px;min-width:150px;max-width:220px;box-shadow:0 12px 30px -12px rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.05);display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;cursor:pointer;font-family:Inter,system-ui}
 .et-ag.carta b{font-size:13px;color:#141416;grid-column:1}.et-ag.carta>span{font-size:11px;color:#77736b;grid-column:1;line-height:1.3}.et-ag.carta i{grid-column:2;grid-row:1/3;font-style:normal;background:#141416;color:#fff;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:600;white-space:nowrap}
+.et-ag.fumetto{position:relative;display:flex;flex-direction:row;align-items:center;gap:6px;background:#fff;border-radius:999px;padding:6px 11px 6px 8px;font:600 12.5px/1 Inter,system-ui;color:#141416;white-space:nowrap;cursor:pointer;box-shadow:0 0 0 2px #22A55B,0 10px 24px -10px rgba(0,0,0,.45);--c:#22A55B;animation:alone 1.6s ease-out infinite}
+.et-ag.fumetto:after{content:'';position:absolute;left:50%;bottom:-6px;width:10px;height:10px;background:#fff;transform:translateX(-50%) rotate(45deg);box-shadow:2px 2px 0 0 #22A55B}
+.et-ag.fumetto.coda{box-shadow:0 0 0 2px #E8930C,0 10px 24px -10px rgba(0,0,0,.45);animation:none}.et-ag.fumetto.coda:after{box-shadow:2px 2px 0 0 #E8930C}
+.et-ag.fumetto .ic{font-size:15px;line-height:1}.et-ag.fumetto .dd{display:flex;gap:3px;margin-left:2px}.et-ag.fumetto .dd i{width:5px;height:5px;border-radius:50%;background:#22A55B;animation:salta 1s infinite}
+.et-ag.fumetto .dd i:nth-child(2){animation-delay:.15s}.et-ag.fumetto .dd i:nth-child(3){animation-delay:.3s}@keyframes salta{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-4px);opacity:1}}
 .et-ag.carta b{display:flex;align-items:center;gap:6px}.et-ag.carta b .pt{width:8px;height:8px;border-radius:50%;background:#9a968f;flex:0 0 8px}.et-ag.carta.lavora b .pt{background:#22A55B;--c:#22A55B;animation:alone 1.3s ease-out infinite}.et-ag.carta.coda b .pt{background:#E8930C}
 .et-ag.carta b .ic{font-size:14px;line-height:1}.et-ag.carta b em{font-style:normal;font-size:10.5px;font-weight:600;color:#22A55B;text-transform:uppercase;letter-spacing:.03em}.et-ag.carta.coda b em{color:#8a6a1f}.et-ag.carta .pp{display:inline-block;animation:p 1.2s infinite}
 .et-ag.carta>span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.et-ag.carta.lavora{box-shadow:0 0 0 2px rgba(34,165,91,.45),0 12px 30px -12px rgba(0,0,0,.35)}
@@ -6697,10 +6702,13 @@ function disegnaEtichette() {
   for (const E of S.etAree) h += '<div class="et-uff" data-uff="' + E.id + '">' + esc(E.nome) + '</div>';
   for (const A of S.dati.agenti) {
     if (!S.agenti[A.id]) continue;
-    const viva = (A.stato === 'lavora' || A.stato === 'coda' || S.scelto === A.id) && (!S.agenti[A.id]?.riunione || S.scelto === A.id);
-    h += viva
-      ? '<div class="et-ag carta ' + (A.stato || '') + (S.scelto === A.id ? ' scelto' : '') + '" data-ag="' + A.id + '"><b><span class="pt"></span>' + (A.i ? '<span class="ic">' + A.i + '</span>' : '') + esc(A.n) + (A.stato === 'lavora' ? ' <em>al lavoro<span class="pp">...</span></em>' : A.stato === 'coda' ? ' <em>in coda</em>' : '') + '</b><span>' + esc((A.msg || A.r || '').slice(0, 90)) + '</span><i>' + (A.stato === 'coda' ? 'Tra poco' : 'Guarda \u25B8') + '</i></div>'
-      : '<div class="et-ag pillola ' + (A.stato || '') + '" data-ag="' + A.id + '"><span class="pt"></span>' + esc(A.n) + '</div>';
+    if (S.agenti[A.id]?.riunione && S.scelto !== A.id) { h += '<div class="et-ag pillola" data-ag="' + A.id + '"><span class="pt"></span>' + esc(A.n) + '</div>'; continue; }
+    if (S.scelto === A.id) { // agente scelto: scheda completa con cosa sta facendo
+      h += '<div class="et-ag carta ' + (A.stato || '') + ' scelto" data-ag="' + A.id + '"><b><span class="pt"></span>' + (A.i ? '<span class="ic">' + A.i + '</span>' : '') + esc(A.n) + (A.stato === 'lavora' ? ' <em>al lavoro</em>' : A.stato === 'coda' ? ' <em>in coda</em>' : '') + '</b><span>' + esc((A.msg || A.r || '').slice(0, 90)) + '</span><i>' + (A.stato === 'coda' ? 'Tra poco' : 'Guarda \u25B8') + '</i></div>';
+    } else if (A.stato === 'lavora' || A.stato === 'coda') { // fumetto sopra la testa: icona, nome e puntini che scrivono (in coda: clessidra)
+      h += '<div class="et-ag fumetto ' + A.stato + '" data-ag="' + A.id + '" title="' + esc(A.msg || '') + '">' + (A.i ? '<span class="ic">' + A.i + '</span>' : '') + '<b>' + esc(A.n) + '</b>' +
+        (A.stato === 'lavora' ? '<span class="dd"><i></i><i></i><i></i></span>' : '<span class="cl">\u23F3</span>') + '</div>';
+    } else h += '<div class="et-ag pillola ' + (A.stato || '') + '" data-ag="' + A.id + '"><span class="pt"></span>' + esc(A.n) + '</div>';
   }
   el.innerHTML = h;
   el.querySelectorAll('[data-ag]').forEach((x) => x.onclick = (ev) => { ev.stopPropagation(); vaiAgente(x.dataset.ag); });
