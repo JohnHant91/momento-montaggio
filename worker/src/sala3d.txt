@@ -583,7 +583,7 @@ function vola(target, dist, ms = 1000) {
 export function grandangolo(subito) {
   S.scelto = null; disegnaEtichette();
   const t = new THREE.Vector3(CX, 0, CZ - 0.4), d = distanzaPer(LARGO + 1.0, FONDO + 1.2);
-  S.distTutto = d; S.controls.maxDistance = Math.max(90, d * 1.2); // sul telefono (schermo stretto) la vista intera è più lontana
+  S.distTutto = d; S.controls.maxDistance = d * 1.25; // non ci si allontana più del necessario per vedere tutto l'edificio
   if (subito) { S.controls.target.copy(t); S.camera.position.copy(t).addScaledVector(DIREZIONE, d); S.camera.lookAt(t); }
   else { vola(t, d); S.volo.dir1 = DIREZIONE.clone(); }
   S.cb.vista && S.cb.vista('tutto');
@@ -727,6 +727,8 @@ function anima(t) {
     S.camera.position.copy(S.controls.target).addScaledVector(dir, v.d0 + (v.d1 - v.d0) * e);
     if (k >= 1) S.volo = null;
   }
+  { const T = S.controls.target, x = Math.min(LARGO, Math.max(0, T.x)), z = Math.min(FONDO + 1, Math.max(-1, T.z));
+    if (x !== T.x || z !== T.z) { const dx = x - T.x, dz = z - T.z; T.x = x; T.z = z; S.camera.position.x += dx; S.camera.position.z += dz; } }
   S.controls.update();
   const s = t / 1000, dt = Math.min(0.2, s - (S.ultimo || s)); S.ultimo = s;
   for (const id in S.agenti) {
@@ -780,7 +782,7 @@ export function avvia(cont, dati, cb) {
   scena.add(sole, sole.target);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true; controls.dampingFactor = 0.1; controls.screenSpacePanning = false;
-  controls.minDistance = 3; controls.maxDistance = 90; controls.zoomToCursor = true; controls.zoomSpeed = 1.4; // la rotella zooma dove punti il mouse
+  controls.minDistance = 3; controls.maxDistance = 90; controls.zoomSpeed = 1.2;
   controls.minPolarAngle = 0.35; controls.maxPolarAngle = 1.0; controls.minAzimuthAngle = -0.45; controls.maxAzimuthAngle = 0.45;
   controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
   controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
@@ -801,7 +803,19 @@ export function avvia(cont, dati, cb) {
   });
   const via = (ev) => { dita.delete(ev.pointerId); };
   renderer.domElement.addEventListener('pointercancel', (ev) => { via(ev); giu = null; });
-  renderer.domElement.addEventListener('wheel', () => { S.volo = null; }, { passive: true });
+  const piano = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), punto = new THREE.Vector3();
+  renderer.domElement.addEventListener('wheel', (ev) => {
+    S.volo = null;
+    if (ev.deltaY >= 0) return; // allontanando resta sul centro
+    // avvicinando, il centro scivola un po' verso il punto del pavimento sotto il mouse (sempre dentro l'edificio): zoom dove guardi, senza salti
+    const r = renderer.domElement.getBoundingClientRect();
+    pt.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(pt, camera);
+    if (!ray.ray.intersectPlane(piano, punto)) return;
+    punto.x = Math.min(LARGO, Math.max(0, punto.x)); punto.z = Math.min(FONDO, Math.max(0, punto.z)); punto.y = controls.target.y;
+    const sp = punto.sub(controls.target).multiplyScalar(0.12);
+    controls.target.add(sp); camera.position.add(sp);
+  }, { passive: true });
   renderer.domElement.addEventListener('pointerup', (ev) => {
     via(ev);
     if (multi) { if (!dita.size) multi = false; giu = null; return; }
