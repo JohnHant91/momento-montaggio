@@ -365,7 +365,8 @@ const TRANSIZIONI = ['taglio_netto', 'dissolvenza', 'flash_bianco', 'whip_pan', 
 const EFFETTI_PEZZO = ['dolly_in', 'slider_dx', 'slider_sx', 'punch_in', 'zoom_lento', 'zoom_out', 'shake', 'nessuno'];
 const EFFETTI_GLOBALI = ['grana', 'vignettatura', 'bande_cinema', 'light_leak', 'glow', 'vhs'];
 const FORMATI_REEL = ['montaggio', 'talking_head', 'carosello', 'split_grafico'];
-const TIPI_GRAFICA = ['titolo', 'numero', 'sito', 'terminale', 'contatore', 'lista', 'confronto', 'card', 'chat', 'barre', 'riepilogo'];
+const TIPI_GRAFICA = ['oggetto', 'titolo', 'numero', 'sito', 'terminale', 'contatore', 'lista', 'confronto', 'card', 'chat', 'barre', 'riepilogo'];
+const EFFETTI_SPLIT = ['scrivi', 'cornice', 'cursore', 'coriandoli', 'fantasma', 'icone', 'lente', 'successo', 'scossa', 'dietro', 'esce', 'adesivo'];
 const FONT_SPLIT = { titoli: ['Instrument Serif', 'Playfair Display', 'Fraunces', 'DM Serif Display', 'Inter', 'Space Grotesk', 'Manrope'], testo: ['Inter', 'Space Grotesk', 'Manrope'], mono: ['JetBrains Mono', 'IBM Plex Mono'] };
 
 const SISTEMA_REGISTA = `Sei il Regista e il Copy di Momento Produzione. Trasformi la SCHEDA TECNICA del Direttore creativo in un
@@ -402,7 +403,7 @@ VALORI AMMESSI
 - lut (facoltativa, LUT vere di pellicole e colorist; se la scegli, comanda lei il colore): ${LUT_NOMI.join(', ')}
 - stile testi: titolo_grande_centrale, etichetta_box, sottotitolo_classico; posizione: alto, centro, terzo_inferiore
 - formato: montaggio, talking_head, carosello, split_grafico (vedi FORMATI DEL MONTATORE)
-- grafiche (solo split_grafico): ${TIPI_GRAFICA.join(', ')}; font_split.titoli: ${FONT_SPLIT.titoli.join(', ')}; testo: ${FONT_SPLIT.testo.join(', ')}; mono: ${FONT_SPLIT.mono.join(', ')}
+- grafiche (solo split_grafico): ${TIPI_GRAFICA.join(', ')}; effetti delle grafiche: ${EFFETTI_SPLIT.join(', ')}; font_split.titoli: ${FONT_SPLIT.titoli.join(', ')}; testo: ${FONT_SPLIT.testo.join(', ')}; mono: ${FONT_SPLIT.mono.join(', ')}
 
 JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel formato):
 {
@@ -429,8 +430,9 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
   "correzioni": {"parola_sentita_male": "parola giusta"},
   "broll": [{"clip": indice, "in": secondi, "durata": 1.5-3, "sulla_parola": "parola detta su cui entra", "rallenty": bool}],
   "cta": {"testo": "solo talking_head/carosello: call to action breve (es. Scrivici ORTO in DM)"},
-  "grafiche": [{"tipo": "solo split_grafico: titolo|numero|sito|terminale|contatore|lista|confronto|card|chat|barre|riepilogo", "sulla_parola": "parola detta su cui entra (in ordine)", "pieno": true se prende tutto lo schermo,
-                "dati": {"titolo: testo, accento (parola in corsivo colorato), sotto | numero: valore, etichetta | sito: url VERO e completo del sito citato, evidenzia {x,y,w,h 0-1} | terminale: comando, righe[] | contatore: da, a, etichetta, prefisso, suffisso | lista: titolo, voci[], spunte | confronto: prima {titolo, voci[]}, dopo {titolo, voci[]} | card: titolo, testo, icona (emoji), etichetta | chat: messaggi [{chi: tu|ai, testo}] | barre: titolo, unita, voci [{etichetta, valore}] | riepilogo: titolo, voci [{nome, valore}]"}}],
+  "grafiche": [{"tipo": "solo split_grafico: oggetto|titolo|numero|sito|terminale|contatore|lista|confronto|card|chat|barre|riepilogo", "sulla_parola": "parola detta su cui entra (in ordine)", "pieno": true se prende tutto lo schermo,
+                "effetti": ["2-3 tra scrivi|cornice|cursore|coriandoli|fantasma|icone|lente|successo|scossa|dietro|esce|adesivo (vedi le regole del formato)"],
+                "dati": {"titolo: testo, accento (parola in corsivo colorato), sotto | numero: valore, etichetta | sito: url VERO e completo del sito citato, evidenzia {x,y,w,h 0-1} | terminale: comando, righe[] | contatore: da, a, etichetta, prefisso, suffisso | lista: titolo, voci[], spunte | confronto: prima {titolo, voci[]}, dopo {titolo, voci[]} | card: titolo, testo, icona (simbolo semplice, niente emoji colorate), etichetta | oggetto: simbolo (1-3 caratteri), titolo, accento | chat: messaggi [{chi: tu|ai, testo}] | barre: titolo, unita, voci [{etichetta, valore}] | riepilogo: titolo, voci [{nome, valore}] | in tutti: dietro (parola gigante dietro Johnny), decor [simboli delle icone], successo (testo barra verde)"}}],
   "palette": {"fondo": "#hex chiaro tipo carta", "inchiostro": "#hex testo", "accento": "#hex unico colore forte, scelto per l'argomento", "secondario": "#hex tenue dell'accento", "tenue": "rgba(...) per la griglia"} (solo split_grafico),
   "font_split": {"titoli": "...", "testo": "...", "mono": "..."} (solo split_grafico),
   "tracker": {"totale": n, "voci": [{"etichetta": "nome breve", "sulla_parola": "parola su cui entra"}]} oppure null (solo split_grafico, per i video a lista),
@@ -567,7 +569,9 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
   // split: grafiche animate sopra la persona, colori e font per l'argomento
   const hex = (v) => (typeof v === 'string' && /^(#[0-9a-f]{6}|rgba?\([0-9., ]+\))$/i.test(v.trim()) ? v.trim() : undefined);
   const grafiche = formato !== 'split_grafico' ? [] : (p.grafiche || []).filter((g) => g && TIPI_GRAFICA.includes(g.tipo) && g.sulla_parola).slice(0, 40)
-    .map((g) => ({ tipo: g.tipo, sulla_parola: String(g.sulla_parola).slice(0, 40), pieno: g.pieno === true, dati: g.dati && typeof g.dati === 'object' ? JSON.parse(JSON.stringify(g.dati).slice(0, 3000) || '{}') : {} }))
+    .map((g) => ({ tipo: g.tipo, sulla_parola: String(g.sulla_parola).slice(0, 40), pieno: g.pieno === true, dati: g.dati && typeof g.dati === 'object' ? JSON.parse(JSON.stringify(g.dati).slice(0, 3000) || '{}') : {},
+      ...(Array.isArray(g.effetti) && g.effetti.length ? { effetti: g.effetti.filter((e) => EFFETTI_SPLIT.includes(e)).slice(0, 5) } : {}) }))
+    .map((g) => (g.pieno && g.effetti ? { ...g, effetti: g.effetti.filter((e) => !['dietro', 'esce', 'adesivo'].includes(e)) } : g)) // con la grafica a tutto schermo la persona non si vede
     .map((g) => (g.tipo === 'sito' && !/^https:\/\/[\w.-]+\.[a-z]{2,}/i.test(g.dati.url || '') ? { ...g, tipo: 'card', dati: { titolo: g.dati.titolo || g.dati.url || 'sito', testo: g.dati.testo || '' } } : g));
   const palette = formato !== 'split_grafico' ? null : Object.fromEntries(['fondo', 'inchiostro', 'accento', 'secondario', 'tenue'].map((k) => [k, hex(p.palette?.[k])]).filter(([, v]) => v));
   const font_split = formato !== 'split_grafico' ? null : Object.fromEntries(Object.entries(FONT_SPLIT).map(([k, ok]) => [k, ok.includes(p.font_split?.[k]) ? p.font_split[k] : ok[0]]));

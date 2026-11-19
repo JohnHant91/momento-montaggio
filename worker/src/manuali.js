@@ -113,13 +113,29 @@ export const MANUALE_FORMATI = `FORMATI DEL MONTATORE (scegli "formato" nel pian
   schermo è DIVISO: sotto la persona ferma, sopra un foglio color carta con griglia dove scorrono GRAFICHE ANIMATE che
   illustrano esattamente quello che si dice, al centro un sottotitolo a pillola nera in stampatello a macchina (i nomi
   chiave colorati: mettili in "evidenzia"). Regole delle "grafiche":
-  · una nuova grafica ogni 1,5-3 secondi di parlato (un video di 50 s ne ha 15-25), ognuna sulla parola che la introduce;
+  · una nuova grafica ogni 3-4 secondi di parlato (un video di 50 s ne ha 12-16, MAI più di 16): meno grafiche ma ricche
+    di movimento; ognuna sulla parola che la introduce; mai due grafiche dello stesso tipo di fila;
   · scegli il tipo giusto per la frase: il gancio/il concetto → titolo (con UNA parola "accento" in corsivo colorato);
     un elemento numerato della lista → numero ("1", nome); uno strumento/sito/app citato → sito con l'URL VERO e completo
     (https://…) della pagina principale, mai inventato (se non sei sicuro dell'indirizzo usa card); un comando, un prompt,
     un'automazione → terminale; una cifra detta → contatore; più punti → lista; prima/dopo, sbagliato/giusto → confronto;
-    una funzione o un consiglio → card con emoji; una domanda a un'AI → chat; numeri da confrontare → barre; la chiusura
-    con tutti gli elementi → riepilogo;
+    una funzione o un consiglio → card ("icona": un simbolo semplice tipo ✦ ⚙ ✎ ★ ⚡, niente emoji colorate); una domanda a
+    un'AI → chat; numeri da confrontare → barre; la chiusura con tutti gli elementi → riepilogo; il gancio, un prodotto,
+    un concetto da far "vedere" → oggetto (cubo 3D che cade e rimbalza, "simbolo": 1-3 caratteri tipo "€0", "AI", "✦",
+    "titolo" scritto sopra con "accento");
+  · EFFETTI (sei il SUPER MONTATORE di effetti speciali): ogni grafica può avere "effetti": [...] scelti tra
+    scrivi (titolo a macchina col cursore), cornice (rettangolo da programma di design con maniglie ed etichetta),
+    cursore (freccia del mouse che arriva e clicca, con suono), coriandoli (pallini colorati che esplodono e attraversano
+    lo schermo, con pop), fantasma (numero gigante sullo sfondo), icone (tessere che fluttuano ai lati; "decor": ["Aa","%"]
+    nei dati per scegliere i simboli), lente (lente che scorre sulla grafica), successo (barra verde "fatto"; testo in
+    "successo" nei dati), scossa (scossone con tonfo sul dato forte), e gli effetti ADDOSSO A JOHNNY (persona ritagliata):
+    dietro (scritta gigante DIETRO di lui, la parola chiave in "dietro" nei dati, max 2 parole; solo con la persona
+    visibile, mai su grafiche "pieno"), esce (lui cresce e la testa esce dal riquadro sopra le grafiche: per il gancio o
+    la rivelazione), adesivo (lui ritagliato come adesivo con contorno bianco e cornice tratteggiata "johnny.png", che
+    sale sopra le grafiche: per un momento ironico o una domanda). Regole: 2-3 effetti per grafica, il gancio (prima
+    grafica) SEMPRE con un effetto addosso (esce o dietro) + coriandoli o scossa; in tutto il video 2-4 effetti addosso
+    (mai due di fila), 2-3 coriandoli, 1-2 scosse; cursore su card, sito e confronto; se non metti "effetti" valgono
+    quelli di base del tipo (titolo: scrivi+icone, card: cornice+cursore+icone, numero: fantasma+coriandoli…);
   · 2-4 grafiche "pieno": true (terminale, sito, riepilogo) per dare respiro: la persona sparisce per qualche secondo;
   · testi brevissimi (titoli max 5 parole, voci max 4 parole), solo cose dette davvero: niente numeri o fatti inventati;
   · video a lista ("5 strumenti", "3 errori") → "tracker" con il totale e una voce per elemento sulla parola in cui entra.

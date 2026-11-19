@@ -1886,13 +1886,29 @@ var MANUALE_FORMATI = `FORMATI DEL MONTATORE (scegli "formato" nel piano, in bas
   schermo \xE8 DIVISO: sotto la persona ferma, sopra un foglio color carta con griglia dove scorrono GRAFICHE ANIMATE che
   illustrano esattamente quello che si dice, al centro un sottotitolo a pillola nera in stampatello a macchina (i nomi
   chiave colorati: mettili in "evidenzia"). Regole delle "grafiche":
-  \xB7 una nuova grafica ogni 1,5-3 secondi di parlato (un video di 50 s ne ha 15-25), ognuna sulla parola che la introduce;
+  \xB7 una nuova grafica ogni 3-4 secondi di parlato (un video di 50 s ne ha 12-16, MAI pi\xF9 di 16): meno grafiche ma ricche
+    di movimento; ognuna sulla parola che la introduce; mai due grafiche dello stesso tipo di fila;
   \xB7 scegli il tipo giusto per la frase: il gancio/il concetto \u2192 titolo (con UNA parola "accento" in corsivo colorato);
     un elemento numerato della lista \u2192 numero ("1", nome); uno strumento/sito/app citato \u2192 sito con l'URL VERO e completo
     (https://\u2026) della pagina principale, mai inventato (se non sei sicuro dell'indirizzo usa card); un comando, un prompt,
     un'automazione \u2192 terminale; una cifra detta \u2192 contatore; pi\xF9 punti \u2192 lista; prima/dopo, sbagliato/giusto \u2192 confronto;
-    una funzione o un consiglio \u2192 card con emoji; una domanda a un'AI \u2192 chat; numeri da confrontare \u2192 barre; la chiusura
-    con tutti gli elementi \u2192 riepilogo;
+    una funzione o un consiglio \u2192 card ("icona": un simbolo semplice tipo \u2726 \u2699 \u270E \u2605 \u26A1, niente emoji colorate); una domanda a
+    un'AI \u2192 chat; numeri da confrontare \u2192 barre; la chiusura con tutti gli elementi \u2192 riepilogo; il gancio, un prodotto,
+    un concetto da far "vedere" \u2192 oggetto (cubo 3D che cade e rimbalza, "simbolo": 1-3 caratteri tipo "\u20AC0", "AI", "\u2726",
+    "titolo" scritto sopra con "accento");
+  \xB7 EFFETTI (sei il SUPER MONTATORE di effetti speciali): ogni grafica pu\xF2 avere "effetti": [...] scelti tra
+    scrivi (titolo a macchina col cursore), cornice (rettangolo da programma di design con maniglie ed etichetta),
+    cursore (freccia del mouse che arriva e clicca, con suono), coriandoli (pallini colorati che esplodono e attraversano
+    lo schermo, con pop), fantasma (numero gigante sullo sfondo), icone (tessere che fluttuano ai lati; "decor": ["Aa","%"]
+    nei dati per scegliere i simboli), lente (lente che scorre sulla grafica), successo (barra verde "fatto"; testo in
+    "successo" nei dati), scossa (scossone con tonfo sul dato forte), e gli effetti ADDOSSO A JOHNNY (persona ritagliata):
+    dietro (scritta gigante DIETRO di lui, la parola chiave in "dietro" nei dati, max 2 parole; solo con la persona
+    visibile, mai su grafiche "pieno"), esce (lui cresce e la testa esce dal riquadro sopra le grafiche: per il gancio o
+    la rivelazione), adesivo (lui ritagliato come adesivo con contorno bianco e cornice tratteggiata "johnny.png", che
+    sale sopra le grafiche: per un momento ironico o una domanda). Regole: 2-3 effetti per grafica, il gancio (prima
+    grafica) SEMPRE con un effetto addosso (esce o dietro) + coriandoli o scossa; in tutto il video 2-4 effetti addosso
+    (mai due di fila), 2-3 coriandoli, 1-2 scosse; cursore su card, sito e confronto; se non metti "effetti" valgono
+    quelli di base del tipo (titolo: scrivi+icone, card: cornice+cursore+icone, numero: fantasma+coriandoli\u2026);
   \xB7 2-4 grafiche "pieno": true (terminale, sito, riepilogo) per dare respiro: la persona sparisce per qualche secondo;
   \xB7 testi brevissimi (titoli max 5 parole, voci max 4 parole), solo cose dette davvero: niente numeri o fatti inventati;
   \xB7 video a lista ("5 strumenti", "3 errori") \u2192 "tracker" con il totale e una voce per elemento sulla parola in cui entra.
@@ -2312,7 +2328,8 @@ var TRANSIZIONI = ["taglio_netto", "dissolvenza", "flash_bianco", "whip_pan", "z
 var EFFETTI_PEZZO = ["dolly_in", "slider_dx", "slider_sx", "punch_in", "zoom_lento", "zoom_out", "shake", "nessuno"];
 var EFFETTI_GLOBALI = ["grana", "vignettatura", "bande_cinema", "light_leak", "glow", "vhs"];
 var FORMATI_REEL = ["montaggio", "talking_head", "carosello", "split_grafico"];
-var TIPI_GRAFICA = ["titolo", "numero", "sito", "terminale", "contatore", "lista", "confronto", "card", "chat", "barre", "riepilogo"];
+var TIPI_GRAFICA = ["oggetto", "titolo", "numero", "sito", "terminale", "contatore", "lista", "confronto", "card", "chat", "barre", "riepilogo"];
+var EFFETTI_SPLIT = ["scrivi", "cornice", "cursore", "coriandoli", "fantasma", "icone", "lente", "successo", "scossa", "dietro", "esce", "adesivo"];
 var FONT_SPLIT = { titoli: ["Instrument Serif", "Playfair Display", "Fraunces", "DM Serif Display", "Inter", "Space Grotesk", "Manrope"], testo: ["Inter", "Space Grotesk", "Manrope"], mono: ["JetBrains Mono", "IBM Plex Mono"] };
 var SISTEMA_REGISTA = `Sei il Regista e il Copy di Momento Produzione. Trasformi la SCHEDA TECNICA del Direttore creativo in un
 PIANO DI MONTAGGIO preciso che un montatore automatico eseguir\xE0 alla lettera. Scegli i pezzi migliori dalle clip analizzate
@@ -2347,7 +2364,7 @@ VALORI AMMESSI
 - lut (facoltativa, LUT vere di pellicole e colorist; se la scegli, comanda lei il colore): ${LUT_NOMI.join(", ")}
 - stile testi: titolo_grande_centrale, etichetta_box, sottotitolo_classico; posizione: alto, centro, terzo_inferiore
 - formato: montaggio, talking_head, carosello, split_grafico (vedi FORMATI DEL MONTATORE)
-- grafiche (solo split_grafico): ${TIPI_GRAFICA.join(", ")}; font_split.titoli: ${FONT_SPLIT.titoli.join(", ")}; testo: ${FONT_SPLIT.testo.join(", ")}; mono: ${FONT_SPLIT.mono.join(", ")}
+- grafiche (solo split_grafico): ${TIPI_GRAFICA.join(", ")}; effetti delle grafiche: ${EFFETTI_SPLIT.join(", ")}; font_split.titoli: ${FONT_SPLIT.titoli.join(", ")}; testo: ${FONT_SPLIT.testo.join(", ")}; mono: ${FONT_SPLIT.mono.join(", ")}
 
 JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel formato):
 {
@@ -2374,8 +2391,9 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
   "correzioni": {"parola_sentita_male": "parola giusta"},
   "broll": [{"clip": indice, "in": secondi, "durata": 1.5-3, "sulla_parola": "parola detta su cui entra", "rallenty": bool}],
   "cta": {"testo": "solo talking_head/carosello: call to action breve (es. Scrivici ORTO in DM)"},
-  "grafiche": [{"tipo": "solo split_grafico: titolo|numero|sito|terminale|contatore|lista|confronto|card|chat|barre|riepilogo", "sulla_parola": "parola detta su cui entra (in ordine)", "pieno": true se prende tutto lo schermo,
-                "dati": {"titolo: testo, accento (parola in corsivo colorato), sotto | numero: valore, etichetta | sito: url VERO e completo del sito citato, evidenzia {x,y,w,h 0-1} | terminale: comando, righe[] | contatore: da, a, etichetta, prefisso, suffisso | lista: titolo, voci[], spunte | confronto: prima {titolo, voci[]}, dopo {titolo, voci[]} | card: titolo, testo, icona (emoji), etichetta | chat: messaggi [{chi: tu|ai, testo}] | barre: titolo, unita, voci [{etichetta, valore}] | riepilogo: titolo, voci [{nome, valore}]"}}],
+  "grafiche": [{"tipo": "solo split_grafico: oggetto|titolo|numero|sito|terminale|contatore|lista|confronto|card|chat|barre|riepilogo", "sulla_parola": "parola detta su cui entra (in ordine)", "pieno": true se prende tutto lo schermo,
+                "effetti": ["2-3 tra scrivi|cornice|cursore|coriandoli|fantasma|icone|lente|successo|scossa|dietro|esce|adesivo (vedi le regole del formato)"],
+                "dati": {"titolo: testo, accento (parola in corsivo colorato), sotto | numero: valore, etichetta | sito: url VERO e completo del sito citato, evidenzia {x,y,w,h 0-1} | terminale: comando, righe[] | contatore: da, a, etichetta, prefisso, suffisso | lista: titolo, voci[], spunte | confronto: prima {titolo, voci[]}, dopo {titolo, voci[]} | card: titolo, testo, icona (simbolo semplice, niente emoji colorate), etichetta | oggetto: simbolo (1-3 caratteri), titolo, accento | chat: messaggi [{chi: tu|ai, testo}] | barre: titolo, unita, voci [{etichetta, valore}] | riepilogo: titolo, voci [{nome, valore}] | in tutti: dietro (parola gigante dietro Johnny), decor [simboli delle icone], successo (testo barra verde)"}}],
   "palette": {"fondo": "#hex chiaro tipo carta", "inchiostro": "#hex testo", "accento": "#hex unico colore forte, scelto per l'argomento", "secondario": "#hex tenue dell'accento", "tenue": "rgba(...) per la griglia"} (solo split_grafico),
   "font_split": {"titoli": "...", "testo": "...", "mono": "..."} (solo split_grafico),
   "tracker": {"totale": n, "voci": [{"etichetta": "nome breve", "sulla_parola": "parola su cui entra"}]} oppure null (solo split_grafico, per i video a lista),
@@ -2548,7 +2566,13 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
     }
   }
   const hex3 = (v) => typeof v === "string" && /^(#[0-9a-f]{6}|rgba?\([0-9., ]+\))$/i.test(v.trim()) ? v.trim() : void 0;
-  const grafiche = formato !== "split_grafico" ? [] : (p.grafiche || []).filter((g) => g && TIPI_GRAFICA.includes(g.tipo) && g.sulla_parola).slice(0, 40).map((g) => ({ tipo: g.tipo, sulla_parola: String(g.sulla_parola).slice(0, 40), pieno: g.pieno === true, dati: g.dati && typeof g.dati === "object" ? JSON.parse(JSON.stringify(g.dati).slice(0, 3e3) || "{}") : {} })).map((g) => g.tipo === "sito" && !/^https:\/\/[\w.-]+\.[a-z]{2,}/i.test(g.dati.url || "") ? { ...g, tipo: "card", dati: { titolo: g.dati.titolo || g.dati.url || "sito", testo: g.dati.testo || "" } } : g);
+  const grafiche = formato !== "split_grafico" ? [] : (p.grafiche || []).filter((g) => g && TIPI_GRAFICA.includes(g.tipo) && g.sulla_parola).slice(0, 40).map((g) => ({
+    tipo: g.tipo,
+    sulla_parola: String(g.sulla_parola).slice(0, 40),
+    pieno: g.pieno === true,
+    dati: g.dati && typeof g.dati === "object" ? JSON.parse(JSON.stringify(g.dati).slice(0, 3e3) || "{}") : {},
+    ...Array.isArray(g.effetti) && g.effetti.length ? { effetti: g.effetti.filter((e) => EFFETTI_SPLIT.includes(e)).slice(0, 5) } : {}
+  })).map((g) => g.pieno && g.effetti ? { ...g, effetti: g.effetti.filter((e) => !["dietro", "esce", "adesivo"].includes(e)) } : g).map((g) => g.tipo === "sito" && !/^https:\/\/[\w.-]+\.[a-z]{2,}/i.test(g.dati.url || "") ? { ...g, tipo: "card", dati: { titolo: g.dati.titolo || g.dati.url || "sito", testo: g.dati.testo || "" } } : g);
   const palette = formato !== "split_grafico" ? null : Object.fromEntries(["fondo", "inchiostro", "accento", "secondario", "tenue"].map((k) => [k, hex3(p.palette?.[k])]).filter(([, v]) => v));
   const font_split = formato !== "split_grafico" ? null : Object.fromEntries(Object.entries(FONT_SPLIT).map(([k, ok]) => [k, ok.includes(p.font_split?.[k]) ? p.font_split[k] : ok[0]]));
   const tracker = formato === "split_grafico" && p.tracker?.voci?.length ? { totale: Math.min(10, Math.max(1, Number(p.tracker.totale) || p.tracker.voci.length)), voci: p.tracker.voci.slice(0, 10).map((v) => ({ etichetta: String(v.etichetta || "").slice(0, 24), sulla_parola: String(v.sulla_parola || "").slice(0, 40) })).filter((v) => v.sulla_parola) } : null;
