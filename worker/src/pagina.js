@@ -291,6 +291,9 @@ function evidenzia() {
 addEventListener('hashchange', () => { if ($('#nav').innerHTML) evidenzia(); });
 
 async function accesso() {
+  clearTimeout(timer);
+  // se il modulo d'accesso è già aperto non lo ridisegno: altrimenti si cancella quello che stai scrivendo
+  if ($('#em') && $('#pw')) return;
   menu(false);
   const s = await fetch('/api/stato').then((r) => r.json());
   $('#app').innerHTML = '<div class="card" style="max-width:420px;margin:40px auto"><div class="mut" style="font-size:12px;letter-spacing:.12em;font-weight:600">MOMENTO AGENCY AI</div><h1>' + (s.configurato ? 'Accedi' : 'Crea l’accesso') + '</h1>' +
@@ -302,7 +305,7 @@ async function accesso() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test($('#em').value.trim())) { $('#er').textContent = 'scrivi un’email valida'; return; }
     try { await chiama('/api/accedi', { method: 'POST', body: { email: $('#em').value.trim(), password: $('#pw').value } }); location.hash = '#/'; rotta(); } catch (x) { $('#er').textContent = x.message; }
   };
-  $('#go').onclick = vai; $('#pw').onkeydown = (ev) => ev.key === 'Enter' && vai(); $('#em').onkeydown = (ev) => ev.key === 'Enter' && $('#pw').focus(); $('#em').focus();
+  $('#go').onclick = vai; $('#pw').onkeydown = (ev) => { if (ev.key === 'Enter') vai(); }; $('#em').onkeydown = (ev) => { if (ev.key === 'Enter') $('#pw').focus(); }; $('#em').focus();
 }
 
 async function lista() {
