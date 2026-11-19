@@ -553,7 +553,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
   const schede = formato !== 'talking_head' ? [] : (p.schede || []).filter((s) => tutte[s?.clip]?.stato === 'fatto' && eImm(tutte[s.clip]) && s.sulla_parola).slice(0, 8).map((s) => ({
     clip: s.clip, ...sorg(tutte[s.clip]), sulla_parola: String(s.sulla_parola).slice(0, 40), etichetta: String(s.etichetta || '').slice(0, 16), lato: s.lato === 'sx' ? 'sx' : 'dx', durata: Math.min(7, Math.max(1.5, Number(s.durata) || 2.6)) }));
   const lookVoluto = indicazioni?.look && LOOKS.includes(indicazioni.look) ? indicazioni.look : null;
-  const cop = p.copertina && tutte[p.copertina.clip]?.stato === 'fatto' ? { fileid: tutte[p.copertina.clip].fileid, url: tutte[p.copertina.clip].sorgente?.url || null, secondo: Math.max(0, Number(p.copertina.secondo) || 0), testo: String(p.copertina.testo || '').slice(0, 60) } : null;
+  const cop = p.copertina && tutte[p.copertina.clip]?.stato === 'fatto' ? { fileid: tutte[p.copertina.clip].sorgente?.tipo === 'url' ? null : tutte[p.copertina.clip].fileid, url: tutte[p.copertina.clip].sorgente?.tipo === 'url' ? tutte[p.copertina.clip].sorgente.url : null, secondo: Math.max(0, Number(p.copertina.secondo) || 0), testo: String(p.copertina.testo || '').slice(0, 60) } : null;
   let pannello = null;
   const pn = p.pannello;
   if (formato === 'talking_head' && pn?.titolo && ['line', 'bar', 'steps'].includes(pn.tipo)) {
