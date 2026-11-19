@@ -14,6 +14,7 @@ import { loadFont as sansManrope } from "@remotion/google-fonts/Manrope";
 import { loadFont as monoJet } from "@remotion/google-fonts/JetBrainsMono";
 import { loadFont as monoPlex } from "@remotion/google-fonts/IBMPlexMono";
 import { ease, molle } from "./theme";
+import { Respiro, Cornice, Cursore, Coriandoli, Fantasma, Icone, Lente, Successo, Lampo, Cubo, Grana, EFFETTI_BASE, GLIFI_BASE } from "./Effetti";
 
 const FONT_TITOLI: Record<string, () => { fontFamily: string }> = {
   "Instrument Serif": serifInstrument, "Playfair Display": serifPlayfair, Fraunces: serifFraunces, "DM Serif Display": serifDM,
@@ -25,13 +26,14 @@ const famiglia = (mappa: Record<string, () => { fontFamily: string }>, nome: str
 
 export type Parola = { t: string; da: number; a: number; k?: boolean };
 export type Riga = { da: number; a: number; p: number[] };
-export type Scena = { da: number; a: number; tipo: string; pieno?: boolean; dati: any };
+export type Scena = { da: number; a: number; tipo: string; pieno?: boolean; dati: any; effetti?: string[] };
 export type Palette = { fondo: string; inchiostro: string; accento: string; secondario: string; tenue: string };
 export type SplitProps = {
   durata: number; fps: number; video: string; volto?: { cx: number; cy: number };
   palette: Palette; font?: { titoli?: string; testo?: string; mono?: string };
   parole: Parola[]; righe: Riga[]; scene: Scena[];
   tracker?: { totale: number; voci: { da: number; etichetta: string }[] } | null;
+  ritaglio?: string | null; // la persona ritagliata (video con trasparenza) per gli effetti addosso
 };
 
 const ALTO_GRAFICA = 1000; // la metà alta (con un po' di aria) è delle grafiche
@@ -74,19 +76,38 @@ const Sfondo: React.FC<{ pal: Palette }> = ({ pal }) => {
 };
 
 // ------------------------------------------------------------------ le scene
-const Titolo: React.FC<{ d: any }> = ({ d }) => {
+const Titolo: React.FC<{ d: any; scrivi?: boolean }> = ({ d, scrivi }) => {
   const x = React.useContext(C);
   const { f, fps } = useVita();
-  const parole = String(d.testo || "").split(" ");
+  const testo = String(d.testo || "");
+  const parole = testo.split(" ");
   const acc = String(d.accento || "").toLowerCase();
+  const èAccento = (p: string) => !!acc && acc.split(" ").includes(p.toLowerCase().replace(/[.,!?:]/g, ""));
+  const size = d.grande ? 150 : 112;
+  if (scrivi) { // lettera per lettera, col cursore che lampeggia (come nel riferimento)
+    const n = Math.floor(interpolate(f, [3, 3 + testo.length * 1.15], [0, testo.length], clamp));
+    let resto = n;
+    return (
+      <div style={{ textAlign: "center", padding: "0 70px" }}>
+        <div style={{ fontFamily: x.titoli, fontSize: size, lineHeight: 1.04, color: x.pal.inchiostro, letterSpacing: -2 }}>
+          {parole.map((p, i) => {
+            const vis = p.slice(0, Math.max(0, resto)); resto -= p.length + 1;
+            if (!vis) return null;
+            return <span key={i} style={{ fontStyle: èAccento(p) ? "italic" : "normal", color: èAccento(p) ? x.pal.accento : undefined }}>{vis}{i < parole.length - 1 && resto >= 0 ? " " : ""}</span>;
+          })}
+          <span style={{ display: "inline-block", width: 6, height: size * 0.8, marginLeft: 6, background: x.pal.accento, verticalAlign: "-0.08em", opacity: Math.floor(f / 9) % 2 && n >= testo.length ? 0 : 1 }} />
+        </div>
+        {d.sotto ? <Entra ritardo={Math.round(testo.length * 1.15) + 6}><div style={{ fontFamily: x.testo, fontSize: 40, color: x.pal.inchiostro, opacity: 0.6, marginTop: 26 }}>{d.sotto}</div></Entra> : null}
+      </div>
+    );
+  }
   return (
     <div style={{ textAlign: "center", padding: "0 70px" }}>
-      <div style={{ fontFamily: x.titoli, fontSize: d.grande ? 150 : 112, lineHeight: 1.02, color: x.pal.inchiostro, letterSpacing: -2 }}>
+      <div style={{ fontFamily: x.titoli, fontSize: size, lineHeight: 1.02, color: x.pal.inchiostro, letterSpacing: -2 }}>
         {parole.map((p, i) => {
           const s = spring({ frame: f - i * 4, fps, config: molle.snappy });
-          const accento = acc && acc.split(" ").includes(p.toLowerCase().replace(/[.,!?:]/g, ""));
           return <span key={i} style={{ display: "inline-block", marginRight: 26, opacity: interpolate(s, [0, 0.5], [0, 1], clamp), transform: `translateY(${(1 - s) * 50}px)`,
-            fontStyle: accento ? "italic" : "normal", color: accento ? x.pal.accento : undefined }}>{p}</span>;
+            fontStyle: èAccento(p) ? "italic" : "normal", color: èAccento(p) ? x.pal.accento : undefined }}>{p}</span>;
         })}
       </div>
       {d.sotto ? <Entra ritardo={parole.length * 4 + 4}><div style={{ fontFamily: x.testo, fontSize: 40, color: x.pal.inchiostro, opacity: 0.6, marginTop: 26 }}>{d.sotto}</div></Entra> : null}
@@ -94,12 +115,25 @@ const Titolo: React.FC<{ d: any }> = ({ d }) => {
   );
 };
 
+// oggetto 3D che cade e rimbalza, con il titolo scritto sopra
+const Oggetto: React.FC<{ d: any }> = ({ d }) => {
+  const x = React.useContext(C);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 46 }}>
+      {d.titolo ? <Titolo d={{ testo: d.titolo, accento: d.accento }} scrivi /> : null}
+      <Cubo pal={x.pal} simbolo={String(d.simbolo || "✦").slice(0, 3)} font={x.testo} />
+    </div>
+  );
+};
+
+// il numero gigante lo disegna il "fantasma" dietro: qui un tondo pieno col numero e l'etichetta grande
 const Numero: React.FC<{ d: any }> = ({ d }) => {
   const x = React.useContext(C);
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 40, padding: "0 90px" }}>
-      <Entra da="scala"><div style={{ fontFamily: x.titoli, fontSize: 420, lineHeight: 0.8, color: x.pal.accento, opacity: 0.3 }}>{d.valore}</div></Entra>
-      <Entra ritardo={6}><div style={{ fontFamily: x.titoli, fontSize: 92, color: x.pal.inchiostro, lineHeight: 1 }}>{d.etichetta}</div></Entra>
+    <div style={{ display: "flex", alignItems: "center", gap: 36, padding: "0 90px" }}>
+      <Entra da="scala"><div style={{ width: 170, height: 170, borderRadius: "50%", background: x.pal.accento, color: "#fff", display: "grid", placeItems: "center",
+        fontFamily: x.titoli, fontSize: 110, lineHeight: 1, boxShadow: "0 24px 50px -20px rgba(0,0,0,.35)" }}>{d.valore}</div></Entra>
+      <Entra ritardo={6}><div style={{ fontFamily: x.titoli, fontSize: 88, color: x.pal.inchiostro, lineHeight: 1.02, maxWidth: 640 }}>{d.etichetta}</div></Entra>
     </div>
   );
 };
@@ -296,22 +330,37 @@ const Riepilogo: React.FC<{ d: any }> = ({ d }) => {
   );
 };
 
-const SCENE: Record<string, React.FC<{ d: any }>> = { titolo: Titolo, numero: Numero, sito: Sito, terminale: Terminale, contatore: Contatore, lista: Lista, confronto: Confronto, card: Card, chat: Chat, barre: Barre, riepilogo: Riepilogo };
+const SCENE: Record<string, React.FC<{ d: any; scrivi?: boolean }>> = { oggetto: Oggetto, titolo: Titolo, numero: Numero, sito: Sito, terminale: Terminale, contatore: Contatore, lista: Lista, confronto: Confronto, card: Card, chat: Chat, barre: Barre, riepilogo: Riepilogo };
 
 // ------------------------------------------------------------------ barra "1/5" degli elementi della lista
 const Tracker: React.FC<{ tr: NonNullable<SplitProps["tracker"]>; t: number; pieno: number }> = ({ tr, t, pieno }) => {
   const x = React.useContext(C);
   const fatti = tr.voci.filter((v) => v.da <= t).length;
   const corrente = tr.voci.filter((v) => v.da <= t).slice(-1)[0];
-  if (!fatti) return null;
+  const primo = tr.voci[0]?.da ?? 0;
+  if (t < primo - 1.6) return null;
+  const s = spring({ frame: Math.round((t - (primo - 1.6)) * x.fps), fps: x.fps, config: molle.snappy });
+  const cella = 50, larg = tr.totale * cella;
   return (
-    <div style={{ position: "absolute", top: 120 + pieno * 20, left: 0, right: 0, display: "flex", justifyContent: "center" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#fff", borderRadius: 18, padding: "12px 18px", boxShadow: "0 10px 30px -18px rgba(0,0,0,.4)" }}>
-        {Array.from({ length: tr.totale }).map((_, i) => (
-          <div key={i} style={{ width: 40, height: 40, borderRadius: 10, background: i < fatti ? x.pal.accento : "#F0EEE9", color: "#fff", fontFamily: x.testo, fontWeight: 800, fontSize: 20, display: "grid", placeItems: "center" }}>{i < fatti ? i + 1 : ""}</div>
-        ))}
+    <div style={{ position: "absolute", top: 120 + pieno * 20, left: 0, right: 0, display: "flex", justifyContent: "center", opacity: s, transform: `translateY(${(1 - s) * -40}px)`, zIndex: 15 }}>
+      <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 10, background: "#fff", borderRadius: 18, padding: "12px 18px", boxShadow: "0 10px 30px -18px rgba(0,0,0,.4)" }}>
+        {Array.from({ length: tr.totale }).map((_, i) => {
+          const v = tr.voci[i];
+          const k = v ? (t - v.da) * x.fps : -1; // fotogrammi da quando la voce è arrivata
+          const pulsa = k >= 0 && k < 14 ? 1 + Math.sin((k / 14) * Math.PI) * 0.25 : 1;
+          return <div key={i} style={{ width: 40, height: 40, borderRadius: 10, background: i < fatti ? x.pal.accento : "#F0EEE9", color: "#fff", fontFamily: x.testo, fontWeight: 800, fontSize: 20,
+            display: "grid", placeItems: "center", transform: `scale(${pulsa})`, boxShadow: k >= 0 && k < 14 ? `0 0 0 ${8 * Math.sin((k / 14) * Math.PI)}px color-mix(in srgb, ${x.pal.accento} 25%, transparent)` : "none" }}>{i < fatti ? i + 1 : ""}</div>;
+        })}
         <div style={{ fontFamily: x.mono, fontSize: 22, color: "#8A8780", marginLeft: 8 }}>{fatti}/{tr.totale}</div>
         {corrente ? <div style={{ fontFamily: x.testo, fontWeight: 700, fontSize: 24, color: x.pal.inchiostro, marginLeft: 8, maxWidth: 300, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{corrente.etichetta}</div> : null}
+        {tr.voci.map((v, i) => { // il pezzo che vola dal centro della grafica nella sua casella
+          const k = (t - v.da) * x.fps;
+          if (k < 0 || k > 14) return null;
+          const e = ease.inOut(k / 14);
+          const dx = 18 + i * cella + 20, sx = 540 - (540 - larg / 2 - 18) , dy0 = 360;
+          const px = interpolate(e, [0, 1], [sx, dx]), py = interpolate(e, [0, 1], [dy0, 20]) - Math.sin(e * Math.PI) * 120;
+          return <div key={i} style={{ position: "absolute", left: px - 22, top: py - 22, width: 44, height: 44, borderRadius: 12, background: x.pal.accento, transform: `scale(${1.4 - 0.4 * e}) rotate(${(1 - e) * 120}deg)` }} />;
+        })}
       </div>
     </div>
   );
@@ -334,6 +383,35 @@ const Pillola: React.FC<{ parole: Parola[]; righe: Riga[]; t: number; y: number 
   );
 };
 
+// ------------------------------------------------------------------ effetti addosso (servono la persona ritagliata)
+const ScrittaDietro: React.FC<{ testo: string; k: number; pal: Palette; font: string }> = ({ testo, k, pal, font }) => {
+  const { fps } = useVideoConfig();
+  const s = spring({ frame: k, fps, config: molle.snappy });
+  return <div style={{ position: "absolute", left: 0, right: 0, top: 70, textAlign: "center", fontFamily: font, fontSize: testo.length > 8 ? 210 : 290, lineHeight: 0.9, letterSpacing: -6,
+    color: pal.accento, textTransform: "uppercase", fontWeight: 800, opacity: interpolate(s, [0, 0.4], [0, 1], clamp), transform: `translateY(${(1 - s) * 120}px) scale(${0.85 + 0.15 * s})` }}>{testo}</div>;
+};
+const Fuori: React.FC<{ video: string; stile: React.CSSProperties; adesivo: boolean; pal: Palette; mono: string; yBox: number }> = ({ video, stile, adesivo, pal, mono, yBox }) => {
+  const f = useCurrentFrame();
+  const { fps, durationInFrames: dur } = useVideoConfig();
+  const su = spring({ frame: f, fps, config: molle.bouncy });
+  const giu = interpolate(f, [dur - 10, dur], [0, 1], { ...clamp, easing: ease.in });
+  const k = su * (1 - giu);
+  // esce: la stessa persona, ingrandita e alzata, con la testa fuori dal riquadro. adesivo: contorno bianco + ombra + cornice
+  const alza = adesivo ? 430 : 0, sc = adesivo ? 0.62 : 1.22; // esce: cresce dal petto in su, la testa supera il bordo e copre la persona sotto
+  const bordo = adesivo ? "drop-shadow(0 0 0 #fff) drop-shadow(5px 0 0 #fff) drop-shadow(-5px 0 0 #fff) drop-shadow(0 5px 0 #fff) drop-shadow(0 -5px 0 #fff) drop-shadow(0 18px 24px rgba(0,0,0,.35))" : "drop-shadow(0 20px 30px rgba(0,0,0,.35))";
+  return (
+    <div style={{ position: "absolute", left: 0, top: yBox, width: 1080, height: 1920 - Y_PERSONA, pointerEvents: "none", zIndex: 18,
+      transform: `translateY(${-alza * k}px) scale(${1 + (sc - 1) * k}) rotate(${adesivo ? -4 * k : 0}deg)`, transformOrigin: adesivo ? "50% 30%" : "50% 78%", opacity: adesivo ? Math.min(1, k * 1.5) : 1 }}>
+      <div style={{ position: "absolute", inset: 0, filter: bordo }}>
+        <OffthreadVideo src={staticFile(video)} transparent style={stile} />
+      </div>
+      {adesivo ? <div style={{ position: "absolute", left: 210, right: 210, top: -10, height: 760, border: `4px dashed ${pal.accento}`, borderRadius: 8, opacity: interpolate(f, [8, 14], [0, 1], clamp) * (1 - giu) }}>
+        <div style={{ position: "absolute", left: -4, top: -44, background: pal.accento, color: "#fff", fontFamily: mono, fontSize: 22, padding: "6px 12px", borderRadius: 6 }}>johnny.png</div>
+      </div> : null}
+    </div>
+  );
+};
+
 // ------------------------------------------------------------------ composizione
 export const Split: React.FC<SplitProps> = (P) => {
   const f = useCurrentFrame();
@@ -345,16 +423,34 @@ export const Split: React.FC<SplitProps> = (P) => {
   const zona = { top: 0, height: ALTO_GRAFICA + pieno * (1650 - ALTO_GRAFICA) };
   const cy = P.volto?.cy ?? 0.32;
   const scala = 1.05;
+  const stileVideo: React.CSSProperties = { position: "absolute", left: (1080 - 1080 * scala) / 2, top: 0, width: 1080 * scala, height: 1920 * scala, objectFit: "cover" };
+  // effetti addosso: la scena corrente chiede la scritta dietro, la persona che esce dal riquadro o l'adesivo?
+  const scenaOra = P.scene.find((s) => t >= s.da && t < s.a);
+  const effOra = scenaOra ? scenaOra.effetti || [] : [];
+  const kOra = scenaOra ? (t - scenaOra.da) * fps : 0;
+  const dietro = scenaOra && effOra.includes("dietro") ? { testo: String(scenaOra.dati?.dietro || scenaOra.dati?.accento || scenaOra.dati?.titolo || scenaOra.dati?.testo || "").split(" ").slice(0, 2).join(" "), k: kOra } : null;
+  // punch: le frasi con una parola chiave fanno avvicinare un poco la persona
+  const rk = P.righe.find((q) => t >= q.da && t < q.a && q.p.some((i) => P.parole[i]?.k));
+  const punch = rk ? 1 + 0.035 * spring({ frame: Math.round((t - rk.da) * fps), fps, config: molle.snappy }) : 1;
   const hPersona = 1920 - Y_PERSONA;
   const yVideo = Math.max(hPersona - 1920 * scala, Math.min(0, 330 - cy * 1920 * scala)); // il viso a ~1/3 del riquadro
+  stileVideo.top = yVideo;
   return (
     <C.Provider value={ctx}>
       <AbsoluteFill>
         <Sfondo pal={P.palette} />
-        {/* la persona, sotto */}
+        {/* la persona, sotto (piccolo "punch" sulle frasi con parole chiave) */}
         <div style={{ position: "absolute", left: 0, top: Y_PERSONA, width: 1080, height: 1920 - Y_PERSONA, overflow: "hidden",
           transform: `translateY(${pieno * (1920 - Y_PERSONA + 40)}px)`, borderTop: `2px solid ${P.palette.tenue}` }}>
-          <OffthreadVideo src={staticFile(P.video)} style={{ position: "absolute", left: (1080 - 1080 * scala) / 2, top: yVideo, width: 1080 * scala, height: 1920 * scala, objectFit: "cover" }} />
+          <div style={{ position: "absolute", inset: 0, transform: `scale(${punch})`, transformOrigin: "50% 35%" }}>
+            <OffthreadVideo src={staticFile(P.video)} style={stileVideo} />
+            {/* scritta gigante DIETRO la persona: la persona ritagliata ci passa davanti */}
+            {P.ritaglio && dietro ? <>
+              <ScrittaDietro testo={dietro.testo} k={dietro.k} pal={P.palette} font={ctx.titoli} />
+              <OffthreadVideo src={staticFile(P.ritaglio)} transparent style={stileVideo} />
+            </> : null}
+          </div>
+          <AbsoluteFill style={{ background: "radial-gradient(ellipse at 50% 30%, transparent 60%, rgba(0,0,0,.25) 100%)" }} />
         </div>
         {/* le grafiche, sopra */}
         <div style={{ position: "absolute", left: 0, right: 0, ...zona }}>
@@ -362,17 +458,40 @@ export const Split: React.FC<SplitProps> = (P) => {
             const Comp = SCENE[s.tipo];
             if (!Comp) return null;
             const da = Math.round(s.da * fps), dur = Math.max(6, Math.round((s.a - s.da) * fps));
+            const eff = s.effetti || EFFETTI_BASE[s.tipo] || [];
+            const ha = (e: string) => eff.includes(e);
+            const fant = s.tipo === "numero" ? String(s.dati?.valore ?? "") : P.tracker ? String((P.tracker.voci.findIndex((v) => v.da >= s.da - 0.3 && v.da < s.a) + 1) || "") : "";
+            const succ = ha("successo") ? (s.dati?.successo || (s.tipo === "terminale" ? (s.dati?.righe || []).slice(-1)[0] : s.tipo === "riepilogo" ? "fatto" : "")) : "";
+            let corpo = <Comp d={s.dati || {}} scrivi={ha("scrivi")} />;
+            if (ha("cornice")) corpo = <Cornice pal={P.palette} mono={ctx.mono} etichetta={s.dati?.etichetta_cornice || s.dati?.etichetta || s.dati?.titolo?.split(" ")[0]}>{corpo}</Cornice>;
             return (
               <Sequence key={i} from={da} durationInFrames={dur} layout="none">
+                {ha("fantasma") && fant ? <Fantasma pal={P.palette} testo={fant} font={ctx.titoli} /> : null}
                 <div style={{ position: "absolute", inset: 0, paddingTop: P.tracker ? 120 : 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Comp d={s.dati || {}} />
+                  <Respiro seme={i} scossa={ha("scossa") ? Math.round(fps * 1.3) : undefined}>{corpo}</Respiro>
                 </div>
+                {ha("icone") ? <Icone pal={P.palette} glifi={s.dati?.decor || GLIFI_BASE[s.tipo] || []} font={ctx.mono} seme={i} /> : null}
+                {ha("lente") ? <Lente pal={P.palette} /> : null}
+                {ha("cursore") ? <Cursore pal={P.palette} x={620} y={(zona.height + (P.tracker ? 120 : 0)) / 2 + 60} /> : null}
+                {succ ? <Successo testo={String(succ).slice(0, 40)} font={ctx.testo} /> : null}
+                {i > 0 ? <Lampo pal={P.palette} /> : null}
               </Sequence>
             );
           })}
         </div>
+        {/* la persona che esce dal riquadro (la testa passa sopra le grafiche) oppure l'adesivo con contorno e cornice */}
+        {P.ritaglio && scenaOra && (effOra.includes("esce") || effOra.includes("adesivo")) ? (
+          <Sequence from={Math.round(scenaOra.da * fps)} durationInFrames={Math.max(6, Math.round((scenaOra.a - scenaOra.da) * fps))} layout="none">
+            <Fuori video={P.ritaglio} stile={stileVideo} adesivo={effOra.includes("adesivo")} pal={P.palette} mono={ctx.mono} yBox={Y_PERSONA + pieno * (1920 - Y_PERSONA + 40)} />
+          </Sequence>) : null}
+        {/* coriandoli: partono dalla grafica e attraversano tutto lo schermo, persona compresa */}
+        {P.scene.map((s, i) => ((s.effetti || EFFETTI_BASE[s.tipo] || []).includes("coriandoli") ? (
+          <Sequence key={"c" + i} from={Math.round(s.da * fps) + 4} durationInFrames={Math.round(fps * 1.8)} layout="none">
+            <Coriandoli pal={P.palette} x={540} y={zona.height * 0.5} seme={i} />
+          </Sequence>) : null))}
         {P.tracker ? <Tracker tr={P.tracker} t={t} pieno={pieno} /> : null}
         <Pillola parole={P.parole} righe={P.righe} t={t} y={Y_PILLOLA - 40 + pieno * 640} />
+        <Grana />
       </AbsoluteFill>
     </C.Provider>
   );

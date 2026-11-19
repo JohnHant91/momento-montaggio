@@ -9,7 +9,7 @@
 
 Il Regista (Rocco) sceglie il formato nel piano: "formato": "montaggio" | "talking_head" | "carosello".
 """
-import json, math, os, re, subprocess, time
+import json, math, os, re, subprocess, sys, time
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
@@ -712,7 +712,13 @@ class Carosello(_Base):
 
 
 # ====================================================================== SPLIT EDUCATIVO (grafiche animate sopra, persona sotto)
-TIPI_SCENA = {"titolo", "numero", "sito", "terminale", "contatore", "lista", "confronto", "card", "chat", "barre", "riepilogo"}
+TIPI_SCENA = {"titolo", "numero", "sito", "terminale", "contatore", "lista", "confronto", "card", "chat", "barre", "riepilogo", "oggetto"}
+EFFETTI_SPLIT = {"scrivi", "cornice", "cursore", "coriandoli", "fantasma", "icone", "lente", "successo", "scossa", "dietro", "esce", "adesivo"}
+EFFETTI_ADDOSSO = {"dietro", "esce", "adesivo"}  # servono il ritaglio della persona
+# effetti di base per tipo (uguali a grafiche/src/Effetti.tsx): servono anche qui per mettere i suoni giusti
+EFFETTI_BASE = {"titolo": ["scrivi", "icone"], "numero": ["fantasma", "coriandoli", "icone"], "sito": ["cursore", "icone"], "terminale": ["icone", "successo"],
+                "contatore": ["coriandoli", "scossa"], "lista": ["lente", "icone"], "confronto": ["cursore"], "card": ["cornice", "cursore", "icone"],
+                "chat": ["icone"], "barre": ["scossa", "icone"], "riepilogo": ["coriandoli", "successo"], "oggetto": ["cornice", "icone"]}
 PALETTE_BASE = {"fondo": "#F1EFEA", "inchiostro": "#17171A", "accento": "#0E9F9A", "secondario": "#CFE9E7", "tenue": "rgba(23,23,26,0.09)"}
 
 
@@ -736,6 +742,58 @@ def screenshot_sito(url, out):
         except Exception:
             continue
     return False
+
+
+def ritaglia_persona(video, out_webm, avvisa=None):
+    """Ritaglio della persona fotogramma per fotogramma (MediaPipe, gratis, su CPU): video con trasparenza (WebM VP9 + alfa)
+    per gli effetti "addosso": scritta dietro, persona che esce dal riquadro, adesivo. Se qualcosa non va torna None
+    e il reel si monta lo stesso senza questi effetti."""
+    try:
+        subprocess.run([sys.executable, "-m", "pip", "install", "-q", "mediapipe==0.10.14"], capture_output=True, timeout=600)
+        import mediapipe as mp
+        import cv2
+    except Exception as e:
+        if avvisa:
+            avvisa("vfx", f"ritaglio della persona non disponibile ({e}): niente effetti addosso")
+        return None
+    info = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,r_frame_rate", "-of", "csv=p=0", video],
+                          capture_output=True, text=True).stdout.strip().split(",")
+    w, h = int(info[0]), int(info[1])
+    fps = info[2] if len(info) > 2 else "30"
+    sw, sh = 384, int(round(384 * h / w / 2) * 2)  # la maschera si calcola piccola (veloce) e poi si ingrandisce
+    if avvisa:
+        avvisa("vfx", "ritaglio la persona fotogramma per fotogramma (per gli effetti addosso)")
+    dec = subprocess.Popen(["ffmpeg", "-v", "error", "-i", video, "-vf", f"scale={sw}:{sh}", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], stdout=subprocess.PIPE)
+    maschera = os.path.splitext(out_webm)[0] + "_maschera.mkv"
+    enc = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "gray", "-s", f"{sw}x{sh}", "-r", fps, "-i", "-",
+                            "-vf", f"scale={w}:{h}:flags=bicubic", "-c:v", "ffv1", maschera], stdin=subprocess.PIPE)
+    seg = mp.solutions.selfie_segmentation.SelfieSegmentation(model_selection=0)
+    prec = None
+    try:
+        while True:
+            buf = dec.stdout.read(sw * sh * 3)
+            if len(buf) < sw * sh * 3:
+                break
+            fr = np.frombuffer(buf, np.uint8).reshape(sh, sw, 3)
+            m = seg.process(fr).segmentation_mask
+            if m is None:
+                m = np.zeros((sh, sw), np.float32)
+            m = cv2.GaussianBlur(m, (5, 5), 0)
+            if prec is not None:
+                m = 0.6 * m + 0.4 * prec  # meno sfarfallio sui bordi
+            prec = m
+            a = np.clip((m - 0.35) / 0.3, 0, 1)  # bordo morbido ma deciso
+            enc.stdin.write((a * 255).astype(np.uint8).tobytes())
+    finally:
+        enc.stdin.close(); enc.wait(); dec.wait()
+    p = subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", video, "-i", maschera, "-filter_complex", "[0:v][1:v]alphamerge,format=yuva420p",
+                        "-an", "-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p", "-b:v", "0", "-crf", "34", "-deadline", "realtime", "-cpu-used", "8", "-row-mt", "1", out_webm],
+                       capture_output=True, text=True, timeout=1800)
+    if p.returncode != 0 or not os.path.exists(out_webm):
+        if avvisa:
+            avvisa("vfx", "ritaglio della persona non riuscito: niente effetti addosso")
+        return None
+    return out_webm
 
 
 class SplitGrafico(TalkingHead):
@@ -781,7 +839,11 @@ class SplitGrafico(TalkingHead):
                 else:
                     self.report.append(f"screenshot non riuscito per {url or '(nessun indirizzo)'}: uso la scheda senza immagine")
                     d.setdefault("titolo", re.sub(r"^https?://(www\.)?", "", url)[:40] or "sito")
-            scene.append({"da": max(0.0, parole[k]["da"] - 0.12), "tipo": g["tipo"], "pieno": bool(g.get("pieno")), "dati": d})
+            sc = {"da": max(0.0, parole[k]["da"] - 0.12), "tipo": g["tipo"], "pieno": bool(g.get("pieno")), "dati": d}
+            eff = [e for e in (g.get("effetti") or []) if e in EFFETTI_SPLIT]
+            if eff:
+                sc["effetti"] = eff[:5]
+            scene.append(sc)
         for i, s in enumerate(scene):
             s["a"] = round(scene[i + 1]["da"] if i + 1 < len(scene) else totale, 3)
             s["da"] = round(s["da"], 3)
@@ -807,9 +869,13 @@ class SplitGrafico(TalkingHead):
                 pal[k2] = v.strip()
         base = os.path.join(pub, f"{sigla}_base.mp4")
         self.ff(["-i", video, "-an", "-c:v", "copy", base], "persona")
+        rit = None
+        if any(set(s.get("effetti") or []) & EFFETTI_ADDOSSO for s in scene):
+            rit = ritaglia_persona(base, os.path.join(pub, f"{sigla}_ritaglio.webm"), self.avvisa)
         volto = segmenti[0].get("_volto") or {"cx": 0.5, "cy": 0.32}
         props = {"durata": round(totale, 3), "fps": FPS, "video": os.path.basename(base), "volto": {"cx": volto["cx"], "cy": volto["cy"]},
-                 "palette": pal, "font": P.get("font_split") or {}, "parole": parole, "righe": rr, "scene": scene, "tracker": tracker}
+                 "palette": pal, "font": P.get("font_split") or {}, "parole": parole, "righe": rr, "scene": scene, "tracker": tracker,
+                 "ritaglio": os.path.basename(rit) if rit else None}
         pj = os.path.join(self.tmp, "split.json")
         with open(pj, "w") as f:
             json.dump(props, f, ensure_ascii=False)
@@ -824,12 +890,25 @@ class SplitGrafico(TalkingHead):
             for x in os.listdir(pub):
                 if x.startswith(sigla):
                     os.remove(os.path.join(pub, x))
+        # suoni degli effetti: whoosh sui cambi, click del cursore, pop dei coriandoli e delle icone, tonfo dell'oggetto che atterra
         eventi_sfx = [("whoosh", s["da"] - 0.1, 0.35 if not s["pieno"] else 0.6) for s in scene[1:]]
+        for s in scene:
+            eff = s.get("effetti") or EFFETTI_BASE.get(s["tipo"], [])
+            if "cursore" in eff:
+                eventi_sfx.append(("tick", s["da"] + 0.95, 0.6))
+            if "coriandoli" in eff:
+                eventi_sfx += [("pop", s["da"] + 0.15 + 0.07 * j, 0.35) for j in range(4)]
+            if s["tipo"] == "oggetto":
+                eventi_sfx.append(("boom", s["da"] + 0.35, 0.5))
+            if "scossa" in eff:
+                eventi_sfx.append(("boom", s["da"] + 1.3, 0.35))
+        for v in (tracker or {}).get("voci", []):
+            eventi_sfx.append(("pop", v["da"] + 0.4, 0.6))
         mixwav = self.mix_sfx(voce, eventi_sfx, totale, os.path.join(self.tmp, "mix.wav"))
         ass = os.path.join(self.tmp, "vuoto.ass")
         with open(ass, "w", encoding="utf-8") as f:
             f.write(self.intestazione_ass(["Vuoto,Arial,20,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1"]))
-        self.avvisa("audio", "voce pulita, whoosh sui cambi di grafica, volume a −14 LUFS")
+        self.avvisa("audio", "voce pulita, whoosh sui cambi, click del cursore, pop di coriandoli e tracker, volume a −14 LUFS")
         self.finale(anim, ass, mixwav, totale, out_finale)
         rep = self.revisiona(out_finale)
         rep["secondi_di_lavoro"] = round(time.time() - t0)
