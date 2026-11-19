@@ -237,14 +237,17 @@ class TalkingHead(_Base):
         if not any(volti):
             self.report.append("viso non riconosciuto: inquadratura e testi in posizione standard")
 
-        # tratti: una frase ciascuno; i silenzi oltre 0,35 s spariscono
+        # tratti: una frase ciascuno; le pause lunghe (oltre 0,6 s) spariscono. Margini larghi: i tempi delle parole di
+        # Whisper sbagliano di qualche centesimo e un taglio stretto si mangia l'inizio o la fine delle parole.
+        # Con "taglia_silenzi": false (es. avatar HeyGen, che non ha tempi morti) il parlato resta tutto intero.
+        taglia = P.get("taglia_silenzi", True) is not False
         tratti, tagliati = [], 0.0
         for k, r in enumerate(righe):
             s = segmenti[r[0]["seg"]]
-            da = r[0]["da"] - 0.06
+            da = r[0]["da"] - 0.14
             succ = righe[k + 1] if k + 1 < len(righe) else None
-            contiguo = succ and succ[0]["seg"] == r[0]["seg"] and succ[0]["da"] - r[-1]["a"] < 0.35
-            a = (succ[0]["da"] - 0.06) if contiguo else r[-1]["a"] + 0.16
+            contiguo = succ and succ[0]["seg"] == r[0]["seg"] and (not taglia or succ[0]["da"] - r[-1]["a"] < 0.6)
+            a = (succ[0]["da"] - 0.14) if contiguo else r[-1]["a"] + (0.6 if succ is None else 0.28)
             if tratti and tratti[-1]["s"] is s and tratti[-1]["contiguo"]:
                 da = tratti[-1]["src_a"]
             da = max(s["in"], da)
@@ -875,7 +878,8 @@ class SplitGrafico(TalkingHead):
         volto = segmenti[0].get("_volto") or {"cx": 0.5, "cy": 0.32}
         props = {"durata": round(totale, 3), "fps": FPS, "video": os.path.basename(base), "volto": {"cx": volto["cx"], "cy": volto["cy"]},
                  "palette": pal, "font": P.get("font_split") or {}, "parole": parole, "righe": rr, "scene": scene, "tracker": tracker,
-                 "ritaglio": os.path.basename(rit) if rit else None}
+                 "ritaglio": os.path.basename(rit) if rit else None,
+                 "finale": (P.get("finale") or "bianco").lower()}  # chiusura con dissolvenza (bianco di base), mai troncata
         pj = os.path.join(self.tmp, "split.json")
         with open(pj, "w") as f:
             json.dump(props, f, ensure_ascii=False)
@@ -909,6 +913,7 @@ class SplitGrafico(TalkingHead):
         with open(ass, "w", encoding="utf-8") as f:
             f.write(self.intestazione_ass(["Vuoto,Arial,20,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1"]))
         self.avvisa("audio", "voce pulita, whoosh sui cambi, click del cursore, pop di coriandoli e tracker, volume a −14 LUFS")
+        self.fine_nero = 0.5  # l'audio sfuma insieme alla dissolvenza finale delle grafiche
         self.finale(anim, ass, mixwav, totale, out_finale)
         rep = self.revisiona(out_finale)
         rep["secondi_di_lavoro"] = round(time.time() - t0)

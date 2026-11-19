@@ -2576,6 +2576,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
   const palette = formato !== "split_grafico" ? null : Object.fromEntries(["fondo", "inchiostro", "accento", "secondario", "tenue"].map((k) => [k, hex3(p.palette?.[k])]).filter(([, v]) => v));
   const font_split = formato !== "split_grafico" ? null : Object.fromEntries(Object.entries(FONT_SPLIT).map(([k, ok]) => [k, ok.includes(p.font_split?.[k]) ? p.font_split[k] : ok[0]]));
   const tracker = formato === "split_grafico" && p.tracker?.voci?.length ? { totale: Math.min(10, Math.max(1, Number(p.tracker.totale) || p.tracker.voci.length)), voci: p.tracker.voci.slice(0, 10).map((v) => ({ etichetta: String(v.etichetta || "").slice(0, 24), sulla_parola: String(v.sulla_parola || "").slice(0, 40) })).filter((v) => v.sulla_parola) } : null;
+  const avatar = !!J(L.stile, null)?.avatar;
   const piano2 = {
     ...p,
     formato,
@@ -2586,6 +2587,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
     palette,
     font_split,
     tracker,
+    ...avatar ? { taglia_silenzi: false } : {},
     logo: prima?.logo || null,
     stabilizza_tutto: !!(indicazioni?.stabilizza_tutto || prima?.piano?.stabilizza_tutto || p.stabilizza_tutto || R?.camera === "morbida"),
     camera_ferma: R?.camera === "a_mano" ? false : !!(indicazioni?.camera_ferma || prima?.piano?.camera_ferma || p.camera_ferma || R?.camera === "ferma"),

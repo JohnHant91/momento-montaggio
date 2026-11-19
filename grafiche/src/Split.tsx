@@ -34,6 +34,7 @@ export type SplitProps = {
   parole: Parola[]; righe: Riga[]; scene: Scena[];
   tracker?: { totale: number; voci: { da: number; etichetta: string }[] } | null;
   ritaglio?: string | null; // la persona ritagliata (video con trasparenza) per gli effetti addosso
+  finale?: string; // bianco | nero: dissolvenza finale (mai troncato)
 };
 
 const ALTO_GRAFICA = 1000; // la metà alta (con un po' di aria) è delle grafiche
@@ -492,6 +493,9 @@ export const Split: React.FC<SplitProps> = (P) => {
         {P.tracker ? <Tracker tr={P.tracker} t={t} pieno={pieno} /> : null}
         <Pillola parole={P.parole} righe={P.righe} t={t} y={Y_PILLOLA - 40 + pieno * 640} />
         <Grana />
+        {/* chiusura: dissolvenza al bianco (o al nero) negli ultimi 0,6 s, dopo l'ultima parola */}
+        {P.finale === "bianco" || P.finale === "nero" ? <AbsoluteFill style={{ background: P.finale === "nero" ? "#000" : "#fff", pointerEvents: "none",
+          opacity: interpolate(t, [P.durata - 0.6, P.durata - 0.05], [0, 1], { ...clamp, easing: ease.inOut }) }} /> : null}
       </AbsoluteFill>
     </C.Provider>
   );
