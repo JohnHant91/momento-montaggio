@@ -1,0 +1,379 @@
+// Reel "split educativo": sopra un foglio color carta con griglia dove si animano le grafiche che seguono quello che si
+// dice (titoli, siti, terminale, contatori, liste, confronti…), al centro il sottotitolo a pillola nera in stampatello,
+// sotto la persona che parla. Ogni tanto la grafica prende tutto lo schermo. Colori e font cambiano con l'argomento:
+// li sceglie il Regista nella "palette"; lo stile (impaginazione, movimenti, ritmo) resta sempre lo stesso.
+import React from "react";
+import { AbsoluteFill, Img, OffthreadVideo, Sequence, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { loadFont as serifInstrument } from "@remotion/google-fonts/InstrumentSerif";
+import { loadFont as serifPlayfair } from "@remotion/google-fonts/PlayfairDisplay";
+import { loadFont as serifFraunces } from "@remotion/google-fonts/Fraunces";
+import { loadFont as serifDM } from "@remotion/google-fonts/DMSerifDisplay";
+import { loadFont as sansInter } from "@remotion/google-fonts/Inter";
+import { loadFont as sansGrotesk } from "@remotion/google-fonts/SpaceGrotesk";
+import { loadFont as sansManrope } from "@remotion/google-fonts/Manrope";
+import { loadFont as monoJet } from "@remotion/google-fonts/JetBrainsMono";
+import { loadFont as monoPlex } from "@remotion/google-fonts/IBMPlexMono";
+import { ease, molle } from "./theme";
+
+const FONT_TITOLI: Record<string, () => { fontFamily: string }> = {
+  "Instrument Serif": serifInstrument, "Playfair Display": serifPlayfair, Fraunces: serifFraunces, "DM Serif Display": serifDM,
+  Inter: sansInter, "Space Grotesk": sansGrotesk, Manrope: sansManrope,
+};
+const FONT_TESTO: Record<string, () => { fontFamily: string }> = { Inter: sansInter, "Space Grotesk": sansGrotesk, Manrope: sansManrope };
+const FONT_MONO: Record<string, () => { fontFamily: string }> = { "JetBrains Mono": monoJet, "IBM Plex Mono": monoPlex };
+const famiglia = (mappa: Record<string, () => { fontFamily: string }>, nome: string | undefined, base: string) => (mappa[nome || ""] || mappa[base])().fontFamily;
+
+export type Parola = { t: string; da: number; a: number; k?: boolean };
+export type Riga = { da: number; a: number; p: number[] };
+export type Scena = { da: number; a: number; tipo: string; pieno?: boolean; dati: any };
+export type Palette = { fondo: string; inchiostro: string; accento: string; secondario: string; tenue: string };
+export type SplitProps = {
+  durata: number; fps: number; video: string; volto?: { cx: number; cy: number };
+  palette: Palette; font?: { titoli?: string; testo?: string; mono?: string };
+  parole: Parola[]; righe: Riga[]; scene: Scena[];
+  tracker?: { totale: number; voci: { da: number; etichetta: string }[] } | null;
+};
+
+const ALTO_GRAFICA = 1000; // la metà alta (con un po' di aria) è delle grafiche
+const Y_PILLOLA = 1010;
+const Y_PERSONA = 1060;
+const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
+
+type Ctx = { pal: Palette; titoli: string; testo: string; mono: string; fps: number };
+const C = React.createContext<Ctx>(null as any);
+
+// entrata (molla) e uscita (veloce) di ogni elemento dentro la sua scena
+const useVita = (inizio = 0, molla = molle.snappy) => {
+  const f = useCurrentFrame();
+  const { fps, durationInFrames } = useVideoConfig();
+  const s = spring({ frame: f - inizio, fps, config: molla });
+  const u = interpolate(f, [durationInFrames - 6, durationInFrames], [0, 1], clamp);
+  return { s, u, f, fps, dur: durationInFrames };
+};
+const Entra: React.FC<{ ritardo?: number; da?: "basso" | "alto" | "scala"; style?: React.CSSProperties; children: React.ReactNode }> = ({ ritardo = 0, da = "basso", style, children }) => {
+  const { s, u } = useVita(ritardo);
+  const sp = da === "basso" ? `translateY(${(1 - s) * 40}px)` : da === "alto" ? `translateY(${(s - 1) * 40}px)` : "";
+  return <div style={{ ...style, opacity: interpolate(s, [0, 0.5], [0, 1], clamp) * (1 - u), transform: `${sp} scale(${(0.9 + 0.1 * s) * (1 - 0.06 * u)})` }}>{children}</div>;
+};
+
+// ------------------------------------------------------------------ sfondo: carta, griglia, crocette
+const Sfondo: React.FC<{ pal: Palette }> = ({ pal }) => {
+  const f = useCurrentFrame();
+  const croci = [[90, 140], [990, 210], [180, 760], [930, 880], [540, 120], [70, 1500], [1010, 1350]];
+  return (
+    <AbsoluteFill style={{ background: pal.fondo }}>
+      <AbsoluteFill style={{ backgroundImage: `linear-gradient(${pal.tenue} 1px, transparent 1px), linear-gradient(90deg, ${pal.tenue} 1px, transparent 1px)`,
+        backgroundSize: "90px 90px", backgroundPosition: `${(f * 0.15) % 90}px 0px`, opacity: 0.55 }} />
+      {croci.map(([x, y], i) => (
+        <div key={i} style={{ position: "absolute", left: x, top: y, color: pal.tenue, fontSize: 30, fontWeight: 300, opacity: 0.9, transform: `rotate(${(f + i * 40) * 0.2}deg)` }}>+</div>
+      ))}
+      <div style={{ position: "absolute", left: 120, top: 260, width: 300, height: 300, borderRadius: "50%", border: `2px solid ${pal.tenue}`, opacity: 0.5, transform: `translateY(${Math.sin(f / 40) * 10}px)` }} />
+      <div style={{ position: "absolute", right: 110, top: 520, width: 240, height: 180, borderRadius: 24, border: `2px solid ${pal.tenue}`, opacity: 0.5, transform: `translateY(${Math.cos(f / 50) * 10}px)` }} />
+    </AbsoluteFill>
+  );
+};
+
+// ------------------------------------------------------------------ le scene
+const Titolo: React.FC<{ d: any }> = ({ d }) => {
+  const x = React.useContext(C);
+  const { f, fps } = useVita();
+  const parole = String(d.testo || "").split(" ");
+  const acc = String(d.accento || "").toLowerCase();
+  return (
+    <div style={{ textAlign: "center", padding: "0 70px" }}>
+      <div style={{ fontFamily: x.titoli, fontSize: d.grande ? 150 : 112, lineHeight: 1.02, color: x.pal.inchiostro, letterSpacing: -2 }}>
+        {parole.map((p, i) => {
+          const s = spring({ frame: f - i * 4, fps, config: molle.snappy });
+          const accento = acc && acc.split(" ").includes(p.toLowerCase().replace(/[.,!?:]/g, ""));
+          return <span key={i} style={{ display: "inline-block", marginRight: 26, opacity: interpolate(s, [0, 0.5], [0, 1], clamp), transform: `translateY(${(1 - s) * 50}px)`,
+            fontStyle: accento ? "italic" : "normal", color: accento ? x.pal.accento : undefined }}>{p}</span>;
+        })}
+      </div>
+      {d.sotto ? <Entra ritardo={parole.length * 4 + 4}><div style={{ fontFamily: x.testo, fontSize: 40, color: x.pal.inchiostro, opacity: 0.6, marginTop: 26 }}>{d.sotto}</div></Entra> : null}
+    </div>
+  );
+};
+
+const Numero: React.FC<{ d: any }> = ({ d }) => {
+  const x = React.useContext(C);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 40, padding: "0 90px" }}>
+      <Entra da="scala"><div style={{ fontFamily: x.titoli, fontSize: 420, lineHeight: 0.8, color: x.pal.accento, opacity: 0.3 }}>{d.valore}</div></Entra>
+      <Entra ritardo={6}><div style={{ fontFamily: x.titoli, fontSize: 92, color: x.pal.inchiostro, lineHeight: 1 }}>{d.etichetta}</div></Entra>
+    </div>
+  );
+};
+
+const Finestra: React.FC<{ titolo?: string; scuro?: boolean; children: React.ReactNode; larga?: number }> = ({ titolo, scuro, children, larga = 900 }) => {
+  const x = React.useContext(C);
+  return (
+    <div style={{ width: larga, background: scuro ? "#16171B" : "#fff", borderRadius: 26, boxShadow: "0 30px 70px -25px rgba(0,0,0,.35), 0 0 0 1px rgba(0,0,0,.06)", overflow: "hidden" }}>
+      <div style={{ height: 54, display: "flex", alignItems: "center", gap: 10, padding: "0 22px", background: scuro ? "#202127" : "#F4F3F0" }}>
+        {["#FF5F57", "#FEBC2E", "#28C840"].map((c) => <div key={c} style={{ width: 15, height: 15, borderRadius: "50%", background: c }} />)}
+        {titolo ? <div style={{ marginLeft: 18, flex: 1, height: 32, borderRadius: 8, background: scuro ? "#2A2B31" : "#fff", color: scuro ? "#9a9a9a" : "#6b6b6b",
+          fontFamily: x.mono, fontSize: 20, display: "flex", alignItems: "center", padding: "0 14px", overflow: "hidden", whiteSpace: "nowrap" }}>{titolo}</div> : null}
+      </div>
+      {children}
+    </div>
+  );
+};
+
+const Sito: React.FC<{ d: any }> = ({ d }) => {
+  const x = React.useContext(C);
+  const { f, dur } = useVita();
+  const z = interpolate(f, [0, dur], [1, 1.08], clamp);
+  const ev = d.evidenzia;
+  return (
+    <Entra da="scala">
+      <Finestra titolo={d.indirizzo || d.titolo}>
+        <div style={{ height: 560, overflow: "hidden", position: "relative", background: "#fafafa" }}>
+          {d.img ? <Img src={staticFile(d.img)} style={{ width: "100%", transform: `scale(${z})`, transformOrigin: "50% 0%" }} />
+            : <div style={{ padding: 50, fontFamily: x.titoli, fontSize: 70, color: x.pal.inchiostro }}>{d.titolo}</div>}
+          {ev ? <div style={{ position: "absolute", left: `${ev.x * 100}%`, top: `${ev.y * 100}%`, width: `${ev.w * 100}%`, height: `${ev.h * 100}%`,
+            border: `5px solid ${x.pal.accento}`, borderRadius: 12, opacity: interpolate(f, [12, 20], [0, 1], clamp) }} /> : null}
+        </div>
+      </Finestra>
+    </Entra>
+  );
+};
+
+const Terminale: React.FC<{ d: any }> = ({ d }) => {
+  const x = React.useContext(C);
+  const { f } = useVita();
+  const cmd = String(d.comando || "");
+  const scritti = Math.floor(interpolate(f, [4, 4 + cmd.length * 1.4], [0, cmd.length], clamp));
+  const fineCmd = 4 + cmd.length * 1.4;
+  const righe: string[] = d.righe || [];
+  return (
+    <Entra da="scala">
+      <Finestra scuro larga={920}>
+        <div style={{ padding: "30px 34px", fontFamily: x.mono, fontSize: 34, color: "#EDEDED", minHeight: 300, lineHeight: 1.5 }}>
+          <div><span style={{ color: x.pal.accento }}>$ </span>{cmd.slice(0, scritti)}<span style={{ opacity: Math.floor(f / 8) % 2 ? 0 : 1 }}>▌</span></div>
+          {righe.map((r, i) => (
+            <div key={i} style={{ color: i === righe.length - 1 ? "#5FD38D" : "#A9A9A9", opacity: interpolate(f, [fineCmd + 6 + i * 6, fineCmd + 10 + i * 6], [0, 1], clamp) }}>{r}</div>
+          ))}
+        </div>
+      </Finestra>
+    </Entra>
+  );
+};
+
+const Contatore: React.FC<{ d: any }> = ({ d }) => {
+  const x = React.useContext(C);
+  const { f, fps } = useVita();
+  const da = Number(d.da) || 0, a = Number(d.a) || 0;
+  const v = interpolate(f, [4, 4 + fps * 1.2], [da, a], { ...clamp, easing: ease.out });
+  const dec = Math.abs(a) < 10 && !Number.isInteger(a) ? 1 : 0;
+  return (
+    <Entra da="scala">
+      <div style={{ background: "#fff", borderRadius: 34, padding: "50px 80px", textAlign: "center", boxShadow: "0 30px 70px -25px rgba(0,0,0,.3)" }}>
+        <div style={{ fontFamily: x.titoli, fontSize: 210, lineHeight: 1, color: x.pal.accento }}>{d.prefisso || ""}{v.toLocaleString("it-IT", { maximumFractionDigits: dec, minimumFractionDigits: dec })}{d.suffisso || ""}</div>
+        <div style={{ fontFamily: x.testo, fontSize: 40, color: x.pal.inchiostro, opacity: 0.65, marginTop: 10 }}>{d.etichetta}</div>
+      </div>
+    </Entra>
+  );
+};
+
+const Lista: React.FC<{ d: any }> = ({ d }) => {
+  const x = React.useContext(C);
+  const voci: string[] = (d.voci || []).slice(0, 6);
+  return (
+    <div style={{ width: 880 }}>
+      {d.titolo ? <Entra><div style={{ fontFamily: x.titoli, fontSize: 76, color: x.pal.inchiostro, marginBottom: 28 }}>{d.titolo}</div></Entra> : null}
+      {voci.map((v, i) => (
+        <Entra key={i} ritardo={6 + i * 7}>
+          <div style={{ display: "flex", alignItems: "center", gap: 24, background: "#fff", borderRadius: 22, padding: "22px 28px", marginBottom: 16, boxShadow: "0 14px 34px -20px rgba(0,0,0,.35)" }}>
+            <div style={{ width: 54, height: 54, borderRadius: 16, background: d.spunte ? "#E7F6EC" : x.pal.accento, color: d.spunte ? "#22A55B" : "#fff",
+              fontFamily: x.testo, fontWeight: 800, fontSize: 30, display: "grid", placeItems: "center" }}>{d.spunte ? "✓" : i + 1}</div>
+            <div style={{ fontFamily: x.testo, fontSize: 40, color: x.pal.inchiostro, fontWeight: 600 }}>{v}</div>
+          </div>
+        </Entra>
+      ))}
+    </div>
+  );
+};
+
+const Confronto: React.FC<{ d: any }> = ({ d }) => {
+  const x = React.useContext(C);
+  const lato = (o: any, buono: boolean, rit: number) => (
+    <Entra ritardo={rit} style={{ flex: 1 }}>
+      <div style={{ background: "#fff", borderRadius: 26, padding: 30, minHeight: 300, boxShadow: "0 24px 50px -25px rgba(0,0,0,.35)", borderTop: `10px solid ${buono ? x.pal.accento : "#B9B6AF"}` }}>
+        <div style={{ fontFamily: x.mono, fontSize: 26, letterSpacing: 3, textTransform: "uppercase", color: buono ? x.pal.accento : "#8A8780" }}>{o?.titolo || (buono ? "dopo" : "prima")}</div>
+        {(o?.voci || []).slice(0, 4).map((v: string, i: number) => (
+          <div key={i} style={{ fontFamily: x.testo, fontSize: 34, color: x.pal.inchiostro, marginTop: 22, display: "flex", gap: 14 }}>
+            <span style={{ color: buono ? "#22A55B" : "#E5484D", fontWeight: 800 }}>{buono ? "✓" : "✕"}</span><span style={{ opacity: buono ? 1 : 0.6 }}>{v}</span>
+          </div>
+        ))}
+      </div>
+    </Entra>
+  );
+  return <div style={{ display: "flex", gap: 26, width: 940 }}>{lato(d.prima, false, 0)}{lato(d.dopo, true, 8)}</div>;
+};
+
+const Card: React.FC<{ d: any }> = ({ d }) => {
+  const x = React.useContext(C);
+  return (
+    <Entra da="scala">
+      <div style={{ width: 820, background: "#fff", borderRadius: 32, padding: 46, boxShadow: "0 30px 70px -25px rgba(0,0,0,.3)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
+          {d.icona ? <div style={{ width: 92, height: 92, borderRadius: 26, background: x.pal.secondario, display: "grid", placeItems: "center", fontSize: 52 }}>{d.icona}</div> : null}
+          <div style={{ fontFamily: x.titoli, fontSize: 68, color: x.pal.inchiostro, lineHeight: 1.05 }}>{d.titolo}</div>
+        </div>
+        {d.testo ? <div style={{ fontFamily: x.testo, fontSize: 36, color: x.pal.inchiostro, opacity: 0.7, marginTop: 24, lineHeight: 1.35 }}>{d.testo}</div> : null}
+        {d.etichetta ? <div style={{ display: "inline-block", marginTop: 26, background: x.pal.accento, color: "#fff", fontFamily: x.mono, fontSize: 24, padding: "8px 18px", borderRadius: 10, letterSpacing: 2 }}>{d.etichetta}</div> : null}
+      </div>
+    </Entra>
+  );
+};
+
+const Chat: React.FC<{ d: any }> = ({ d }) => {
+  const x = React.useContext(C);
+  const { f } = useVita();
+  const msg: { chi: string; testo: string }[] = (d.messaggi || []).slice(0, 4);
+  return (
+    <div style={{ width: 880, display: "flex", flexDirection: "column", gap: 18 }}>
+      {msg.map((m, i) => {
+        const tu = m.chi !== "ai";
+        const inizio = i * 16;
+        const n = Math.floor(interpolate(f, [inizio + 4, inizio + 4 + m.testo.length * 0.6], [0, m.testo.length], clamp));
+        return (
+          <Entra key={i} ritardo={inizio} style={{ alignSelf: tu ? "flex-end" : "flex-start", maxWidth: 700 }}>
+            <div style={{ background: tu ? x.pal.inchiostro : "#fff", color: tu ? "#fff" : x.pal.inchiostro, borderRadius: 28, padding: "22px 30px", fontFamily: x.testo, fontSize: 36,
+              lineHeight: 1.3, boxShadow: "0 14px 34px -20px rgba(0,0,0,.35)", borderBottomRightRadius: tu ? 8 : 28, borderBottomLeftRadius: tu ? 28 : 8 }}>
+              {tu ? m.testo : m.testo.slice(0, n)}
+            </div>
+          </Entra>
+        );
+      })}
+    </div>
+  );
+};
+
+const Barre: React.FC<{ d: any }> = ({ d }) => {
+  const x = React.useContext(C);
+  const { f, fps } = useVita();
+  const voci: { etichetta: string; valore: number }[] = (d.voci || []).slice(0, 5);
+  const max = Math.max(1, ...voci.map((v) => Number(v.valore) || 0));
+  return (
+    <Entra da="scala">
+      <div style={{ width: 880, background: "#fff", borderRadius: 30, padding: 44, boxShadow: "0 30px 70px -25px rgba(0,0,0,.3)" }}>
+        {d.titolo ? <div style={{ fontFamily: x.titoli, fontSize: 60, color: x.pal.inchiostro, marginBottom: 26 }}>{d.titolo}</div> : null}
+        {voci.map((v, i) => {
+          const s = spring({ frame: f - 8 - i * 5, fps, config: molle.smooth });
+          const ultimo = i === voci.length - 1 || v.valore === max;
+          return (
+            <div key={i} style={{ marginBottom: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontFamily: x.testo, fontSize: 30, color: x.pal.inchiostro, marginBottom: 8 }}>
+                <span>{v.etichetta}</span><span style={{ fontWeight: 700 }}>{Math.round(v.valore * s).toLocaleString("it-IT")}{d.unita || ""}</span>
+              </div>
+              <div style={{ height: 30, borderRadius: 15, background: "#EFEDE8" }}>
+                <div style={{ height: 30, borderRadius: 15, width: `${(v.valore / max) * 100 * s}%`, background: ultimo ? x.pal.accento : x.pal.secondario }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Entra>
+  );
+};
+
+const Riepilogo: React.FC<{ d: any }> = ({ d }) => {
+  const x = React.useContext(C);
+  const voci: { nome: string; valore?: string }[] = (d.voci || []).slice(0, 7);
+  return (
+    <Entra da="scala">
+      <div style={{ width: 820, background: "#fff", borderRadius: 30, padding: "34px 40px", boxShadow: "0 30px 70px -25px rgba(0,0,0,.3)" }}>
+        <div style={{ fontFamily: x.mono, fontSize: 24, letterSpacing: 3, textTransform: "uppercase", color: x.pal.accento, marginBottom: 14 }}>{d.titolo || "riepilogo"}</div>
+        {voci.map((v, i) => (
+          <Entra key={i} ritardo={6 + i * 5}>
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "16px 0", borderTop: i ? "1px solid #EEE" : "none", fontFamily: x.testo, fontSize: 36, color: x.pal.inchiostro }}>
+              <span style={{ fontWeight: 600 }}>{v.nome}</span><span style={{ color: x.pal.accento, fontWeight: 700 }}>{v.valore || ""}</span>
+            </div>
+          </Entra>
+        ))}
+      </div>
+    </Entra>
+  );
+};
+
+const SCENE: Record<string, React.FC<{ d: any }>> = { titolo: Titolo, numero: Numero, sito: Sito, terminale: Terminale, contatore: Contatore, lista: Lista, confronto: Confronto, card: Card, chat: Chat, barre: Barre, riepilogo: Riepilogo };
+
+// ------------------------------------------------------------------ barra "1/5" degli elementi della lista
+const Tracker: React.FC<{ tr: NonNullable<SplitProps["tracker"]>; t: number; pieno: number }> = ({ tr, t, pieno }) => {
+  const x = React.useContext(C);
+  const fatti = tr.voci.filter((v) => v.da <= t).length;
+  const corrente = tr.voci.filter((v) => v.da <= t).slice(-1)[0];
+  if (!fatti) return null;
+  return (
+    <div style={{ position: "absolute", top: 120 + pieno * 20, left: 0, right: 0, display: "flex", justifyContent: "center" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#fff", borderRadius: 18, padding: "12px 18px", boxShadow: "0 10px 30px -18px rgba(0,0,0,.4)" }}>
+        {Array.from({ length: tr.totale }).map((_, i) => (
+          <div key={i} style={{ width: 40, height: 40, borderRadius: 10, background: i < fatti ? x.pal.accento : "#F0EEE9", color: "#fff", fontFamily: x.testo, fontWeight: 800, fontSize: 20, display: "grid", placeItems: "center" }}>{i < fatti ? i + 1 : ""}</div>
+        ))}
+        <div style={{ fontFamily: x.mono, fontSize: 22, color: "#8A8780", marginLeft: 8 }}>{fatti}/{tr.totale}</div>
+        {corrente ? <div style={{ fontFamily: x.testo, fontWeight: 700, fontSize: 24, color: x.pal.inchiostro, marginLeft: 8, maxWidth: 300, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{corrente.etichetta}</div> : null}
+      </div>
+    </div>
+  );
+};
+
+// ------------------------------------------------------------------ sottotitolo a pillola
+const Pillola: React.FC<{ parole: Parola[]; righe: Riga[]; t: number; y: number }> = ({ parole, righe, t, y }) => {
+  const x = React.useContext(C);
+  const f = useCurrentFrame();
+  const r = righe.find((q) => t >= q.da - 0.04 && t < q.a + 0.12) || null;
+  if (!r) return null;
+  const s = spring({ frame: Math.max(0, f - Math.round(r.da * x.fps)), fps: x.fps, config: molle.bouncy });
+  return (
+    <div style={{ position: "absolute", top: y, left: 0, right: 0, display: "flex", justifyContent: "center", zIndex: 20 }}>
+      <div style={{ background: "#141416", borderRadius: 14, padding: "12px 22px", transform: `scale(${0.85 + 0.15 * s})`, boxShadow: "0 14px 30px -14px rgba(0,0,0,.6)",
+        fontFamily: x.mono, fontWeight: 700, fontSize: 44, letterSpacing: 2, textTransform: "uppercase", whiteSpace: "nowrap" }}>
+        {r.p.map((i, k) => <span key={k} style={{ color: parole[i]?.k ? x.pal.accento : "#fff", marginRight: k < r.p.length - 1 ? 18 : 0 }}>{(parole[i]?.t || "").replace(/[.,;:!?…]+$/, "")}</span>)}
+      </div>
+    </div>
+  );
+};
+
+// ------------------------------------------------------------------ composizione
+export const Split: React.FC<SplitProps> = (P) => {
+  const f = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const t = f / fps;
+  const ctx: Ctx = { pal: P.palette, fps, titoli: famiglia(FONT_TITOLI, P.font?.titoli, "Instrument Serif"), testo: famiglia(FONT_TESTO, P.font?.testo, "Inter"), mono: famiglia(FONT_MONO, P.font?.mono, "JetBrains Mono") };
+  // quanto la grafica è "a tutto schermo" adesso (0-1), con passaggi morbidi
+  const pieno = P.scene.reduce((m, s) => (s.pieno ? Math.max(m, interpolate(t, [s.da - 0.2, s.da + 0.15, s.a - 0.15, s.a + 0.1], [0, 1, 1, 0], clamp)) : m), 0);
+  const zona = { top: 0, height: ALTO_GRAFICA + pieno * (1650 - ALTO_GRAFICA) };
+  const cy = P.volto?.cy ?? 0.32;
+  const scala = 1.05;
+  const hPersona = 1920 - Y_PERSONA;
+  const yVideo = Math.max(hPersona - 1920 * scala, Math.min(0, 330 - cy * 1920 * scala)); // il viso a ~1/3 del riquadro
+  return (
+    <C.Provider value={ctx}>
+      <AbsoluteFill>
+        <Sfondo pal={P.palette} />
+        {/* la persona, sotto */}
+        <div style={{ position: "absolute", left: 0, top: Y_PERSONA, width: 1080, height: 1920 - Y_PERSONA, overflow: "hidden",
+          transform: `translateY(${pieno * (1920 - Y_PERSONA + 40)}px)`, borderTop: `2px solid ${P.palette.tenue}` }}>
+          <OffthreadVideo src={staticFile(P.video)} style={{ position: "absolute", left: (1080 - 1080 * scala) / 2, top: yVideo, width: 1080 * scala, height: 1920 * scala, objectFit: "cover" }} />
+        </div>
+        {/* le grafiche, sopra */}
+        <div style={{ position: "absolute", left: 0, right: 0, ...zona }}>
+          {P.scene.map((s, i) => {
+            const Comp = SCENE[s.tipo];
+            if (!Comp) return null;
+            const da = Math.round(s.da * fps), dur = Math.max(6, Math.round((s.a - s.da) * fps));
+            return (
+              <Sequence key={i} from={da} durationInFrames={dur} layout="none">
+                <div style={{ position: "absolute", inset: 0, paddingTop: P.tracker ? 120 : 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Comp d={s.dati || {}} />
+                </div>
+              </Sequence>
+            );
+          })}
+        </div>
+        {P.tracker ? <Tracker tr={P.tracker} t={t} pieno={pieno} /> : null}
+        <Pillola parole={P.parole} righe={P.righe} t={t} y={Y_PILLOLA - 40 + pieno * 640} />
+      </AbsoluteFill>
+    </C.Provider>
+  );
+};

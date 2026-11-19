@@ -109,6 +109,26 @@ export const MANUALE_FORMATI = `FORMATI DEL MONTATORE (scegli "formato" nel pian
 - "carosello": hai delle FOTO/SLIDE (tecnico.tipo = immagine) che formano un carosello o una sequenza: ogni slide resta
   intera su uno sfondo sfocato di se stessa, con barre di avanzamento come le storie, push-in lento e transizioni a spinta
   con whoosh. Slide ricche di testo: ~1 s ogni 8 parole, minimo 1,8 s. Gancio breve sulla prima slide, CTA sull'ultima.
+- "split_grafico": una persona che parla in camera (come talking_head: scegli i tratti di parlato buoni, in ordine) ma lo
+  schermo è DIVISO: sotto la persona ferma, sopra un foglio color carta con griglia dove scorrono GRAFICHE ANIMATE che
+  illustrano esattamente quello che si dice, al centro un sottotitolo a pillola nera in stampatello a macchina (i nomi
+  chiave colorati: mettili in "evidenzia"). Regole delle "grafiche":
+  · una nuova grafica ogni 1,5-3 secondi di parlato (un video di 50 s ne ha 15-25), ognuna sulla parola che la introduce;
+  · scegli il tipo giusto per la frase: il gancio/il concetto → titolo (con UNA parola "accento" in corsivo colorato);
+    un elemento numerato della lista → numero ("1", nome); uno strumento/sito/app citato → sito con l'URL VERO e completo
+    (https://…) della pagina principale, mai inventato (se non sei sicuro dell'indirizzo usa card); un comando, un prompt,
+    un'automazione → terminale; una cifra detta → contatore; più punti → lista; prima/dopo, sbagliato/giusto → confronto;
+    una funzione o un consiglio → card con emoji; una domanda a un'AI → chat; numeri da confrontare → barre; la chiusura
+    con tutti gli elementi → riepilogo;
+  · 2-4 grafiche "pieno": true (terminale, sito, riepilogo) per dare respiro: la persona sparisce per qualche secondo;
+  · testi brevissimi (titoli max 5 parole, voci max 4 parole), solo cose dette davvero: niente numeri o fatti inventati;
+  · video a lista ("5 strumenti", "3 errori") → "tracker" con il totale e una voce per elemento sulla parola in cui entra.
+  PALETTE E FONT SECONDO L'ARGOMENTO (lo stile resta, i colori cambiano): fondo chiaro tipo carta (es. #F1EFEA, #F4F1EA,
+  #EEF1F4), inchiostro quasi nero, UN accento che richiama l'argomento (AI/Claude → terracotta #D4552F; Instagram/social →
+  magenta #D6407F; soldi/business → verde #1F9D55; tech/dev → blu #2F6FED; food → arancio #E07A2F; Momento/agenzia → teal
+  #0E9F9A), "secondario" = l'accento molto chiaro, "tenue" = rgba dell'inchiostro all'8-10%. Font: titoli serif elegante
+  (Instrument Serif di base; Playfair/Fraunces per temi lusso o food; Space Grotesk se l'argomento è molto tech), testo
+  Inter, mono JetBrains Mono. Niente "cartelli", "schede", "broll", "pannello" in questo formato. Durata 30-70 s.
 Se il girato non si presta al formato (es. talking_head senza parlato), usa "montaggio".`;
 
 export const MANUALE_MODELLO = `REEL MODELLO DI JOHNNY (regola che vince su tutte le altre)

@@ -1,0 +1,57 @@
+# Prova del formato "split_grafico": render delle grafiche con props di esempio e montaggio completo su una clip di parlato.
+# I risultati (con il volto di Johnny) escono cifrati sul ramo prove-split.
+name: prova-split
+on:
+  workflow_dispatch: {}
+  push:
+    paths: ['prova-split.txt']
+permissions:
+  contents: write
+jobs:
+  prova:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            grafiche/node_modules
+            ~/.cache/remotion
+          key: remotion-${{ hashFiles('grafiche/package.json') }}
+      - name: Strumenti
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core > /dev/null
+          pip install -q -r motore/requirements.txt
+          cd grafiche && [ -d node_modules/remotion ] || npm install --no-audit --no-fund --loglevel=error
+      - name: Clip di prova
+        run: |
+          mkdir -p /tmp/p && URL=$(head -1 prova-split.txt)
+          curl -sL "$URL" -o /tmp/p/clip_src.mp4
+          ffprobe -v error -show_entries format=duration -of csv=p=0 /tmp/p/clip_src.mp4
+          ffmpeg -loglevel error -stream_loop 4 -i /tmp/p/clip_src.mp4 -t 20 -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920" -an /tmp/p/base.mp4
+      - name: Render grafiche (props di esempio)
+        working-directory: grafiche
+        run: |
+          mkdir -p public && cp /tmp/p/base.mp4 public/base.mp4
+          python3 -c "from PIL import Image,ImageDraw;im=Image.new('RGB',(1280,900),(250,248,244));d=ImageDraw.Draw(im);d.rectangle([80,160,700,260],fill=(20,20,20));d.rectangle([800,150,1200,600],fill=(14,159,154));im.save('public/sito_0.png')"
+          npx remotion render src/index.ts Split /tmp/p/split_esempio.mp4 --props=prova_split.json --codec=h264 --crf=18 --muted --log=error 2>&1 | tail -20
+          rm -f public/base.mp4 public/sito_0.png
+      - name: Montaggio completo
+        run: |
+          python3 motore/prova_split.py /tmp/p/clip_src.mp4 /tmp/p/split_completo.mp4 2>&1 | tail -40 || true
+      - name: Fotogrammi e pubblicazione cifrata
+        run: |
+          cd /tmp/p && ls -la
+          for v in split_esempio split_completo; do [ -f $v.mp4 ] && ffmpeg -loglevel error -i $v.mp4 -vf "fps=1,scale=360:-2,tile=5x4" ${v}_tav_%02d.jpg; done
+          tar czf /tmp/out.tgz *.jpg *.mp4 2>/dev/null || tar czf /tmp/out.tgz *.jpg
+          openssl rand -out /tmp/k.bin 32
+          openssl enc -aes-256-cbc -pbkdf2 -salt -in /tmp/out.tgz -out /tmp/out.enc -pass file:/tmp/k.bin
+          openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/motore/chiave_studio.pem" -in /tmp/k.bin -out /tmp/k.enc
+          mkdir -p /tmp/pub && cp /tmp/out.enc /tmp/k.enc /tmp/pub/ && date > /tmp/pub/fatto.txt
+          cd /tmp/pub && git init -q && git checkout -q -b prove-split && git add . \
+            && git -c user.name=motore -c user.email=motore@momento commit -qm prova \
+            && git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" prove-split

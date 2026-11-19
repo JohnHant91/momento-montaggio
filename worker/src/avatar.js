@@ -208,12 +208,13 @@ async function faseMontaggio(env, cfg, A) {
   for (const v of video) {
     if (lavori.some((l) => l.n === v.n)) continue;
     const c = copioni.find((x) => x.n === v.n) || {};
-    const prompt = `Cliente: Johnny · profilo Instagram. Reel con l'avatar di Johnny, stile "Talking head educativo con grafiche": formato talking_head, sottotitoli piccoli_alto, cartelli sulle parole chiave, jump cut serrati, nessuna pausa.
+    const prompt = `Cliente: Johnny · profilo Instagram. Reel con l'avatar di Johnny, stile "Split educativo con grafiche animate": formato split_grafico (sopra le grafiche animate che seguono il discorso, al centro la pillola dei sottotitoli, sotto Johnny), palette e font scelti in base all'argomento, nessuna pausa.
+Argomento del piano (per la palette): ${A.argomento}
 Titolo: ${c.titolo}. Gancio: ${c.gancio}. Soluzione finale: ${c.soluzione}.
 Testo detto: ${c.testo}
-Cartelli da usare (testo → parola su cui entra): ${(c.cartelli || []).map((k) => `${k.testo} → ${k.sulla_parola}${k.stile === 'barrato' ? ' (barrato)' : ''}${k.colore ? ' ' + k.colore : ''}`).join('; ')}`;
+Idee per le grafiche (concetto → parola su cui entra): ${(c.cartelli || []).map((k) => `${k.testo} → ${k.sulla_parola}`).join('; ')}`;
     const r = await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,'[]','url',?,?,?) RETURNING id",
-      prompt, JSON.stringify([{ nome: `avatar_${A.id}_${v.n}.mp4`, url: v.url, durata: v.durata }]), JSON.stringify({ genere: 'educativo', mood: [] }), ora(), ora());
+      prompt, JSON.stringify([{ nome: `avatar_${A.id}_${v.n}.mp4`, url: v.url, durata: v.durata }]), JSON.stringify({ genere: 'split', mood: [] }), ora(), ora());
     lavori.push({ n: v.n, lavoro: r.id });
     await log(env, r.id, 'regia', `🎬 reel ${v.n} "${c.titolo}" (avatar): parte il montaggio`);
   }

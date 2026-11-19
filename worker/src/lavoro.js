@@ -363,7 +363,9 @@ const LOOKS = ['neon_notte', 'estate_luminosa', 'autunno_caldo', 'inverno_freddo
 const TRANSIZIONI = ['taglio_netto', 'dissolvenza', 'flash_bianco', 'whip_pan', 'zoom', 'glitch', 'slide', 'fadenero'];
 const EFFETTI_PEZZO = ['dolly_in', 'slider_dx', 'slider_sx', 'punch_in', 'zoom_lento', 'zoom_out', 'shake', 'nessuno'];
 const EFFETTI_GLOBALI = ['grana', 'vignettatura', 'bande_cinema', 'light_leak', 'glow', 'vhs'];
-const FORMATI_REEL = ['montaggio', 'talking_head', 'carosello'];
+const FORMATI_REEL = ['montaggio', 'talking_head', 'carosello', 'split_grafico'];
+const TIPI_GRAFICA = ['titolo', 'numero', 'sito', 'terminale', 'contatore', 'lista', 'confronto', 'card', 'chat', 'barre', 'riepilogo'];
+const FONT_SPLIT = { titoli: ['Instrument Serif', 'Playfair Display', 'Fraunces', 'DM Serif Display', 'Inter', 'Space Grotesk', 'Manrope'], testo: ['Inter', 'Space Grotesk', 'Manrope'], mono: ['JetBrains Mono', 'IBM Plex Mono'] };
 
 const SISTEMA_REGISTA = `Sei il Regista e il Copy di Momento Produzione. Trasformi la SCHEDA TECNICA del Direttore creativo in un
 PIANO DI MONTAGGIO preciso che un montatore automatico eseguirà alla lettera. Scegli i pezzi migliori dalle clip analizzate
@@ -398,11 +400,12 @@ VALORI AMMESSI
 - effetti_globali: ${EFFETTI_GLOBALI.join(', ')}
 - lut (facoltativa, LUT vere di pellicole e colorist; se la scegli, comanda lei il colore): ${LUT_NOMI.join(', ')}
 - stile testi: titolo_grande_centrale, etichetta_box, sottotitolo_classico; posizione: alto, centro, terzo_inferiore
-- formato: montaggio, talking_head, carosello (vedi FORMATI DEL MONTATORE)
+- formato: montaggio, talking_head, carosello, split_grafico (vedi FORMATI DEL MONTATORE)
+- grafiche (solo split_grafico): ${TIPI_GRAFICA.join(', ')}; font_split.titoli: ${FONT_SPLIT.titoli.join(', ')}; testo: ${FONT_SPLIT.testo.join(', ')}; mono: ${FONT_SPLIT.mono.join(', ')}
 
 JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel formato):
 {
-  "formato": "montaggio|talking_head|carosello",
+  "formato": "montaggio|talking_head|carosello|split_grafico",
   "durata_target": n,
   "look": "...", "intensita_look": 0.6-1.0,
   "lut": {"nome": "una LUT della libreria (pellicola o grading vero, prende il posto del look)", "intensita": 0.3-1.0, "perche": "..."} oppure null,
@@ -425,6 +428,11 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
   "correzioni": {"parola_sentita_male": "parola giusta"},
   "broll": [{"clip": indice, "in": secondi, "durata": 1.5-3, "sulla_parola": "parola detta su cui entra", "rallenty": bool}],
   "cta": {"testo": "solo talking_head/carosello: call to action breve (es. Scrivici ORTO in DM)"},
+  "grafiche": [{"tipo": "solo split_grafico: titolo|numero|sito|terminale|contatore|lista|confronto|card|chat|barre|riepilogo", "sulla_parola": "parola detta su cui entra (in ordine)", "pieno": true se prende tutto lo schermo,
+                "dati": {"titolo: testo, accento (parola in corsivo colorato), sotto | numero: valore, etichetta | sito: url VERO e completo del sito citato, evidenzia {x,y,w,h 0-1} | terminale: comando, righe[] | contatore: da, a, etichetta, prefisso, suffisso | lista: titolo, voci[], spunte | confronto: prima {titolo, voci[]}, dopo {titolo, voci[]} | card: titolo, testo, icona (emoji), etichetta | chat: messaggi [{chi: tu|ai, testo}] | barre: titolo, unita, voci [{etichetta, valore}] | riepilogo: titolo, voci [{nome, valore}]"}}],
+  "palette": {"fondo": "#hex chiaro tipo carta", "inchiostro": "#hex testo", "accento": "#hex unico colore forte, scelto per l'argomento", "secondario": "#hex tenue dell'accento", "tenue": "rgba(...) per la griglia"} (solo split_grafico),
+  "font_split": {"titoli": "...", "testo": "...", "mono": "..."} (solo split_grafico),
+  "tracker": {"totale": n, "voci": [{"etichetta": "nome breve", "sulla_parola": "parola su cui entra"}]} oppure null (solo split_grafico, per i video a lista),
   "slide": [{"clip": indice di una foto/slide, "durata": secondi}],
   "pannello": {"chip": "TIP|DATO|COME FARE", "titolo": "max 6 parole", "tipo": "line|bar|steps", "punti": [{"etichetta": "...", "valore": n}],
                "passi": ["solo per steps, 2-5 frasi brevi"], "unita": "€|%|...", "badge": "risultato chiave breve, es. 6x", "sulla_parola": "parola detta su cui entra", "tema": "dark|light"} oppure null,
@@ -497,11 +505,12 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
     else formato = 'montaggio';
   }
   const parla = (c) => c?.analisi?.misure?.parlato?.presente || c?.analisi?.parlato?.presente;
-  if (formato === 'talking_head' && !(p.segmenti || []).some((s) => parla(tutte[s.clip]))) formato = 'montaggio';
-  const seg = (p.segmenti || []).filter((s) => tutte[s.clip]?.stato === 'fatto' && !eImm(tutte[s.clip])).slice(0, formato === 'talking_head' ? 30 : 40).map((s, k) => {
+  const parlato = formato === 'talking_head' || formato === 'split_grafico';
+  if (parlato && !(p.segmenti || []).some((s) => parla(tutte[s.clip]))) formato = 'montaggio';
+  const seg = (p.segmenti || []).filter((s) => tutte[s.clip]?.stato === 'fatto' && !eImm(tutte[s.clip])).slice(0, formato === 'talking_head' || formato === 'split_grafico' ? 30 : 40).map((s, k) => {
     const c = tutte[s.clip];
     const durClip = Number(c.tecnico?.durata_sec) || 9999;
-    const durata = Math.min(Math.max(Number(s.durata) || 1.5, 0.4), formato === 'talking_head' ? 90 : 12);
+    const durata = Math.min(Math.max(Number(s.durata) || 1.5, 0.4), formato === 'talking_head' || formato === 'split_grafico' ? 90 : 12);
     const rallenty = !!s.rallenty;
     const serve = durata * (rallenty ? 0.6 : 1);
     let inizio = Math.max(0, Math.min(Number(s.in) || 0, Math.max(0, durClip - serve - 0.05)));
@@ -554,8 +563,16 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
         unita: String(pn.unita || '').slice(0, 4), badge: pn.badge ? String(pn.badge).slice(0, 20) : null, sulla_parola: String(pn.sulla_parola || '').slice(0, 40), tema: pn.tema === 'light' ? 'light' : 'dark' };
     }
   }
+  // split: grafiche animate sopra la persona, colori e font per l'argomento
+  const hex = (v) => (typeof v === 'string' && /^(#[0-9a-f]{6}|rgba?\([0-9., ]+\))$/i.test(v.trim()) ? v.trim() : undefined);
+  const grafiche = formato !== 'split_grafico' ? [] : (p.grafiche || []).filter((g) => g && TIPI_GRAFICA.includes(g.tipo) && g.sulla_parola).slice(0, 40)
+    .map((g) => ({ tipo: g.tipo, sulla_parola: String(g.sulla_parola).slice(0, 40), pieno: g.pieno === true, dati: g.dati && typeof g.dati === 'object' ? JSON.parse(JSON.stringify(g.dati).slice(0, 3000) || '{}') : {} }))
+    .map((g) => (g.tipo === 'sito' && !/^https:\/\/[\w.-]+\.[a-z]{2,}/i.test(g.dati.url || '') ? { ...g, tipo: 'card', dati: { titolo: g.dati.titolo || g.dati.url || 'sito', testo: g.dati.testo || '' } } : g));
+  const palette = formato !== 'split_grafico' ? null : Object.fromEntries(['fondo', 'inchiostro', 'accento', 'secondario', 'tenue'].map((k) => [k, hex(p.palette?.[k])]).filter(([, v]) => v));
+  const font_split = formato !== 'split_grafico' ? null : Object.fromEntries(Object.entries(FONT_SPLIT).map(([k, ok]) => [k, ok.includes(p.font_split?.[k]) ? p.font_split[k] : ok[0]]));
+  const tracker = formato === 'split_grafico' && p.tracker?.voci?.length ? { totale: Math.min(10, Math.max(1, Number(p.tracker.totale) || p.tracker.voci.length)), voci: p.tracker.voci.slice(0, 10).map((v) => ({ etichetta: String(v.etichetta || '').slice(0, 24), sulla_parola: String(v.sulla_parola || '').slice(0, 40) })).filter((v) => v.sulla_parola) } : null;
   const piano = {
-    ...p, formato, pannello, cartelli, schede,
+    ...p, formato, pannello, cartelli, schede, grafiche, palette, font_split, tracker,
     logo: prima?.logo || null,
     stabilizza_tutto: !!(indicazioni?.stabilizza_tutto || prima?.piano?.stabilizza_tutto || p.stabilizza_tutto || R?.camera === 'morbida'),
     camera_ferma: R?.camera === 'a_mano' ? false : !!(indicazioni?.camera_ferma || prima?.piano?.camera_ferma || p.camera_ferma || R?.camera === 'ferma'),
@@ -573,9 +590,9 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
   const versione = (prima?.versione || 0) + 1;
   await run(env, 'UPDATE lavori SET montaggio=? WHERE id=?', JSON.stringify({ stato: 'da_fare', piano, versione, creato: ora(), indicazioni: indicazioni || null }), L.id);
   const tot = seg.reduce((a, s) => a + s.durata, 0);
-  const nomeF = { montaggio: 'montaggio', talking_head: 'talking-head', carosello: 'carosello' }[formato];
+  const nomeF = { montaggio: 'montaggio', talking_head: 'talking-head', carosello: 'carosello', split_grafico: 'split con grafiche animate' }[formato];
   await log(env, L.id, 'regista', formato === 'carosello' ? `piano pronto: formato carosello, ${slide.length} slide` :
-    `piano pronto: formato ${nomeF}${piano.lut ? `, LUT ${piano.lut.nome} al ${Math.round(piano.lut.intensita * 100)}%` : ''}, ${seg.length} ${formato === 'talking_head' ? 'tratti di parlato' : 'pezzi'}${broll.length ? ` + ${broll.length} b-roll` : ''}${pannello ? ` + pannello ${pannello.tipo}` : ''}, ~${Math.round(tot + (piano.chiusura?.durata || 0))} s, look ${piano.look}`);
+    `piano pronto: formato ${nomeF}${piano.lut ? `, LUT ${piano.lut.nome} al ${Math.round(piano.lut.intensita * 100)}%` : ''}, ${seg.length} ${parlato ? 'tratti di parlato' : 'pezzi'}${grafiche.length ? ` + ${grafiche.length} grafiche animate` : ''}${broll.length ? ` + ${broll.length} b-roll` : ''}${pannello ? ` + pannello ${pannello.tipo}` : ''}, ~${Math.round(tot + (piano.chiusura?.durata || 0))} s, look ${piano.look}`);
   if (seg.some((s) => s.testo) || piano.chiusura) await log(env, L.id, 'copy', `testi: ${[...seg.filter((s) => s.testo).map((s) => '"' + s.testo.testo + '"'), piano.chiusura?.testo ? '"' + piano.chiusura.testo + '"' : ''].filter(Boolean).join(' · ').slice(0, 300)}`);
   await log(env, L.id, 'motore', 'chiamo il motore GitHub per il montaggio');
   return true;

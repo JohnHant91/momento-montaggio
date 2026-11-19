@@ -765,6 +765,21 @@ async function pcloudClip(link) {
 
 // src/stili.js
 var GENERI = {
+  split: {
+    nome: "Split educativo con grafiche animate",
+    parole: ["split", "schermo diviso", "grafiche animate", "motion graphics", "stile split", "profilo personale"],
+    formato: "split_grafico",
+    regole: 'Schermo diviso: sopra un foglio color carta con griglia leggera dove le grafiche animate cambiano ogni 1,5-3 s seguendo le parole (titoli eleganti con una parola in corsivo colorato, siti veri, terminale che scrive, contatori, liste, confronti, chat), al centro un sottotitolo a pillola nera in stampatello a macchina (2-3 parole, nomi chiave colorati), sotto la persona ferma che parla. 2-4 volte la grafica prende tutto lo schermo. Struttura a lista ("5 strumenti", "3 errori") con barra 1/N che si riempie. Colori e font scelti in base all argomento, un solo accento.',
+    look: "naturale_vivace",
+    camera: "ferma",
+    durata: [2, 5],
+    transizioni: ["taglio_netto"],
+    effetti: ["nessuno"],
+    globali: [],
+    rallenty: "mai",
+    finale: null,
+    cerca: { yt: ["ai tools explained reel motion graphics"], tt: ["strumenti ai gratis"], ig: ["strumentiai", "aitools"] }
+  },
   educativo: {
     nome: "Talking head educativo con grafiche",
     parole: ["talking head", "parlato in camera", "educativo", "tutorial", "consigli", "tips", "spiegazione", "divulgativo", "faccio vedere", "ti spiego"],
@@ -1820,6 +1835,26 @@ var MANUALE_FORMATI = `FORMATI DEL MONTATORE (scegli "formato" nel piano, in bas
 - "carosello": hai delle FOTO/SLIDE (tecnico.tipo = immagine) che formano un carosello o una sequenza: ogni slide resta
   intera su uno sfondo sfocato di se stessa, con barre di avanzamento come le storie, push-in lento e transizioni a spinta
   con whoosh. Slide ricche di testo: ~1 s ogni 8 parole, minimo 1,8 s. Gancio breve sulla prima slide, CTA sull'ultima.
+- "split_grafico": una persona che parla in camera (come talking_head: scegli i tratti di parlato buoni, in ordine) ma lo
+  schermo \xE8 DIVISO: sotto la persona ferma, sopra un foglio color carta con griglia dove scorrono GRAFICHE ANIMATE che
+  illustrano esattamente quello che si dice, al centro un sottotitolo a pillola nera in stampatello a macchina (i nomi
+  chiave colorati: mettili in "evidenzia"). Regole delle "grafiche":
+  \xB7 una nuova grafica ogni 1,5-3 secondi di parlato (un video di 50 s ne ha 15-25), ognuna sulla parola che la introduce;
+  \xB7 scegli il tipo giusto per la frase: il gancio/il concetto \u2192 titolo (con UNA parola "accento" in corsivo colorato);
+    un elemento numerato della lista \u2192 numero ("1", nome); uno strumento/sito/app citato \u2192 sito con l'URL VERO e completo
+    (https://\u2026) della pagina principale, mai inventato (se non sei sicuro dell'indirizzo usa card); un comando, un prompt,
+    un'automazione \u2192 terminale; una cifra detta \u2192 contatore; pi\xF9 punti \u2192 lista; prima/dopo, sbagliato/giusto \u2192 confronto;
+    una funzione o un consiglio \u2192 card con emoji; una domanda a un'AI \u2192 chat; numeri da confrontare \u2192 barre; la chiusura
+    con tutti gli elementi \u2192 riepilogo;
+  \xB7 2-4 grafiche "pieno": true (terminale, sito, riepilogo) per dare respiro: la persona sparisce per qualche secondo;
+  \xB7 testi brevissimi (titoli max 5 parole, voci max 4 parole), solo cose dette davvero: niente numeri o fatti inventati;
+  \xB7 video a lista ("5 strumenti", "3 errori") \u2192 "tracker" con il totale e una voce per elemento sulla parola in cui entra.
+  PALETTE E FONT SECONDO L'ARGOMENTO (lo stile resta, i colori cambiano): fondo chiaro tipo carta (es. #F1EFEA, #F4F1EA,
+  #EEF1F4), inchiostro quasi nero, UN accento che richiama l'argomento (AI/Claude \u2192 terracotta #D4552F; Instagram/social \u2192
+  magenta #D6407F; soldi/business \u2192 verde #1F9D55; tech/dev \u2192 blu #2F6FED; food \u2192 arancio #E07A2F; Momento/agenzia \u2192 teal
+  #0E9F9A), "secondario" = l'accento molto chiaro, "tenue" = rgba dell'inchiostro all'8-10%. Font: titoli serif elegante
+  (Instrument Serif di base; Playfair/Fraunces per temi lusso o food; Space Grotesk se l'argomento \xE8 molto tech), testo
+  Inter, mono JetBrains Mono. Niente "cartelli", "schede", "broll", "pannello" in questo formato. Durata 30-70 s.
 Se il girato non si presta al formato (es. talking_head senza parlato), usa "montaggio".`;
 var MANUALE_MODELLO = `REEL MODELLO DI JOHNNY (regola che vince su tutte le altre)
 - I riferimenti "scelto_da_johnny" sono il MODELLO dello stile che Johnny vuole: replica il loro linguaggio, non la
@@ -2228,7 +2263,9 @@ var LOOKS = ["neon_notte", "estate_luminosa", "autunno_caldo", "inverno_freddo",
 var TRANSIZIONI = ["taglio_netto", "dissolvenza", "flash_bianco", "whip_pan", "zoom", "glitch", "slide", "fadenero"];
 var EFFETTI_PEZZO = ["dolly_in", "slider_dx", "slider_sx", "punch_in", "zoom_lento", "zoom_out", "shake", "nessuno"];
 var EFFETTI_GLOBALI = ["grana", "vignettatura", "bande_cinema", "light_leak", "glow", "vhs"];
-var FORMATI_REEL = ["montaggio", "talking_head", "carosello"];
+var FORMATI_REEL = ["montaggio", "talking_head", "carosello", "split_grafico"];
+var TIPI_GRAFICA = ["titolo", "numero", "sito", "terminale", "contatore", "lista", "confronto", "card", "chat", "barre", "riepilogo"];
+var FONT_SPLIT = { titoli: ["Instrument Serif", "Playfair Display", "Fraunces", "DM Serif Display", "Inter", "Space Grotesk", "Manrope"], testo: ["Inter", "Space Grotesk", "Manrope"], mono: ["JetBrains Mono", "IBM Plex Mono"] };
 var SISTEMA_REGISTA = `Sei il Regista e il Copy di Momento Produzione. Trasformi la SCHEDA TECNICA del Direttore creativo in un
 PIANO DI MONTAGGIO preciso che un montatore automatico eseguir\xE0 alla lettera. Scegli i pezzi migliori dalle clip analizzate
 (usa solo momenti con qualit\xE0 alta e senza problemi, rispetta i tempi da/a dei momenti), costruisci gancio \u2192 sviluppo \u2192 climax \u2192
@@ -2261,11 +2298,12 @@ VALORI AMMESSI
 - effetti_globali: ${EFFETTI_GLOBALI.join(", ")}
 - lut (facoltativa, LUT vere di pellicole e colorist; se la scegli, comanda lei il colore): ${LUT_NOMI.join(", ")}
 - stile testi: titolo_grande_centrale, etichetta_box, sottotitolo_classico; posizione: alto, centro, terzo_inferiore
-- formato: montaggio, talking_head, carosello (vedi FORMATI DEL MONTATORE)
+- formato: montaggio, talking_head, carosello, split_grafico (vedi FORMATI DEL MONTATORE)
+- grafiche (solo split_grafico): ${TIPI_GRAFICA.join(", ")}; font_split.titoli: ${FONT_SPLIT.titoli.join(", ")}; testo: ${FONT_SPLIT.testo.join(", ")}; mono: ${FONT_SPLIT.mono.join(", ")}
 
 JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel formato):
 {
-  "formato": "montaggio|talking_head|carosello",
+  "formato": "montaggio|talking_head|carosello|split_grafico",
   "durata_target": n,
   "look": "...", "intensita_look": 0.6-1.0,
   "lut": {"nome": "una LUT della libreria (pellicola o grading vero, prende il posto del look)", "intensita": 0.3-1.0, "perche": "..."} oppure null,
@@ -2288,6 +2326,11 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
   "correzioni": {"parola_sentita_male": "parola giusta"},
   "broll": [{"clip": indice, "in": secondi, "durata": 1.5-3, "sulla_parola": "parola detta su cui entra", "rallenty": bool}],
   "cta": {"testo": "solo talking_head/carosello: call to action breve (es. Scrivici ORTO in DM)"},
+  "grafiche": [{"tipo": "solo split_grafico: titolo|numero|sito|terminale|contatore|lista|confronto|card|chat|barre|riepilogo", "sulla_parola": "parola detta su cui entra (in ordine)", "pieno": true se prende tutto lo schermo,
+                "dati": {"titolo: testo, accento (parola in corsivo colorato), sotto | numero: valore, etichetta | sito: url VERO e completo del sito citato, evidenzia {x,y,w,h 0-1} | terminale: comando, righe[] | contatore: da, a, etichetta, prefisso, suffisso | lista: titolo, voci[], spunte | confronto: prima {titolo, voci[]}, dopo {titolo, voci[]} | card: titolo, testo, icona (emoji), etichetta | chat: messaggi [{chi: tu|ai, testo}] | barre: titolo, unita, voci [{etichetta, valore}] | riepilogo: titolo, voci [{nome, valore}]"}}],
+  "palette": {"fondo": "#hex chiaro tipo carta", "inchiostro": "#hex testo", "accento": "#hex unico colore forte, scelto per l'argomento", "secondario": "#hex tenue dell'accento", "tenue": "rgba(...) per la griglia"} (solo split_grafico),
+  "font_split": {"titoli": "...", "testo": "...", "mono": "..."} (solo split_grafico),
+  "tracker": {"totale": n, "voci": [{"etichetta": "nome breve", "sulla_parola": "parola su cui entra"}]} oppure null (solo split_grafico, per i video a lista),
   "slide": [{"clip": indice di una foto/slide, "durata": secondi}],
   "pannello": {"chip": "TIP|DATO|COME FARE", "titolo": "max 6 parole", "tipo": "line|bar|steps", "punti": [{"etichetta": "...", "valore": n}],
                "passi": ["solo per steps, 2-5 frasi brevi"], "unita": "\u20AC|%|...", "badge": "risultato chiave breve, es. 6x", "sulla_parola": "parola detta su cui entra", "tema": "dark|light"} oppure null,
@@ -2374,11 +2417,12 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
     else formato = "montaggio";
   }
   const parla = (c) => c?.analisi?.misure?.parlato?.presente || c?.analisi?.parlato?.presente;
-  if (formato === "talking_head" && !(p.segmenti || []).some((s) => parla(tutte[s.clip]))) formato = "montaggio";
-  const seg = (p.segmenti || []).filter((s) => tutte[s.clip]?.stato === "fatto" && !eImm(tutte[s.clip])).slice(0, formato === "talking_head" ? 30 : 40).map((s, k) => {
+  const parlato = formato === "talking_head" || formato === "split_grafico";
+  if (parlato && !(p.segmenti || []).some((s) => parla(tutte[s.clip]))) formato = "montaggio";
+  const seg = (p.segmenti || []).filter((s) => tutte[s.clip]?.stato === "fatto" && !eImm(tutte[s.clip])).slice(0, formato === "talking_head" || formato === "split_grafico" ? 30 : 40).map((s, k) => {
     const c = tutte[s.clip];
     const durClip = Number(c.tecnico?.durata_sec) || 9999;
-    const durata = Math.min(Math.max(Number(s.durata) || 1.5, 0.4), formato === "talking_head" ? 90 : 12);
+    const durata = Math.min(Math.max(Number(s.durata) || 1.5, 0.4), formato === "talking_head" || formato === "split_grafico" ? 90 : 12);
     const rallenty = !!s.rallenty;
     const serve = durata * (rallenty ? 0.6 : 1);
     let inizio = Math.max(0, Math.min(Number(s.in) || 0, Math.max(0, durClip - serve - 0.05)));
@@ -2455,12 +2499,21 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
       };
     }
   }
+  const hex3 = (v) => typeof v === "string" && /^(#[0-9a-f]{6}|rgba?\([0-9., ]+\))$/i.test(v.trim()) ? v.trim() : void 0;
+  const grafiche = formato !== "split_grafico" ? [] : (p.grafiche || []).filter((g) => g && TIPI_GRAFICA.includes(g.tipo) && g.sulla_parola).slice(0, 40).map((g) => ({ tipo: g.tipo, sulla_parola: String(g.sulla_parola).slice(0, 40), pieno: g.pieno === true, dati: g.dati && typeof g.dati === "object" ? JSON.parse(JSON.stringify(g.dati).slice(0, 3e3) || "{}") : {} })).map((g) => g.tipo === "sito" && !/^https:\/\/[\w.-]+\.[a-z]{2,}/i.test(g.dati.url || "") ? { ...g, tipo: "card", dati: { titolo: g.dati.titolo || g.dati.url || "sito", testo: g.dati.testo || "" } } : g);
+  const palette = formato !== "split_grafico" ? null : Object.fromEntries(["fondo", "inchiostro", "accento", "secondario", "tenue"].map((k) => [k, hex3(p.palette?.[k])]).filter(([, v]) => v));
+  const font_split = formato !== "split_grafico" ? null : Object.fromEntries(Object.entries(FONT_SPLIT).map(([k, ok]) => [k, ok.includes(p.font_split?.[k]) ? p.font_split[k] : ok[0]]));
+  const tracker = formato === "split_grafico" && p.tracker?.voci?.length ? { totale: Math.min(10, Math.max(1, Number(p.tracker.totale) || p.tracker.voci.length)), voci: p.tracker.voci.slice(0, 10).map((v) => ({ etichetta: String(v.etichetta || "").slice(0, 24), sulla_parola: String(v.sulla_parola || "").slice(0, 40) })).filter((v) => v.sulla_parola) } : null;
   const piano2 = {
     ...p,
     formato,
     pannello,
     cartelli,
     schede,
+    grafiche,
+    palette,
+    font_split,
+    tracker,
     logo: prima?.logo || null,
     stabilizza_tutto: !!(indicazioni?.stabilizza_tutto || prima?.piano?.stabilizza_tutto || p.stabilizza_tutto || R?.camera === "morbida"),
     camera_ferma: R?.camera === "a_mano" ? false : !!(indicazioni?.camera_ferma || prima?.piano?.camera_ferma || p.camera_ferma || R?.camera === "ferma"),
@@ -2483,8 +2536,8 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
   const versione = (prima?.versione || 0) + 1;
   await run(env, "UPDATE lavori SET montaggio=? WHERE id=?", JSON.stringify({ stato: "da_fare", piano: piano2, versione, creato: ora(), indicazioni: indicazioni || null }), L.id);
   const tot = seg.reduce((a, s) => a + s.durata, 0);
-  const nomeF = { montaggio: "montaggio", talking_head: "talking-head", carosello: "carosello" }[formato];
-  await log(env, L.id, "regista", formato === "carosello" ? `piano pronto: formato carosello, ${slide.length} slide` : `piano pronto: formato ${nomeF}${piano2.lut ? `, LUT ${piano2.lut.nome} al ${Math.round(piano2.lut.intensita * 100)}%` : ""}, ${seg.length} ${formato === "talking_head" ? "tratti di parlato" : "pezzi"}${broll.length ? ` + ${broll.length} b-roll` : ""}${pannello ? ` + pannello ${pannello.tipo}` : ""}, ~${Math.round(tot + (piano2.chiusura?.durata || 0))} s, look ${piano2.look}`);
+  const nomeF = { montaggio: "montaggio", talking_head: "talking-head", carosello: "carosello", split_grafico: "split con grafiche animate" }[formato];
+  await log(env, L.id, "regista", formato === "carosello" ? `piano pronto: formato carosello, ${slide.length} slide` : `piano pronto: formato ${nomeF}${piano2.lut ? `, LUT ${piano2.lut.nome} al ${Math.round(piano2.lut.intensita * 100)}%` : ""}, ${seg.length} ${parlato ? "tratti di parlato" : "pezzi"}${grafiche.length ? ` + ${grafiche.length} grafiche animate` : ""}${broll.length ? ` + ${broll.length} b-roll` : ""}${pannello ? ` + pannello ${pannello.tipo}` : ""}, ~${Math.round(tot + (piano2.chiusura?.durata || 0))} s, look ${piano2.look}`);
   if (seg.some((s) => s.testo) || piano2.chiusura) await log(env, L.id, "copy", `testi: ${[...seg.filter((s) => s.testo).map((s) => '"' + s.testo.testo + '"'), piano2.chiusura?.testo ? '"' + piano2.chiusura.testo + '"' : ""].filter(Boolean).join(" \xB7 ").slice(0, 300)}`);
   await log(env, L.id, "motore", "chiamo il motore GitHub per il montaggio");
   return true;
@@ -3118,16 +3171,17 @@ async function faseMontaggio2(env, cfg, A) {
   for (const v of video) {
     if (lavori.some((l) => l.n === v.n)) continue;
     const c = copioni.find((x) => x.n === v.n) || {};
-    const prompt = `Cliente: Johnny \xB7 profilo Instagram. Reel con l'avatar di Johnny, stile "Talking head educativo con grafiche": formato talking_head, sottotitoli piccoli_alto, cartelli sulle parole chiave, jump cut serrati, nessuna pausa.
+    const prompt = `Cliente: Johnny \xB7 profilo Instagram. Reel con l'avatar di Johnny, stile "Split educativo con grafiche animate": formato split_grafico (sopra le grafiche animate che seguono il discorso, al centro la pillola dei sottotitoli, sotto Johnny), palette e font scelti in base all'argomento, nessuna pausa.
+Argomento del piano (per la palette): ${A.argomento}
 Titolo: ${c.titolo}. Gancio: ${c.gancio}. Soluzione finale: ${c.soluzione}.
 Testo detto: ${c.testo}
-Cartelli da usare (testo \u2192 parola su cui entra): ${(c.cartelli || []).map((k) => `${k.testo} \u2192 ${k.sulla_parola}${k.stile === "barrato" ? " (barrato)" : ""}${k.colore ? " " + k.colore : ""}`).join("; ")}`;
+Idee per le grafiche (concetto \u2192 parola su cui entra): ${(c.cartelli || []).map((k) => `${k.testo} \u2192 ${k.sulla_parola}`).join("; ")}`;
     const r = await one(
       env,
       "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,'[]','url',?,?,?) RETURNING id",
       prompt,
       JSON.stringify([{ nome: `avatar_${A.id}_${v.n}.mp4`, url: v.url, durata: v.durata }]),
-      JSON.stringify({ genere: "educativo", mood: [] }),
+      JSON.stringify({ genere: "split", mood: [] }),
       ora(),
       ora()
     );

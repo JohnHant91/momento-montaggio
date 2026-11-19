@@ -209,7 +209,8 @@ class TalkingHead(_Base):
                  "-t", f"{p['durata']:.4f}"] + X264_INT + ["-c:a", "pcm_s16le", out], f"tratto {i + 1}")
         return out
 
-    def monta(self, out_finale):
+    def parlato(self):
+        """Trascrive, toglie i silenzi, monta le frasi (con punch zoom) e pulisce la voce: base comune dei formati parlati."""
         t0 = time.time()
         P = self.p
         segmenti = [dict(s, _k=k) for k, s in enumerate(P["segmenti"])]
@@ -284,6 +285,10 @@ class TalkingHead(_Base):
         self.ff(["-i", unito, "-map", "0:v", "-c:v", "copy", video], "video")
         self.ff(["-i", unito, "-map", "0:a", "-af", "highpass=f=80,afftdn=nf=-28,acompressor=threshold=-20dB:ratio=3:attack=5:release=90:makeup=2",
                  "-ar", "48000", "-ac", "2", "-c:a", "pcm_s16le", voce], "pulizia voce")
+        return t0, P, segmenti, righe, tratti, totale, video, voce, lut
+
+    def monta(self, out_finale):
+        t0, P, segmenti, righe, tratti, totale, video, voce, lut = self.parlato()
 
         # b-roll sulle parole chiave (il parlato continua sotto)
         tutte = [w for r in righe for w in r]
@@ -706,7 +711,135 @@ class Carosello(_Base):
         return path
 
 
-FORMATI = {"talking_head": TalkingHead, "carosello": Carosello}
+# ====================================================================== SPLIT EDUCATIVO (grafiche animate sopra, persona sotto)
+TIPI_SCENA = {"titolo", "numero", "sito", "terminale", "contatore", "lista", "confronto", "card", "chat", "barre", "riepilogo"}
+PALETTE_BASE = {"fondo": "#F1EFEA", "inchiostro": "#17171A", "accento": "#0E9F9A", "secondario": "#CFE9E7", "tenue": "rgba(23,23,26,0.09)"}
+
+
+def installa_grafiche(avvisa=None):
+    if not os.path.isdir(os.path.join(GRAFICHE, "node_modules", "remotion")):
+        if avvisa:
+            avvisa("vfx", "preparo il motore grafico (Remotion), solo la prima volta")
+        p = subprocess.run(["npm", "install", "--no-audit", "--no-fund", "--loglevel=error"], cwd=GRAFICHE, capture_output=True, text=True, timeout=900)
+        if p.returncode != 0:
+            raise RuntimeError("installazione Remotion non riuscita: " + p.stderr[-300:])
+
+
+def screenshot_sito(url, out):
+    """Schermata vera del sito citato (Chrome senza finestra del runner GitHub)."""
+    for exe in ("google-chrome", "chromium-browser", "chromium"):
+        try:
+            p = subprocess.run([exe, "--headless=new", "--no-sandbox", "--disable-gpu", "--hide-scrollbars", "--window-size=1280,900",
+                                "--virtual-time-budget=6000", f"--screenshot={out}", url], capture_output=True, text=True, timeout=60)
+            if os.path.exists(out) and os.path.getsize(out) > 5000:
+                return True
+        except Exception:
+            continue
+    return False
+
+
+class SplitGrafico(TalkingHead):
+    """Sopra: foglio color carta con le grafiche animate (Remotion) che seguono il discorso; al centro il sottotitolo a
+    pillola nera; sotto la persona che parla. Colori e font arrivano dalla "palette" scelta dal Regista per l'argomento."""
+    ZOOM = [1.0]  # niente punch: la persona sta ferma nel suo riquadro, il movimento lo fanno le grafiche
+
+    def monta(self, out_finale):
+        t0, P, segmenti, righe, tratti, totale, video, voce, lut = self.parlato()
+        installa_grafiche(self.avvisa)
+        parole, rr = [], []
+        evid = {norm(x) for x in (P.get("evidenzia") or []) if norm(x)}
+        for r in righe:
+            idx = []
+            for w in r:
+                parole.append({"t": w["testo"], "da": round(w["t0"], 3), "a": round(w["t1"], 3), "k": norm(w["testo"]) in evid})
+                idx.append(len(parole) - 1)
+            rr.append({"da": round(r[0]["t0"], 3), "a": round(r[-1]["t1"], 3), "p": idx})
+        # scene sulle parole dette (in ordine), ognuna fino all'inizio della successiva
+        scene, pos = [], 0
+        pub = os.path.join(GRAFICHE, "public")
+        os.makedirs(pub, exist_ok=True)
+        sigla = f"r{int(time.time())}"
+        for g in (P.get("grafiche") or [])[:40]:
+            if g.get("tipo") not in TIPI_SCENA:
+                continue
+            chiave = norm(str(g.get("sulla_parola", "")).split(" ")[0])
+            k = next((i for i in range(pos, len(parole)) if chiave and norm(parole[i]["t"]).startswith(chiave)), None)
+            if k is None:
+                if not scene and pos == 0:
+                    k = 0  # la prima grafica parte comunque col gancio
+                else:
+                    self.report.append(f"grafica {g.get('tipo')} saltata: \"{g.get('sulla_parola')}\" non si sente")
+                    continue
+            pos = k + 1
+            d = dict(g.get("dati") or {})
+            if g["tipo"] == "sito":
+                url = d.get("url") or ""
+                f = os.path.join(pub, f"{sigla}_sito{len(scene)}.png")
+                if url.startswith("http") and screenshot_sito(url, f):
+                    d["img"] = os.path.basename(f)
+                    d.setdefault("indirizzo", re.sub(r"^https?://(www\.)?", "", url)[:60])
+                else:
+                    self.report.append(f"screenshot non riuscito per {url or '(nessun indirizzo)'}: uso la scheda senza immagine")
+                    d.setdefault("titolo", re.sub(r"^https?://(www\.)?", "", url)[:40] or "sito")
+            scene.append({"da": max(0.0, parole[k]["da"] - 0.12), "tipo": g["tipo"], "pieno": bool(g.get("pieno")), "dati": d})
+        for i, s in enumerate(scene):
+            s["a"] = round(scene[i + 1]["da"] if i + 1 < len(scene) else totale, 3)
+            s["da"] = round(s["da"], 3)
+        scene = [s for s in scene if s["a"] - s["da"] >= 0.5]
+        if not scene:
+            scene = [{"da": 0, "a": totale, "tipo": "titolo", "pieno": False, "dati": {"testo": (P.get("titolo") or " ".join(p["t"] for p in parole[:5]))[:40]}}]
+        # barra 1/N: le voci della lista entrano sulle loro parole
+        tracker = None
+        tr = P.get("tracker") or {}
+        if tr.get("voci"):
+            voci, pos = [], 0
+            for v in tr["voci"][:10]:
+                chiave = norm(str(v.get("sulla_parola", "")).split(" ")[0])
+                k = next((i for i in range(pos, len(parole)) if chiave and norm(parole[i]["t"]).startswith(chiave)), None)
+                if k is not None:
+                    voci.append({"da": parole[k]["da"], "etichetta": str(v.get("etichetta", ""))[:24]})
+                    pos = k + 1
+            if voci:
+                tracker = {"totale": max(len(voci), int(tr.get("totale") or len(voci))), "voci": voci}
+        pal = dict(PALETTE_BASE)
+        for k2, v in (P.get("palette") or {}).items():
+            if k2 in pal and isinstance(v, str) and re.match(r"^(#[0-9a-fA-F]{6}|rgba?\([0-9., ]+\))$", v.strip()):
+                pal[k2] = v.strip()
+        base = os.path.join(pub, f"{sigla}_base.mp4")
+        self.ff(["-i", video, "-an", "-c:v", "copy", base], "persona")
+        volto = segmenti[0].get("_volto") or {"cx": 0.5, "cy": 0.32}
+        props = {"durata": round(totale, 3), "fps": FPS, "video": os.path.basename(base), "volto": {"cx": volto["cx"], "cy": volto["cy"]},
+                 "palette": pal, "font": P.get("font_split") or {}, "parole": parole, "righe": rr, "scene": scene, "tracker": tracker}
+        pj = os.path.join(self.tmp, "split.json")
+        with open(pj, "w") as f:
+            json.dump(props, f, ensure_ascii=False)
+        self.avvisa("vfx", f"animo {len(scene)} grafiche sopra la persona" + (f" con la barra {len(tracker['voci'])}/{tracker['totale']}" if tracker else "") + " (Remotion)")
+        anim = os.path.join(self.tmp, "split.mp4")
+        try:
+            p = subprocess.run(["npx", "remotion", "render", "src/index.ts", "Split", anim, f"--props={pj}", "--codec=h264", "--crf=16", "--muted",
+                                "--concurrency=2", "--log=error"], cwd=GRAFICHE, capture_output=True, text=True, timeout=2400)
+            if p.returncode != 0 or not os.path.exists(anim):
+                raise RuntimeError("render delle grafiche non riuscito: " + (p.stderr or p.stdout)[-500:])
+        finally:
+            for x in os.listdir(pub):
+                if x.startswith(sigla):
+                    os.remove(os.path.join(pub, x))
+        eventi_sfx = [("whoosh", s["da"] - 0.1, 0.35 if not s["pieno"] else 0.6) for s in scene[1:]]
+        mixwav = self.mix_sfx(voce, eventi_sfx, totale, os.path.join(self.tmp, "mix.wav"))
+        ass = os.path.join(self.tmp, "vuoto.ass")
+        with open(ass, "w", encoding="utf-8") as f:
+            f.write(self.intestazione_ass(["Vuoto,Arial,20,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1"]))
+        self.avvisa("audio", "voce pulita, whoosh sui cambi di grafica, volume a −14 LUFS")
+        self.finale(anim, ass, mixwav, totale, out_finale)
+        rep = self.revisiona(out_finale)
+        rep["secondi_di_lavoro"] = round(time.time() - t0)
+        rep["formato"] = "split_grafico"
+        rep["grafiche"] = len(scene)
+        self.avvisa("revisore", f"controllo: {rep['durata']}s · {len(scene)} grafiche · {rep['lufs']} LUFS" + (" · ⚠ " + "; ".join(rep["problemi"]) if rep["problemi"] else " · tutto ok"))
+        return rep
+
+
+FORMATI = {"talking_head": TalkingHead, "carosello": Carosello, "split_grafico": SplitGrafico}
 
 
 def montatore_per(piano):
