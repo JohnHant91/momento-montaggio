@@ -5978,10 +5978,14 @@ async function riunionePagina(id) {
 
 async function approvazioni() {
   if (!AGENTI.capo) { const R = await chiama('/api/azienda'); Object.assign(AGENTI, R.squadra); }
-  const L = await chiama('/api/contenuti');
+  const [L, Av, Po] = await Promise.all([chiama('/api/contenuti'), chiama('/api/avatar').catch(() => []), chiama('/api/post').catch(() => [])]);
+  // copioni del profilo e caroselli che aspettano te: si approvano nella loro pagina
+  const attesa = [...Av.filter((x) => x.stato === 'da_approvare').map((x) => ({ t: '\u{1F3AD} Copioni per il tuo profilo IG', b: x.argomento + ' \xB7 ' + x.numero + ' reel', link: '#/profilo/' + x.id })),
+    ...Po.filter((x) => ['da_approvare', 'attende_canva'].includes(x.stato)).map((x) => ({ t: x.stato === 'da_approvare' ? '\u{1F5C2}\uFE0F Caroselli da approvare' : '\u{1F3A8} Caroselli da fare su Canva', b: (x.cliente || '') + (x.titolo ? ' \xB7 ' + x.titolo : ''), link: '#/post/' + x.id }))];
+  const blocco = attesa.length ? '<h2>\u270D\uFE0F Copioni e caroselli da approvare (' + attesa.length + ')</h2>' + attesa.map((x) => '<a class="card lav" href="' + x.link + '"><div class="riga"><b style="flex:1">' + e(x.b) + '</b><span class="btn" style="padding:5px 12px;font-size:12px">Apri e approva \u25B8</span></div><div class="mut">' + e(x.t) + '</div></a>').join('') : '';
   const gruppi = [['da_pubblicare', '\u23F0 Da pubblicare adesso'], ['da_approvare', '\u2705 Da approvare'], ['programmato', '\u{1F5D3}\uFE0F In programmazione'], ['approvato', 'Approvati senza data'], ['pubblicato', 'Pubblicati']];
   $('#app').innerHTML = '<h1>Approvazioni e calendario</h1><p class="mut">Approvi tu, poi Rita li mette in calendario (anche nel gestionale, sezione contenuti). All\u2019ora di uscita ti avvisa: la pubblicazione automatica arriva quando colleghiamo un canale.</p>' +
-    gruppi.map(([s, t]) => { const g = L.filter((c) => c.stato === s); return g.length ? '<h2>' + t + ' (' + g.length + ')</h2>' + (s === 'pubblicato' ? g.slice(0, 10) : g).map(vistaContenuto).join('') : ''; }).join('') || '<div class="vuoto">Niente da approvare.</div>';
+    ((blocco + gruppi.map(([s, t]) => { const g = L.filter((c) => c.stato === s); return g.length ? '<h2>' + t + ' (' + g.length + ')</h2>' + (s === 'pubblicato' ? g.slice(0, 10) : g).map(vistaContenuto).join('') : ''; }).join('')) || '<div class="vuoto">Niente da approvare.</div>');
   agganciaContenuti(L, rotta);
 }
 
@@ -6669,7 +6673,8 @@ export function grandangolo(subito) {
 export function entraUfficio(u) {
   const A = S.aree[u]; if (!A) return;
   S.scelto = null; disegnaEtichette();
-  vola(new THREE.Vector3(A.x + A.w / 2, 0.4, A.z + A.d / 2 + 0.3), distanzaPer(A.w + 0.8, A.d + 0.8));
+  // inquadratura media: la stanza al centro con un po' delle vicine (le stanze strette da 5 m non riempiono pi\xF9 tutto lo schermo)
+  vola(new THREE.Vector3(A.x + A.w / 2, 0.4, A.z + A.d / 2 + 0.3), distanzaPer(Math.max(A.w + 0.8, 14), Math.max(A.d + 0.8, 9)));
   S.cb.ufficio && S.cb.ufficio(u);
 }
 export function vaiAgente(a) {
@@ -6677,7 +6682,7 @@ export function vaiAgente(a) {
   S.scelto = a; disegnaEtichette();
   const t = new THREE.Vector3(P.U.o.position.x, 0.9, P.U.o.position.z - 0.35);
   if (innerWidth < 700) t.z += 0.9;
-  vola(t, distanzaPer(3.4, 2.6));
+  vola(t, distanzaPer(6.5, 4.6));
   S.cb.agente && S.cb.agente(a);
 }
 
@@ -6857,7 +6862,7 @@ export function avvia(cont, dati, cb) {
   scena.add(sole, sole.target);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true; controls.dampingFactor = 0.1; controls.screenSpacePanning = false;
-  controls.minDistance = 3; controls.maxDistance = 90;
+  controls.minDistance = 3; controls.maxDistance = 90; controls.zoomToCursor = true; controls.zoomSpeed = 1.4; // la rotella zooma dove punti il mouse
   controls.minPolarAngle = 0.35; controls.maxPolarAngle = 1.0; controls.minAzimuthAngle = -0.45; controls.maxAzimuthAngle = 0.45;
   controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
   controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };

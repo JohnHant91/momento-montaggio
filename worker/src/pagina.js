@@ -1080,10 +1080,14 @@ async function riunionePagina(id) {
 
 async function approvazioni() {
   if (!AGENTI.capo) { const R = await chiama('/api/azienda'); Object.assign(AGENTI, R.squadra); }
-  const L = await chiama('/api/contenuti');
+  const [L, Av, Po] = await Promise.all([chiama('/api/contenuti'), chiama('/api/avatar').catch(() => []), chiama('/api/post').catch(() => [])]);
+  // copioni del profilo e caroselli che aspettano te: si approvano nella loro pagina
+  const attesa = [...Av.filter((x) => x.stato === 'da_approvare').map((x) => ({ t: '🎭 Copioni per il tuo profilo IG', b: x.argomento + ' · ' + x.numero + ' reel', link: '#/profilo/' + x.id })),
+    ...Po.filter((x) => ['da_approvare', 'attende_canva'].includes(x.stato)).map((x) => ({ t: x.stato === 'da_approvare' ? '🗂️ Caroselli da approvare' : '🎨 Caroselli da fare su Canva', b: (x.cliente || '') + (x.titolo ? ' · ' + x.titolo : ''), link: '#/post/' + x.id }))];
+  const blocco = attesa.length ? '<h2>✍️ Copioni e caroselli da approvare (' + attesa.length + ')</h2>' + attesa.map((x) => '<a class="card lav" href="' + x.link + '"><div class="riga"><b style="flex:1">' + e(x.b) + '</b><span class="btn" style="padding:5px 12px;font-size:12px">Apri e approva ▸</span></div><div class="mut">' + e(x.t) + '</div></a>').join('') : '';
   const gruppi = [['da_pubblicare', '⏰ Da pubblicare adesso'], ['da_approvare', '✅ Da approvare'], ['programmato', '🗓️ In programmazione'], ['approvato', 'Approvati senza data'], ['pubblicato', 'Pubblicati']];
   $('#app').innerHTML = '<h1>Approvazioni e calendario</h1><p class="mut">Approvi tu, poi Rita li mette in calendario (anche nel gestionale, sezione contenuti). All’ora di uscita ti avvisa: la pubblicazione automatica arriva quando colleghiamo un canale.</p>' +
-    gruppi.map(([s, t]) => { const g = L.filter((c) => c.stato === s); return g.length ? '<h2>' + t + ' (' + g.length + ')</h2>' + (s === 'pubblicato' ? g.slice(0, 10) : g).map(vistaContenuto).join('') : ''; }).join('') || '<div class="vuoto">Niente da approvare.</div>';
+    ((blocco + gruppi.map(([s, t]) => { const g = L.filter((c) => c.stato === s); return g.length ? '<h2>' + t + ' (' + g.length + ')</h2>' + (s === 'pubblicato' ? g.slice(0, 10) : g).map(vistaContenuto).join('') : ''; }).join('')) || '<div class="vuoto">Niente da approvare.</div>');
   agganciaContenuti(L, rotta);
 }
 

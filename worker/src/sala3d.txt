@@ -591,7 +591,8 @@ export function grandangolo(subito) {
 export function entraUfficio(u) {
   const A = S.aree[u]; if (!A) return;
   S.scelto = null; disegnaEtichette();
-  vola(new THREE.Vector3(A.x + A.w / 2, 0.4, A.z + A.d / 2 + 0.3), distanzaPer(A.w + 0.8, A.d + 0.8));
+  // inquadratura media: la stanza al centro con un po' delle vicine (le stanze strette da 5 m non riempiono più tutto lo schermo)
+  vola(new THREE.Vector3(A.x + A.w / 2, 0.4, A.z + A.d / 2 + 0.3), distanzaPer(Math.max(A.w + 0.8, 14), Math.max(A.d + 0.8, 9)));
   S.cb.ufficio && S.cb.ufficio(u);
 }
 export function vaiAgente(a) {
@@ -599,7 +600,7 @@ export function vaiAgente(a) {
   S.scelto = a; disegnaEtichette();
   const t = new THREE.Vector3(P.U.o.position.x, 0.9, P.U.o.position.z - 0.35);
   if (innerWidth < 700) t.z += 0.9;
-  vola(t, distanzaPer(3.4, 2.6));
+  vola(t, distanzaPer(6.5, 4.6));
   S.cb.agente && S.cb.agente(a);
 }
 
@@ -779,7 +780,7 @@ export function avvia(cont, dati, cb) {
   scena.add(sole, sole.target);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true; controls.dampingFactor = 0.1; controls.screenSpacePanning = false;
-  controls.minDistance = 3; controls.maxDistance = 90;
+  controls.minDistance = 3; controls.maxDistance = 90; controls.zoomToCursor = true; controls.zoomSpeed = 1.4; // la rotella zooma dove punti il mouse
   controls.minPolarAngle = 0.35; controls.maxPolarAngle = 1.0; controls.minAzimuthAngle = -0.45; controls.maxAzimuthAngle = 0.45;
   controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
   controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
