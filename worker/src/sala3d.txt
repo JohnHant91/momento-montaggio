@@ -10,24 +10,24 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 let S = null;
 // pianta: due file di stanze separate da un corridoio centrale; ogni stanza ha la porta sul corridoio
-const LARGO = 39, FONDO = 21, CX = LARGO / 2, CZ = FONDO / 2;
+const LARGO = 45, FONDO = 21, CX = LARGO / 2, CZ = FONDO / 2;
 const COR_Z = 9.2, COR_D = 2.4; // corridoio da z 9.2 a 11.6
 const POSTO = 1.4, FILA = 2.4;
 const SUD = FONDO - COR_Z - COR_D;
 const STANZE = [
   // fila nord (in fondo): porta verso il corridoio = parete vicina a chi guarda; la direzione è la stanza grande al centro
-  { id: 'marketing', x: 0, z: 0, w: 6.8, d: COR_Z, lato: 'n', col: 3 },
-  { id: 'social', x: 6.8, z: 0, w: 6.8, d: COR_Z, lato: 'n', col: 3 },
-  { id: 'direzione', x: 13.6, z: 0, w: 12, d: COR_Z, lato: 'n', col: 3, porta: 6, scrivanie: 1.3 },
-  { id: 'video', x: 25.6, z: 0, w: 13.4, d: COR_Z, lato: 'n', col: 6 },
-  // fila sud (davanti): porta verso il corridoio = parete di fondo della stanza
-  { id: 'foto', x: 0, z: COR_Z + COR_D, w: 6.6, d: SUD, lato: 's', col: 3 },
-  { id: 'web', x: 6.6, z: COR_Z + COR_D, w: 5.6, d: SUD, lato: 's', col: 2 },
-  { id: 'booking', x: 12.2, z: COR_Z + COR_D, w: 4.8, d: SUD, lato: 's', col: 1 },
-  { id: 'gestionale', x: 17.0, z: COR_Z + COR_D, w: 4.8, d: SUD, lato: 's', col: 1 },
-  { id: 'contabilita', x: 21.8, z: COR_Z + COR_D, w: 4.8, d: SUD, lato: 's', col: 1 },
-  { id: 'meeting', x: 26.6, z: COR_Z + COR_D, w: 7.0, d: SUD, lato: 's', col: 0, nome: 'Sala meeting' },
-  { id: 'relax', x: 33.6, z: COR_Z + COR_D, w: 5.4, d: SUD, lato: 's', col: 0, nome: 'Sala relax' },
+  { id: 'marketing', x: 0, z: 0, w: 8.25, d: COR_Z, lato: 'n', col: 3 },
+  { id: 'social', x: 8.25, z: 0, w: 8.25, d: COR_Z, lato: 'n', col: 3 },
+  { id: 'direzione', x: 16.5, z: 0, w: 12, d: COR_Z, lato: 'n', col: 3, porta: 6, scrivanie: 1.3 },
+  { id: 'video', x: 28.5, z: 0, w: 16.5, d: COR_Z, lato: 'n', col: 6 },
+  // fila sud (davanti): porta verso il corridoio = parete di fondo della stanza; la sala meeting è al centro, grande come la direzione
+  { id: 'relax', x: 0, z: COR_Z + COR_D, w: 5.0, d: SUD, lato: 's', col: 0, nome: 'Sala relax' },
+  { id: 'foto', x: 5.0, z: COR_Z + COR_D, w: 6.0, d: SUD, lato: 's', col: 3 },
+  { id: 'web', x: 11.0, z: COR_Z + COR_D, w: 5.5, d: SUD, lato: 's', col: 2 },
+  { id: 'meeting', x: 16.5, z: COR_Z + COR_D, w: 12, d: SUD, lato: 's', col: 0, nome: 'Sala meeting', porta: 6 },
+  { id: 'booking', x: 28.5, z: COR_Z + COR_D, w: 5.5, d: SUD, lato: 's', col: 1 },
+  { id: 'gestionale', x: 34.0, z: COR_Z + COR_D, w: 5.5, d: SUD, lato: 's', col: 1 },
+  { id: 'contabilita', x: 39.5, z: COR_Z + COR_D, w: 5.5, d: SUD, lato: 's', col: 1 },
 ];
 const ST = (id) => STANZE.find((r) => r.id === id);
 const TINTE = { direzione: '#e7ebff', marketing: '#fff0e6', social: '#ffeef4', video: '#eaf6ee', foto: '#fff7e2', web: '#e9f4fb', booking: '#eef8e6', gestionale: '#f1edff', contabilita: '#fff3e3', relax: '#f4efe6', meeting: '#eef2f7' };
@@ -363,19 +363,27 @@ function giroDiSedie(cx, cz, rx, rz, n, stanza) {
 }
 function arredaMeeting(R) {
   const { scena, mat } = S;
-  const cx = R.x + R.w / 2, cz = R.z + R.d / 2 + 0.25;
-  const piano = ombra(new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.06, 48), mat.legno)); piano.scale.set(0.62, 1, 1.45); piano.position.set(cx, 0.75, cz); scena.add(piano);
-  for (const dz of [-0.8, 0.8]) { const g = box(0.4, 0.72, 0.08, mat.bianco, 0.02); g.position.set(cx, 0.37, cz + dz); scena.add(g); }
-  giroDiSedie(cx, cz, 1.25, 2.0, 8, 'meeting');
-  // schermo a parete con l'argomento della riunione
+  // tavolo ovale grande come quello della direzione, 10 posti, al centro della sala
+  const cx = R.x + R.w / 2, cz = R.z + R.d * 0.58;
+  const tappeto = new THREE.Mesh(new RoundedBoxGeometry(6.4, 0.012, 3.4, 2, 0.006), new THREE.MeshStandardMaterial({ color: 0xd3dbe6, roughness: 0.95 }));
+  tappeto.position.set(cx, 0.05, cz); tappeto.receiveShadow = true; scena.add(tappeto);
+  const piano = ombra(new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.06, 48), mat.legno)); piano.scale.set(1.75, 1, 0.68); piano.position.set(cx, 0.75, cz); scena.add(piano);
+  for (const dx of [-1.0, 1.0]) { const g = box(0.08, 0.72, 0.5, mat.bianco, 0.02); g.position.set(cx + dx, 0.37, cz); scena.add(g); }
+  giroDiSedie(cx, cz, 2.35, 1.15, 10, 'meeting');
+  for (const [dx, dz] of [[-0.9, 0.1], [0.4, -0.15], [1.1, 0.2]]) { const bl = box(0.3, 0.015, 0.22, mat.bianco, 0.005); bl.position.set(cx + dx, 0.79, cz + dz); scena.add(bl); }
+  for (const x of [R.x + 0.7, R.x + R.w - 0.7]) { const a = agave(mat, 0.85); a.position.set(x, 0.05, R.z + R.d - 0.8); scena.add(a); }
+  // lavagna bianca a sinistra della porta
+  const lav = box(2.2, 1.1, 0.05, mat.bianco, 0.02); lav.position.set(R.x + 1.8, 1.35, R.z + 0.6); scena.add(lav);
+  const lp = box(0.06, 0.8, 0.06, mat.metallo, 0.01); lp.position.set(R.x + 1.8, 0.4, R.z + 0.6); scena.add(lp);
+  // schermo con l'argomento della riunione, su un supporto a destra della porta, rivolto verso il tavolo e chi guarda
   const cv = document.createElement('canvas'); cv.width = 512; cv.height = 288;
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
-  const zt = cz - 3.0; // schermo su un supporto in fondo al tavolo, rivolto verso chi guarda la sala
-  const tv = box(2.0, 1.15, 0.06, mat.nero, 0.02); tv.position.set(cx + 0.9, 1.35, zt); scena.add(tv);
-  const piede = box(0.08, 0.8, 0.08, mat.metallo, 0.01); piede.position.set(cx + 0.9, 0.4, zt); scena.add(piede);
-  const base = box(0.7, 0.04, 0.4, mat.metallo, 0.01); base.position.set(cx + 0.9, 0.02, zt); scena.add(base);
-  const sc = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 1.07), new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.6 }));
-  sc.position.set(cx + 0.9, 1.35, zt + 0.035); scena.add(sc);
+  const xt = R.x + R.w - 2.2, zt = R.z + 0.7;
+  const tv = box(2.4, 1.38, 0.06, mat.nero, 0.02); tv.position.set(xt, 1.45, zt); scena.add(tv);
+  const piede = box(0.08, 0.85, 0.08, mat.metallo, 0.01); piede.position.set(xt, 0.42, zt); scena.add(piede);
+  const base = box(0.8, 0.04, 0.45, mat.metallo, 0.01); base.position.set(xt, 0.02, zt); scena.add(base);
+  const sc = new THREE.Mesh(new THREE.PlaneGeometry(2.28, 1.28), new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.6 }));
+  sc.position.set(xt, 1.45, zt + 0.035); scena.add(sc);
   S.schermoMeeting = { cv, tex };
   disegnaSchermoMeeting(null);
 }
