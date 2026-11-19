@@ -2919,7 +2919,7 @@ function orariPubblicazione(quanti, da = /* @__PURE__ */ new Date()) {
 function richiestaProfilo(testo) {
   const t = String(testo || "");
   if (!/(mio\s+profilo|profilo\s+(personale|ig|instagram)|mio\s+(ig|instagram)|mia\s+pagina\s+(ig|instagram)|per\s+me\s+su\s+(ig|instagram))/i.test(t)) return null;
-  const nm = t.match(/(\d+)\s*(reel|video|contenut)/i) || t.match(/\b(uno|due|tre|quattro|cinque|sei|sette|otto|nove|dieci)\s+(reel|video|contenut)/i);
+  const nm = t.match(/(\d+)\s*(reel|video|contenut|carosell|post|grafich)/i) || t.match(/\b(uno|due|tre|quattro|cinque|sei|sette|otto|nove|dieci)\s+(reel|video|contenut|carosell|post|grafich)/i);
   const parole = { uno: 1, due: 2, tre: 3, quattro: 4, cinque: 5, sei: 6, sette: 7, otto: 8, nove: 9, dieci: 10 };
   const numero = Math.min(10, Math.max(1, nm ? Number(nm[1]) || parole[nm[1].toLowerCase()] : 5));
   const am = t.match(/\b(?:su|sul|sullo|sulla|sui|sugli|sulle|riguardo(?:\s+a(?:l|lla|gli|i)?)?|argomento:?|tema:?|parlando\s+di|che\s+parlano\s+di)\s+(.{3,})/i);

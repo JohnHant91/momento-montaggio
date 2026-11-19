@@ -199,7 +199,7 @@ P = (await chiama('/api/post/' + pid2)).j; ok(P.contenuti.post[0].ig_stato === '
 
 r = await chiama('/api/capo', { method: 'POST', body: { testo: 'per il mio profilo personale fammi 2 caroselli sugli errori nei preventivi delle agenzie' } });
 ok(r.j.post && !r.j.avatar && !r.j.riunione, 'Alba: "caroselli per il mio profilo" parte nel comparto Post (#' + r.j.post + ')');
-P = (await chiama('/api/post/' + r.j.post)).j; ok(P.numero === 2 && P.tipo === 'carosello' && P.cliente_id === 3, 'due caroselli sul tuo profilo');
+P = (await chiama('/api/post/' + r.j.post)).j; ok(P.numero === 2 && P.tipo === 'carosello' && P.cliente_id === 3, 'due caroselli sul tuo profilo ' + JSON.stringify([P.numero, P.tipo, P.cliente_id]));
 
 console.log('\n11) pagina: lo script si compila');
 const html = await (await chiama('/', { grezzo: true })).text();
