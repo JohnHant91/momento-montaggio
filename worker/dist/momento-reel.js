@@ -7213,12 +7213,12 @@ async function gestionaleUfficiale(req, env, url) {
   return new Response(r.body, { status: r.status, headers: out });
 }
 async function diagnosiUnaVolta(env) {
-  const K = "diagnosi_gemini_1";
+  const K = "diagnosi_gemini_2";
   if (await env.VIDEO.get(K)) return;
   await env.VIDEO.put(K, "in_corso", { expirationTtl: 86400 * 30 });
   try {
     const r = await diagnosiGemini(await configurazione(env));
-    await log(env, null, "regia", "\u{1FA7A} diagnosi Gemini: " + JSON.stringify(r).slice(0, 3500));
+    await log(env, null, "regia", "\u{1FA7A} diagnosi Gemini: " + (Array.isArray(r) ? r.map((x) => `${x.modello} ${x.prova}: ${x.stato || x.errore} ${x.secondi || ""}s ${String(x.risposta || "").replace(/\s+/g, " ").slice(0, 90)}`).join(" | ") : JSON.stringify(r)));
   } catch (e) {
     await log(env, null, "regia", "\u{1FA7A} diagnosi Gemini fallita: " + e.message, "warn");
   }
