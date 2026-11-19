@@ -41,7 +41,12 @@ jobs:
           ffmpeg -loglevel error -i rif.mp4 -vf "fps=1,scale=720:-2" grande_%02d.jpg
           ffmpeg -loglevel error -i rif.mp4 -vn -ac 1 -ar 22050 audio.mp3 || true
           (pip install -q faster-whisper > /dev/null 2>&1 && python3 "$GITHUB_WORKSPACE/motore/trascrivi.py" audio.mp3 trascrizione.txt) || echo "trascrizione non riuscita" > trascrizione.txt
-          mkdir -p /tmp/pub && cp *.jpg info.txt tagli.txt trascrizione.txt /tmp/pub/ && cp audio.mp3 /tmp/pub/ 2>/dev/null || true
+          # il materiale di terzi non va in chiaro su un ramo pubblico: lo cifro con la chiave pubblica dello studio
+          tar czf /tmp/studio.tgz *.jpg info.txt tagli.txt trascrizione.txt
+          openssl rand -out /tmp/k.bin 32
+          openssl enc -aes-256-cbc -pbkdf2 -salt -in /tmp/studio.tgz -out /tmp/studio.enc -pass file:/tmp/k.bin
+          openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/motore/chiave_studio.pem" -in /tmp/k.bin -out /tmp/k.enc
+          mkdir -p /tmp/pub && cp /tmp/studio.enc /tmp/k.enc /tmp/pub/ && echo ok > /tmp/pub/fatto.txt
           cd /tmp/pub && git init -q && git checkout -q -b studio-riferimento && git add . \
             && git -c user.name=motore -c user.email=motore@momento commit -qm studio \
             && git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" studio-riferimento
