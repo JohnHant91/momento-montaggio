@@ -592,7 +592,7 @@ export function entraUfficio(u) {
   const A = S.aree[u]; if (!A) return;
   S.scelto = null; disegnaEtichette();
   // inquadratura media: la stanza al centro con un po' delle vicine (le stanze strette da 5 m non riempiono più tutto lo schermo)
-  vola(new THREE.Vector3(A.x + A.w / 2, 0.4, A.z + A.d / 2 + 0.3), distanzaPer(Math.max(A.w + 0.8, 14), Math.max(A.d + 0.8, 9)));
+  vola(new THREE.Vector3(A.x + A.w / 2, 0.4, A.z + A.d / 2 + 0.3), distanzaPer(Math.max(A.w + 0.8, 20), Math.max(A.d + 0.8, 11)));
   S.cb.ufficio && S.cb.ufficio(u);
 }
 export function vaiAgente(a) {
@@ -600,7 +600,7 @@ export function vaiAgente(a) {
   S.scelto = a; disegnaEtichette();
   const t = new THREE.Vector3(P.U.o.position.x, 0.9, P.U.o.position.z - 0.35);
   if (innerWidth < 700) t.z += 0.9;
-  vola(t, distanzaPer(6.5, 4.6));
+  vola(t, distanzaPer(9, 6));
   S.cb.agente && S.cb.agente(a);
 }
 
