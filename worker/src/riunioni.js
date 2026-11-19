@@ -8,6 +8,7 @@ import { SQUADRA, DELEGABILI, cliente, eseguiPiano } from './agenzia.js';
 import { GENERI } from './stili.js';
 import { nuovoPianoAvatar, richiestaProfilo } from './avatar.js';
 import { chi } from './consumi.js';
+import { nuovoLavoroPost } from './post.js';
 
 // capireparto: [ufficio, id agente, nome, ruolo]
 export const CAPI = [
@@ -46,6 +47,16 @@ export async function chiediDirettrice(env, testo, clienteId) {
     const risposta = `Ok, ${prof.numero} reel per il tuo profilo. Su che argomento? Scrivimi per esempio: "per il mio profilo ${prof.numero} reel su come trovare clienti con Instagram".`;
     await run(env, 'INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)', 'capo', 'assistant', risposta, ora());
     return { risposta, incarichi: [] };
+  }
+  if (prof && /carosell|\bpost\b|grafich|slide/i.test(testo)) { // caroselli/post per il profilo: comparto Post e caroselli
+    const cfgP = await configurazione(env);
+    const tipo = /carosell|slide/i.test(testo) ? 'carosello' : 'post';
+    const pc = (testo.match(/https:\/\/\S*pcloud\S*code=\S+/) || [])[0] || null;
+    const id = await nuovoLavoroPost(env, { cliente_id: Number(cfgP.IG_CLIENTE_ID) || null, cliente: 'Johnny · profilo Instagram', tipo, numero: prof.numero, brief: testo, pcloud: pc });
+    const risposta = `Ricevuto: ${prof.numero} ${tipo === 'carosello' ? 'caroselli' : 'post'} per il tuo profilo su "${prof.argomento}". Ines e Tea cercano i più virali della nicchia, Iris li studia${pc ? ', Ada sceglie le tue foto' : ''}, Pietro e Giulia scrivono slide e caption. Te li porto da approvare in "Tocca a te", poi si impaginano su Canva e decidi tu quando pubblicarli.`;
+    await run(env, 'INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)', 'capo', 'assistant', risposta, ora());
+    await log(env, null, 'capo', `🗂️ profilo IG di Johnny: lavoro post #${id}, ${prof.numero} ${tipo} su "${prof.argomento.slice(0, 60)}"`);
+    return { risposta, post: id, incarichi: [] };
   }
   if (prof) {
     const id = await nuovoPianoAvatar(env, prof.argomento, prof.numero, testo);

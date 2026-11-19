@@ -172,7 +172,7 @@ async function log(env, lavoroId, agente, messaggio, livello = "info") {
   );
 }
 var CHIAVI_SEGRETE = ["ANTHROPIC_API_KEY", "YOUTUBE_API_KEY", "APIFY_TOKEN", "GITHUB_TOKEN", "HEYGEN_API_KEY"];
-var CHIAVI_OPZIONI = ["CLAUDE_MODEL", "CLAUDE_MODEL_LIGHT", "APIFY_TIKTOK_ACTOR", "APIFY_INSTAGRAM_ACTOR", "NUM_RIFERIMENTI", "DURATA_MAX", "MESI_RICERCA", "HEYGEN_AVATAR", "HEYGEN_VOCE", "HEYGEN_DOLLARI_MINUTO", "COSTI_FISSI", "CAMBIO_USD_EUR"];
+var CHIAVI_OPZIONI = ["CLAUDE_MODEL", "CLAUDE_MODEL_LIGHT", "APIFY_TIKTOK_ACTOR", "APIFY_INSTAGRAM_ACTOR", "NUM_RIFERIMENTI", "DURATA_MAX", "MESI_RICERCA", "HEYGEN_AVATAR", "HEYGEN_VOCE", "HEYGEN_DOLLARI_MINUTO", "COSTI_FISSI", "CAMBIO_USD_EUR", "IG_CLIENTE_ID"];
 async function configurazione(env) {
   const salvate = Object.fromEntries((await all(env, "SELECT chiave, valore FROM impostazioni")).map((r) => [r.chiave, r.valore]));
   const v = (k, d) => env[k] || salvate[k] || d;
@@ -198,6 +198,7 @@ async function configurazione(env) {
     HEYGEN_DOLLARI_MINUTO: v("HEYGEN_DOLLARI_MINUTO", "1"),
     COSTI_FISSI: v("COSTI_FISSI", "Cloudflare Workers Paid:5,Apify (piano gratuito):0"),
     CAMBIO_USD_EUR: v("CAMBIO_USD_EUR", "0.86"),
+    IG_CLIENTE_ID: v("IG_CLIENTE_ID", "3"),
     _rec: env,
     _salvate: salvate,
     _env: Object.fromEntries(CHIAVI_SEGRETE.map((k) => [k, !!env[k]]))
@@ -3283,7 +3284,7 @@ async function nuovoLavoroPost(env, d) {
     env,
     `INSERT INTO post_lavori (cliente_id, cliente, nicchia, tipo, numero, slide, brief, pcloud, esempi, note, riunione_id, creato, aggiornato)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
-    C?.id || null,
+    C?.id || Number(d.cliente_id) || null,
     String(C?.nome || d.cliente || "").slice(0, 120),
     String(d.nicchia || C?.nicchia || "").slice(0, 200),
     ["carosello", "post", "misto"].includes(d.tipo) ? d.tipo : "carosello",
@@ -3570,13 +3571,41 @@ async function apiPost(req, env, p, m, json3) {
     if (new URL(req.url).searchParams.get("scarica")) h["content-disposition"] = `attachment; filename="post${sl[1]}-${sl[2]}-slide${sl[3]}.png"`;
     return new Response(value, { headers: h });
   }
-  const mm = p.match(/^\/api\/post\/(\d+)(?:\/(approva|riprova|canva))?$/);
+  const mm = p.match(/^\/api\/post\/(\d+)(?:\/(approva|riprova|canva|pubblica))?$/);
   if (!mm) return null;
   const P2 = await one(env, "SELECT * FROM post_lavori WHERE id=?", mm[1]);
   if (!P2) return json3({ errore: "non trovato" }, 404);
   if (m === "GET" && !mm[2]) {
     const file = Object.keys(J(P2.slide_file, {}) || {});
-    return json3({ ...P2, esempi: J(P2.esempi, []), virali: J(P2.virali), studio: J(P2.studio), foto: J(P2.foto), contenuti: J(P2.contenuti), canva: J(P2.canva), slide_file: file, fasi: FASI_POST });
+    const cfg = await configurazione(env);
+    const Ct = J(P2.contenuti);
+    if (Ct?.post?.some((x) => x.ig_id)) try {
+      const coda = await instagram2(env, "GET", "/coda");
+      for (const x of Ct.post) {
+        const q = coda.find((c) => c.id === x.ig_id);
+        if (q) Object.assign(x, { ig_stato: q.stato, ig_link: q.permalink || null, ig_errore: q.errore || null });
+      }
+    } catch (_) {
+    }
+    const tipi = {};
+    for (const k of file) {
+      const v = await env.VIDEO.getWithMetadata(k, { type: "stream" });
+      tipi[k] = v.metadata?.tipo || "";
+      v.value?.cancel?.();
+    }
+    return json3({
+      ...P2,
+      esempi: J(P2.esempi, []),
+      virali: J(P2.virali),
+      studio: J(P2.studio),
+      foto: J(P2.foto),
+      contenuti: Ct,
+      canva: J(P2.canva),
+      slide_file: file,
+      slide_tipi: tipi,
+      fasi: FASI_POST,
+      instagram: { collegato: !!(env.IG && env.IG_INTERNO_KEY), suo_profilo: String(P2.cliente_id || "") === String(cfg.IG_CLIENTE_ID) }
+    });
   }
   if (m === "POST" && mm[2] === "approva") {
     const d = await corpo();
@@ -3597,6 +3626,44 @@ async function apiPost(req, env, p, m, json3) {
     if (!post.length) return json3({ errore: "servono le immagini esportate da Canva" }, 400);
     await run(env, "UPDATE post_lavori SET canva=?, fase='scarica', stato='in_corso', blocco_fino=NULL, tentativi=0, aggiornato=? WHERE id=?", JSON.stringify({ post, quando: ora() }), ora(), P2.id);
     return json3({ ok: true });
+  }
+  if (m === "POST" && mm[2] === "pubblica") {
+    const cfg = await configurazione(env);
+    if (String(P2.cliente_id || "") !== String(cfg.IG_CLIENTE_ID)) return json3({ errore: "per questo cliente non c'\xE8 un account Instagram collegato: si pubblica solo sul tuo profilo" }, 400);
+    const d = await corpo();
+    const Ct = J(P2.contenuti, {}), file = J(P2.slide_file, {}) || {}, cv = J(P2.canva, {});
+    const origine = new URL(req.url).origin, fatti = [];
+    for (const x of (Ct.post || []).filter((y) => (d.n || []).map(Number).includes(y.n))) {
+      if (x.ig_id) {
+        fatti.push({ n: x.n, errore: "gi\xE0 programmato" });
+        continue;
+      }
+      const nSlide = ((cv.post || []).find((c) => c.n === x.n)?.png || []).length;
+      const chiavi = Array.from({ length: nSlide }, (_, k) => `${x.n}-${k + 1}`).filter((k) => file[`post-${P2.id}/${k}.png`]);
+      if (!chiavi.length) {
+        fatti.push({ n: x.n, errore: "slide non ancora pronte" });
+        continue;
+      }
+      const tipi = await Promise.all(chiavi.map(async (k) => (await env.VIDEO.getWithMetadata(`post-${P2.id}/${k}.png`, { type: "stream" })).metadata?.tipo || ""));
+      if (tipi.some((t) => !/jpe?g/i.test(t))) {
+        fatti.push({ n: x.n, errore: "Instagram accetta solo JPG: riesporta le slide da Canva in JPG" });
+        continue;
+      }
+      const link = await Promise.all(chiavi.slice(0, 10).map(async (k) => `${origine}/pubblico/post/${P2.id}/${k}.jpg?f=${await firmaPubblica(env, "post" + P2.id, k)}`));
+      const quando = d.quando?.[x.n] && !isNaN(new Date(d.quando[x.n])) ? new Date(d.quando[x.n]).toISOString() : new Date(Date.now() + 36e5).toISOString();
+      const caption = [x.caption || "", (x.hashtag || []).map((h) => "#" + String(h).replace(/^#/, "")).join(" ")].filter(Boolean).join("\n\n").slice(0, 2200);
+      try {
+        const it = await instagram2(env, "POST", "/coda", link.length > 1 ? { type: "carousel", media_urls: link, caption, publish_at: quando } : { type: "image", media_url: link[0], caption, publish_at: quando });
+        Object.assign(x, { ig_id: it.id, ig_quando: it.publish_at });
+        fatti.push({ n: x.n, quando: it.publish_at });
+      } catch (e) {
+        fatti.push({ n: x.n, errore: String(e.message || e) });
+      }
+    }
+    await run(env, "UPDATE post_lavori SET contenuti=?, aggiornato=? WHERE id=?", JSON.stringify(Ct), ora(), P2.id);
+    const ok = fatti.filter((f) => f.quando);
+    if (ok.length) await log(env, null, "social", `\u{1F4F2} ${ok.length} ${ok.length === 1 ? "carosello programmato" : "caroselli programmati"} su Instagram: ${ok.map((f) => `#${f.n} ${f.quando.slice(0, 16).replace("T", " ")}`).join(", ")}`);
+    return json3({ ok: ok.length > 0, fatti });
   }
   if (m === "POST" && mm[2] === "riprova") {
     await run(env, "UPDATE post_lavori SET stato=CASE WHEN fase='canva' THEN 'attende_canva' ELSE 'in_corso' END, errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", ora(), P2.id);
@@ -4252,6 +4319,16 @@ async function chiediDirettrice(env, testo, clienteId) {
     const risposta2 = `Ok, ${prof.numero} reel per il tuo profilo. Su che argomento? Scrivimi per esempio: "per il mio profilo ${prof.numero} reel su come trovare clienti con Instagram".`;
     await run(env, "INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)", "capo", "assistant", risposta2, ora());
     return { risposta: risposta2, incarichi: [] };
+  }
+  if (prof && /carosell|\bpost\b|grafich|slide/i.test(testo)) {
+    const cfgP = await configurazione(env);
+    const tipo = /carosell|slide/i.test(testo) ? "carosello" : "post";
+    const pc = (testo.match(/https:\/\/\S*pcloud\S*code=\S+/) || [])[0] || null;
+    const id = await nuovoLavoroPost(env, { cliente_id: Number(cfgP.IG_CLIENTE_ID) || null, cliente: "Johnny \xB7 profilo Instagram", tipo, numero: prof.numero, brief: testo, pcloud: pc });
+    const risposta2 = `Ricevuto: ${prof.numero} ${tipo === "carosello" ? "caroselli" : "post"} per il tuo profilo su "${prof.argomento}". Ines e Tea cercano i pi\xF9 virali della nicchia, Iris li studia${pc ? ", Ada sceglie le tue foto" : ""}, Pietro e Giulia scrivono slide e caption. Te li porto da approvare in "Tocca a te", poi si impaginano su Canva e decidi tu quando pubblicarli.`;
+    await run(env, "INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)", "capo", "assistant", risposta2, ora());
+    await log(env, null, "capo", `\u{1F5C2}\uFE0F profilo IG di Johnny: lavoro post #${id}, ${prof.numero} ${tipo} su "${prof.argomento.slice(0, 60)}"`);
+    return { risposta: risposta2, post: id, incarichi: [] };
   }
   if (prof) {
     const id = await nuovoPianoAvatar(env, prof.argomento, prof.numero, testo);
@@ -5242,6 +5319,7 @@ async function postDettaglio(id) {
   const foto = F && !F.nessuna ? '<h2>Le tue foto viste da Ada</h2><div class="card"><div class="mut">' + (F.foto || []).length + ' di ' + (F.totale || '?') + ' guardate \xB7 ' + (F.foto || []).filter((x) => x.uso !== 'scarta').length + ' buone</div><ul>' +
     (F.foto || []).filter((x) => x.uso !== 'scarta').sort((a, b) => (b.qualita || 0) - (a.qualita || 0)).slice(0, 12).map((x) => '<li><b>' + e(x.nome) + '</b> \xB7 ' + e(x.uso || '') + ' \xB7 ' + (x.qualita || '?') + '/10 \xB7 ' + e(x.descrizione || '') + '</li>').join('') + '</ul></div>' : '';
   const slideFile = new Set(P.slide_file || []);
+  const pubblicabili = (Ct?.post || []).some((x) => !x.ig_id && (P.canva?.post || []).some((c) => c.n === x.n)) && slideFile.size;
   const posts = Ct ? '<h2>' + (P.tipo === 'post' ? 'Post' : 'Caroselli') + '</h2>' + (Ct.stile?.palette ? '<div class="card"><b>Stile del set</b><div class="riga" style="margin:8px 0">' + Ct.stile.palette.map((c) => '<span style="width:26px;height:26px;border-radius:8px;border:1px solid var(--line);background:' + e(c) + '" title="' + e(c) + '"></span>').join('') + '<span class="mut">' + e(Ct.stile.font_titoli || '') + ' / ' + e(Ct.stile.font_testo || '') + ' \xB7 ' + e(Ct.stile.mood || '') + '</span></div><div class="mut">' + e(Ct.stile.regole || '') + '</div></div>' : '') +
     Ct.post.map((x) => {
       const cv = (P.canva?.post || []).find((c) => c.n === x.n);
@@ -5249,7 +5327,9 @@ async function postDettaglio(id) {
       return '<div class="card"><div class="riga"><b style="flex:1">' + x.n + '. ' + e(x.titolo || '') + '</b><span class="pill">' + (x.slide || []).length + ' slide \xB7 ' + e(x.obiettivo || '') + '</span>' +
         (da ? '<label style="display:flex;gap:6px;font-weight:400;margin:0"><input type="checkbox" class="po_ok" data-n="' + x.n + '" checked style="width:auto"> approva</label>' : '<span class="pill ' + (x.stato === 'approvato' ? 'pronto' : '') + '">' + e(x.stato || '') + '</span>') + '</div>' +
         (png.length ? '<div style="display:flex;gap:8px;overflow-x:auto;margin:10px 0">' + png.map((u) => '<a href="' + u + '?scarica=1"><img src="' + u + '" style="height:220px;border-radius:10px;border:1px solid var(--line)"></a>').join('') + '</div>' : '') +
-        (cv?.link ? '<p><a class="btn sec" href="' + e(cv.link) + '" target="_blank" rel="noopener">Modifica su Canva \u2197</a></p>' : '') +
+        '<div class="riga" style="gap:8px;margin:6px 0">' + (cv?.link ? '<a class="btn sec" href="' + e(cv.link) + '" target="_blank" rel="noopener">Modifica su Canva \u2197</a>' : '') +
+          (x.ig_id ? '<span class="pill ' + (x.ig_stato === 'pubblicato' ? 'pronto' : x.ig_stato === 'errore' ? 'errore' : 'in_corso') + '">\u{1F4F2} ' + e(x.ig_stato || 'programmato') + ' \xB7 ' + new Date(x.ig_quando).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' }) + '</span>' + (x.ig_link ? '<a href="' + e(x.ig_link) + '" target="_blank" rel="noopener">apri su Instagram</a>' : '') + (x.ig_errore ? '<span class="err">' + e(x.ig_errore) + '</span>' : '')
+            : png.length && P.instagram?.suo_profilo ? '<label style="display:flex;gap:6px;align-items:center;font-weight:400;margin:0"><input type="checkbox" class="pi_ok" data-n="' + x.n + '" checked style="width:auto"> pubblica il</label><input type="datetime-local" class="pi_q" data-n="' + x.n + '" style="width:auto">' : '') + '</div>' +
         '<ol style="padding-left:18px">' + (x.slide || []).map((s, k) => '<li style="margin:8px 0">' + (da ? '<input class="po_ti" data-n="' + x.n + '" data-k="' + k + '" value="' + e(s.titolo || '') + '" style="font-weight:600"><textarea class="po_te" data-n="' + x.n + '" data-k="' + k + '" style="min-height:50px;margin-top:4px">' + e(s.testo || '') + '</textarea>'
           : '<b>' + e(s.titolo || '') + '</b>' + (s.testo ? '<br>' + e(s.testo) : '')) + '<div class="mut">' + e(s.ruolo || '') + (s.foto ? ' \xB7 \u{1F4F7} ' + e(s.foto) : '') + (s.layout ? ' \xB7 ' + e(s.layout) : '') + '</div></li>').join('') + '</ol>' +
         '<label>Caption</label>' + (da ? '<textarea class="po_ca" data-n="' + x.n + '">' + e(x.caption || '') + '</textarea>' : '<div style="white-space:pre-wrap" class="card">' + e(x.caption || '') + '</div>') +
@@ -5259,6 +5339,8 @@ async function postDettaglio(id) {
     '<div class="card"><b>Brief</b><div style="white-space:pre-wrap">' + e(P.brief) + '</div>' + (P.pcloud ? '<div class="mut">\u{1F4C1} foto: <a href="' + e(P.pcloud) + '" target="_blank" rel="noopener">cartella pCloud</a></div>' : '') + '</div>' +
     (P.errore ? '<div class="card err">' + e(P.errore) + ' <button class="sec" id="po_rp">Riprova</button></div>' : '') +
     (P.stato === 'attende_canva' ? '<div class="card">\u{1F3A8} <b>Pronti per Canva.</b> Testi, foto e stile sono approvati: chiedi a Claude in chat <i>\u201Cfai su Canva il lavoro post #' + P.id + '\u201D</i> e le slide tornano qui in PNG, con il link per modificarle.</div>' : '') +
+    (pubblicabili ? '<div class="card"><b>\u{1F4F2} Pubblicazione su Instagram</b>' + (P.instagram?.suo_profilo ? '<p class="mut">Vanno sul tuo profilo solo quando premi qui, agli orari che scegli (proposti: uno al giorno alle 19:00).</p><div class="riga"><button id="pi_go">Programma su Instagram</button></div><div id="pi_er" class="err"></div>'
+      : '<p class="mut" style="margin-bottom:0">Per ora si pubblica in automatico solo sul tuo profilo. Per i clienti scarichi le slide e la caption, oppure colleghiamo il loro account Instagram.</p>') + '</div>' : '') +
     posts + studio + foto + virali + '<div class="riga" style="margin-top:14px"><button class="sec" id="po_del">Elimina</button></div>';
   if ($('#po_ok')) $('#po_ok').onclick = async () => {
     const nn = [...document.querySelectorAll('.po_ok')].filter((x) => x.checked).map((x) => Number(x.dataset.n));
@@ -5268,6 +5350,14 @@ async function postDettaglio(id) {
       modifiche[x.n] = { slide, caption: document.querySelector('.po_ca[data-n="' + x.n + '"]')?.value ?? x.caption };
     }
     try { await chiama('/api/post/' + id + '/approva', { method: 'POST', body: { n: nn, modifiche } }); rotta(); } catch (x) { $('#po_er').textContent = x.message; }
+  };
+  document.querySelectorAll('.pi_q').forEach((x, k) => { const d = new Date(); d.setDate(d.getDate() + 1 + k); d.setHours(19, 0, 0, 0); x.value = new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16); });
+  if ($('#pi_go')) $('#pi_go').onclick = async () => {
+    const nn = [...document.querySelectorAll('.pi_ok')].filter((x) => x.checked).map((x) => Number(x.dataset.n));
+    if (!nn.length) { $('#pi_er').textContent = 'seleziona almeno un carosello'; return; }
+    const quando = {}; document.querySelectorAll('.pi_q').forEach((x) => { if (x.value) quando[x.dataset.n] = new Date(x.value).toISOString(); });
+    if (!confirm('Programmare ' + nn.length + ' contenuti sul tuo profilo Instagram? Verranno pubblicati da soli agli orari scelti.')) return;
+    try { const r = await chiama('/api/post/' + id + '/pubblica', { method: 'POST', body: { n: nn, quando } }); const ko = r.fatti.filter((f) => f.errore); if (ko.length) $('#pi_er').textContent = ko.map((f) => '#' + f.n + ': ' + f.errore).join(' \xB7 '); else rotta(); } catch (x) { $('#pi_er').textContent = x.message; }
   };
   if ($('#po_rp')) $('#po_rp').onclick = async () => { await chiama('/api/post/' + id + '/riprova', { method: 'POST' }); rotta(); };
   $('#po_del').onclick = async () => { if (!confirm('Eliminare questo lavoro?')) return; await chiama('/api/post/' + id, { method: 'DELETE' }); location.hash = '#/post'; };
@@ -5512,7 +5602,7 @@ async function apriLato(a) {
     $('#lato_go').disabled = true; $('#lato_r').textContent = 'invio\u2026';
     try {
       if (A.chat) { const r = await chiama('/api/chat/' + a, { method: 'POST', body: { testo } }); $('#lato_r').textContent = r.risposta.slice(0, 160); }
-      else { const r = await chiama('/api/capo', { method: 'POST', body: { testo: a === 'capo' ? testo : 'Per ' + A.n + ' (' + A.r + '): ' + testo } }); $('#lato_r').innerHTML = e(r.risposta.slice(0, 160)) + (r.riunione ? ' <a href="#/riunione/' + r.riunione + '">Segui la riunione \u25B8</a>' : r.avatar ? ' <a href="#/profilo/' + r.avatar + '">Segui il lavoro \u25B8</a>' : ''); }
+      else { const r = await chiama('/api/capo', { method: 'POST', body: { testo: a === 'capo' ? testo : 'Per ' + A.n + ' (' + A.r + '): ' + testo } }); $('#lato_r').innerHTML = e(r.risposta.slice(0, 160)) + (r.riunione ? ' <a href="#/riunione/' + r.riunione + '">Segui la riunione \u25B8</a>' : r.avatar ? ' <a href="#/profilo/' + r.avatar + '">Segui il lavoro \u25B8</a>' : r.post ? ' <a href="#/post/' + r.post + '">Segui il lavoro \u25B8</a>' : ''); }
       $('#lato_t').value = '';
     } catch (x) { $('#lato_r').textContent = x.message; }
     $('#lato_go').disabled = false;
@@ -5596,7 +5686,7 @@ async function azienda() {
     try {
       const r = await chiama('/api/capo', { method: 'POST', body: { testo: t, cliente_id: $('#k_cli').value || null } });
       $('#k_t').value = '';
-      $('#k_r').innerHTML = '<div class="card">\u{1F9ED} <b>Alba:</b> ' + e(r.risposta) + (r.riunione ? '<div style="margin-top:8px"><a class="btn" href="#/riunione/' + r.riunione + '">Segui la riunione \u25B8</a></div>' : r.avatar ? '<div style="margin-top:8px"><a class="btn" href="#/profilo/' + r.avatar + '">Segui il lavoro sul profilo \u25B8</a></div>' : '') + '</div>';
+      $('#k_r').innerHTML = '<div class="card">\u{1F9ED} <b>Alba:</b> ' + e(r.risposta) + (r.riunione ? '<div style="margin-top:8px"><a class="btn" href="#/riunione/' + r.riunione + '">Segui la riunione \u25B8</a></div>' : r.avatar ? '<div style="margin-top:8px"><a class="btn" href="#/profilo/' + r.avatar + '">Segui il lavoro sul profilo \u25B8</a></div>' : r.post ? '<div style="margin-top:8px"><a class="btn" href="#/post/' + r.post + '">Segui i caroselli \u25B8</a></div>' : '') + '</div>';
     } catch (x) { $('#k_r').innerHTML = '<div class="err">' + e(x.message) + '</div>'; }
     $('#k_go').disabled = false;
   };
@@ -6964,6 +7054,13 @@ var index_default = {
       }
     }
     if (url.pathname === "/sala3d.js") return new Response(sala3d_default, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": url.searchParams.get("v") === VERSIONE_SALA ? "public, max-age=31536000, immutable" : "no-cache" } });
+    const pubP = url.pathname.match(/^\/pubblico\/post\/(\d+)\/(\d+-\d+)\.jpg$/);
+    if (pubP) {
+      if (!env.IG_INTERNO_KEY || url.searchParams.get("f") !== await firmaPubblica(env, "post" + pubP[1], pubP[2])) return json2({ errore: "link non valido" }, 403);
+      const { value, metadata } = await env.VIDEO.getWithMetadata(`post-${pubP[1]}/${pubP[2]}.png`, { type: "arrayBuffer" });
+      if (!value) return json2({ errore: "non pronta" }, 404);
+      return new Response(value, { headers: { "content-type": metadata?.tipo || "image/jpeg", "content-length": String(value.byteLength) } });
+    }
     const pub = url.pathname.match(/^\/pubblico\/(\d+)\/(reel\.mp4|copertina\.jpg|anteprima\.jpg)$/);
     if (pub) {
       if (!env.IG_INTERNO_KEY || url.searchParams.get("f") !== await firmaPubblica(env, pub[1], pub[2])) return json2({ errore: "link non valido" }, 403);

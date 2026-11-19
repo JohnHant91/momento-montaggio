@@ -495,6 +495,7 @@ async function postDettaglio(id) {
   const foto = F && !F.nessuna ? '<h2>Le tue foto viste da Ada</h2><div class="card"><div class="mut">' + (F.foto || []).length + ' di ' + (F.totale || '?') + ' guardate · ' + (F.foto || []).filter((x) => x.uso !== 'scarta').length + ' buone</div><ul>' +
     (F.foto || []).filter((x) => x.uso !== 'scarta').sort((a, b) => (b.qualita || 0) - (a.qualita || 0)).slice(0, 12).map((x) => '<li><b>' + e(x.nome) + '</b> · ' + e(x.uso || '') + ' · ' + (x.qualita || '?') + '/10 · ' + e(x.descrizione || '') + '</li>').join('') + '</ul></div>' : '';
   const slideFile = new Set(P.slide_file || []);
+  const pubblicabili = (Ct?.post || []).some((x) => !x.ig_id && (P.canva?.post || []).some((c) => c.n === x.n)) && slideFile.size;
   const posts = Ct ? '<h2>' + (P.tipo === 'post' ? 'Post' : 'Caroselli') + '</h2>' + (Ct.stile?.palette ? '<div class="card"><b>Stile del set</b><div class="riga" style="margin:8px 0">' + Ct.stile.palette.map((c) => '<span style="width:26px;height:26px;border-radius:8px;border:1px solid var(--line);background:' + e(c) + '" title="' + e(c) + '"></span>').join('') + '<span class="mut">' + e(Ct.stile.font_titoli || '') + ' / ' + e(Ct.stile.font_testo || '') + ' · ' + e(Ct.stile.mood || '') + '</span></div><div class="mut">' + e(Ct.stile.regole || '') + '</div></div>' : '') +
     Ct.post.map((x) => {
       const cv = (P.canva?.post || []).find((c) => c.n === x.n);
@@ -502,7 +503,9 @@ async function postDettaglio(id) {
       return '<div class="card"><div class="riga"><b style="flex:1">' + x.n + '. ' + e(x.titolo || '') + '</b><span class="pill">' + (x.slide || []).length + ' slide · ' + e(x.obiettivo || '') + '</span>' +
         (da ? '<label style="display:flex;gap:6px;font-weight:400;margin:0"><input type="checkbox" class="po_ok" data-n="' + x.n + '" checked style="width:auto"> approva</label>' : '<span class="pill ' + (x.stato === 'approvato' ? 'pronto' : '') + '">' + e(x.stato || '') + '</span>') + '</div>' +
         (png.length ? '<div style="display:flex;gap:8px;overflow-x:auto;margin:10px 0">' + png.map((u) => '<a href="' + u + '?scarica=1"><img src="' + u + '" style="height:220px;border-radius:10px;border:1px solid var(--line)"></a>').join('') + '</div>' : '') +
-        (cv?.link ? '<p><a class="btn sec" href="' + e(cv.link) + '" target="_blank" rel="noopener">Modifica su Canva ↗</a></p>' : '') +
+        '<div class="riga" style="gap:8px;margin:6px 0">' + (cv?.link ? '<a class="btn sec" href="' + e(cv.link) + '" target="_blank" rel="noopener">Modifica su Canva ↗</a>' : '') +
+          (x.ig_id ? '<span class="pill ' + (x.ig_stato === 'pubblicato' ? 'pronto' : x.ig_stato === 'errore' ? 'errore' : 'in_corso') + '">📲 ' + e(x.ig_stato || 'programmato') + ' · ' + new Date(x.ig_quando).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' }) + '</span>' + (x.ig_link ? '<a href="' + e(x.ig_link) + '" target="_blank" rel="noopener">apri su Instagram</a>' : '') + (x.ig_errore ? '<span class="err">' + e(x.ig_errore) + '</span>' : '')
+            : png.length && P.instagram?.suo_profilo ? '<label style="display:flex;gap:6px;align-items:center;font-weight:400;margin:0"><input type="checkbox" class="pi_ok" data-n="' + x.n + '" checked style="width:auto"> pubblica il</label><input type="datetime-local" class="pi_q" data-n="' + x.n + '" style="width:auto">' : '') + '</div>' +
         '<ol style="padding-left:18px">' + (x.slide || []).map((s, k) => '<li style="margin:8px 0">' + (da ? '<input class="po_ti" data-n="' + x.n + '" data-k="' + k + '" value="' + e(s.titolo || '') + '" style="font-weight:600"><textarea class="po_te" data-n="' + x.n + '" data-k="' + k + '" style="min-height:50px;margin-top:4px">' + e(s.testo || '') + '</textarea>'
           : '<b>' + e(s.titolo || '') + '</b>' + (s.testo ? '<br>' + e(s.testo) : '')) + '<div class="mut">' + e(s.ruolo || '') + (s.foto ? ' · 📷 ' + e(s.foto) : '') + (s.layout ? ' · ' + e(s.layout) : '') + '</div></li>').join('') + '</ol>' +
         '<label>Caption</label>' + (da ? '<textarea class="po_ca" data-n="' + x.n + '">' + e(x.caption || '') + '</textarea>' : '<div style="white-space:pre-wrap" class="card">' + e(x.caption || '') + '</div>') +
@@ -512,6 +515,8 @@ async function postDettaglio(id) {
     '<div class="card"><b>Brief</b><div style="white-space:pre-wrap">' + e(P.brief) + '</div>' + (P.pcloud ? '<div class="mut">📁 foto: <a href="' + e(P.pcloud) + '" target="_blank" rel="noopener">cartella pCloud</a></div>' : '') + '</div>' +
     (P.errore ? '<div class="card err">' + e(P.errore) + ' <button class="sec" id="po_rp">Riprova</button></div>' : '') +
     (P.stato === 'attende_canva' ? '<div class="card">🎨 <b>Pronti per Canva.</b> Testi, foto e stile sono approvati: chiedi a Claude in chat <i>“fai su Canva il lavoro post #' + P.id + '”</i> e le slide tornano qui in PNG, con il link per modificarle.</div>' : '') +
+    (pubblicabili ? '<div class="card"><b>📲 Pubblicazione su Instagram</b>' + (P.instagram?.suo_profilo ? '<p class="mut">Vanno sul tuo profilo solo quando premi qui, agli orari che scegli (proposti: uno al giorno alle 19:00).</p><div class="riga"><button id="pi_go">Programma su Instagram</button></div><div id="pi_er" class="err"></div>'
+      : '<p class="mut" style="margin-bottom:0">Per ora si pubblica in automatico solo sul tuo profilo. Per i clienti scarichi le slide e la caption, oppure colleghiamo il loro account Instagram.</p>') + '</div>' : '') +
     posts + studio + foto + virali + '<div class="riga" style="margin-top:14px"><button class="sec" id="po_del">Elimina</button></div>';
   if ($('#po_ok')) $('#po_ok').onclick = async () => {
     const nn = [...document.querySelectorAll('.po_ok')].filter((x) => x.checked).map((x) => Number(x.dataset.n));
@@ -521,6 +526,14 @@ async function postDettaglio(id) {
       modifiche[x.n] = { slide, caption: document.querySelector('.po_ca[data-n="' + x.n + '"]')?.value ?? x.caption };
     }
     try { await chiama('/api/post/' + id + '/approva', { method: 'POST', body: { n: nn, modifiche } }); rotta(); } catch (x) { $('#po_er').textContent = x.message; }
+  };
+  document.querySelectorAll('.pi_q').forEach((x, k) => { const d = new Date(); d.setDate(d.getDate() + 1 + k); d.setHours(19, 0, 0, 0); x.value = new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16); });
+  if ($('#pi_go')) $('#pi_go').onclick = async () => {
+    const nn = [...document.querySelectorAll('.pi_ok')].filter((x) => x.checked).map((x) => Number(x.dataset.n));
+    if (!nn.length) { $('#pi_er').textContent = 'seleziona almeno un carosello'; return; }
+    const quando = {}; document.querySelectorAll('.pi_q').forEach((x) => { if (x.value) quando[x.dataset.n] = new Date(x.value).toISOString(); });
+    if (!confirm('Programmare ' + nn.length + ' contenuti sul tuo profilo Instagram? Verranno pubblicati da soli agli orari scelti.')) return;
+    try { const r = await chiama('/api/post/' + id + '/pubblica', { method: 'POST', body: { n: nn, quando } }); const ko = r.fatti.filter((f) => f.errore); if (ko.length) $('#pi_er').textContent = ko.map((f) => '#' + f.n + ': ' + f.errore).join(' · '); else rotta(); } catch (x) { $('#pi_er').textContent = x.message; }
   };
   if ($('#po_rp')) $('#po_rp').onclick = async () => { await chiama('/api/post/' + id + '/riprova', { method: 'POST' }); rotta(); };
   $('#po_del').onclick = async () => { if (!confirm('Eliminare questo lavoro?')) return; await chiama('/api/post/' + id, { method: 'DELETE' }); location.hash = '#/post'; };
@@ -765,7 +778,7 @@ async function apriLato(a) {
     $('#lato_go').disabled = true; $('#lato_r').textContent = 'invio…';
     try {
       if (A.chat) { const r = await chiama('/api/chat/' + a, { method: 'POST', body: { testo } }); $('#lato_r').textContent = r.risposta.slice(0, 160); }
-      else { const r = await chiama('/api/capo', { method: 'POST', body: { testo: a === 'capo' ? testo : 'Per ' + A.n + ' (' + A.r + '): ' + testo } }); $('#lato_r').innerHTML = e(r.risposta.slice(0, 160)) + (r.riunione ? ' <a href="#/riunione/' + r.riunione + '">Segui la riunione ▸</a>' : r.avatar ? ' <a href="#/profilo/' + r.avatar + '">Segui il lavoro ▸</a>' : ''); }
+      else { const r = await chiama('/api/capo', { method: 'POST', body: { testo: a === 'capo' ? testo : 'Per ' + A.n + ' (' + A.r + '): ' + testo } }); $('#lato_r').innerHTML = e(r.risposta.slice(0, 160)) + (r.riunione ? ' <a href="#/riunione/' + r.riunione + '">Segui la riunione ▸</a>' : r.avatar ? ' <a href="#/profilo/' + r.avatar + '">Segui il lavoro ▸</a>' : r.post ? ' <a href="#/post/' + r.post + '">Segui il lavoro ▸</a>' : ''); }
       $('#lato_t').value = '';
     } catch (x) { $('#lato_r').textContent = x.message; }
     $('#lato_go').disabled = false;
@@ -849,7 +862,7 @@ async function azienda() {
     try {
       const r = await chiama('/api/capo', { method: 'POST', body: { testo: t, cliente_id: $('#k_cli').value || null } });
       $('#k_t').value = '';
-      $('#k_r').innerHTML = '<div class="card">🧭 <b>Alba:</b> ' + e(r.risposta) + (r.riunione ? '<div style="margin-top:8px"><a class="btn" href="#/riunione/' + r.riunione + '">Segui la riunione ▸</a></div>' : r.avatar ? '<div style="margin-top:8px"><a class="btn" href="#/profilo/' + r.avatar + '">Segui il lavoro sul profilo ▸</a></div>' : '') + '</div>';
+      $('#k_r').innerHTML = '<div class="card">🧭 <b>Alba:</b> ' + e(r.risposta) + (r.riunione ? '<div style="margin-top:8px"><a class="btn" href="#/riunione/' + r.riunione + '">Segui la riunione ▸</a></div>' : r.avatar ? '<div style="margin-top:8px"><a class="btn" href="#/profilo/' + r.avatar + '">Segui il lavoro sul profilo ▸</a></div>' : r.post ? '<div style="margin-top:8px"><a class="btn" href="#/post/' + r.post + '">Segui i caroselli ▸</a></div>' : '') + '</div>';
     } catch (x) { $('#k_r').innerHTML = '<div class="err">' + e(x.message) + '</div>'; }
     $('#k_go').disabled = false;
   };

@@ -279,6 +279,13 @@ export default {
     }
     if (url.pathname === '/sala3d.js') return new Response(SALA3D_JS, { headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': url.searchParams.get('v') === VERSIONE_SALA ? 'public, max-age=31536000, immutable' : 'no-cache' } });
     // file dei reel raggiungibili da Instagram (Meta scarica il video da qui): link firmato, niente accesso senza firma
+    const pubP = url.pathname.match(/^\/pubblico\/post\/(\d+)\/(\d+-\d+)\.jpg$/); // slide dei caroselli per Instagram
+    if (pubP) {
+      if (!env.IG_INTERNO_KEY || url.searchParams.get('f') !== await firmaPubblica(env, 'post' + pubP[1], pubP[2])) return json({ errore: 'link non valido' }, 403);
+      const { value, metadata } = await env.VIDEO.getWithMetadata(`post-${pubP[1]}/${pubP[2]}.png`, { type: 'arrayBuffer' });
+      if (!value) return json({ errore: 'non pronta' }, 404);
+      return new Response(value, { headers: { 'content-type': metadata?.tipo || 'image/jpeg', 'content-length': String(value.byteLength) } });
+    }
     const pub = url.pathname.match(/^\/pubblico\/(\d+)\/(reel\.mp4|copertina\.jpg|anteprima\.jpg)$/);
     if (pub) {
       if (!env.IG_INTERNO_KEY || url.searchParams.get('f') !== await firmaPubblica(env, pub[1], pub[2])) return json({ errore: 'link non valido' }, 403);

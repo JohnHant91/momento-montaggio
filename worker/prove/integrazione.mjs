@@ -184,6 +184,23 @@ let im = await chiama('/api/post/' + pid2 + '/slide/1-2.png', { grezzo: true });
 im = await chiama('/api/post/img?u=' + encodeURIComponent('https://evil.example/x.jpg'), { grezzo: true }); ok(im.status === 400, 'anteprime solo da Instagram/TikTok');
 r = await chiama('/api/consumi?giorni=30'); ok(r.j.aree.some((a) => a.area === 'post'), 'i costi dei post sono contati');
 
+console.log('\n17) caroselli su Instagram');
+r = await chiama('/api/post/' + pid2 + '/pubblica', { method: 'POST', body: { n: [1] } }); ok(r.status === 400 && /profilo/.test(r.j.errore), 'per i clienti non pubblica sul tuo profilo');
+env.DB._db.prepare('UPDATE post_lavori SET cliente_id=3 WHERE id=?').run(pid2);
+r = await chiama('/api/post/' + pid2 + '/pubblica', { method: 'POST', body: { n: [1] } }); ok(r.j.fatti?.[0]?.errore?.includes('JPG'), 'slide PNG: chiede di esportarle in JPG');
+for (const k of ['1-1', '1-2']) await env.VIDEO.put('post-' + pid2 + '/' + k + '.png', new Uint8Array([255, 216, 255]).buffer, { metadata: { tipo: 'image/jpeg' } });
+igCoda.length = 0;
+r = await chiama('/api/post/' + pid2 + '/pubblica', { method: 'POST', body: { n: [1], quando: { 1: '2026-12-02T18:00:00Z' } } });
+ok(r.j.ok && igCoda[0]?.type === 'carousel' && igCoda[0].media_urls.length === 2 && igCoda[0].caption.startsWith('caption di Johnny'), 'carosello in coda su Instagram con le 2 slide e la caption');
+const su = new URL(igCoda[0].media_urls[1]);
+let gs = await W.fetch(new Request('https://x' + su.pathname + su.search), env, {}); ok(gs.status === 200 && gs.headers.get('content-type') === 'image/jpeg', 'Meta scarica la slide dal link firmato');
+gs = await W.fetch(new Request('https://x' + su.pathname + '?f=no'), env, {}); ok(gs.status === 403, 'senza firma no');
+P = (await chiama('/api/post/' + pid2)).j; ok(P.contenuti.post[0].ig_stato === 'programmato' && P.instagram.suo_profilo, 'la pagina mostra lo stato su Instagram');
+
+r = await chiama('/api/capo', { method: 'POST', body: { testo: 'per il mio profilo personale fammi 2 caroselli sugli errori nei preventivi delle agenzie' } });
+ok(r.j.post && !r.j.avatar && !r.j.riunione, 'Alba: "caroselli per il mio profilo" parte nel comparto Post (#' + r.j.post + ')');
+P = (await chiama('/api/post/' + r.j.post)).j; ok(P.numero === 2 && P.tipo === 'carosello' && P.cliente_id === 3, 'due caroselli sul tuo profilo');
+
 console.log('\n11) pagina: lo script si compila');
 const html = await (await chiama('/', { grezzo: true })).text();
 const script = html.match(/<script>([\s\S]*?)<\/script>\s*<\/body>/);

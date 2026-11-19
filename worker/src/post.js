@@ -9,6 +9,7 @@ import * as S from './servizi.js';
 import { SKILL } from './skill_testi.js';
 import { chi } from './consumi.js';
 import { cliente } from './agenzia.js';
+import { instagram, firmaPubblica } from './avatar.js';
 
 const BLOCCO_MIN = 12;
 export const FASI_POST = [['ricerca', 'Post virali'], ['studio', 'Studio'], ['foto', 'Foto'], ['contenuti', 'Testi'], ['approvazione', 'Approvazione'], ['canva', 'Canva'], ['scarica', 'Slide'], ['fatto', 'Pronto']];
@@ -24,7 +25,7 @@ export async function nuovoLavoroPost(env, d) {
   await schemaPost(env);
   const C = d.cliente_id ? await cliente(env, d.cliente_id) : null;
   const r = await one(env, `INSERT INTO post_lavori (cliente_id, cliente, nicchia, tipo, numero, slide, brief, pcloud, esempi, note, riunione_id, creato, aggiornato)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id`, C?.id || null, String(C?.nome || d.cliente || '').slice(0, 120), String(d.nicchia || C?.nicchia || '').slice(0, 200),
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id`, C?.id || Number(d.cliente_id) || null, String(C?.nome || d.cliente || '').slice(0, 120), String(d.nicchia || C?.nicchia || '').slice(0, 200),
     ['carosello', 'post', 'misto'].includes(d.tipo) ? d.tipo : 'carosello', Math.min(12, Math.max(1, Number(d.numero) || 3)), Math.min(10, Math.max(2, Number(d.slide) || 7)),
     String(d.brief || '').slice(0, 4000), String(d.pcloud || '').trim() || null, JSON.stringify((d.esempi || []).filter((x) => /^https:\/\//.test(x)).slice(0, 10)),
     String(d.note || '').slice(0, 2000), d.riunione || null, ora(), ora());
@@ -259,13 +260,18 @@ export async function apiPost(req, env, p, m, json) {
     if (new URL(req.url).searchParams.get('scarica')) h['content-disposition'] = `attachment; filename="post${sl[1]}-${sl[2]}-slide${sl[3]}.png"`;
     return new Response(value, { headers: h });
   }
-  const mm = p.match(/^\/api\/post\/(\d+)(?:\/(approva|riprova|canva))?$/);
+  const mm = p.match(/^\/api\/post\/(\d+)(?:\/(approva|riprova|canva|pubblica))?$/);
   if (!mm) return null;
   const P = await one(env, 'SELECT * FROM post_lavori WHERE id=?', mm[1]);
   if (!P) return json({ errore: 'non trovato' }, 404);
   if (m === 'GET' && !mm[2]) {
     const file = Object.keys(J(P.slide_file, {}) || {});
-    return json({ ...P, esempi: J(P.esempi, []), virali: J(P.virali), studio: J(P.studio), foto: J(P.foto), contenuti: J(P.contenuti), canva: J(P.canva), slide_file: file, fasi: FASI_POST });
+    const cfg = await configurazione(env);
+    const Ct = J(P.contenuti);
+    if (Ct?.post?.some((x) => x.ig_id)) try { const coda = await instagram(env, 'GET', '/coda'); for (const x of Ct.post) { const q = coda.find((c) => c.id === x.ig_id); if (q) Object.assign(x, { ig_stato: q.stato, ig_link: q.permalink || null, ig_errore: q.errore || null }); } } catch (_) {}
+    const tipi = {}; for (const k of file) { const v = await env.VIDEO.getWithMetadata(k, { type: 'stream' }); tipi[k] = v.metadata?.tipo || ''; v.value?.cancel?.(); }
+    return json({ ...P, esempi: J(P.esempi, []), virali: J(P.virali), studio: J(P.studio), foto: J(P.foto), contenuti: Ct, canva: J(P.canva), slide_file: file, slide_tipi: tipi, fasi: FASI_POST,
+      instagram: { collegato: !!(env.IG && env.IG_INTERNO_KEY), suo_profilo: String(P.cliente_id || '') === String(cfg.IG_CLIENTE_ID) } });
   }
   if (m === 'POST' && mm[2] === 'approva') { // {n:[approvati], modifiche:{n: {slide:[...], caption}}}
     const d = await corpo();
@@ -283,6 +289,32 @@ export async function apiPost(req, env, p, m, json) {
     if (!post.length) return json({ errore: 'servono le immagini esportate da Canva' }, 400);
     await run(env, "UPDATE post_lavori SET canva=?, fase='scarica', stato='in_corso', blocco_fino=NULL, tentativi=0, aggiornato=? WHERE id=?", JSON.stringify({ post, quando: ora() }), ora(), P.id);
     return json({ ok: true });
+  }
+  if (m === 'POST' && mm[2] === 'pubblica') { // {n:[numeri], quando:{n: ISO}} → in coda sul profilo Instagram collegato (solo dopo l'ok di Johnny)
+    const cfg = await configurazione(env);
+    if (String(P.cliente_id || '') !== String(cfg.IG_CLIENTE_ID)) return json({ errore: 'per questo cliente non c\'è un account Instagram collegato: si pubblica solo sul tuo profilo' }, 400);
+    const d = await corpo();
+    const Ct = J(P.contenuti, {}), file = J(P.slide_file, {}) || {}, cv = J(P.canva, {});
+    const origine = new URL(req.url).origin, fatti = [];
+    for (const x of (Ct.post || []).filter((y) => (d.n || []).map(Number).includes(y.n))) {
+      if (x.ig_id) { fatti.push({ n: x.n, errore: 'già programmato' }); continue; }
+      const nSlide = ((cv.post || []).find((c) => c.n === x.n)?.png || []).length;
+      const chiavi = Array.from({ length: nSlide }, (_, k) => `${x.n}-${k + 1}`).filter((k) => file[`post-${P.id}/${k}.png`]);
+      if (!chiavi.length) { fatti.push({ n: x.n, errore: 'slide non ancora pronte' }); continue; }
+      const tipi = await Promise.all(chiavi.map(async (k) => (await env.VIDEO.getWithMetadata(`post-${P.id}/${k}.png`, { type: 'stream' })).metadata?.tipo || ''));
+      if (tipi.some((t) => !/jpe?g/i.test(t))) { fatti.push({ n: x.n, errore: 'Instagram accetta solo JPG: riesporta le slide da Canva in JPG' }); continue; }
+      const link = await Promise.all(chiavi.slice(0, 10).map(async (k) => `${origine}/pubblico/post/${P.id}/${k}.jpg?f=${await firmaPubblica(env, 'post' + P.id, k)}`));
+      const quando = d.quando?.[x.n] && !isNaN(new Date(d.quando[x.n])) ? new Date(d.quando[x.n]).toISOString() : new Date(Date.now() + 3600e3).toISOString();
+      const caption = [x.caption || '', (x.hashtag || []).map((h) => '#' + String(h).replace(/^#/, '')).join(' ')].filter(Boolean).join('\n\n').slice(0, 2200);
+      try {
+        const it = await instagram(env, 'POST', '/coda', link.length > 1 ? { type: 'carousel', media_urls: link, caption, publish_at: quando } : { type: 'image', media_url: link[0], caption, publish_at: quando });
+        Object.assign(x, { ig_id: it.id, ig_quando: it.publish_at }); fatti.push({ n: x.n, quando: it.publish_at });
+      } catch (e) { fatti.push({ n: x.n, errore: String(e.message || e) }); }
+    }
+    await run(env, 'UPDATE post_lavori SET contenuti=?, aggiornato=? WHERE id=?', JSON.stringify(Ct), ora(), P.id);
+    const ok = fatti.filter((f) => f.quando);
+    if (ok.length) await log(env, null, 'social', `📲 ${ok.length} ${ok.length === 1 ? 'carosello programmato' : 'caroselli programmati'} su Instagram: ${ok.map((f) => `#${f.n} ${f.quando.slice(0, 16).replace('T', ' ')}`).join(', ')}`);
+    return json({ ok: ok.length > 0, fatti });
   }
   if (m === 'POST' && mm[2] === 'riprova') { await run(env, "UPDATE post_lavori SET stato=CASE WHEN fase='canva' THEN 'attende_canva' ELSE 'in_corso' END, errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", ora(), P.id); return json({ ok: true }); }
   if (m === 'DELETE') {
