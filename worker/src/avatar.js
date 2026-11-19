@@ -71,14 +71,14 @@ async function claudeWeb(cfg, sistema, domanda, maxUses = 8) {
   const r = await S.richiesta('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': cfg.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-    body: JSON.stringify({ model: cfg.CLAUDE_MODEL, max_tokens: 8000, system: sistema, tools: [{ type: cfg.WEB_SEARCH_TOOL, name: 'web_search', max_uses: maxUses }], messages: [{ role: 'user', content: domanda }] }),
+    body: JSON.stringify({ model: cfg.CLAUDE_MODEL, max_tokens: 12000, system: sistema, tools: [{ type: cfg.WEB_SEARCH_TOOL, name: 'web_search', max_uses: maxUses }], messages: [{ role: 'user', content: domanda }] }),
   });
   if (r.status !== 200) throw new Error(`Claude ${r.status}: ${(await r.text()).slice(0, 300)}`);
   const d = await r.json();
   await registra(cfg, 'claude', cfg.CLAUDE_MODEL, daUsage(d.usage));
   const fonti = new Map();
   for (const b of d.content || []) if (b.type === 'web_search_tool_result' && Array.isArray(b.content)) b.content.forEach((x) => x.url && fonti.set(x.url, x.title || ''));
-  const testo = (d.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+  const testo = (d.content || []).filter((b) => b.type === 'text').map((b) => b.text).join(''); // con le citazioni il testo arriva spezzato in più blocchi, anche a metà di una stringa
   return { out: S.estraiJson(testo), fonti };
 }
 

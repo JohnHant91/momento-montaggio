@@ -358,9 +358,23 @@ async function apiConsumi(req, env, p, m, json3) {
 
 // src/servizi.js
 var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+function riparaJson(t) {
+  let out = "", dentro = false, esc = false;
+  for (const ch of t) {
+    if (dentro && !esc && (ch === "\n" || ch === "\r" || ch === "	")) {
+      out += ch === "	" ? "\\t" : ch === "\n" ? "\\n" : "";
+      continue;
+    }
+    if (ch === '"' && !esc) dentro = !dentro;
+    esc = ch === "\\" && !esc;
+    out += ch;
+  }
+  return out;
+}
 function estraiJson(testo) {
   if (testo && typeof testo === "object") return testo;
   let t = String(testo || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  t = t.replace(/<cite[^>]*>/g, "").replace(/<\/cite>/g, "");
   try {
     return JSON.parse(t);
   } catch {
@@ -370,6 +384,10 @@ function estraiJson(testo) {
     if (i !== -1 && j2 > i) {
       try {
         return JSON.parse(t.slice(i, j2 + 1));
+      } catch {
+      }
+      try {
+        return JSON.parse(riparaJson(t.slice(i, j2 + 1)));
       } catch {
       }
     }
@@ -534,7 +552,7 @@ Alla fine elenca SOLO i link YouTube trovati nei risultati (massimo 10), uno per
   for (const b of d.content || []) {
     if (b.type === "web_search_tool_result" && Array.isArray(b.content)) b.content.forEach((x) => aggiungi(x.url, x.title));
   }
-  const testo = (d.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  const testo = (d.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
   const ordine = [...testo.matchAll(/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([\w-]{11})/g)].map((m) => m[1]).filter((id) => visti.has(id));
   const ids = [.../* @__PURE__ */ new Set([...ordine, ...visti.keys()])].slice(0, 12);
   return {
@@ -3003,14 +3021,14 @@ async function claudeWeb(cfg, sistema, domanda, maxUses = 8) {
   const r = await richiesta("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": cfg.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: cfg.CLAUDE_MODEL, max_tokens: 8e3, system: sistema, tools: [{ type: cfg.WEB_SEARCH_TOOL, name: "web_search", max_uses: maxUses }], messages: [{ role: "user", content: domanda }] })
+    body: JSON.stringify({ model: cfg.CLAUDE_MODEL, max_tokens: 12e3, system: sistema, tools: [{ type: cfg.WEB_SEARCH_TOOL, name: "web_search", max_uses: maxUses }], messages: [{ role: "user", content: domanda }] })
   });
   if (r.status !== 200) throw new Error(`Claude ${r.status}: ${(await r.text()).slice(0, 300)}`);
   const d = await r.json();
   await registra(cfg, "claude", cfg.CLAUDE_MODEL, daUsage(d.usage));
   const fonti = /* @__PURE__ */ new Map();
   for (const b of d.content || []) if (b.type === "web_search_tool_result" && Array.isArray(b.content)) b.content.forEach((x) => x.url && fonti.set(x.url, x.title || ""));
-  const testo = (d.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  const testo = (d.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
   return { out: estraiJson(testo), fonti };
 }
 async function faseRicerca2(env, cfg, A) {

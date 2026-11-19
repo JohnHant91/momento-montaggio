@@ -3,13 +3,29 @@
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// a capo e tabulazioni non protetti dentro le stringhe (capita con le risposte spezzate dalle citazioni)
+function riparaJson(t) {
+  let out = '', dentro = false, esc = false;
+  for (const ch of t) {
+    if (dentro && !esc && (ch === '\n' || ch === '\r' || ch === '\t')) { out += ch === '\t' ? '\\t' : ch === '\n' ? '\\n' : ''; continue; }
+    if (ch === '"' && !esc) dentro = !dentro;
+    esc = ch === '\\' && !esc;
+    out += ch;
+  }
+  return out;
+}
+
 export function estraiJson(testo) {
   if (testo && typeof testo === 'object') return testo;
   let t = String(testo || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  t = t.replace(/<cite[^>]*>/g, '').replace(/<\/cite>/g, ''); // tag di citazione scritti nel testo: non servono nel JSON
   try { return JSON.parse(t); } catch {}
   for (const [a, c] of [['{', '}'], ['[', ']']]) {
     const i = t.indexOf(a), j = t.lastIndexOf(c);
-    if (i !== -1 && j > i) { try { return JSON.parse(t.slice(i, j + 1)); } catch {} }
+    if (i !== -1 && j > i) {
+      try { return JSON.parse(t.slice(i, j + 1)); } catch {}
+      try { return JSON.parse(riparaJson(t.slice(i, j + 1))); } catch {}
+    }
   }
   throw new Error('risposta non in JSON: ' + t.slice(0, 300));
 }
@@ -244,7 +260,7 @@ Alla fine elenca SOLO i link YouTube trovati nei risultati (massimo 10), uno per
     if (b.type === 'web_search_tool_result' && Array.isArray(b.content)) b.content.forEach((x) => aggiungi(x.url, x.title));
   }
   // dal testo finale tiene solo i link che compaiono anche nei risultati della ricerca (niente link inventati)
-  const testo = (d.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+  const testo = (d.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
   const ordine = [...testo.matchAll(/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([\w-]{11})/g)].map((m) => m[1]).filter((id) => visti.has(id));
   const ids = [...new Set([...ordine, ...visti.keys()])].slice(0, 12);
   return {
