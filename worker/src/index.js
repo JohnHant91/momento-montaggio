@@ -336,8 +336,20 @@ async function provaYoutube(env) { // una volta: la chiave YouTube appena aggiun
   try { const v = await youtube(cfg, ['claude ai tutorial'], 5); await log(env, null, 'scout_yt', `🩺 chiave YouTube ok: ${v.length} Shorts trovati con l'API ufficiale (gratis)`); }
   catch (e) { await log(env, null, 'scout_yt', '🩺 chiave YouTube non funziona: ' + String(e.message).slice(0, 300), 'warn'); }
 }
+async function provaHeygen(env) { // una volta: la chiave HeyGen funziona? credito e avatar visibili (nessun video generato)
+  const K = 'prova_heygen_1';
+  if (await env.VIDEO.get(K)) return;
+  const cfg = await configurazione(env);
+  if (!cfg.HEYGEN_API_KEY) return;
+  await env.VIDEO.put(K, '1', { expirationTtl: 86400 * 30 });
+  const h = { 'x-api-key': cfg.HEYGEN_API_KEY, accept: 'application/json' };
+  const prova = async (u) => { try { const r = await fetch('https://api.heygen.com' + u, { headers: h }); return `${u.split('?')[0]} → ${r.status} ${(await r.text()).replace(/\s+/g, ' ').slice(0, 260)}`; } catch (e) { return u + ' → ' + e.message; } };
+  const righe = [await prova('/v2/user/remaining_quota'), await prova('/v2/avatar/' + cfg.HEYGEN_AVATAR + '/details'), await prova('/v2/voices/' + cfg.HEYGEN_VOCE)];
+  await log(env, null, 'avatar', '🩺 prova chiave HeyGen: ' + righe.join(' | ').slice(0, 580));
+}
 async function diagnosiUnaVolta(env) {
   await provaYoutube(env);
+  await provaHeygen(env);
   const K = 'diagnosi_gemini_2';
   if (await env.VIDEO.get(K)) return;
   await env.VIDEO.put(K, 'in_corso', { expirationTtl: 86400 * 30 });
