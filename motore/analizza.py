@@ -529,7 +529,8 @@ def main():
                 return
             time.sleep(15)  # gli agenti stanno pensando (scheda, regia): aspetto la fase dopo
             continue
-        chiave = (lavoro["id"], lavoro["tipo"])
+        # se la regia cambia il piano (es. dopo una correzione) i tentativi ripartono da zero
+        chiave = (lavoro["id"], lavoro["tipo"], hash(json.dumps(lavoro.get("piano"), sort_keys=True)) if lavoro.get("piano") else 0)
         tentativi[chiave] = tentativi.get(chiave, 0) + 1
         if tentativi[chiave] > 2 or FERMO["motivo"]:  # da riprovare: lo riprende il prossimo giro
             regia(lavoro, "fine", corpo={"silenzioso": True})
