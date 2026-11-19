@@ -500,6 +500,11 @@ async function geminiGenera(cfg, parti, { bassa = false } = {}) {
         errori.push(modello + ": quota");
         continue;
       }
+      const g = e.message.match(/HTTP (5\d\d)/);
+      if (g) {
+        errori.push(modello + ": " + g[1]);
+        continue;
+      }
       throw e;
     }
     const t = await r.text();
@@ -516,7 +521,27 @@ async function geminiGenera(cfg, parti, { bassa = false } = {}) {
     throw new Error(`Gemini ${r.status} (${modello}): ${t.slice(0, 400)}`);
   }
   if (quota) throw new Error("QUOTA_GEMINI: quota gratuita di Gemini esaurita (" + errori.join(", ") + "). Attiva la fatturazione su aistudio.google.com o aspetta il reset giornaliero");
-  throw new Error("nessun modello Gemini disponibile tra: " + errori.join(", "));
+  throw new Error("nessun modello Gemini ha risposto: " + errori.join(", "));
+}
+async function diagnosiGemini(cfg) {
+  if (!cfg.GEMINI_API_KEY) return { errore: "manca la chiave Gemini" };
+  const out = [];
+  for (const modello of cfg.GEMINI_MODELS) {
+    for (const [prova, parti] of [["testo", [{ text: 'Rispondi solo con {"ok":true}' }]], ["youtube", [{ fileData: { fileUri: "https://www.youtube.com/watch?v=jNQXAC9IVRw" } }, { text: 'Descrivi il video in 5 parole. Rispondi in JSON {"descrizione":"..."}' }]]]) {
+      const t0 = Date.now();
+      try {
+        const r = await fetch(`${GBASE}/v1beta/models/${modello}:generateContent`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-goog-api-key": cfg.GEMINI_API_KEY },
+          body: JSON.stringify({ contents: [{ role: "user", parts: parti }], generationConfig: { responseMimeType: "application/json" } })
+        });
+        out.push({ modello, prova, stato: r.status, secondi: Math.round((Date.now() - t0) / 100) / 10, risposta: (await r.text()).slice(0, 300) });
+      } catch (e) {
+        out.push({ modello, prova, errore: e.message });
+      }
+    }
+  }
+  return out;
 }
 function guardaYoutube(cfg, url, istruzioni, fps) {
   return geminiGenera(cfg, [
@@ -7135,6 +7160,7 @@ async function api(req, env, url) {
       return json2({ ok: true });
     }
   }
+  if (p === "/api/diagnosi/gemini") return json2(await diagnosiGemini(await configurazione(env)));
   if (p === "/api/consumi") return await apiConsumi(req, env, p, m, json2) || json2({ errore: "metodo non valido" }, 405);
   if (p.startsWith("/api/post")) {
     const r = await apiPost(req, env, p, m, json2);
@@ -7185,6 +7211,17 @@ async function gestionaleUfficiale(req, env, url) {
     return new Response(html, { status: r.status, headers: out });
   }
   return new Response(r.body, { status: r.status, headers: out });
+}
+async function diagnosiUnaVolta(env) {
+  const K = "diagnosi_gemini_1";
+  if (await env.VIDEO.get(K)) return;
+  await env.VIDEO.put(K, "in_corso", { expirationTtl: 86400 * 30 });
+  try {
+    const r = await diagnosiGemini(await configurazione(env));
+    await log(env, null, "regia", "\u{1FA7A} diagnosi Gemini: " + JSON.stringify(r).slice(0, 3500));
+  } catch (e) {
+    await log(env, null, "regia", "\u{1FA7A} diagnosi Gemini fallita: " + e.message, "warn");
+  }
 }
 var index_default = {
   async fetch(req, env) {
@@ -7241,7 +7278,7 @@ var index_default = {
     await schema(env);
     await schemaPiani(env);
     await schemaAgenzia(env);
-    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env), avanzaRiunioni(env), avanzaAvatar(env), avanzaPost(env)]));
+    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env), avanzaRiunioni(env), avanzaAvatar(env), avanzaPost(env), diagnosiUnaVolta(env)]));
   }
 };
 export {

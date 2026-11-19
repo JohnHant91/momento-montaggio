@@ -8,6 +8,7 @@ import { apiAgenzia, avanzaUffici, schemaAgenzia } from './agenzia.js';
 import { apiRiunioni, avanzaRiunioni } from './riunioni.js';
 import { apiAvatar, avanzaAvatar, firmaPubblica } from './avatar.js';
 import { apiConsumi } from './consumi.js';
+import { diagnosiGemini } from './servizi.js';
 import { apiPost, avanzaPost } from './post.js';
 import { motoreApi } from './motore.js';
 import { PAGINA } from './pagina.js';
@@ -220,6 +221,7 @@ async function api(req, env, url) {
       return json({ ok: true });
     }
   }
+  if (p === '/api/diagnosi/gemini') return json(await diagnosiGemini(await configurazione(env)));
   if (p === '/api/consumi') return await apiConsumi(req, env, p, m, json) || json({ errore: 'metodo non valido' }, 405);
   if (p.startsWith('/api/post')) { const r = await apiPost(req, env, p, m, json); if (r) return r; }
   if (p.startsWith('/api/avatar')) {
@@ -265,6 +267,17 @@ async function gestionaleUfficiale(req, env, url) {
     return new Response(html, { status: r.status, headers: out });
   }
   return new Response(r.body, { status: r.status, headers: out });
+}
+
+// diagnosi Gemini una sola volta dopo il rilascio: il risultato finisce nel registro
+async function diagnosiUnaVolta(env) {
+  const K = 'diagnosi_gemini_1';
+  if (await env.VIDEO.get(K)) return;
+  await env.VIDEO.put(K, 'in_corso', { expirationTtl: 86400 * 30 });
+  try {
+    const r = await diagnosiGemini(await configurazione(env));
+    await log(env, null, 'regia', '🩺 diagnosi Gemini: ' + JSON.stringify(r).slice(0, 3500));
+  } catch (e) { await log(env, null, 'regia', '🩺 diagnosi Gemini fallita: ' + e.message, 'warn'); }
 }
 
 export default {
@@ -315,6 +328,6 @@ export default {
     await schema(env);
     await schemaPiani(env);
     await schemaAgenzia(env);
-    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env), avanzaRiunioni(env), avanzaAvatar(env), avanzaPost(env)]));
+    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env), avanzaRiunioni(env), avanzaAvatar(env), avanzaPost(env), diagnosiUnaVolta(env)]));
   },
 };

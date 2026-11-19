@@ -136,6 +136,9 @@ async function geminiGenera(cfg, parti, { bassa = false } = {}) {
     } catch (e) {
       // quota del piano gratuito finita su questo modello: provo il prossimo (ogni modello ha la sua quota)
       if (/HTTP 429/.test(e.message)) { quota++; errori.push(modello + ': quota'); continue; }
+      // modello sovraccarico o momentaneamente giù (503/500/504): non mi fermo, provo il modello successivo
+      const g = e.message.match(/HTTP (5\d\d)/);
+      if (g) { errori.push(modello + ': ' + g[1]); continue; }
       throw e;
     }
     const t = await r.text();
@@ -149,7 +152,24 @@ async function geminiGenera(cfg, parti, { bassa = false } = {}) {
     throw new Error(`Gemini ${r.status} (${modello}): ${t.slice(0, 400)}`);
   }
   if (quota) throw new Error('QUOTA_GEMINI: quota gratuita di Gemini esaurita (' + errori.join(', ') + '). Attiva la fatturazione su aistudio.google.com o aspetta il reset giornaliero');
-  throw new Error('nessun modello Gemini disponibile tra: ' + errori.join(', '));
+  throw new Error('nessun modello Gemini ha risposto: ' + errori.join(', '));
+}
+
+// diagnosi: per ogni modello una domanda di testo e la visione di un video YouTube corto
+export async function diagnosiGemini(cfg) {
+  if (!cfg.GEMINI_API_KEY) return { errore: 'manca la chiave Gemini' };
+  const out = [];
+  for (const modello of cfg.GEMINI_MODELS) {
+    for (const [prova, parti] of [['testo', [{ text: 'Rispondi solo con {"ok":true}' }]], ['youtube', [{ fileData: { fileUri: 'https://www.youtube.com/watch?v=jNQXAC9IVRw' } }, { text: 'Descrivi il video in 5 parole. Rispondi in JSON {"descrizione":"..."}' }]]]) {
+      const t0 = Date.now();
+      try {
+        const r = await fetch(`${GBASE}/v1beta/models/${modello}:generateContent`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': cfg.GEMINI_API_KEY },
+          body: JSON.stringify({ contents: [{ role: 'user', parts: parti }], generationConfig: { responseMimeType: 'application/json' } }) });
+        out.push({ modello, prova, stato: r.status, secondi: Math.round((Date.now() - t0) / 100) / 10, risposta: (await r.text()).slice(0, 300) });
+      } catch (e) { out.push({ modello, prova, errore: e.message }); }
+    }
+  }
+  return out;
 }
 
 export function guardaYoutube(cfg, url, istruzioni, fps) {
