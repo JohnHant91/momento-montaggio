@@ -162,6 +162,28 @@ ok(visti.at(-1).url === 'https://momento-gestionale/api/login' && !String(visti.
 ok(/Path=\/gestionale\//.test(gr.headers.get('set-cookie') || ''), 'la sessione del gestionale resta sotto /gestionale/');
 const fuori = await W.fetch(new Request('https://x/gestionale/api/data'), env, {}); ok(fuori.status === 401, 'senza accesso alla regia il gestionale non si raggiunge da qui');
 
+console.log('\n16) post e caroselli');
+await chiama('/api/accedi', { method: 'POST', body: { password: 'provaprova' } });
+r = await chiama('/api/post', { method: 'POST', body: { cliente: 'Torretta', nicchia: 'caffetteria Salerno', tipo: 'carosello', numero: 3, slide: 7, brief: '3 caroselli sulla tostatura e le miscele della casa', pcloud: 'https://e.pcloud.link/publink/show?code=XYZ' } });
+ok(r.status === 200 && r.j.id, 'nuovo lavoro post (#' + r.j.id + ') ' + (r.j.errore || ''));
+const pid2 = r.j.id;
+env.APIFY_TOKEN = 'apify-finto';
+const giro = async () => { env.DB._db.prepare('UPDATE post_lavori SET blocco_fino=NULL').run(); await cron(); return (await chiama('/api/post/' + pid2)).j; };
+let P = await giro();
+ok(P.fase === 'studio' && P.virali.post.length === 3 && P.virali.post[0].carosello && !P.virali.post.some((x) => x.url.includes('CCC')), 'Ines e Tea: virali trovati, i video scartati, i caroselli prima (' + P.virali.post.map((x) => x.piattaforma).join(', ') + ')');
+P = await giro(); ok(P.fase === 'foto' && P.studio.ganci.length && P.studio.immagini_viste > 0, 'Iris: studio con le slide guardate (' + P.studio.immagini_viste + ')');
+P = await giro(); ok(P.fase === 'contenuti' && P.foto.foto.length === 2 && P.foto.foto.some((f) => f.uso === 'scarta'), 'Ada: foto guardate, la mossa scartata');
+P = await giro(); ok(P.stato === 'da_approvare' && P.contenuti.post.length === 3 && P.contenuti.post[0].slide[0].foto === 'a.jpg', 'Pietro e Giulia: 3 caroselli (non 4), con la foto giusta in copertina');
+r = await chiama('/api/post/' + pid2 + '/approva', { method: 'POST', body: { n: [1, 2], modifiche: { 1: { caption: 'caption di Johnny' } } } });
+P = (await chiama('/api/post/' + pid2)).j;
+ok(P.stato === 'attende_canva' && P.contenuti.post[0].caption === 'caption di Johnny' && P.contenuti.post[2].stato === 'scartato', 'Johnny approva 2 caroselli, uno modificato: pronti per Canva');
+r = await chiama('/api/post/' + pid2 + '/canva', { method: 'POST', body: { post: [{ n: 1, design_id: 'DAF1234567x', link: 'https://www.canva.com/design/DAF/edit', png: ['https://export.canva.example/1.png', 'https://export.canva.example/2.png'] }] } });
+P = await giro();
+ok(P.stato === 'fatto' && P.slide_file.length === 2, 'le slide di Canva tornano in archivio');
+let im = await chiama('/api/post/' + pid2 + '/slide/1-2.png', { grezzo: true }); ok(im.status === 200 && im.headers.get('content-type') === 'image/png', 'slide scaricabile');
+im = await chiama('/api/post/img?u=' + encodeURIComponent('https://evil.example/x.jpg'), { grezzo: true }); ok(im.status === 400, 'anteprime solo da Instagram/TikTok');
+r = await chiama('/api/consumi?giorni=30'); ok(r.j.aree.some((a) => a.area === 'post'), 'i costi dei post sono contati');
+
 console.log('\n11) pagina: lo script si compila');
 const html = await (await chiama('/', { grezzo: true })).text();
 const script = html.match(/<script>([\s\S]*?)<\/script>\s*<\/body>/);

@@ -8,6 +8,7 @@ import { apiAgenzia, avanzaUffici, schemaAgenzia } from './agenzia.js';
 import { apiRiunioni, avanzaRiunioni } from './riunioni.js';
 import { apiAvatar, avanzaAvatar, firmaPubblica } from './avatar.js';
 import { apiConsumi } from './consumi.js';
+import { apiPost, avanzaPost } from './post.js';
 import { motoreApi } from './motore.js';
 import { PAGINA } from './pagina.js';
 import SALA3D_JS from './sala3d.txt';
@@ -220,6 +221,7 @@ async function api(req, env, url) {
     }
   }
   if (p === '/api/consumi') return await apiConsumi(req, env, p, m, json) || json({ errore: 'metodo non valido' }, 405);
+  if (p.startsWith('/api/post')) { const r = await apiPost(req, env, p, m, json); if (r) return r; }
   if (p.startsWith('/api/avatar')) {
     const r = await apiAvatar(req, env, p, m, json);
     if (r) return r;
@@ -306,6 +308,6 @@ export default {
     await schema(env);
     await schemaPiani(env);
     await schemaAgenzia(env);
-    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env), avanzaRiunioni(env), avanzaAvatar(env)]));
+    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env), avanzaRiunioni(env), avanzaAvatar(env), avanzaPost(env)]));
   },
 };

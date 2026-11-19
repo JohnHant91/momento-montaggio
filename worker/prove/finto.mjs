@@ -45,6 +45,10 @@ function rispostaClaude(body) {
   if (sys.includes('Prepari le ricerche')) return { youtube: ['reel ristoranti errori', 'restaurant reels mistakes'], tiktok: ['reel ristorante'], hashtag: ['ristoranti'] };
   if (sys.startsWith('Sei Zoe')) return { ganci_che_funzionano: ['Il motivo per cui… non è quello che pensi'], strutture: ['problema-tensione-soluzione'], angoli_scoperti: ['il menu'], durata_ideale_sec: 55, da_evitare: ['elenchi'], nota: 'ok' };
   if (sys.startsWith('Sei Nora')) return { copioni: [1, 2, 3].map((n) => ({ titolo: 'Reel ' + n, angolo: 'angolo ' + n, testo: 'C\'è un motivo se i tuoi reel non li guarda nessuno. E non è quello che pensi. ' + 'parola '.repeat(120), gancio: 'C\'è un motivo…', soluzione: 'la luce', cartelli: [{ testo: 'NESSUNO', sulla_parola: 'nessuno', stile: 'fascia', colore: 'blu' }], caption: 'cap', hashtag: ['#a'], fonti: [] })) };
+  if (sys.includes('Studi i caroselli')) return { sintesi: 'Copertine con domanda forte', copertine: ['testo grande'], struttura: ['7 slide'], stile_grafico: { colori: 'caldi', font: 'bold', layout: 'foto piena', foto_o_grafica: 'foto' }, testo_per_slide: '20 parole', ganci: ['Non fare questo errore'], da_evitare: ['muri di testo'], per_esempio: [{ n: 1, perche_funziona: 'gancio' }] };
+  if (sys.includes('Valuti foto')) return { foto: [{ nome: 'a.jpg', descrizione: 'tazzina', qualita: 9, spazio_testo: 'alto', uso: 'copertina' }, { nome: 'b.jpg', descrizione: 'mosso', qualita: 3, uso: 'scarta' }] };
+  if (sys.startsWith('Sei Pietro (caroselli e grafiche) con Giulia')) return { stile: { palette: ['#1a1a1a', '#e9d9bc', '#0e9f9a'], font_titoli: 'Inter Bold', font_testo: 'Inter', mood: 'caldo', regole: 'foto piene' },
+    post: [1, 2, 3, 4].map((n) => ({ titolo: 'Carosello ' + n, tipo: 'carosello', obiettivo: 'salvataggi', slide: [{ n: 1, ruolo: 'copertina', titolo: 'Gancio ' + n, testo: '', foto: 'a.jpg', layout: 'testo in alto' }, { n: 2, ruolo: 'cta', titolo: 'Salva', testo: 'seguici', foto: null, layout: 'centrato' }], caption: 'Caption ' + n, hashtag: ['caffe', 'salerno'], alt: 'foto' })) };
   if (sys.includes('RIUNIONE PREVENTIVA')) return {
     titolo: 'Post di dicembre per Villetta Prova',
     verbale: [{ chi: 'capo', testo: 'Apro la riunione.' }, { chi: 'stratega', testo: 'Serve la strategia.' }, { chi: 'calendario', testo: 'Calendario pronto in un giorno.' }, { chi: 'capo', testo: 'Chiudo.' }],
@@ -89,9 +93,19 @@ globalThis.fetch = async (url, opts = {}) => {
       if (typeof ultimo === 'string') return Response.json({ stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 't1', name: 'crea', input: { sezione: 'eventi', campi: { titolo: 'Shooting', data: '2026-12-12', tipo: 'Shooting' } } }] });
       return Response.json({ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Fatto: shooting segnato il 12.' }] });
     }
+    if (!body.stream) return Response.json({ content: [{ type: 'text', text: JSON.stringify(rispostaClaude(body)) }], stop_reason: 'end_turn', usage: { input_tokens: 5000, output_tokens: 800 } });
     return new Response(sse(rispostaClaude(body)), { headers: { 'content-type': 'text/event-stream' } });
   }
   if (u.includes('api.github.com')) return new Response('', { status: 204 });
+  if (u.startsWith('https://api.apify.com/')) {
+    if (u.includes('instagram')) return Response.json([{ type: 'Sidecar', url: 'https://www.instagram.com/p/AAA/', ownerUsername: 'bar_top', caption: 'I 5 errori del caffè', likesCount: 5400, commentsCount: 320, displayUrl: 'https://scontent.cdninstagram.com/a.jpg', childPosts: [{ displayUrl: 'https://scontent.cdninstagram.com/b.jpg' }, { displayUrl: 'https://scontent.cdninstagram.com/c.jpg' }] },
+      { type: 'Image', url: 'https://www.instagram.com/p/BBB/', ownerUsername: 'altro', caption: 'foto', likesCount: 90, commentsCount: 2, displayUrl: 'https://scontent.cdninstagram.com/d.jpg' }, { type: 'Video', url: 'https://www.instagram.com/p/CCC/', videoUrl: 'x', likesCount: 99999 }]);
+    return Response.json([{ webVideoUrl: 'https://www.tiktok.com/@x/photo/1', authorMeta: { name: 'tt' }, text: 'carosello tiktok', diggCount: 800, commentCount: 40, shareCount: 30, imagePost: { images: [{ imageURL: { urlList: ['https://p16.tiktokcdn.com/1.jpg'] } }, { imageURL: { urlList: ['https://p16.tiktokcdn.com/2.jpg'] } }] } }]);
+  }
+  if (u.includes('pcloud.com/showpublink')) return Response.json({ result: 0, metadata: { isfolder: true, name: 'scatti', contents: [{ name: 'a.jpg', fileid: 1, category: 1, width: 3000, height: 4000 }, { name: 'b.jpg', fileid: 2, category: 1, width: 4000, height: 3000 }] } });
+  if (u.includes('pcloud.com/getpubthumblink')) return Response.json({ result: 0, hosts: ['thumb.pcloud.com'], path: '/t/' + new URL(u).searchParams.get('fileid') + '.jpg' });
+  if (/cdninstagram\.com|tiktokcdn\.com|thumb\.pcloud\.com/.test(u)) return new Response(new Uint8Array([255, 216, 255, 1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } });
+  if (u.startsWith('https://export.canva.example/')) return new Response(new Uint8Array([137, 80, 78, 71, 1]), { headers: { 'content-type': 'image/png' } });
   if (u.startsWith('https://api.heygen.com/v2/video/generate')) { const b = JSON.parse(opts.body); stato.heygen.push(b); return Response.json({ data: { video_id: 'vid' + stato.heygen.length } }); }
   if (u.startsWith('https://api.heygen.com/v1/video_status.get')) return Response.json({ data: { status: 'completed', video_url: 'https://heygen.example/' + u.split('=')[1] + '.mp4', duration: 58 } });
   return new Response('{}', { status: 200 });

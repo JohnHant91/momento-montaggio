@@ -293,7 +293,7 @@ export async function youtubeDettagli(cfg, ids, durataMax = 9999) {
 }
 
 // ------------------------------------------------------------------ Apify (TikTok / Instagram)
-async function apify(cfg, actor, input) {
+export async function apify(cfg, actor, input) {
   const u = `https://api.apify.com/v2/acts/${actor.replace('/', '~')}/run-sync-get-dataset-items?token=${cfg.APIFY_TOKEN}&timeout=280`;
   const r = await richiesta(u, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 2);
   if (r.status !== 200 && r.status !== 201) throw new Error(`Apify ${actor} ${r.status}: ${(await r.text()).slice(0, 200)}`);
@@ -301,7 +301,7 @@ async function apify(cfg, actor, input) {
   return Array.isArray(d) ? d : [];
 }
 
-const primo = (d, ...chiavi) => {
+export const primo = (d, ...chiavi) => {
   for (const k of chiavi) {
     let v = d;
     for (const p of k.split('.')) v = v == null ? undefined : Array.isArray(v) && /^\d+$/.test(p) ? v[+p] : v[p];
@@ -392,7 +392,7 @@ function codicePcloud(link) {
   try { return new URL(link).searchParams.get('code'); } catch { return null; }
 }
 
-async function pcloudApi(link, metodo, params) {
+export async function pcloudApi(link, metodo, params) {
   const code = codicePcloud(link);
   if (!code) throw new Error('link pCloud non valido: deve contenere "code=" (link pubblico della cartella)');
   const host = /(^|\/\/)e\.|eapi/.test(link) ? ['eapi', 'api'] : ['api', 'eapi'];

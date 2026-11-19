@@ -3267,6 +3267,349 @@ async function apiAvatar(req, env, p, m, json3) {
   return null;
 }
 
+// src/post.js
+var BLOCCO_MIN4 = 12;
+var FASI_POST = [["ricerca", "Post virali"], ["studio", "Studio"], ["foto", "Foto"], ["contenuti", "Testi"], ["approvazione", "Approvazione"], ["canva", "Canva"], ["scarica", "Slide"], ["fatto", "Pronto"]];
+var AGENTE_FASE = { ricerca: "scout_ig", studio: "occhi", foto: "analista", contenuti: "caroselli", scarica: "caroselli" };
+async function schemaPost(env) {
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS post_lavori (id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER, cliente TEXT, nicchia TEXT, tipo TEXT DEFAULT 'carosello',
+    numero INTEGER DEFAULT 3, slide INTEGER DEFAULT 7, brief TEXT, pcloud TEXT, esempi TEXT, note TEXT, fase TEXT NOT NULL DEFAULT 'ricerca', stato TEXT NOT NULL DEFAULT 'in_corso',
+    virali TEXT, studio TEXT, foto TEXT, contenuti TEXT, canva TEXT, slide_file TEXT, errore TEXT, tentativi INTEGER DEFAULT 0, blocco_fino TEXT, riunione_id INTEGER, creato TEXT, aggiornato TEXT)`).run();
+}
+async function nuovoLavoroPost(env, d) {
+  await schemaPost(env);
+  const C = d.cliente_id ? await cliente(env, d.cliente_id) : null;
+  const r = await one(
+    env,
+    `INSERT INTO post_lavori (cliente_id, cliente, nicchia, tipo, numero, slide, brief, pcloud, esempi, note, riunione_id, creato, aggiornato)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
+    C?.id || null,
+    String(C?.nome || d.cliente || "").slice(0, 120),
+    String(d.nicchia || C?.nicchia || "").slice(0, 200),
+    ["carosello", "post", "misto"].includes(d.tipo) ? d.tipo : "carosello",
+    Math.min(12, Math.max(1, Number(d.numero) || 3)),
+    Math.min(10, Math.max(2, Number(d.slide) || 7)),
+    String(d.brief || "").slice(0, 4e3),
+    String(d.pcloud || "").trim() || null,
+    JSON.stringify((d.esempi || []).filter((x) => /^https:\/\//.test(x)).slice(0, 10)),
+    String(d.note || "").slice(0, 2e3),
+    d.riunione || null,
+    ora(),
+    ora()
+  );
+  await log(env, null, "scout_ig", `\u{1F5C2}\uFE0F nuovo lavoro post #${r.id} per ${C?.nome || d.cliente || "cliente"}: ${d.numero || 3} ${d.tipo || "carosello"}, cerco i pi\xF9 virali della nicchia`);
+  return r.id;
+}
+var num2 = (v) => Math.round(Number(v) || 0);
+function normIg(it) {
+  const figli = it.childPosts || it.images || [];
+  return {
+    piattaforma: "instagram",
+    url: primo(it, "url") || "",
+    autore: primo(it, "ownerUsername") || "",
+    caption: String(primo(it, "caption") || "").slice(0, 600),
+    likes: num2(primo(it, "likesCount")),
+    commenti: num2(primo(it, "commentsCount")),
+    data: primo(it, "timestamp") || "",
+    carosello: /sidecar/i.test(it.type || "") || figli.length > 1,
+    slide: Math.max(1, figli.length || 1),
+    immagini: [primo(it, "displayUrl"), ...figli.map((f) => typeof f === "string" ? f : f.displayUrl)].filter(Boolean).slice(0, 4),
+    _video: /video/i.test(it.type || "") || !!it.videoUrl
+  };
+}
+function normTt(it) {
+  const imm = (it.imagePost?.images || it.slideshowImageLinks || []).map((x) => x?.imageURL?.urlList?.[0] || x?.downloadLink || x?.tiktokLink || x).filter((x) => typeof x === "string");
+  return {
+    piattaforma: "tiktok",
+    url: primo(it, "webVideoUrl", "url") || "",
+    autore: primo(it, "authorMeta.name") || "",
+    caption: String(primo(it, "text") || "").slice(0, 600),
+    likes: num2(primo(it, "diggCount")),
+    commenti: num2(primo(it, "commentCount")),
+    condivisioni: num2(primo(it, "shareCount")),
+    views: num2(primo(it, "playCount")),
+    data: primo(it, "createTimeISO") || "",
+    carosello: imm.length > 1,
+    slide: imm.length || 1,
+    immagini: [primo(it, "videoMeta.coverUrl", "covers.0"), ...imm].filter(Boolean).slice(0, 4),
+    _video: !imm.length
+  };
+}
+var forza = (p) => Math.log10(1 + (p.likes || 0) + 3 * (p.commenti || 0) + 4 * (p.condivisioni || 0)) + (p.carosello ? 0.3 : 0);
+async function faseRicerca3(env, cfg, P2) {
+  const C = P2.cliente_id ? await cliente(env, P2.cliente_id) : null;
+  const q = await claude(
+    { ...cfg, CLAUDE_MODEL: cfg.CLAUDE_MODEL_LIGHT },
+    "Prepari le ricerche per trovare i post e i caroselli Instagram/TikTok pi\xF9 virali di una nicchia.",
+    `NICCHIA: ${P2.nicchia || C?.nicchia || ""}
+CLIENTE: ${P2.cliente}
+BRIEF: ${P2.brief}
+Rispondi SOLO JSON: {"hashtag": ["5 hashtag instagram senza #, di nicchia ma con volume"], "tiktok": ["3 ricerche brevi per caroselli/foto su TikTok"]}`,
+    { maxTokens: 600 }
+  );
+  const lista = [];
+  const esempi = J(P2.esempi, []);
+  if (cfg.APIFY_TOKEN) {
+    const [ig, tt, miei] = await Promise.allSettled([
+      apify(cfg, cfg.APIFY_INSTAGRAM_ACTOR, { directUrls: (q.hashtag || []).slice(0, 5).map((h) => `https://www.instagram.com/explore/tags/${String(h).replace(/^#/, "")}/`), resultsType: "posts", resultsLimit: 25, addParentData: false }),
+      apify(cfg, cfg.APIFY_TIKTOK_ACTOR, { searchQueries: (q.tiktok || []).slice(0, 3), resultsPerPage: 15, searchSection: "/photo", shouldDownloadVideos: false, shouldDownloadCovers: false, shouldDownloadSlideshowImages: false }),
+      esempi.length ? apify(cfg, cfg.APIFY_INSTAGRAM_ACTOR, { directUrls: esempi.filter((u) => /instagram/.test(u)), resultsType: "posts", resultsLimit: 1 }) : Promise.resolve([])
+    ]);
+    if (ig.status === "fulfilled") lista.push(...ig.value.map(normIg));
+    else await log(env, null, "scout_ig", `Instagram non risponde: ${String(ig.reason?.message || ig.reason).slice(0, 120)}`, "warn");
+    if (tt.status === "fulfilled") lista.push(...tt.value.map(normTt));
+    if (miei.status === "fulfilled") lista.push(...miei.value.map((x) => ({ ...normIg(x), scelto_da_johnny: true })));
+  } else {
+    await log(env, null, "scout_ig", "senza token Apify cerco esempi sul web (niente numeri di like)", "warn");
+    const w = await claude(cfg, "Sei uno scout di contenuti social. Usa solo link reali che trovi.", `Cerca esempi di caroselli Instagram/TikTok di successo nella nicchia "${P2.nicchia || P2.cliente}" (${(q.hashtag || []).join(", ")}). Rispondi SOLO JSON: {"esempi": [{"url": "...", "autore": "...", "perche": "..."}]}`, { maxTokens: 2e3 }).catch(() => ({ esempi: [] }));
+    lista.push(...(w.esempi || []).map((x) => ({ piattaforma: /tiktok/.test(x.url) ? "tiktok" : "instagram", url: x.url, autore: x.autore || "", caption: x.perche || "", likes: 0, commenti: 0, carosello: true, slide: 0, immagini: [] })));
+  }
+  const visti = /* @__PURE__ */ new Set();
+  const top = lista.filter((p) => p.url && !p._video && !visti.has(p.url) && visti.add(p.url)).map((p) => ({ ...p, forza: Math.round(forza(p) * 100) / 100 })).sort((a, b) => (b.scelto_da_johnny ? 99 : b.forza) - (a.scelto_da_johnny ? 99 : a.forza)).slice(0, 12);
+  await run(env, "UPDATE post_lavori SET virali=?, fase='studio', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify({ hashtag: q.hashtag || [], post: top }), ora(), P2.id);
+  await log(env, null, "scout_ig", `\u{1F525} post #${P2.id}: ${lista.length} post trovati, tengo i ${top.length} pi\xF9 forti (${top.filter((p) => p.carosello).length} caroselli). Li passo a Iris`);
+}
+async function immagineBase64(url) {
+  try {
+    const r = await fetch(url, { headers: { "user-agent": "Mozilla/5.0" } });
+    if (!r.ok || !/image/.test(r.headers.get("content-type") || "")) return null;
+    const b = new Uint8Array(await r.arrayBuffer());
+    if (b.byteLength > 35e5) return null;
+    let s = "";
+    for (let i = 0; i < b.length; i += 32768) s += String.fromCharCode.apply(null, b.subarray(i, i + 32768));
+    return { jpeg: btoa(s), tipo: (r.headers.get("content-type") || "image/jpeg").split(";")[0] };
+  } catch (_) {
+    return null;
+  }
+}
+async function faseStudio(env, cfg, P2) {
+  const V = J(P2.virali, {}), post = V.post || [];
+  const immagini = [];
+  for (const [i, p] of post.slice(0, 6).entries()) for (const u of (p.immagini || []).slice(0, 2)) {
+    const b = await immagineBase64(u);
+    if (b && b.tipo === "image/jpeg") immagini.push({ cosa: `esempio ${i + 1} (${p.piattaforma}, @${p.autore}, ${p.likes} like, ${p.commenti} commenti) \xB7 slide ${immagini.filter((x) => x.cosa.startsWith(`esempio ${i + 1} `)).length + 1}`, jpeg: b.jpeg });
+    if (immagini.length >= 10) break;
+  }
+  const sistema = `Sei Iris, occhi di AGENZIA MOMENTO AI. Studi i caroselli e i post pi\xF9 virali di una nicchia e ricavi regole pratiche per crearne di nuovi, senza copiarli.
+===== SKILL: carousel-writer =====
+${(SKILL["carousel-writer"] || "").slice(0, 5e3)}`;
+  const domanda = `NICCHIA: ${P2.nicchia || P2.cliente}
+CAPTION E NUMERI DEI MIGLIORI:
+${post.map((p, i) => `${i + 1}. ${p.piattaforma} @${p.autore} \xB7 ${p.carosello ? p.slide + " slide" : "foto singola"} \xB7 ${p.likes} like \xB7 ${p.commenti} commenti \xB7 ${p.url}
+   ${p.caption.slice(0, 300)}`).join("\n")}
+${immagini.length ? "Ti allego le copertine e alcune slide." : "Le immagini non sono disponibili: lavora su caption e numeri."}
+Rispondi SOLO JSON:
+{"sintesi": "3 frasi: cosa hanno in comune quelli che vanno meglio",
+ "copertine": ["come sono fatte le copertine che fermano lo scroll: testo, dimensione, foto, contrasto"],
+ "struttura": ["come si sviluppano slide dopo slide, quante slide, dove sta la CTA"],
+ "stile_grafico": {"colori": "...", "font": "...", "layout": "...", "foto_o_grafica": "..."},
+ "testo_per_slide": "quante parole al massimo per slide",
+ "ganci": ["5 formule di gancio per la copertina che funzionano in questa nicchia"],
+ "da_evitare": ["..."],
+ "per_esempio": [{"n": 1, "perche_funziona": "..."}]}`;
+  const out = immagini.length ? await claudeVisione(cfg, cfg.CLAUDE_MODEL, sistema, domanda, immagini, 5e3) : await claude(cfg, sistema, domanda, { maxTokens: 5e3 });
+  delete out._uso;
+  await run(env, "UPDATE post_lavori SET studio=?, fase='foto', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify({ ...out, immagini_viste: immagini.length }), ora(), P2.id);
+  await log(env, null, "occhi", `\u{1F441}\uFE0F post #${P2.id}: ho studiato ${post.length} post virali (${immagini.length} slide guardate). ${String(out.sintesi || "").slice(0, 140)}`);
+}
+async function fasefoto(env, cfg, P2) {
+  if (!P2.pcloud) {
+    await run(env, "UPDATE post_lavori SET foto=?, fase='contenuti', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify({ nessuna: true, foto: [] }), ora(), P2.id);
+    await log(env, null, "analista", `post #${P2.id}: nessuna cartella di foto, i caroselli saranno grafici`);
+    return;
+  }
+  const tutte = (await pcloudClip(P2.pcloud)).filter((f) => f.tipo === "immagine").slice(0, 40);
+  if (!tutte.length) throw new Error("nella cartella pCloud non ci sono foto (jpg, png, webp)");
+  const viste = J(P2.foto, {})?.foto || [];
+  const fatte = new Set(viste.map((f) => f.nome));
+  const lotto = tutte.filter((f) => !fatte.has(f.nome)).slice(0, 8);
+  const immagini = [];
+  for (const f of lotto) {
+    try {
+      const t = await pcloudApi(P2.pcloud, "getpubthumblink", { fileid: f.fileid, size: "640x640" });
+      const b = await immagineBase64(`https://${t.hosts[0]}${t.path}`);
+      if (b) immagini.push({ cosa: f.nome, jpeg: b.jpeg, f });
+    } catch (_) {
+    }
+  }
+  if (immagini.length) {
+    const out = await claudeVisione(
+      cfg,
+      cfg.CLAUDE_MODEL,
+      "Sei Ada, analista di AGENZIA MOMENTO AI. Valuti foto scattate da un fotografo per usarle nei caroselli Instagram di un cliente.",
+      `CLIENTE: ${P2.cliente} \xB7 NICCHIA: ${P2.nicchia}
+BRIEF: ${P2.brief}
+Per ogni foto allegata rispondi SOLO JSON: {"foto": [{"nome": "nome file esatto", "descrizione": "cosa si vede", "qualita": 1-10, "problemi": "mosso, buio... o vuoto", "spazio_testo": "dove si pu\xF2 mettere il testo (alto/basso/sinistra/nessuno)", "uso": "copertina | slide | sfondo | scarta"}]}`,
+      immagini.map(({ cosa, jpeg }) => ({ cosa, jpeg })),
+      4e3
+    );
+    for (const x of out.foto || []) {
+      const f = lotto.find((l) => l.nome === x.nome);
+      if (f) viste.push({ ...x, fileid: f.fileid, risoluzione: f.tecnico?.risoluzione, orientamento: f.tecnico?.orientamento });
+    }
+  }
+  for (const f of lotto) if (!viste.some((v) => v.nome === f.nome)) viste.push({ nome: f.nome, fileid: f.fileid, uso: "scarta", problemi: "miniatura non disponibile" });
+  const finite = viste.length >= tutte.length;
+  await run(env, "UPDATE post_lavori SET foto=?, fase=?, errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify({ totale: tutte.length, foto: viste }), finite ? "contenuti" : "foto", ora(), P2.id);
+  await log(env, null, "analista", `\u{1F50E} post #${P2.id}: ${viste.length}/${tutte.length} foto guardate${finite ? `, ${viste.filter((v) => v.uso !== "scarta").length} buone` : ""}`);
+}
+async function faseContenuti(env, cfg, P2) {
+  const C = P2.cliente_id ? await cliente(env, P2.cliente_id) : null;
+  const St = J(P2.studio, {}), F = (J(P2.foto, {})?.foto || []).filter((f) => f.uso !== "scarta").sort((a, b) => (b.qualita || 0) - (a.qualita || 0));
+  const out = await claude(
+    cfg,
+    `Sei Pietro (caroselli e grafiche) con Giulia (copywriter) di AGENZIA MOMENTO AI. Scrivi post e caroselli Instagram pronti da impaginare su Canva.
+REGOLE: ogni slide ha UNA idea; copertina con gancio forte e corto; testi brevi (rispetta il massimo di parole per slide); l'ultima slide chiude con una CTA chiara;
+usa SOLO le foto dell'elenco (nome file esatto) quando ci sono, la migliore come copertina, mai la stessa foto due volte nello stesso carosello; niente dati inventati sul cliente.
+===== SKILL: carousel-writer =====
+${(SKILL["carousel-writer"] || "").slice(0, 6e3)}
+===== SKILL: caption-writer =====
+${(SKILL["caption-writer"] || "").slice(0, 3e3)}`,
+    `CLIENTE: ${P2.cliente}${C?.scheda ? "\nSCHEDA DEL CLIENTE:\n" + String(C.scheda).slice(0, 3e3) : ""}
+NICCHIA: ${P2.nicchia}
+COSA VUOLE JOHNNY: ${P2.numero} ${P2.tipo === "post" ? "post a foto singola" : P2.tipo === "misto" ? "contenuti tra caroselli e post singoli" : "caroselli"} da ${P2.slide} slide circa.
+BRIEF: ${P2.brief}${P2.note ? "\nNOTE: " + P2.note : ""}
+COSA HA IMPARATO IRIS DAI VIRALI: ${JSON.stringify(St).slice(0, 5e3)}
+FOTO DISPONIBILI (scattate da Johnny): ${F.length ? F.map((f) => `${f.nome} \xB7 ${f.descrizione || ""} \xB7 qualit\xE0 ${f.qualita || "?"} \xB7 testo: ${f.spazio_testo || "?"} \xB7 ${f.orientamento || ""}`).join("\n") : "nessuna: carosello grafico (tipografia, forme, colori del brand)"}
+
+Rispondi SOLO JSON:
+{"stile": {"palette": ["#hex", "#hex", "#hex"], "font_titoli": "...", "font_testo": "...", "mood": "...", "regole": "indicazioni grafiche per tutto il set"},
+ "post": [{"n": 1, "tipo": "carosello | post", "titolo": "titolo interno", "obiettivo": "salvataggi | condivisioni | commenti | contatti",
+   "slide": [{"n": 1, "ruolo": "copertina | contenuto | cta", "titolo": "testo grande", "testo": "testo piccolo o vuoto", "foto": "nome file o null", "layout": "come impaginarla"}],
+   "caption": "caption completa con gancio e CTA", "hashtag": ["8-12 hashtag senza #"], "alt": "testo alternativo"}]}`,
+    { maxTokens: 16e3 }
+  );
+  const post = (out.post || []).slice(0, P2.numero).map((p, i) => ({ ...p, n: i + 1, stato: "da_approvare" }));
+  await run(env, "UPDATE post_lavori SET contenuti=?, fase='approvazione', stato='da_approvare', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify({ stile: out.stile || {}, post }), ora(), P2.id);
+  await log(env, null, "caroselli", `\u{1F5C2}\uFE0F post #${P2.id}: ${post.length} ${P2.tipo === "post" ? "post" : "caroselli"} scritti (${post.reduce((s, p) => s + (p.slide || []).length, 0)} slide). Johnny, tocca a te approvarli`);
+}
+async function faseScarica(env, cfg, P2) {
+  const cv = J(P2.canva, {}), file = J(P2.slide_file, {}) || {};
+  let fatti = 0, mancano = 0;
+  for (const d of cv.post || []) for (const [k, u] of (d.png || []).entries()) {
+    const chiave = `post-${P2.id}/${d.n}-${k + 1}.png`;
+    if (file[chiave]) continue;
+    if (fatti >= 12) {
+      mancano++;
+      continue;
+    }
+    const r = await fetch(u);
+    if (!r.ok) throw new Error(`slide ${d.n}.${k + 1} non scaricabile da Canva (${r.status}): rifai l'esportazione`);
+    await env.VIDEO.put(chiave, await r.arrayBuffer(), { metadata: { tipo: r.headers.get("content-type") || "image/png" } });
+    file[chiave] = true;
+    fatti++;
+  }
+  const finito = !mancano;
+  await run(env, "UPDATE post_lavori SET slide_file=?, fase=?, stato=?, errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(file), finito ? "fatto" : "scarica", finito ? "fatto" : "in_corso", ora(), P2.id);
+  if (finito) await log(env, null, "caroselli", `\u2705 post #${P2.id}: ${Object.keys(file).length} slide pronte, caption e hashtag inclusi`);
+}
+async function avanzaPost(env) {
+  await schemaPost(env);
+  const adesso = ora();
+  const L = await all(env, "SELECT * FROM post_lavori WHERE stato='in_corso' AND fase IN ('ricerca','studio','foto','contenuti','scarica') AND (blocco_fino IS NULL OR blocco_fino < ?) ORDER BY id LIMIT 2", adesso);
+  if (!L.length) return;
+  const cfg0 = await configurazione(env);
+  for (const P0 of L) {
+    const P2 = await one(env, "UPDATE post_lavori SET blocco_fino=?, tentativi=tentativi+1 WHERE id=? AND (blocco_fino IS NULL OR blocco_fino < ?) RETURNING *", new Date(Date.now() + BLOCCO_MIN4 * 6e4).toISOString(), P0.id, adesso);
+    if (!P2) continue;
+    const cfg = chi(cfg0, { area: "post", agente: AGENTE_FASE[P2.fase] || "caroselli", cliente_id: P2.cliente_id });
+    try {
+      if (P2.fase === "ricerca") await faseRicerca3(env, cfg, P2);
+      else if (P2.fase === "studio") await faseStudio(env, cfg, P2);
+      else if (P2.fase === "foto") await fasefoto(env, cfg, P2);
+      else if (P2.fase === "contenuti") await faseContenuti(env, cfg, P2);
+      else if (P2.fase === "scarica") await faseScarica(env, cfg, P2);
+    } catch (e) {
+      const msg = String(e?.message || e).slice(0, 400);
+      const credito = /credit balance|billing/i.test(msg);
+      const stop = !credito && P2.tentativi >= 3;
+      await run(
+        env,
+        "UPDATE post_lavori SET stato=?, errore=?, tentativi=?, blocco_fino=?, aggiornato=? WHERE id=?",
+        stop ? "errore" : "in_corso",
+        credito ? "Credito Claude esaurito: riparto da solo quando lo ricarichi" : msg,
+        credito ? 0 : P2.tentativi,
+        stop ? null : new Date(Date.now() + (credito ? 10 : 3) * 6e4).toISOString(),
+        ora(),
+        P2.id
+      );
+      await log(env, null, AGENTE_FASE[P2.fase] || "caroselli", credito ? "\u23F8\uFE0F credito Claude esaurito: riparto quando lo ricarichi" : `${stop ? "\u274C" : "\u26A0\uFE0F"} post #${P2.id} (${P2.fase}): ${msg}`, stop || credito ? "errore" : "warn");
+    }
+  }
+}
+var IMG_OK = /(^|\.)(cdninstagram\.com|fbcdn\.net|tiktokcdn\.com|tiktokcdn-us\.com|ibyteimg\.com|muscdn\.com)$/;
+async function apiPost(req, env, p, m, json3) {
+  await schemaPost(env);
+  const corpo = () => req.json().catch(() => ({}));
+  if (p === "/api/post" && m === "GET") return json3(await all(env, "SELECT p.id, p.cliente, p.tipo, p.numero, p.fase, p.stato, p.errore, p.creato, p.aggiornato, json_extract(p.contenuti, '$.post[0].titolo') AS titolo FROM post_lavori p ORDER BY p.id DESC LIMIT 60"));
+  if (p === "/api/post" && m === "POST") {
+    const d = await corpo();
+    if (!d.cliente_id && String(d.cliente || "").trim().length < 2) return json3({ errore: "scegli o scrivi il cliente" }, 400);
+    if (String(d.brief || "").trim().length < 10) return json3({ errore: "scrivi di cosa devono parlare (almeno una frase)" }, 400);
+    if (d.pcloud && !/code=/.test(d.pcloud)) return json3({ errore: 'il link pCloud deve essere il link pubblico della cartella (contiene "code=")' }, 400);
+    return json3({ id: await nuovoLavoroPost(env, d) });
+  }
+  if (p === "/api/post/img" && m === "GET") {
+    const u = new URL(req.url).searchParams.get("u") || "";
+    let h;
+    try {
+      h = new URL(u);
+    } catch {
+      return json3({ errore: "indirizzo non valido" }, 400);
+    }
+    if (h.protocol !== "https:" || !IMG_OK.test(h.hostname)) return json3({ errore: "sorgente non ammessa" }, 400);
+    const r = await fetch(u, { headers: { "user-agent": "Mozilla/5.0" } });
+    if (!r.ok || !/image/.test(r.headers.get("content-type") || "")) return json3({ errore: "immagine non disponibile" }, 404);
+    return new Response(r.body, { headers: { "content-type": r.headers.get("content-type"), "cache-control": "private, max-age=86400" } });
+  }
+  const sl = p.match(/^\/api\/post\/(\d+)\/slide\/(\d+)-(\d+)\.png$/);
+  if (sl && m === "GET") {
+    const { value, metadata } = await env.VIDEO.getWithMetadata(`post-${sl[1]}/${sl[2]}-${sl[3]}.png`, { type: "arrayBuffer" });
+    if (!value) return json3({ errore: "non pronta" }, 404);
+    const h = { "content-type": metadata?.tipo || "image/png", "cache-control": "private, max-age=3600" };
+    if (new URL(req.url).searchParams.get("scarica")) h["content-disposition"] = `attachment; filename="post${sl[1]}-${sl[2]}-slide${sl[3]}.png"`;
+    return new Response(value, { headers: h });
+  }
+  const mm = p.match(/^\/api\/post\/(\d+)(?:\/(approva|riprova|canva))?$/);
+  if (!mm) return null;
+  const P2 = await one(env, "SELECT * FROM post_lavori WHERE id=?", mm[1]);
+  if (!P2) return json3({ errore: "non trovato" }, 404);
+  if (m === "GET" && !mm[2]) {
+    const file = Object.keys(J(P2.slide_file, {}) || {});
+    return json3({ ...P2, esempi: J(P2.esempi, []), virali: J(P2.virali), studio: J(P2.studio), foto: J(P2.foto), contenuti: J(P2.contenuti), canva: J(P2.canva), slide_file: file, fasi: FASI_POST });
+  }
+  if (m === "POST" && mm[2] === "approva") {
+    const d = await corpo();
+    const ok = new Set((d.n || []).map(Number));
+    const Ct = J(P2.contenuti, {});
+    Ct.post = (Ct.post || []).map((x) => {
+      const mod = d.modifiche?.[x.n] || {};
+      return { ...x, slide: Array.isArray(mod.slide) ? mod.slide : x.slide, caption: typeof mod.caption === "string" ? mod.caption.slice(0, 2200) : x.caption, stato: ok.has(x.n) ? "approvato" : "scartato" };
+    });
+    if (!Ct.post.some((x) => x.stato === "approvato")) return json3({ errore: "approva almeno un post" }, 400);
+    await run(env, "UPDATE post_lavori SET contenuti=?, fase='canva', stato='attende_canva', blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(Ct), ora(), P2.id);
+    await log(env, null, "caroselli", `\u{1F3A8} post #${P2.id}: ${ok.size} approvati da Johnny, pronti per Canva`);
+    return json3({ ok: true });
+  }
+  if (m === "POST" && mm[2] === "canva") {
+    const d = await corpo();
+    const post = (d.post || []).map((x) => ({ n: Number(x.n), design_id: String(x.design_id || ""), link: /^https:\/\//.test(x.link || "") ? x.link : null, png: (x.png || []).filter((u) => /^https:\/\//.test(u)).slice(0, 20) })).filter((x) => x.png.length);
+    if (!post.length) return json3({ errore: "servono le immagini esportate da Canva" }, 400);
+    await run(env, "UPDATE post_lavori SET canva=?, fase='scarica', stato='in_corso', blocco_fino=NULL, tentativi=0, aggiornato=? WHERE id=?", JSON.stringify({ post, quando: ora() }), ora(), P2.id);
+    return json3({ ok: true });
+  }
+  if (m === "POST" && mm[2] === "riprova") {
+    await run(env, "UPDATE post_lavori SET stato=CASE WHEN fase='canva' THEN 'attende_canva' ELSE 'in_corso' END, errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", ora(), P2.id);
+    return json3({ ok: true });
+  }
+  if (m === "DELETE") {
+    for (const k of Object.keys(J(P2.slide_file, {}) || {})) await env.VIDEO.delete(k);
+    await run(env, "DELETE FROM post_lavori WHERE id=?", P2.id);
+    return json3({ ok: true });
+  }
+  return null;
+}
+
 // src/agenzia.js
 var UFFICI = [
   ["direzione", "Direzione"],
@@ -3306,7 +3649,7 @@ var DELEGABILI = Object.keys(SQUADRA).filter((k) => !SQUADRA[k].chat && !SQUADRA
 var MAX_FIGLI = 2;
 var MAX_PROFONDITA = 2;
 var IN_PARALLELO = 6;
-var BLOCCO_MIN4 = 15;
+var BLOCCO_MIN5 = 15;
 async function schemaAgenzia(env) {
   await env.DB.batch([
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS clienti (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, nicchia TEXT, gest_id TEXT,
@@ -3439,7 +3782,7 @@ async function avanzaUffici(env) {
     const I = await one(
       env,
       "UPDATE incarichi SET stato='in_corso', blocco_fino=?, tentativi=tentativi+1, aggiornato=? WHERE id=? AND stato='in_coda' RETURNING *",
-      new Date(Date.now() + BLOCCO_MIN4 * 6e4).toISOString(),
+      new Date(Date.now() + BLOCCO_MIN5 * 6e4).toISOString(),
       ora(),
       I0.id
     );
@@ -3663,8 +4006,10 @@ async function eseguiPiano(env, out, testo, clienteId, origine = "") {
   }
   let avatar = null;
   if (out.avatar?.argomento) avatar = await nuovoPianoAvatar(env, out.avatar.argomento, out.avatar.numero, out.avatar.note);
-  await log(env, null, "capo", `\u{1F9ED} ${creati.length} incarichi assegnati${reel ? ", 1 reel" : ""}${piano2 ? ", 1 piano copioni" : ""}${avatar ? ", reel con avatar" : ""}: ${String(testo).slice(0, 80)}`);
-  return { cliente_id: cid, incarichi: creati, reel, piano: piano2, avatar };
+  let post = null;
+  if (out.post?.brief) post = await nuovoLavoroPost(env, { ...out.post, cliente_id: cid || null, cliente: (cid ? (await cliente(env, cid))?.nome : "") || "Cliente", pcloud: /code=/.test(out.post.pcloud || "") ? out.post.pcloud : null });
+  await log(env, null, "capo", `\u{1F9ED} ${creati.length} incarichi assegnati${reel ? ", 1 reel" : ""}${piano2 ? ", 1 piano copioni" : ""}${avatar ? ", reel con avatar" : ""}${post ? ", post e caroselli" : ""}: ${String(testo).slice(0, 80)}`);
+  return { cliente_id: cid, incarichi: creati, reel, piano: piano2, avatar, post };
 }
 async function apiAgenzia(req, env, p, m, json3) {
   const corpo = () => req.json().catch(() => ({}));
@@ -3970,6 +4315,7 @@ Rispondi SOLO JSON:
      "incarichi": [{"agente": "uno di: ${DELEGABILI.join(", ")}", "titolo": "...", "brief": "brief completo e autonomo", "dopo": null}],
      "reel": {"prompt": "descrizione completa del reel", "pcloud": "link o null"} o null,
      "copioni": {"argomenti": ["..."], "numero": 20, "mesi": 3} o null,
+     "post": {"tipo": "carosello | post | misto", "numero": 3, "slide": 7, "brief": "di cosa parlano e per chi", "pcloud": "link della cartella foto o null"} o null (comparto Post e caroselli: Ines e Tea cercano i virali della nicchia, Iris li studia, Ada sceglie le foto, Pietro e Giulia scrivono, Johnny approva, si impaginano su Canva),
      "avatar": {"argomento": "...", "numero": 5, "note": "..."} o null (SOLO per i reel del PROFILO PERSONALE di Johnny fatti col suo avatar HeyGen: Sofia ricerca, Zoe studia i virali, Nora scrive i copioni, Ava genera, il comparto Reel monta),
      "note_gestionale": null}}],
  "consigliata": indice della proposta che la riunione consiglia,
@@ -4642,6 +4988,7 @@ const ICO = {
   profilo: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".6"/>',
   approvazioni: '<path d="M20 6 9 17l-5-5"/>',
   clienti: '<path d="M16 20v-1.5a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4V20M9.5 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M21 20v-1.5a4 4 0 0 0-3-3.9M15.5 3.6a3.5 3.5 0 0 1 0 6.8"/>',
+  post: '<rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 21h12a2 2 0 0 0 2-2V7M3 13l4-4 4 4 3-3 3 3"/>',
   costi: '<path d="M12 2v20M17 6.5c0-1.9-2.2-3-5-3s-5 1.3-5 3.3c0 4.7 10 2.4 10 7.2 0 2-2.2 3.5-5 3.5s-5-1.2-5-3.2"/>',
   reel: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="m10 9 5 3-5 3z"/>',
   copioni: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h4"/>',
@@ -4649,7 +4996,7 @@ const ICO = {
   impostazioni: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'
 };
 const VOCI = [['agenzia', 'Agenzia', '#/'], ['riunioni', 'Riunioni', '#/riunioni'], ['approvazioni', 'Approvazioni', '#/approvazioni'], ['profilo', 'Profilo IG', '#/profilo'], ['clienti', 'Clienti', '#/clienti']];
-const STRUMENTI = [['reel', 'Reel', '#/reel'], ['copioni', 'Copioni', '#/copioni'], ['gestionale', 'Gestionale', '#/gestionale'], ['costi', 'Costi', '#/costi']];
+const STRUMENTI = [['reel', 'Reel', '#/reel'], ['post', 'Post e caroselli', '#/post'], ['copioni', 'Copioni', '#/copioni'], ['gestionale', 'Gestionale', '#/gestionale'], ['costi', 'Costi', '#/costi']];
 const voce = (v) => '<a class="vm" href="' + v[2] + '" data-k="' + v[0] + '"><svg viewBox="0 0 24 24">' + ICO[v[0]] + '</svg><span class="tx">' + v[1] + '</span>' + (v[0] === 'costi' ? '<span class="num" id="num_costi"></span>' : '') + '</a>';
 function menu(on) {
   document.body.classList.toggle('dentro', !!on);
@@ -4669,7 +5016,7 @@ const soldi = (usd, cambio) => '\u20AC ' + (usd * (cambio || 0.86)).toLocaleStri
 function evidenzia() {
   const h = location.hash || '#/';
   const k = h === '#/' || h.startsWith('#/agente') || h.startsWith('#/ufficio') || h.startsWith('#/incarico') || h === '#/chat/capo' ? 'agenzia' : h.startsWith('#/riunion') ? 'riunioni' : h.startsWith('#/profilo') ? 'profilo' : h.startsWith('#/approvazion') ? 'approvazioni' : h.startsWith('#/client') ? 'clienti' :
-    h.startsWith('#/reel') || h.startsWith('#/lavoro') ? 'reel' : h.startsWith('#/copion') || h.startsWith('#/piano') ? 'copioni' : h.startsWith('#/chat/gestionale') || h.startsWith('#/chat/contabile') || h === '#/gestionale' ? 'gestionale' : h.startsWith('#/costi') ? 'costi' : h.startsWith('#/impostazioni') ? 'impostazioni' : '';
+    h.startsWith('#/reel') || h.startsWith('#/lavoro') ? 'reel' : h.startsWith('#/post') ? 'post' : h.startsWith('#/copion') || h.startsWith('#/piano') ? 'copioni' : h.startsWith('#/chat/gestionale') || h.startsWith('#/chat/contabile') || h === '#/gestionale' ? 'gestionale' : h.startsWith('#/costi') ? 'costi' : h.startsWith('#/impostazioni') ? 'impostazioni' : '';
   document.querySelectorAll('#nav .vm[data-k]').forEach((a) => a.classList.toggle('att', a.dataset.k === k));
   const tutte = VOCI.concat(STRUMENTI, [['impostazioni', 'Impostazioni']]).find((v) => v[0] === k);
   $('#sez').textContent = tutte ? tutte[1] : '';
@@ -4845,6 +5192,88 @@ async function impostazioni() {
   $('#out').onclick = async () => { await fetch('/api/esci'); accesso(); };
 }
 
+// ---------------------------------------------------------------- Post e caroselli
+const ST_POST = { in_corso: 'in corso', da_approvare: 'da approvare', attende_canva: 'da fare su Canva', fatto: 'pronto', errore: 'errore' };
+const PILL_POST = { in_corso: 'corso', da_approvare: 'errore', attende_canva: 'errore', fatto: 'pronto', errore: 'errore' };
+const imgEst = (u) => '/api/post/img?u=' + encodeURIComponent(u);
+async function postLista() {
+  const L = await chiama('/api/post');
+  $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Post e caroselli</h1><a class="btn" href="#/post/nuovo">+ Nuovo lavoro</a></div>' +
+    '<p class="mut">Ines e Tea cercano su Instagram e TikTok i post e i caroselli pi\xF9 virali della nicchia, Iris li studia, Ada sceglie le tue foto da pCloud, Pietro e Giulia scrivono slide, caption e hashtag. Tu approvi, poi si impaginano su Canva e tornano qui pronti da pubblicare.</p>' +
+    (L.map((x) => '<a class="card lav" href="#/post/' + x.id + '"><div class="riga"><b style="flex:1">#' + x.id + ' \xB7 ' + e(x.cliente || 'cliente') + (x.titolo ? ' \xB7 ' + e(x.titolo) : '') + '</b><span class="pill ' + (PILL_POST[x.stato] || '') + '">' + (ST_POST[x.stato] || x.stato) + '</span></div>' +
+      '<div class="mut">' + x.numero + ' ' + (x.tipo === 'post' ? 'post' : x.tipo === 'misto' ? 'contenuti' : 'caroselli') + ' \xB7 fase: ' + e(x.fase) + ' \xB7 ' + new Date(x.creato).toLocaleString('it-IT', { dateStyle: 'medium', timeStyle: 'short' }) + '</div>' + (x.errore ? '<div class="err">' + e(x.errore) + '</div>' : '') + '</a>').join('') || '<p class="mut">Ancora nessun lavoro.</p>');
+  if (L.some((x) => x.stato === 'in_corso')) timer = setTimeout(rotta, 8000);
+}
+
+async function postNuovo() {
+  const CL = await chiama('/api/clienti').catch(() => []);
+  $('#app').innerHTML = '<a class="mut" href="#/post">\u2190 Post e caroselli</a><h1>Nuovo lavoro: post e caroselli</h1>' +
+    '<label>Cliente</label><select id="p_cl"><option value="">\u2014 scrivi sotto un cliente nuovo \u2014</option>' + CL.map((c) => '<option value="' + c.id + '">' + e(c.nome) + (c.nicchia ? ' \xB7 ' + e(c.nicchia) : '') + '</option>').join('') + '</select>' +
+    '<input id="p_cn" placeholder="Nome del cliente (se non \xE8 in elenco)" style="margin-top:8px">' +
+    '<label>Nicchia (per cercare i virali giusti)</label><input id="p_ni" placeholder="Es. ristorante di pesce a Salerno, B&B in Costiera, palestra">' +
+    '<div class="riga" style="gap:12px"><div style="flex:1;min-width:140px"><label>Cosa</label><select id="p_ti"><option value="carosello">Caroselli</option><option value="post">Post a foto singola</option><option value="misto">Misto</option></select></div>' +
+    '<div style="flex:1;min-width:110px"><label>Quanti</label><input id="p_nu" type="number" min="1" max="12" value="3"></div>' +
+    '<div style="flex:1;min-width:110px"><label>Slide per carosello</label><input id="p_sl" type="number" min="2" max="10" value="7"></div></div>' +
+    '<label>Di cosa parlano</label><textarea id="p_br" placeholder="Es. 3 caroselli per la Torretta: la tostatura artigianale, le miscele della casa, la colazione del sabato. Obiettivo: salvataggi e visite al bar."></textarea>' +
+    '<label>Le tue foto su pCloud (facoltativo)</label><input id="p_pc" placeholder="https://e.pcloud.link/publink/show?code=\u2026">' +
+    '<div class="aiuto">Link pubblico della cartella con gli scatti. Ada le guarda tutte e sceglie le migliori per ogni slide. Senza foto i caroselli sono grafici.</div>' +
+    '<label>Post che ti piacciono come esempio (facoltativo)</label><textarea id="p_es" style="min-height:60px" placeholder="Un link Instagram o TikTok per riga"></textarea>' +
+    '<label>Note (facoltativo)</label><input id="p_no" placeholder="Colori del brand, cose da non dire, date\u2026">' +
+    '<div style="margin-top:18px"><button id="p_go">Avvia la squadra</button></div><div id="p_er" class="err"></div>';
+  $('#p_go').onclick = async () => {
+    const d = { cliente_id: Number($('#p_cl').value) || null, cliente: $('#p_cn').value.trim(), nicchia: $('#p_ni').value.trim(), tipo: $('#p_ti').value, numero: Number($('#p_nu').value), slide: Number($('#p_sl').value),
+      brief: $('#p_br').value.trim(), pcloud: $('#p_pc').value.trim(), esempi: $('#p_es').value.split(/\\s+/).filter((x) => /^https:/.test(x)), note: $('#p_no').value.trim() };
+    $('#p_go').disabled = true;
+    try { const r = await chiama('/api/post', { method: 'POST', body: d }); location.hash = '#/post/' + r.id; } catch (x) { $('#p_er').textContent = x.message; $('#p_go').disabled = false; }
+  };
+}
+
+async function postDettaglio(id) {
+  const P = await chiama('/api/post/' + id);
+  const i = P.fasi.findIndex((f) => f[0] === P.fase);
+  const passi = '<div class="riga" style="flex-wrap:wrap;gap:6px;margin:10px 0">' + P.fasi.map((f, k) => '<span class="pill ' + (k < i || P.fase === 'fatto' ? 'pronto' : k === i ? 'in_corso' : '') + '">' + f[1] + '</span>').join('') + '</div>';
+  const V = P.virali || {}, St = P.studio, F = P.foto, Ct = P.contenuti, da = P.stato === 'da_approvare';
+  const lista = (a) => (a || []).map((x) => '<li>' + e(typeof x === 'string' ? x : JSON.stringify(x)) + '</li>').join('');
+  const virali = (V.post || []).length ? '<h2>Post virali trovati da Ines e Tea</h2><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px">' + V.post.map((x) => '<a href="' + e(x.url) + '" target="_blank" rel="noopener" class="card" style="margin:0;padding:8px;text-decoration:none;color:inherit">' +
+    (x.immagini?.[0] ? '<div style="aspect-ratio:4/5;border-radius:10px;background:#eee url(' + imgEst(x.immagini[0]) + ') center/cover"></div>' : '<div style="aspect-ratio:4/5;border-radius:10px;background:#f0ede7;display:grid;place-items:center">\u{1F5C2}\uFE0F</div>') +
+    '<div style="font-size:12px;margin-top:6px"><b>@' + e(x.autore || '') + '</b><br><span class="mut">' + e(x.piattaforma) + ' \xB7 ' + (x.carosello ? x.slide + ' slide' : 'foto') + ' \xB7 \u2665 ' + n(x.likes) + ' \xB7 \u{1F4AC} ' + n(x.commenti) + '</span></div></a>').join('') + '</div>' : '';
+  const studio = St ? '<h2>Cosa ha imparato Iris</h2><div class="card"><p>' + e(St.sintesi || '') + '</p><b>Copertine</b><ul>' + lista(St.copertine) + '</ul><b>Struttura</b><ul>' + lista(St.struttura) + '</ul><b>Ganci</b><ul>' + lista(St.ganci) + '</ul>' +
+    (St.stile_grafico ? '<b>Stile grafico</b><ul>' + Object.entries(St.stile_grafico).map(([k, v]) => '<li>' + e(k.replace('_', ' ')) + ': ' + e(v) + '</li>').join('') + '</ul>' : '') + '<b>Da evitare</b><ul>' + lista(St.da_evitare) + '</ul></div>' : '';
+  const foto = F && !F.nessuna ? '<h2>Le tue foto viste da Ada</h2><div class="card"><div class="mut">' + (F.foto || []).length + ' di ' + (F.totale || '?') + ' guardate \xB7 ' + (F.foto || []).filter((x) => x.uso !== 'scarta').length + ' buone</div><ul>' +
+    (F.foto || []).filter((x) => x.uso !== 'scarta').sort((a, b) => (b.qualita || 0) - (a.qualita || 0)).slice(0, 12).map((x) => '<li><b>' + e(x.nome) + '</b> \xB7 ' + e(x.uso || '') + ' \xB7 ' + (x.qualita || '?') + '/10 \xB7 ' + e(x.descrizione || '') + '</li>').join('') + '</ul></div>' : '';
+  const slideFile = new Set(P.slide_file || []);
+  const posts = Ct ? '<h2>' + (P.tipo === 'post' ? 'Post' : 'Caroselli') + '</h2>' + (Ct.stile?.palette ? '<div class="card"><b>Stile del set</b><div class="riga" style="margin:8px 0">' + Ct.stile.palette.map((c) => '<span style="width:26px;height:26px;border-radius:8px;border:1px solid var(--line);background:' + e(c) + '" title="' + e(c) + '"></span>').join('') + '<span class="mut">' + e(Ct.stile.font_titoli || '') + ' / ' + e(Ct.stile.font_testo || '') + ' \xB7 ' + e(Ct.stile.mood || '') + '</span></div><div class="mut">' + e(Ct.stile.regole || '') + '</div></div>' : '') +
+    Ct.post.map((x) => {
+      const cv = (P.canva?.post || []).find((c) => c.n === x.n);
+      const png = cv ? cv.png.map((_, k) => '/api/post/' + P.id + '/slide/' + x.n + '-' + (k + 1) + '.png').filter((u, k) => slideFile.has('post-' + P.id + '/' + x.n + '-' + (k + 1) + '.png')) : [];
+      return '<div class="card"><div class="riga"><b style="flex:1">' + x.n + '. ' + e(x.titolo || '') + '</b><span class="pill">' + (x.slide || []).length + ' slide \xB7 ' + e(x.obiettivo || '') + '</span>' +
+        (da ? '<label style="display:flex;gap:6px;font-weight:400;margin:0"><input type="checkbox" class="po_ok" data-n="' + x.n + '" checked style="width:auto"> approva</label>' : '<span class="pill ' + (x.stato === 'approvato' ? 'pronto' : '') + '">' + e(x.stato || '') + '</span>') + '</div>' +
+        (png.length ? '<div style="display:flex;gap:8px;overflow-x:auto;margin:10px 0">' + png.map((u) => '<a href="' + u + '?scarica=1"><img src="' + u + '" style="height:220px;border-radius:10px;border:1px solid var(--line)"></a>').join('') + '</div>' : '') +
+        (cv?.link ? '<p><a class="btn sec" href="' + e(cv.link) + '" target="_blank" rel="noopener">Modifica su Canva \u2197</a></p>' : '') +
+        '<ol style="padding-left:18px">' + (x.slide || []).map((s, k) => '<li style="margin:8px 0">' + (da ? '<input class="po_ti" data-n="' + x.n + '" data-k="' + k + '" value="' + e(s.titolo || '') + '" style="font-weight:600"><textarea class="po_te" data-n="' + x.n + '" data-k="' + k + '" style="min-height:50px;margin-top:4px">' + e(s.testo || '') + '</textarea>'
+          : '<b>' + e(s.titolo || '') + '</b>' + (s.testo ? '<br>' + e(s.testo) : '')) + '<div class="mut">' + e(s.ruolo || '') + (s.foto ? ' \xB7 \u{1F4F7} ' + e(s.foto) : '') + (s.layout ? ' \xB7 ' + e(s.layout) : '') + '</div></li>').join('') + '</ol>' +
+        '<label>Caption</label>' + (da ? '<textarea class="po_ca" data-n="' + x.n + '">' + e(x.caption || '') + '</textarea>' : '<div style="white-space:pre-wrap" class="card">' + e(x.caption || '') + '</div>') +
+        '<div class="mut">' + (x.hashtag || []).map((h) => '#' + e(String(h).replace(/^#/, ''))).join(' ') + '</div></div>';
+    }).join('') + (da ? '<div class="riga"><button id="po_ok">Approva i selezionati</button></div><div id="po_er" class="err"></div>' : '') : '';
+  $('#app').innerHTML = '<a class="mut" href="#/post">\u2190 Post e caroselli</a><h1>' + e(P.cliente || 'Cliente') + ' \xB7 ' + P.numero + ' ' + (P.tipo === 'post' ? 'post' : P.tipo === 'misto' ? 'contenuti' : 'caroselli') + '</h1><div class="mut">#' + P.id + ' \xB7 ' + e(P.nicchia || '') + '</div>' + passi +
+    '<div class="card"><b>Brief</b><div style="white-space:pre-wrap">' + e(P.brief) + '</div>' + (P.pcloud ? '<div class="mut">\u{1F4C1} foto: <a href="' + e(P.pcloud) + '" target="_blank" rel="noopener">cartella pCloud</a></div>' : '') + '</div>' +
+    (P.errore ? '<div class="card err">' + e(P.errore) + ' <button class="sec" id="po_rp">Riprova</button></div>' : '') +
+    (P.stato === 'attende_canva' ? '<div class="card">\u{1F3A8} <b>Pronti per Canva.</b> Testi, foto e stile sono approvati: chiedi a Claude in chat <i>\u201Cfai su Canva il lavoro post #' + P.id + '\u201D</i> e le slide tornano qui in PNG, con il link per modificarle.</div>' : '') +
+    posts + studio + foto + virali + '<div class="riga" style="margin-top:14px"><button class="sec" id="po_del">Elimina</button></div>';
+  if ($('#po_ok')) $('#po_ok').onclick = async () => {
+    const nn = [...document.querySelectorAll('.po_ok')].filter((x) => x.checked).map((x) => Number(x.dataset.n));
+    const modifiche = {};
+    for (const x of Ct.post) {
+      const slide = x.slide.map((s, k) => ({ ...s, titolo: document.querySelector('.po_ti[data-n="' + x.n + '"][data-k="' + k + '"]')?.value ?? s.titolo, testo: document.querySelector('.po_te[data-n="' + x.n + '"][data-k="' + k + '"]')?.value ?? s.testo }));
+      modifiche[x.n] = { slide, caption: document.querySelector('.po_ca[data-n="' + x.n + '"]')?.value ?? x.caption };
+    }
+    try { await chiama('/api/post/' + id + '/approva', { method: 'POST', body: { n: nn, modifiche } }); rotta(); } catch (x) { $('#po_er').textContent = x.message; }
+  };
+  if ($('#po_rp')) $('#po_rp').onclick = async () => { await chiama('/api/post/' + id + '/riprova', { method: 'POST' }); rotta(); };
+  $('#po_del').onclick = async () => { if (!confirm('Eliminare questo lavoro?')) return; await chiama('/api/post/' + id, { method: 'DELETE' }); location.hash = '#/post'; };
+  if (P.stato === 'in_corso') timer = setTimeout(rotta, 8000);
+}
+
 // ---------------------------------------------------------------- Gestionale ufficiale + Gino e Dora
 const SCHEDE_G = (att) => '<div class="riga" style="flex-wrap:wrap;gap:10px;margin-bottom:12px"><div style="display:flex;background:#ebe8e2;border-radius:12px;padding:3px;flex-wrap:wrap">' +
   [['#/gestionale', '\u{1F4D2} Gestionale'], ['#/chat/gestionale', '\u{1F5C2}\uFE0F Gino'], ['#/chat/contabile', '\u{1F9FE} Dora']].map(([h, n]) => '<a href="' + h + '" style="padding:7px 14px;border-radius:9px;font-size:13.5px;font-weight:600;text-decoration:none;' + (h === att ? 'background:#fff;color:var(--txt);box-shadow:0 1px 3px rgba(0,0,0,.08)' : 'color:#6b6862') + '">' + n + '</a>').join('') +
@@ -4855,7 +5284,7 @@ function gestionalePagina() {
 }
 
 // ---------------------------------------------------------------- Costi: contatori di ogni chiamata a pagamento
-const AREE_C = { reel: 'Comparto Reel', uffici: 'Uffici (incarichi)', riunioni: 'Riunioni', profilo: 'Profilo IG (ricerca, copioni, avatar)', copioni: 'Copioni di Nora', gestionale: 'Gestionale e contabilit\xE0', altro: 'Altro' };
+const AREE_C = { reel: 'Comparto Reel', post: 'Post e caroselli', uffici: 'Uffici (incarichi)', riunioni: 'Riunioni', profilo: 'Profilo IG (ricerca, copioni, avatar)', copioni: 'Copioni di Nora', gestionale: 'Gestionale e contabilit\xE0', altro: 'Altro' };
 const SERV_C = { claude: 'Claude (agenti + ricerche web)', heygen: 'HeyGen (avatar)' };
 async function costiPagina(giorni) {
   const C = await chiama('/api/consumi?giorni=' + giorni);
@@ -5103,7 +5532,7 @@ function apriCervello() {
 }
 
 async function azienda() {
-  const [R, lavori, riunioni, avatarL] = await Promise.all([chiama('/api/azienda'), chiama('/api/lavori').catch(() => []), chiama('/api/riunioni').catch(() => []), chiama('/api/avatar').catch(() => [])]);
+  const [R, lavori, riunioni, avatarL, postL] = await Promise.all([chiama('/api/azienda'), chiama('/api/lavori').catch(() => []), chiama('/api/riunioni').catch(() => []), chiama('/api/avatar').catch(() => []), chiama('/api/post').catch(() => [])]);
   Object.assign(AGENTI, R.squadra);
   R.riunioni = riunioni;
   SALA.dati = R;
@@ -5132,7 +5561,8 @@ async function azienda() {
   const daScegliere = riunioni.filter((x) => x.stato === 'proposte').map((x) => ({ t: '\u{1F5F3}\uFE0F PROPOSTE DA SCEGLIERE', b: x.titolo || x.richiesta || '', link: '#/riunione/' + x.id, img: null, i: '\u{1F5F3}\uFE0F' }));
   const ultimoReport = riunioni.find((x) => x.tipo === 'settimanale' && x.stato === 'report');
   const daApprovareAv = avatarL.filter((x) => x.stato === 'da_approvare').map((x) => ({ t: '\u{1F3AD} COPIONI AVATAR DA APPROVARE', b: x.argomento, link: '#/profilo/' + x.id, img: null, i: '\u{1F3AD}' }));
-  const recenti = [...daScegliere, ...daApprovareAv, ...(ultimoReport ? [{ t: '\u{1F4CA} REPORT RIUNIONE OPERATIVA', b: ultimoReport.titolo, link: '#/riunione/' + ultimoReport.id, img: null, i: '\u{1F4CA}' }] : []), ...lavori.slice(0, 4).map((L) => ({ t: 'REEL \xB7 ' + (L.stato === 'pronto' ? 'pronto' : L.stato === 'errore' ? 'errore' : 'in lavorazione'), b: (L.titolo || L.prompt || '').slice(0, 60), link: '#/lavoro/' + L.id, img: L.stato === 'pronto' ? '/api/lavori/' + L.id + '/anteprima.jpg' : null, i: '\u{1F3AC}' })),
+  const daPost = postL.filter((x) => ['da_approvare', 'attende_canva', 'fatto'].includes(x.stato)).slice(0, 4).map((x) => ({ t: x.stato === 'da_approvare' ? '\u{1F5C2}\uFE0F CAROSELLI DA APPROVARE' : x.stato === 'attende_canva' ? '\u{1F3A8} CAROSELLI DA FARE SU CANVA' : '\u{1F5C2}\uFE0F CAROSELLI PRONTI', b: (x.cliente || '') + (x.titolo ? ' \xB7 ' + x.titolo : ''), link: '#/post/' + x.id, img: x.stato === 'fatto' ? '/api/post/' + x.id + '/slide/1-1.png' : null, i: '\u{1F5C2}\uFE0F' }));
+  const recenti = [...daScegliere, ...daApprovareAv, ...daPost, ...(ultimoReport ? [{ t: '\u{1F4CA} REPORT RIUNIONE OPERATIVA', b: ultimoReport.titolo, link: '#/riunione/' + ultimoReport.id, img: null, i: '\u{1F4CA}' }] : []), ...lavori.slice(0, 4).map((L) => ({ t: 'REEL \xB7 ' + (L.stato === 'pronto' ? 'pronto' : L.stato === 'errore' ? 'errore' : 'in lavorazione'), b: (L.titolo || L.prompt || '').slice(0, 60), link: '#/lavoro/' + L.id, img: L.stato === 'pronto' ? '/api/lavori/' + L.id + '/anteprima.jpg' : null, i: '\u{1F3AC}' })),
     ...R.recenti.slice(0, 4).map((I) => ({ t: (AGENTI[I.agente]?.n || I.agente) + ' \xB7 ' + (ST_INC[I.stato] || I.stato), b: I.titolo, link: '#/incarico/' + I.id, img: null, i: AGENTI[I.agente]?.i || '\u{1F4C4}' }))];
   $('#app').innerHTML = '<div id="saluto">' + saluto + '</div>' +
     '<div class="chiedi"><span>\u{1F9ED}</span><input id="k_t" placeholder="Chiedi all\u2019agenzia\u2026 es. 6 post per dicembre per A\u2019 Villetta, romantici">' + C + '<button id="k_go">Invia</button></div><div id="k_r"></div>' +
@@ -5441,6 +5871,9 @@ async function rotta() {
     else if (h === '#/clienti') await clientiPagina();
     else if (h.startsWith('#/cliente/')) await clientePagina(h.split('/')[2]);
     else if (h === '#/gestionale') gestionalePagina();
+    else if (h === '#/post') await postLista();
+    else if (h === '#/post/nuovo') await postNuovo();
+    else if (h.startsWith('#/post/')) await postDettaglio(h.split('/')[2]);
     else if (h.startsWith('#/chat/')) await chatPagina(h.split('/')[2]);
     else if (h.startsWith('#/costi')) await costiPagina(Number(h.split('/')[2]) || 30);
     else if (h === '#/copioni') await piani();
@@ -6467,6 +6900,10 @@ async function api(req, env, url) {
     }
   }
   if (p === "/api/consumi") return await apiConsumi(req, env, p, m, json2) || json2({ errore: "metodo non valido" }, 405);
+  if (p.startsWith("/api/post")) {
+    const r = await apiPost(req, env, p, m, json2);
+    if (r) return r;
+  }
   if (p.startsWith("/api/avatar")) {
     const r = await apiAvatar(req, env, p, m, json2);
     if (r) return r;
@@ -6561,7 +6998,7 @@ var index_default = {
     await schema(env);
     await schemaPiani(env);
     await schemaAgenzia(env);
-    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env), avanzaRiunioni(env), avanzaAvatar(env)]));
+    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env), avanzaRiunioni(env), avanzaAvatar(env), avanzaPost(env)]));
   }
 };
 export {

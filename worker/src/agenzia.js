@@ -6,6 +6,7 @@ import { all, one, run, J, ora, configurazione, log } from './db.js';
 import * as S from './servizi.js';
 import { SKILL } from './skill_testi.js';
 import { nuovoPianoAvatar } from './avatar.js';
+import { nuovoLavoroPost } from './post.js';
 import { registra, daUsage, chi } from './consumi.js';
 
 export const UFFICI = [
@@ -331,8 +332,10 @@ export async function eseguiPiano(env, out, testo, clienteId, origine = '') {
   }
   let avatar = null;
   if (out.avatar?.argomento) avatar = await nuovoPianoAvatar(env, out.avatar.argomento, out.avatar.numero, out.avatar.note);
-  await log(env, null, 'capo', `🧭 ${creati.length} incarichi assegnati${reel ? ', 1 reel' : ''}${piano ? ', 1 piano copioni' : ''}${avatar ? ', reel con avatar' : ''}: ${String(testo).slice(0, 80)}`);
-  return { cliente_id: cid, incarichi: creati, reel, piano, avatar };
+  let post = null;
+  if (out.post?.brief) post = await nuovoLavoroPost(env, { ...out.post, cliente_id: cid || null, cliente: (cid ? (await cliente(env, cid))?.nome : '') || 'Cliente', pcloud: /code=/.test(out.post.pcloud || '') ? out.post.pcloud : null });
+  await log(env, null, 'capo', `🧭 ${creati.length} incarichi assegnati${reel ? ', 1 reel' : ''}${piano ? ', 1 piano copioni' : ''}${avatar ? ', reel con avatar' : ''}${post ? ', post e caroselli' : ''}: ${String(testo).slice(0, 80)}`);
+  return { cliente_id: cid, incarichi: creati, reel, piano, avatar, post };
 }
 
 // ------------------------------------------------------------------ API

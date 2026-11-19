@@ -97,6 +97,7 @@ Rispondi SOLO JSON:
      "incarichi": [{"agente": "uno di: ${DELEGABILI.join(', ')}", "titolo": "...", "brief": "brief completo e autonomo", "dopo": null}],
      "reel": {"prompt": "descrizione completa del reel", "pcloud": "link o null"} o null,
      "copioni": {"argomenti": ["..."], "numero": 20, "mesi": 3} o null,
+     "post": {"tipo": "carosello | post | misto", "numero": 3, "slide": 7, "brief": "di cosa parlano e per chi", "pcloud": "link della cartella foto o null"} o null (comparto Post e caroselli: Ines e Tea cercano i virali della nicchia, Iris li studia, Ada sceglie le foto, Pietro e Giulia scrivono, Johnny approva, si impaginano su Canva),
      "avatar": {"argomento": "...", "numero": 5, "note": "..."} o null (SOLO per i reel del PROFILO PERSONALE di Johnny fatti col suo avatar HeyGen: Sofia ricerca, Zoe studia i virali, Nora scrive i copioni, Ava genera, il comparto Reel monta),
      "note_gestionale": null}}],
  "consigliata": indice della proposta che la riunione consiglia,

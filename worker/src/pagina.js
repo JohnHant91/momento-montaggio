@@ -241,6 +241,7 @@ const ICO = {
   profilo: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".6"/>',
   approvazioni: '<path d="M20 6 9 17l-5-5"/>',
   clienti: '<path d="M16 20v-1.5a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4V20M9.5 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M21 20v-1.5a4 4 0 0 0-3-3.9M15.5 3.6a3.5 3.5 0 0 1 0 6.8"/>',
+  post: '<rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 21h12a2 2 0 0 0 2-2V7M3 13l4-4 4 4 3-3 3 3"/>',
   costi: '<path d="M12 2v20M17 6.5c0-1.9-2.2-3-5-3s-5 1.3-5 3.3c0 4.7 10 2.4 10 7.2 0 2-2.2 3.5-5 3.5s-5-1.2-5-3.2"/>',
   reel: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="m10 9 5 3-5 3z"/>',
   copioni: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h4"/>',
@@ -248,7 +249,7 @@ const ICO = {
   impostazioni: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'
 };
 const VOCI = [['agenzia', 'Agenzia', '#/'], ['riunioni', 'Riunioni', '#/riunioni'], ['approvazioni', 'Approvazioni', '#/approvazioni'], ['profilo', 'Profilo IG', '#/profilo'], ['clienti', 'Clienti', '#/clienti']];
-const STRUMENTI = [['reel', 'Reel', '#/reel'], ['copioni', 'Copioni', '#/copioni'], ['gestionale', 'Gestionale', '#/gestionale'], ['costi', 'Costi', '#/costi']];
+const STRUMENTI = [['reel', 'Reel', '#/reel'], ['post', 'Post e caroselli', '#/post'], ['copioni', 'Copioni', '#/copioni'], ['gestionale', 'Gestionale', '#/gestionale'], ['costi', 'Costi', '#/costi']];
 const voce = (v) => '<a class="vm" href="' + v[2] + '" data-k="' + v[0] + '"><svg viewBox="0 0 24 24">' + ICO[v[0]] + '</svg><span class="tx">' + v[1] + '</span>' + (v[0] === 'costi' ? '<span class="num" id="num_costi"></span>' : '') + '</a>';
 function menu(on) {
   document.body.classList.toggle('dentro', !!on);
@@ -268,7 +269,7 @@ const soldi = (usd, cambio) => '€ ' + (usd * (cambio || 0.86)).toLocaleString(
 function evidenzia() {
   const h = location.hash || '#/';
   const k = h === '#/' || h.startsWith('#/agente') || h.startsWith('#/ufficio') || h.startsWith('#/incarico') || h === '#/chat/capo' ? 'agenzia' : h.startsWith('#/riunion') ? 'riunioni' : h.startsWith('#/profilo') ? 'profilo' : h.startsWith('#/approvazion') ? 'approvazioni' : h.startsWith('#/client') ? 'clienti' :
-    h.startsWith('#/reel') || h.startsWith('#/lavoro') ? 'reel' : h.startsWith('#/copion') || h.startsWith('#/piano') ? 'copioni' : h.startsWith('#/chat/gestionale') || h.startsWith('#/chat/contabile') || h === '#/gestionale' ? 'gestionale' : h.startsWith('#/costi') ? 'costi' : h.startsWith('#/impostazioni') ? 'impostazioni' : '';
+    h.startsWith('#/reel') || h.startsWith('#/lavoro') ? 'reel' : h.startsWith('#/post') ? 'post' : h.startsWith('#/copion') || h.startsWith('#/piano') ? 'copioni' : h.startsWith('#/chat/gestionale') || h.startsWith('#/chat/contabile') || h === '#/gestionale' ? 'gestionale' : h.startsWith('#/costi') ? 'costi' : h.startsWith('#/impostazioni') ? 'impostazioni' : '';
   document.querySelectorAll('#nav .vm[data-k]').forEach((a) => a.classList.toggle('att', a.dataset.k === k));
   const tutte = VOCI.concat(STRUMENTI, [['impostazioni', 'Impostazioni']]).find((v) => v[0] === k);
   $('#sez').textContent = tutte ? tutte[1] : '';
@@ -444,6 +445,88 @@ async function impostazioni() {
   $('#out').onclick = async () => { await fetch('/api/esci'); accesso(); };
 }
 
+// ---------------------------------------------------------------- Post e caroselli
+const ST_POST = { in_corso: 'in corso', da_approvare: 'da approvare', attende_canva: 'da fare su Canva', fatto: 'pronto', errore: 'errore' };
+const PILL_POST = { in_corso: 'corso', da_approvare: 'errore', attende_canva: 'errore', fatto: 'pronto', errore: 'errore' };
+const imgEst = (u) => '/api/post/img?u=' + encodeURIComponent(u);
+async function postLista() {
+  const L = await chiama('/api/post');
+  $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Post e caroselli</h1><a class="btn" href="#/post/nuovo">+ Nuovo lavoro</a></div>' +
+    '<p class="mut">Ines e Tea cercano su Instagram e TikTok i post e i caroselli più virali della nicchia, Iris li studia, Ada sceglie le tue foto da pCloud, Pietro e Giulia scrivono slide, caption e hashtag. Tu approvi, poi si impaginano su Canva e tornano qui pronti da pubblicare.</p>' +
+    (L.map((x) => '<a class="card lav" href="#/post/' + x.id + '"><div class="riga"><b style="flex:1">#' + x.id + ' · ' + e(x.cliente || 'cliente') + (x.titolo ? ' · ' + e(x.titolo) : '') + '</b><span class="pill ' + (PILL_POST[x.stato] || '') + '">' + (ST_POST[x.stato] || x.stato) + '</span></div>' +
+      '<div class="mut">' + x.numero + ' ' + (x.tipo === 'post' ? 'post' : x.tipo === 'misto' ? 'contenuti' : 'caroselli') + ' · fase: ' + e(x.fase) + ' · ' + new Date(x.creato).toLocaleString('it-IT', { dateStyle: 'medium', timeStyle: 'short' }) + '</div>' + (x.errore ? '<div class="err">' + e(x.errore) + '</div>' : '') + '</a>').join('') || '<p class="mut">Ancora nessun lavoro.</p>');
+  if (L.some((x) => x.stato === 'in_corso')) timer = setTimeout(rotta, 8000);
+}
+
+async function postNuovo() {
+  const CL = await chiama('/api/clienti').catch(() => []);
+  $('#app').innerHTML = '<a class="mut" href="#/post">← Post e caroselli</a><h1>Nuovo lavoro: post e caroselli</h1>' +
+    '<label>Cliente</label><select id="p_cl"><option value="">— scrivi sotto un cliente nuovo —</option>' + CL.map((c) => '<option value="' + c.id + '">' + e(c.nome) + (c.nicchia ? ' · ' + e(c.nicchia) : '') + '</option>').join('') + '</select>' +
+    '<input id="p_cn" placeholder="Nome del cliente (se non è in elenco)" style="margin-top:8px">' +
+    '<label>Nicchia (per cercare i virali giusti)</label><input id="p_ni" placeholder="Es. ristorante di pesce a Salerno, B&B in Costiera, palestra">' +
+    '<div class="riga" style="gap:12px"><div style="flex:1;min-width:140px"><label>Cosa</label><select id="p_ti"><option value="carosello">Caroselli</option><option value="post">Post a foto singola</option><option value="misto">Misto</option></select></div>' +
+    '<div style="flex:1;min-width:110px"><label>Quanti</label><input id="p_nu" type="number" min="1" max="12" value="3"></div>' +
+    '<div style="flex:1;min-width:110px"><label>Slide per carosello</label><input id="p_sl" type="number" min="2" max="10" value="7"></div></div>' +
+    '<label>Di cosa parlano</label><textarea id="p_br" placeholder="Es. 3 caroselli per la Torretta: la tostatura artigianale, le miscele della casa, la colazione del sabato. Obiettivo: salvataggi e visite al bar."></textarea>' +
+    '<label>Le tue foto su pCloud (facoltativo)</label><input id="p_pc" placeholder="https://e.pcloud.link/publink/show?code=…">' +
+    '<div class="aiuto">Link pubblico della cartella con gli scatti. Ada le guarda tutte e sceglie le migliori per ogni slide. Senza foto i caroselli sono grafici.</div>' +
+    '<label>Post che ti piacciono come esempio (facoltativo)</label><textarea id="p_es" style="min-height:60px" placeholder="Un link Instagram o TikTok per riga"></textarea>' +
+    '<label>Note (facoltativo)</label><input id="p_no" placeholder="Colori del brand, cose da non dire, date…">' +
+    '<div style="margin-top:18px"><button id="p_go">Avvia la squadra</button></div><div id="p_er" class="err"></div>';
+  $('#p_go').onclick = async () => {
+    const d = { cliente_id: Number($('#p_cl').value) || null, cliente: $('#p_cn').value.trim(), nicchia: $('#p_ni').value.trim(), tipo: $('#p_ti').value, numero: Number($('#p_nu').value), slide: Number($('#p_sl').value),
+      brief: $('#p_br').value.trim(), pcloud: $('#p_pc').value.trim(), esempi: $('#p_es').value.split(/\\s+/).filter((x) => /^https:/.test(x)), note: $('#p_no').value.trim() };
+    $('#p_go').disabled = true;
+    try { const r = await chiama('/api/post', { method: 'POST', body: d }); location.hash = '#/post/' + r.id; } catch (x) { $('#p_er').textContent = x.message; $('#p_go').disabled = false; }
+  };
+}
+
+async function postDettaglio(id) {
+  const P = await chiama('/api/post/' + id);
+  const i = P.fasi.findIndex((f) => f[0] === P.fase);
+  const passi = '<div class="riga" style="flex-wrap:wrap;gap:6px;margin:10px 0">' + P.fasi.map((f, k) => '<span class="pill ' + (k < i || P.fase === 'fatto' ? 'pronto' : k === i ? 'in_corso' : '') + '">' + f[1] + '</span>').join('') + '</div>';
+  const V = P.virali || {}, St = P.studio, F = P.foto, Ct = P.contenuti, da = P.stato === 'da_approvare';
+  const lista = (a) => (a || []).map((x) => '<li>' + e(typeof x === 'string' ? x : JSON.stringify(x)) + '</li>').join('');
+  const virali = (V.post || []).length ? '<h2>Post virali trovati da Ines e Tea</h2><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px">' + V.post.map((x) => '<a href="' + e(x.url) + '" target="_blank" rel="noopener" class="card" style="margin:0;padding:8px;text-decoration:none;color:inherit">' +
+    (x.immagini?.[0] ? '<div style="aspect-ratio:4/5;border-radius:10px;background:#eee url(' + imgEst(x.immagini[0]) + ') center/cover"></div>' : '<div style="aspect-ratio:4/5;border-radius:10px;background:#f0ede7;display:grid;place-items:center">🗂️</div>') +
+    '<div style="font-size:12px;margin-top:6px"><b>@' + e(x.autore || '') + '</b><br><span class="mut">' + e(x.piattaforma) + ' · ' + (x.carosello ? x.slide + ' slide' : 'foto') + ' · ♥ ' + n(x.likes) + ' · 💬 ' + n(x.commenti) + '</span></div></a>').join('') + '</div>' : '';
+  const studio = St ? '<h2>Cosa ha imparato Iris</h2><div class="card"><p>' + e(St.sintesi || '') + '</p><b>Copertine</b><ul>' + lista(St.copertine) + '</ul><b>Struttura</b><ul>' + lista(St.struttura) + '</ul><b>Ganci</b><ul>' + lista(St.ganci) + '</ul>' +
+    (St.stile_grafico ? '<b>Stile grafico</b><ul>' + Object.entries(St.stile_grafico).map(([k, v]) => '<li>' + e(k.replace('_', ' ')) + ': ' + e(v) + '</li>').join('') + '</ul>' : '') + '<b>Da evitare</b><ul>' + lista(St.da_evitare) + '</ul></div>' : '';
+  const foto = F && !F.nessuna ? '<h2>Le tue foto viste da Ada</h2><div class="card"><div class="mut">' + (F.foto || []).length + ' di ' + (F.totale || '?') + ' guardate · ' + (F.foto || []).filter((x) => x.uso !== 'scarta').length + ' buone</div><ul>' +
+    (F.foto || []).filter((x) => x.uso !== 'scarta').sort((a, b) => (b.qualita || 0) - (a.qualita || 0)).slice(0, 12).map((x) => '<li><b>' + e(x.nome) + '</b> · ' + e(x.uso || '') + ' · ' + (x.qualita || '?') + '/10 · ' + e(x.descrizione || '') + '</li>').join('') + '</ul></div>' : '';
+  const slideFile = new Set(P.slide_file || []);
+  const posts = Ct ? '<h2>' + (P.tipo === 'post' ? 'Post' : 'Caroselli') + '</h2>' + (Ct.stile?.palette ? '<div class="card"><b>Stile del set</b><div class="riga" style="margin:8px 0">' + Ct.stile.palette.map((c) => '<span style="width:26px;height:26px;border-radius:8px;border:1px solid var(--line);background:' + e(c) + '" title="' + e(c) + '"></span>').join('') + '<span class="mut">' + e(Ct.stile.font_titoli || '') + ' / ' + e(Ct.stile.font_testo || '') + ' · ' + e(Ct.stile.mood || '') + '</span></div><div class="mut">' + e(Ct.stile.regole || '') + '</div></div>' : '') +
+    Ct.post.map((x) => {
+      const cv = (P.canva?.post || []).find((c) => c.n === x.n);
+      const png = cv ? cv.png.map((_, k) => '/api/post/' + P.id + '/slide/' + x.n + '-' + (k + 1) + '.png').filter((u, k) => slideFile.has('post-' + P.id + '/' + x.n + '-' + (k + 1) + '.png')) : [];
+      return '<div class="card"><div class="riga"><b style="flex:1">' + x.n + '. ' + e(x.titolo || '') + '</b><span class="pill">' + (x.slide || []).length + ' slide · ' + e(x.obiettivo || '') + '</span>' +
+        (da ? '<label style="display:flex;gap:6px;font-weight:400;margin:0"><input type="checkbox" class="po_ok" data-n="' + x.n + '" checked style="width:auto"> approva</label>' : '<span class="pill ' + (x.stato === 'approvato' ? 'pronto' : '') + '">' + e(x.stato || '') + '</span>') + '</div>' +
+        (png.length ? '<div style="display:flex;gap:8px;overflow-x:auto;margin:10px 0">' + png.map((u) => '<a href="' + u + '?scarica=1"><img src="' + u + '" style="height:220px;border-radius:10px;border:1px solid var(--line)"></a>').join('') + '</div>' : '') +
+        (cv?.link ? '<p><a class="btn sec" href="' + e(cv.link) + '" target="_blank" rel="noopener">Modifica su Canva ↗</a></p>' : '') +
+        '<ol style="padding-left:18px">' + (x.slide || []).map((s, k) => '<li style="margin:8px 0">' + (da ? '<input class="po_ti" data-n="' + x.n + '" data-k="' + k + '" value="' + e(s.titolo || '') + '" style="font-weight:600"><textarea class="po_te" data-n="' + x.n + '" data-k="' + k + '" style="min-height:50px;margin-top:4px">' + e(s.testo || '') + '</textarea>'
+          : '<b>' + e(s.titolo || '') + '</b>' + (s.testo ? '<br>' + e(s.testo) : '')) + '<div class="mut">' + e(s.ruolo || '') + (s.foto ? ' · 📷 ' + e(s.foto) : '') + (s.layout ? ' · ' + e(s.layout) : '') + '</div></li>').join('') + '</ol>' +
+        '<label>Caption</label>' + (da ? '<textarea class="po_ca" data-n="' + x.n + '">' + e(x.caption || '') + '</textarea>' : '<div style="white-space:pre-wrap" class="card">' + e(x.caption || '') + '</div>') +
+        '<div class="mut">' + (x.hashtag || []).map((h) => '#' + e(String(h).replace(/^#/, ''))).join(' ') + '</div></div>';
+    }).join('') + (da ? '<div class="riga"><button id="po_ok">Approva i selezionati</button></div><div id="po_er" class="err"></div>' : '') : '';
+  $('#app').innerHTML = '<a class="mut" href="#/post">← Post e caroselli</a><h1>' + e(P.cliente || 'Cliente') + ' · ' + P.numero + ' ' + (P.tipo === 'post' ? 'post' : P.tipo === 'misto' ? 'contenuti' : 'caroselli') + '</h1><div class="mut">#' + P.id + ' · ' + e(P.nicchia || '') + '</div>' + passi +
+    '<div class="card"><b>Brief</b><div style="white-space:pre-wrap">' + e(P.brief) + '</div>' + (P.pcloud ? '<div class="mut">📁 foto: <a href="' + e(P.pcloud) + '" target="_blank" rel="noopener">cartella pCloud</a></div>' : '') + '</div>' +
+    (P.errore ? '<div class="card err">' + e(P.errore) + ' <button class="sec" id="po_rp">Riprova</button></div>' : '') +
+    (P.stato === 'attende_canva' ? '<div class="card">🎨 <b>Pronti per Canva.</b> Testi, foto e stile sono approvati: chiedi a Claude in chat <i>“fai su Canva il lavoro post #' + P.id + '”</i> e le slide tornano qui in PNG, con il link per modificarle.</div>' : '') +
+    posts + studio + foto + virali + '<div class="riga" style="margin-top:14px"><button class="sec" id="po_del">Elimina</button></div>';
+  if ($('#po_ok')) $('#po_ok').onclick = async () => {
+    const nn = [...document.querySelectorAll('.po_ok')].filter((x) => x.checked).map((x) => Number(x.dataset.n));
+    const modifiche = {};
+    for (const x of Ct.post) {
+      const slide = x.slide.map((s, k) => ({ ...s, titolo: document.querySelector('.po_ti[data-n="' + x.n + '"][data-k="' + k + '"]')?.value ?? s.titolo, testo: document.querySelector('.po_te[data-n="' + x.n + '"][data-k="' + k + '"]')?.value ?? s.testo }));
+      modifiche[x.n] = { slide, caption: document.querySelector('.po_ca[data-n="' + x.n + '"]')?.value ?? x.caption };
+    }
+    try { await chiama('/api/post/' + id + '/approva', { method: 'POST', body: { n: nn, modifiche } }); rotta(); } catch (x) { $('#po_er').textContent = x.message; }
+  };
+  if ($('#po_rp')) $('#po_rp').onclick = async () => { await chiama('/api/post/' + id + '/riprova', { method: 'POST' }); rotta(); };
+  $('#po_del').onclick = async () => { if (!confirm('Eliminare questo lavoro?')) return; await chiama('/api/post/' + id, { method: 'DELETE' }); location.hash = '#/post'; };
+  if (P.stato === 'in_corso') timer = setTimeout(rotta, 8000);
+}
+
 // ---------------------------------------------------------------- Gestionale ufficiale + Gino e Dora
 const SCHEDE_G = (att) => '<div class="riga" style="flex-wrap:wrap;gap:10px;margin-bottom:12px"><div style="display:flex;background:#ebe8e2;border-radius:12px;padding:3px;flex-wrap:wrap">' +
   [['#/gestionale', '📒 Gestionale'], ['#/chat/gestionale', '🗂️ Gino'], ['#/chat/contabile', '🧾 Dora']].map(([h, n]) => '<a href="' + h + '" style="padding:7px 14px;border-radius:9px;font-size:13.5px;font-weight:600;text-decoration:none;' + (h === att ? 'background:#fff;color:var(--txt);box-shadow:0 1px 3px rgba(0,0,0,.08)' : 'color:#6b6862') + '">' + n + '</a>').join('') +
@@ -454,7 +537,7 @@ function gestionalePagina() {
 }
 
 // ---------------------------------------------------------------- Costi: contatori di ogni chiamata a pagamento
-const AREE_C = { reel: 'Comparto Reel', uffici: 'Uffici (incarichi)', riunioni: 'Riunioni', profilo: 'Profilo IG (ricerca, copioni, avatar)', copioni: 'Copioni di Nora', gestionale: 'Gestionale e contabilità', altro: 'Altro' };
+const AREE_C = { reel: 'Comparto Reel', post: 'Post e caroselli', uffici: 'Uffici (incarichi)', riunioni: 'Riunioni', profilo: 'Profilo IG (ricerca, copioni, avatar)', copioni: 'Copioni di Nora', gestionale: 'Gestionale e contabilità', altro: 'Altro' };
 const SERV_C = { claude: 'Claude (agenti + ricerche web)', heygen: 'HeyGen (avatar)' };
 async function costiPagina(giorni) {
   const C = await chiama('/api/consumi?giorni=' + giorni);
@@ -702,7 +785,7 @@ function apriCervello() {
 }
 
 async function azienda() {
-  const [R, lavori, riunioni, avatarL] = await Promise.all([chiama('/api/azienda'), chiama('/api/lavori').catch(() => []), chiama('/api/riunioni').catch(() => []), chiama('/api/avatar').catch(() => [])]);
+  const [R, lavori, riunioni, avatarL, postL] = await Promise.all([chiama('/api/azienda'), chiama('/api/lavori').catch(() => []), chiama('/api/riunioni').catch(() => []), chiama('/api/avatar').catch(() => []), chiama('/api/post').catch(() => [])]);
   Object.assign(AGENTI, R.squadra);
   R.riunioni = riunioni;
   SALA.dati = R;
@@ -731,7 +814,8 @@ async function azienda() {
   const daScegliere = riunioni.filter((x) => x.stato === 'proposte').map((x) => ({ t: '🗳️ PROPOSTE DA SCEGLIERE', b: x.titolo || x.richiesta || '', link: '#/riunione/' + x.id, img: null, i: '🗳️' }));
   const ultimoReport = riunioni.find((x) => x.tipo === 'settimanale' && x.stato === 'report');
   const daApprovareAv = avatarL.filter((x) => x.stato === 'da_approvare').map((x) => ({ t: '🎭 COPIONI AVATAR DA APPROVARE', b: x.argomento, link: '#/profilo/' + x.id, img: null, i: '🎭' }));
-  const recenti = [...daScegliere, ...daApprovareAv, ...(ultimoReport ? [{ t: '📊 REPORT RIUNIONE OPERATIVA', b: ultimoReport.titolo, link: '#/riunione/' + ultimoReport.id, img: null, i: '📊' }] : []), ...lavori.slice(0, 4).map((L) => ({ t: 'REEL · ' + (L.stato === 'pronto' ? 'pronto' : L.stato === 'errore' ? 'errore' : 'in lavorazione'), b: (L.titolo || L.prompt || '').slice(0, 60), link: '#/lavoro/' + L.id, img: L.stato === 'pronto' ? '/api/lavori/' + L.id + '/anteprima.jpg' : null, i: '🎬' })),
+  const daPost = postL.filter((x) => ['da_approvare', 'attende_canva', 'fatto'].includes(x.stato)).slice(0, 4).map((x) => ({ t: x.stato === 'da_approvare' ? '🗂️ CAROSELLI DA APPROVARE' : x.stato === 'attende_canva' ? '🎨 CAROSELLI DA FARE SU CANVA' : '🗂️ CAROSELLI PRONTI', b: (x.cliente || '') + (x.titolo ? ' · ' + x.titolo : ''), link: '#/post/' + x.id, img: x.stato === 'fatto' ? '/api/post/' + x.id + '/slide/1-1.png' : null, i: '🗂️' }));
+  const recenti = [...daScegliere, ...daApprovareAv, ...daPost, ...(ultimoReport ? [{ t: '📊 REPORT RIUNIONE OPERATIVA', b: ultimoReport.titolo, link: '#/riunione/' + ultimoReport.id, img: null, i: '📊' }] : []), ...lavori.slice(0, 4).map((L) => ({ t: 'REEL · ' + (L.stato === 'pronto' ? 'pronto' : L.stato === 'errore' ? 'errore' : 'in lavorazione'), b: (L.titolo || L.prompt || '').slice(0, 60), link: '#/lavoro/' + L.id, img: L.stato === 'pronto' ? '/api/lavori/' + L.id + '/anteprima.jpg' : null, i: '🎬' })),
     ...R.recenti.slice(0, 4).map((I) => ({ t: (AGENTI[I.agente]?.n || I.agente) + ' · ' + (ST_INC[I.stato] || I.stato), b: I.titolo, link: '#/incarico/' + I.id, img: null, i: AGENTI[I.agente]?.i || '📄' }))];
   $('#app').innerHTML = '<div id="saluto">' + saluto + '</div>' +
     '<div class="chiedi"><span>🧭</span><input id="k_t" placeholder="Chiedi all’agenzia… es. 6 post per dicembre per A’ Villetta, romantici">' + C + '<button id="k_go">Invia</button></div><div id="k_r"></div>' +
@@ -1040,6 +1124,9 @@ async function rotta() {
     else if (h === '#/clienti') await clientiPagina();
     else if (h.startsWith('#/cliente/')) await clientePagina(h.split('/')[2]);
     else if (h === '#/gestionale') gestionalePagina();
+    else if (h === '#/post') await postLista();
+    else if (h === '#/post/nuovo') await postNuovo();
+    else if (h.startsWith('#/post/')) await postDettaglio(h.split('/')[2]);
     else if (h.startsWith('#/chat/')) await chatPagina(h.split('/')[2]);
     else if (h.startsWith('#/costi')) await costiPagina(Number(h.split('/')[2]) || 30);
     else if (h === '#/copioni') await piani();
