@@ -248,7 +248,7 @@ const ICO = {
   impostazioni: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'
 };
 const VOCI = [['agenzia', 'Agenzia', '#/'], ['riunioni', 'Riunioni', '#/riunioni'], ['approvazioni', 'Approvazioni', '#/approvazioni'], ['profilo', 'Profilo IG', '#/profilo'], ['clienti', 'Clienti', '#/clienti']];
-const STRUMENTI = [['reel', 'Reel', '#/reel'], ['copioni', 'Copioni', '#/copioni'], ['gestionale', 'Gestionale', '#/chat/gestionale'], ['costi', 'Costi', '#/costi']];
+const STRUMENTI = [['reel', 'Reel', '#/reel'], ['copioni', 'Copioni', '#/copioni'], ['gestionale', 'Gestionale', '#/gestionale'], ['costi', 'Costi', '#/costi']];
 const voce = (v) => '<a class="vm" href="' + v[2] + '" data-k="' + v[0] + '"><svg viewBox="0 0 24 24">' + ICO[v[0]] + '</svg><span class="tx">' + v[1] + '</span>' + (v[0] === 'costi' ? '<span class="num" id="num_costi"></span>' : '') + '</a>';
 function menu(on) {
   document.body.classList.toggle('dentro', !!on);
@@ -267,8 +267,8 @@ async function aggiornaNumCosti() {
 const soldi = (usd, cambio) => '€ ' + (usd * (cambio || 0.86)).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 function evidenzia() {
   const h = location.hash || '#/';
-  const k = h === '#/' || h.startsWith('#/agente') || h.startsWith('#/ufficio') || h.startsWith('#/incarico') || (h.startsWith('#/chat/') && !h.startsWith('#/chat/gestionale')) ? 'agenzia' : h.startsWith('#/riunion') ? 'riunioni' : h.startsWith('#/profilo') ? 'profilo' : h.startsWith('#/approvazion') ? 'approvazioni' : h.startsWith('#/client') ? 'clienti' :
-    h.startsWith('#/reel') || h.startsWith('#/lavoro') ? 'reel' : h.startsWith('#/copion') || h.startsWith('#/piano') ? 'copioni' : h.startsWith('#/chat/gestionale') ? 'gestionale' : h.startsWith('#/costi') ? 'costi' : h.startsWith('#/impostazioni') ? 'impostazioni' : '';
+  const k = h === '#/' || h.startsWith('#/agente') || h.startsWith('#/ufficio') || h.startsWith('#/incarico') || h === '#/chat/capo' ? 'agenzia' : h.startsWith('#/riunion') ? 'riunioni' : h.startsWith('#/profilo') ? 'profilo' : h.startsWith('#/approvazion') ? 'approvazioni' : h.startsWith('#/client') ? 'clienti' :
+    h.startsWith('#/reel') || h.startsWith('#/lavoro') ? 'reel' : h.startsWith('#/copion') || h.startsWith('#/piano') ? 'copioni' : h.startsWith('#/chat/gestionale') || h.startsWith('#/chat/contabile') || h === '#/gestionale' ? 'gestionale' : h.startsWith('#/costi') ? 'costi' : h.startsWith('#/impostazioni') ? 'impostazioni' : '';
   document.querySelectorAll('#nav .vm[data-k]').forEach((a) => a.classList.toggle('att', a.dataset.k === k));
   const tutte = VOCI.concat(STRUMENTI, [['impostazioni', 'Impostazioni']]).find((v) => v[0] === k);
   $('#sez').textContent = tutte ? tutte[1] : '';
@@ -442,6 +442,15 @@ async function impostazioni() {
     try { await chiama('/api/impostazioni', { method: 'POST', body }); await impostazioni(); $('#er').style.color = 'var(--ok)'; $('#er').textContent = '✓ Salvato'; } catch (x) { $('#er').textContent = x.message; }
   };
   $('#out').onclick = async () => { await fetch('/api/esci'); accesso(); };
+}
+
+// ---------------------------------------------------------------- Gestionale ufficiale + Gino e Dora
+const SCHEDE_G = (att) => '<div class="riga" style="flex-wrap:wrap;gap:10px;margin-bottom:12px"><div style="display:flex;background:#ebe8e2;border-radius:12px;padding:3px;flex-wrap:wrap">' +
+  [['#/gestionale', '📒 Gestionale'], ['#/chat/gestionale', '🗂️ Gino'], ['#/chat/contabile', '🧾 Dora']].map(([h, n]) => '<a href="' + h + '" style="padding:7px 14px;border-radius:9px;font-size:13.5px;font-weight:600;text-decoration:none;' + (h === att ? 'background:#fff;color:var(--txt);box-shadow:0 1px 3px rgba(0,0,0,.08)' : 'color:#6b6862') + '">' + n + '</a>').join('') +
+  '</div><span style="flex:1"></span><a class="btn sec" href="https://momento-gestionale.gestionalelcl.workers.dev/" target="_blank" rel="noopener">Apri in una nuova scheda ↗</a></div>';
+function gestionalePagina() {
+  $('#app').innerHTML = SCHEDE_G('#/gestionale') + '<iframe src="/gestionale/" title="Gestionale Momento" style="width:100%;height:calc(100vh - 150px);min-height:560px;border:1px solid var(--line);border-radius:18px;background:#fff"></iframe>' +
+    '<p class="mut" style="font-size:12.5px">È il gestionale ufficiale, con i suoi utenti e permessi: la prima volta accedi con il tuo utente del gestionale. Gino e Dora lavorano sugli stessi dati.</p>';
 }
 
 // ---------------------------------------------------------------- Costi: contatori di ogni chiamata a pagamento
@@ -994,7 +1003,7 @@ async function chatPagina(canale) {
   const A = AGENTI[canale];
   const M = await chiama('/api/chat/' + canale);
   const es = canale === 'gestionale' ? ['Segnami uno shooting il 12 da Torretta alle 9', 'Nuovo cliente Pizzeria Da Gino, referente Gino Rossi, 333 1234567', 'Cosa abbiamo in calendario questa settimana?'] : ['Fammi un preventivo per Da Gino: 8 reel e 2 shooting foto', 'Chi ci deve ancora pagare?', 'Registra un’uscita di 49 € per Canva, oggi'];
-  $('#app').innerHTML = '<div class="riga"><a class="mut" href="#/">← Agenzia</a><span style="flex:1"></span><button class="sec" id="ch_pul">Nuova chat</button></div><h1>' + A.i + ' ' + e(A.n) + ' · ' + e(A.r) + '</h1><div class="mut">' + e(A.d) + '</div>' +
+  $('#app').innerHTML = (canale === 'capo' ? '<div class="riga"><a class="mut" href="#/">← Agenzia</a><span style="flex:1"></span><button class="sec" id="ch_pul">Nuova chat</button></div>' : SCHEDE_G('#/chat/' + canale) + '<div class="riga"><span style="flex:1"></span><button class="sec" id="ch_pul">Nuova chat</button></div>') + '<h1>' + A.i + ' ' + e(A.n) + ' · ' + e(A.r) + '</h1><div class="mut">' + e(A.d) + '</div>' +
     '<div id="ch_m" class="card" style="max-height:55vh;overflow:auto">' + (M.map((x) => '<div style="margin:8px 0;' + (x.ruolo === 'user' ? 'text-align:right' : '') + '"><span style="display:inline-block;padding:8px 12px;border-radius:12px;white-space:pre-wrap;text-align:left;background:' + (x.ruolo === 'user' ? 'var(--teal);color:#fff' : '#f1eee8') + '">' + e(x.testo) + '</span></div>').join('') || '<div class="mut">Scrivigli cosa fare, per esempio:<ul>' + es.map((x) => '<li>' + e(x) + '</li>').join('') + '</ul></div>') + '</div>' +
     '<div class="riga"><textarea id="ch_t" style="flex:1;min-height:60px" placeholder="Scrivi a ' + e(A.n) + '…"></textarea><button id="ch_go">Invia</button></div><div id="ch_er" class="err"></div>';
   const box = $('#ch_m'); box.scrollTop = box.scrollHeight;
@@ -1030,6 +1039,7 @@ async function rotta() {
     else if (h.startsWith('#/riunione/')) await riunionePagina(h.split('/')[2]);
     else if (h === '#/clienti') await clientiPagina();
     else if (h.startsWith('#/cliente/')) await clientePagina(h.split('/')[2]);
+    else if (h === '#/gestionale') gestionalePagina();
     else if (h.startsWith('#/chat/')) await chatPagina(h.split('/')[2]);
     else if (h.startsWith('#/costi')) await costiPagina(Number(h.split('/')[2]) || 30);
     else if (h === '#/copioni') await piani();

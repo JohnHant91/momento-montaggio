@@ -4649,7 +4649,7 @@ const ICO = {
   impostazioni: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'
 };
 const VOCI = [['agenzia', 'Agenzia', '#/'], ['riunioni', 'Riunioni', '#/riunioni'], ['approvazioni', 'Approvazioni', '#/approvazioni'], ['profilo', 'Profilo IG', '#/profilo'], ['clienti', 'Clienti', '#/clienti']];
-const STRUMENTI = [['reel', 'Reel', '#/reel'], ['copioni', 'Copioni', '#/copioni'], ['gestionale', 'Gestionale', '#/chat/gestionale'], ['costi', 'Costi', '#/costi']];
+const STRUMENTI = [['reel', 'Reel', '#/reel'], ['copioni', 'Copioni', '#/copioni'], ['gestionale', 'Gestionale', '#/gestionale'], ['costi', 'Costi', '#/costi']];
 const voce = (v) => '<a class="vm" href="' + v[2] + '" data-k="' + v[0] + '"><svg viewBox="0 0 24 24">' + ICO[v[0]] + '</svg><span class="tx">' + v[1] + '</span>' + (v[0] === 'costi' ? '<span class="num" id="num_costi"></span>' : '') + '</a>';
 function menu(on) {
   document.body.classList.toggle('dentro', !!on);
@@ -4668,8 +4668,8 @@ async function aggiornaNumCosti() {
 const soldi = (usd, cambio) => '\u20AC ' + (usd * (cambio || 0.86)).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 function evidenzia() {
   const h = location.hash || '#/';
-  const k = h === '#/' || h.startsWith('#/agente') || h.startsWith('#/ufficio') || h.startsWith('#/incarico') || (h.startsWith('#/chat/') && !h.startsWith('#/chat/gestionale')) ? 'agenzia' : h.startsWith('#/riunion') ? 'riunioni' : h.startsWith('#/profilo') ? 'profilo' : h.startsWith('#/approvazion') ? 'approvazioni' : h.startsWith('#/client') ? 'clienti' :
-    h.startsWith('#/reel') || h.startsWith('#/lavoro') ? 'reel' : h.startsWith('#/copion') || h.startsWith('#/piano') ? 'copioni' : h.startsWith('#/chat/gestionale') ? 'gestionale' : h.startsWith('#/costi') ? 'costi' : h.startsWith('#/impostazioni') ? 'impostazioni' : '';
+  const k = h === '#/' || h.startsWith('#/agente') || h.startsWith('#/ufficio') || h.startsWith('#/incarico') || h === '#/chat/capo' ? 'agenzia' : h.startsWith('#/riunion') ? 'riunioni' : h.startsWith('#/profilo') ? 'profilo' : h.startsWith('#/approvazion') ? 'approvazioni' : h.startsWith('#/client') ? 'clienti' :
+    h.startsWith('#/reel') || h.startsWith('#/lavoro') ? 'reel' : h.startsWith('#/copion') || h.startsWith('#/piano') ? 'copioni' : h.startsWith('#/chat/gestionale') || h.startsWith('#/chat/contabile') || h === '#/gestionale' ? 'gestionale' : h.startsWith('#/costi') ? 'costi' : h.startsWith('#/impostazioni') ? 'impostazioni' : '';
   document.querySelectorAll('#nav .vm[data-k]').forEach((a) => a.classList.toggle('att', a.dataset.k === k));
   const tutte = VOCI.concat(STRUMENTI, [['impostazioni', 'Impostazioni']]).find((v) => v[0] === k);
   $('#sez').textContent = tutte ? tutte[1] : '';
@@ -4843,6 +4843,15 @@ async function impostazioni() {
     try { await chiama('/api/impostazioni', { method: 'POST', body }); await impostazioni(); $('#er').style.color = 'var(--ok)'; $('#er').textContent = '\u2713 Salvato'; } catch (x) { $('#er').textContent = x.message; }
   };
   $('#out').onclick = async () => { await fetch('/api/esci'); accesso(); };
+}
+
+// ---------------------------------------------------------------- Gestionale ufficiale + Gino e Dora
+const SCHEDE_G = (att) => '<div class="riga" style="flex-wrap:wrap;gap:10px;margin-bottom:12px"><div style="display:flex;background:#ebe8e2;border-radius:12px;padding:3px;flex-wrap:wrap">' +
+  [['#/gestionale', '\u{1F4D2} Gestionale'], ['#/chat/gestionale', '\u{1F5C2}\uFE0F Gino'], ['#/chat/contabile', '\u{1F9FE} Dora']].map(([h, n]) => '<a href="' + h + '" style="padding:7px 14px;border-radius:9px;font-size:13.5px;font-weight:600;text-decoration:none;' + (h === att ? 'background:#fff;color:var(--txt);box-shadow:0 1px 3px rgba(0,0,0,.08)' : 'color:#6b6862') + '">' + n + '</a>').join('') +
+  '</div><span style="flex:1"></span><a class="btn sec" href="https://momento-gestionale.gestionalelcl.workers.dev/" target="_blank" rel="noopener">Apri in una nuova scheda \u2197</a></div>';
+function gestionalePagina() {
+  $('#app').innerHTML = SCHEDE_G('#/gestionale') + '<iframe src="/gestionale/" title="Gestionale Momento" style="width:100%;height:calc(100vh - 150px);min-height:560px;border:1px solid var(--line);border-radius:18px;background:#fff"></iframe>' +
+    '<p class="mut" style="font-size:12.5px">\xC8 il gestionale ufficiale, con i suoi utenti e permessi: la prima volta accedi con il tuo utente del gestionale. Gino e Dora lavorano sugli stessi dati.</p>';
 }
 
 // ---------------------------------------------------------------- Costi: contatori di ogni chiamata a pagamento
@@ -5395,7 +5404,7 @@ async function chatPagina(canale) {
   const A = AGENTI[canale];
   const M = await chiama('/api/chat/' + canale);
   const es = canale === 'gestionale' ? ['Segnami uno shooting il 12 da Torretta alle 9', 'Nuovo cliente Pizzeria Da Gino, referente Gino Rossi, 333 1234567', 'Cosa abbiamo in calendario questa settimana?'] : ['Fammi un preventivo per Da Gino: 8 reel e 2 shooting foto', 'Chi ci deve ancora pagare?', 'Registra un\u2019uscita di 49 \u20AC per Canva, oggi'];
-  $('#app').innerHTML = '<div class="riga"><a class="mut" href="#/">\u2190 Agenzia</a><span style="flex:1"></span><button class="sec" id="ch_pul">Nuova chat</button></div><h1>' + A.i + ' ' + e(A.n) + ' \xB7 ' + e(A.r) + '</h1><div class="mut">' + e(A.d) + '</div>' +
+  $('#app').innerHTML = (canale === 'capo' ? '<div class="riga"><a class="mut" href="#/">\u2190 Agenzia</a><span style="flex:1"></span><button class="sec" id="ch_pul">Nuova chat</button></div>' : SCHEDE_G('#/chat/' + canale) + '<div class="riga"><span style="flex:1"></span><button class="sec" id="ch_pul">Nuova chat</button></div>') + '<h1>' + A.i + ' ' + e(A.n) + ' \xB7 ' + e(A.r) + '</h1><div class="mut">' + e(A.d) + '</div>' +
     '<div id="ch_m" class="card" style="max-height:55vh;overflow:auto">' + (M.map((x) => '<div style="margin:8px 0;' + (x.ruolo === 'user' ? 'text-align:right' : '') + '"><span style="display:inline-block;padding:8px 12px;border-radius:12px;white-space:pre-wrap;text-align:left;background:' + (x.ruolo === 'user' ? 'var(--teal);color:#fff' : '#f1eee8') + '">' + e(x.testo) + '</span></div>').join('') || '<div class="mut">Scrivigli cosa fare, per esempio:<ul>' + es.map((x) => '<li>' + e(x) + '</li>').join('') + '</ul></div>') + '</div>' +
     '<div class="riga"><textarea id="ch_t" style="flex:1;min-height:60px" placeholder="Scrivi a ' + e(A.n) + '\u2026"></textarea><button id="ch_go">Invia</button></div><div id="ch_er" class="err"></div>';
   const box = $('#ch_m'); box.scrollTop = box.scrollHeight;
@@ -5431,6 +5440,7 @@ async function rotta() {
     else if (h.startsWith('#/riunione/')) await riunionePagina(h.split('/')[2]);
     else if (h === '#/clienti') await clientiPagina();
     else if (h.startsWith('#/cliente/')) await clientePagina(h.split('/')[2]);
+    else if (h === '#/gestionale') gestionalePagina();
     else if (h.startsWith('#/chat/')) await chatPagina(h.split('/')[2]);
     else if (h.startsWith('#/costi')) await costiPagina(Number(h.split('/')[2]) || 30);
     else if (h === '#/copioni') await piani();
@@ -6481,6 +6491,28 @@ var VERSIONE_SALA = (() => {
   return (h >>> 0).toString(36);
 })();
 var PAGINA_V = PAGINA.split("import('/sala3d.js')").join("import('/sala3d.js?v=" + VERSIONE_SALA + "')");
+async function gestionaleUfficiale(req, env, url) {
+  if (!env.GESTAPP) return new Response("Gestionale non collegato", { status: 503 });
+  const dentro = url.pathname.slice("/gestionale".length) || "/";
+  const h = new Headers(req.headers);
+  const sess = (req.headers.get("cookie") || "").match(/(?:^|;\s*)sess=([a-f0-9]{64})/);
+  if (sess) h.set("cookie", "sess=" + sess[1]);
+  else h.delete("cookie");
+  const r = await env.GESTAPP.fetch(new Request("https://momento-gestionale" + dentro + url.search, { method: req.method, headers: h, body: ["GET", "HEAD"].includes(req.method) ? void 0 : await req.arrayBuffer(), redirect: "manual" }));
+  const out = new Headers(r.headers);
+  out.delete("x-frame-options");
+  const csp = out.get("content-security-policy");
+  if (csp) out.set("content-security-policy", csp.replace("frame-ancestors 'none'", "frame-ancestors 'self'"));
+  const ck = r.headers.getSetCookie ? r.headers.getSetCookie() : r.headers.getAll ? r.headers.getAll("set-cookie") : [r.headers.get("set-cookie")].filter(Boolean);
+  out.delete("set-cookie");
+  for (const c of ck) out.append("set-cookie", c.replace(/Path=\/(;|$)/i, "Path=/gestionale/$1"));
+  if ((out.get("content-type") || "").includes("text/html")) {
+    const html = (await r.text()).replaceAll("/api/", "/gestionale/api/");
+    out.delete("content-length");
+    return new Response(html, { status: r.status, headers: out });
+  }
+  return new Response(r.body, { status: r.status, headers: out });
+}
 var index_default = {
   async fetch(req, env) {
     await schema(env);
@@ -6503,6 +6535,11 @@ var index_default = {
       if (!value) return json2({ errore: "non pronto" }, 404);
       if ((metadata?.parti || 1) > 1) return videoAPezzi(env, req, url, chiave, value, metadata, [null, pub[1], pub[2]]);
       return new Response(value, { headers: { "content-type": metadata?.tipo || (pub[2] === "reel.mp4" ? "video/mp4" : "image/jpeg"), "accept-ranges": "bytes", "content-length": String(value.byteLength) } });
+    }
+    if (url.pathname === "/gestionale") return Response.redirect(url.origin + "/gestionale/", 302);
+    if (url.pathname.startsWith("/gestionale/")) {
+      if (!await autorizzato(req, env)) return url.pathname.startsWith("/gestionale/api/") ? json2({ errore: "accesso richiesto" }, 401) : Response.redirect(url.origin + "/", 302);
+      return gestionaleUfficiale(req, env, url);
     }
     if (url.pathname.startsWith("/api/motore/")) {
       try {

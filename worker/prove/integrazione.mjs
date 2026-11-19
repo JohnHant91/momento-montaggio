@@ -149,6 +149,19 @@ ok(r.j.servizi.some((s) => s.servizio === 'heygen' && s.costo > 1.9), 'HeyGen co
 ok(r.j.reel.length >= 1 && r.j.profilo.length >= 1, 'costo per reel e per argomento del profilo');
 ok(Math.abs(r.j.fissi_totale - 5) < 0.01 && r.j.proiezione_mese >= 5, 'costi fissi e previsione del mese');
 
+console.log('\n15) gestionale ufficiale dentro la regia');
+const visti = [];
+env.GESTAPP = { fetch: async (rq) => { visti.push({ url: rq.url, cookie: rq.headers.get('cookie'), csrf: rq.headers.get('x-momento') });
+  if (new URL(rq.url).pathname === '/') return new Response('<html><script>api(`/api/data`);fetch("/api/login")</script></html>', { headers: { 'content-type': 'text/html; charset=utf-8', 'x-frame-options': 'DENY', 'content-security-policy': "default-src 'self'; frame-ancestors 'none'" } });
+  return new Response('{"ok":true}', { headers: { 'content-type': 'application/json', 'set-cookie': 'sess=' + 'a'.repeat(64) + '; Path=/; HttpOnly; Secure; SameSite=Strict' } }); } };
+let gr = await chiama('/gestionale/', { grezzo: true }); const gh = await gr.text();
+ok(gr.status === 200 && gh.includes('/gestionale/api/data') && !gh.includes('`/api/'), 'la pagina del gestionale arriva con gli indirizzi giusti');
+ok(!gr.headers.get('x-frame-options') && gr.headers.get('content-security-policy').includes("frame-ancestors 'self'"), 'si può mostrare dentro la regia');
+gr = await chiama('/gestionale/api/login', { method: 'POST', body: { u: 1 }, grezzo: true });
+ok(visti.at(-1).url === 'https://momento-gestionale/api/login' && !String(visti.at(-1).cookie || '').includes('mr_s'), 'le chiamate vanno al gestionale senza il cookie della regia');
+ok(/Path=\/gestionale\//.test(gr.headers.get('set-cookie') || ''), 'la sessione del gestionale resta sotto /gestionale/');
+const fuori = await W.fetch(new Request('https://x/gestionale/api/data'), env, {}); ok(fuori.status === 401, 'senza accesso alla regia il gestionale non si raggiunge da qui');
+
 console.log('\n11) pagina: lo script si compila');
 const html = await (await chiama('/', { grezzo: true })).text();
 const script = html.match(/<script>([\s\S]*?)<\/script>\s*<\/body>/);

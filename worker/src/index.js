@@ -243,6 +243,28 @@ async function api(req, env, url) {
 const VERSIONE_SALA = (() => { let h = 2166136261; for (let i = 0; i < SALA3D_JS.length; i++) h = Math.imul(h ^ SALA3D_JS.charCodeAt(i), 16777619); return (h >>> 0).toString(36); })();
 const PAGINA_V = PAGINA.split("import('/sala3d.js')").join("import('/sala3d.js?v=" + VERSIONE_SALA + "')");
 
+async function gestionaleUfficiale(req, env, url) {
+  if (!env.GESTAPP) return new Response('Gestionale non collegato', { status: 503 });
+  const dentro = url.pathname.slice('/gestionale'.length) || '/';
+  const h = new Headers(req.headers);
+  const sess = (req.headers.get('cookie') || '').match(/(?:^|;\s*)sess=([a-f0-9]{64})/);
+  if (sess) h.set('cookie', 'sess=' + sess[1]); else h.delete('cookie'); // al gestionale passa solo la sua sessione
+  const r = await env.GESTAPP.fetch(new Request('https://momento-gestionale' + dentro + url.search, { method: req.method, headers: h, body: ['GET', 'HEAD'].includes(req.method) ? undefined : await req.arrayBuffer(), redirect: 'manual' }));
+  const out = new Headers(r.headers);
+  out.delete('x-frame-options');
+  const csp = out.get('content-security-policy');
+  if (csp) out.set('content-security-policy', csp.replace("frame-ancestors 'none'", "frame-ancestors 'self'"));
+  const ck = r.headers.getSetCookie ? r.headers.getSetCookie() : r.headers.getAll ? r.headers.getAll('set-cookie') : [r.headers.get('set-cookie')].filter(Boolean);
+  out.delete('set-cookie');
+  for (const c of ck) out.append('set-cookie', c.replace(/Path=\/(;|$)/i, 'Path=/gestionale/$1'));
+  if ((out.get('content-type') || '').includes('text/html')) {
+    const html = (await r.text()).replaceAll('/api/', '/gestionale/api/');
+    out.delete('content-length');
+    return new Response(html, { status: r.status, headers: out });
+  }
+  return new Response(r.body, { status: r.status, headers: out });
+}
+
 export default {
   async fetch(req, env) {
     await schema(env);
@@ -263,6 +285,12 @@ export default {
       if (!value) return json({ errore: 'non pronto' }, 404);
       if ((metadata?.parti || 1) > 1) return videoAPezzi(env, req, url, chiave, value, metadata, [null, pub[1], pub[2]]);
       return new Response(value, { headers: { 'content-type': metadata?.tipo || (pub[2] === 'reel.mp4' ? 'video/mp4' : 'image/jpeg'), 'accept-ranges': 'bytes', 'content-length': String(value.byteLength) } });
+    }
+    // gestionale ufficiale (worker momento-gestionale) dentro la regia: stesso indirizzo, così si può incorniciare e i cookie restano di prima parte
+    if (url.pathname === '/gestionale') return Response.redirect(url.origin + '/gestionale/', 302);
+    if (url.pathname.startsWith('/gestionale/')) {
+      if (!(await autorizzato(req, env))) return url.pathname.startsWith('/gestionale/api/') ? json({ errore: 'accesso richiesto' }, 401) : Response.redirect(url.origin + '/', 302);
+      return gestionaleUfficiale(req, env, url);
     }
     if (url.pathname.startsWith('/api/motore/')) {
       try { return await motoreApi(req, env, url); }
