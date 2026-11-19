@@ -2775,6 +2775,43 @@ hook-writer, the format skills, and content-research-and-sourcing.` };
 
 // src/avatar.js
 var BLOCCO_MIN3 = 12;
+var hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
+async function firmaPubblica(env, id, file) {
+  const k = await crypto.subtle.importKey("raw", new TextEncoder().encode(env.IG_INTERNO_KEY || ""), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return hex(await crypto.subtle.sign("HMAC", k, new TextEncoder().encode(`ig|${id}|${file}`))).slice(0, 40);
+}
+async function linkPubblico(env, origine, id, file) {
+  return `${origine}/pubblico/${id}/${file}?f=${await firmaPubblica(env, id, file)}`;
+}
+async function instagram2(env, metodo, percorso, corpo) {
+  if (!env.IG || !env.IG_INTERNO_KEY) throw new Error("modulo Instagram non collegato");
+  const r = await env.IG.fetch(`https://momento-instagram${percorso}`, { method: metodo, headers: { "x-admin-key": env.IG_INTERNO_KEY, "content-type": "application/json" }, body: corpo ? JSON.stringify(corpo) : void 0 });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errore || `Instagram HTTP ${r.status}`);
+  return d;
+}
+function orariPubblicazione(quanti, da = /* @__PURE__ */ new Date()) {
+  const out = [], giorno = new Date(da);
+  giorno.setUTCDate(giorno.getUTCDate() + 1);
+  for (let i = 0; i < quanti; i++) {
+    const d = new Date(giorno);
+    d.setUTCDate(d.getUTCDate() + i);
+    const iso = d.toISOString().slice(0, 10);
+    const inverno = !(d.getUTCMonth() > 2 && d.getUTCMonth() < 10);
+    out.push((/* @__PURE__ */ new Date(`${iso}T${i % 2 ? "13" : "19"}:00:00${inverno ? "+01:00" : "+02:00"}`)).toISOString());
+  }
+  return out;
+}
+function richiestaProfilo(testo) {
+  const t = String(testo || "");
+  if (!/(mio\s+profilo|profilo\s+(personale|ig|instagram)|mio\s+(ig|instagram)|mia\s+pagina\s+(ig|instagram)|per\s+me\s+su\s+(ig|instagram))/i.test(t)) return null;
+  const nm = t.match(/(\d+)\s*(reel|video|contenut)/i) || t.match(/\b(uno|due|tre|quattro|cinque|sei|sette|otto|nove|dieci)\s+(reel|video|contenut)/i);
+  const parole = { uno: 1, due: 2, tre: 3, quattro: 4, cinque: 5, sei: 6, sette: 7, otto: 8, nove: 9, dieci: 10 };
+  const numero = Math.min(10, Math.max(1, nm ? Number(nm[1]) || parole[nm[1].toLowerCase()] : 5));
+  const am = t.match(/\b(?:su|sul|sullo|sulla|sui|sugli|sulle|riguardo(?:\s+a(?:l|lla|gli|i)?)?|argomento:?|tema:?|parlando\s+di|che\s+parlano\s+di)\s+(.{3,})/i);
+  const argomento = am && am[1].replace(/\s+/g, " ").replace(/[.!?]+$/, "").trim().slice(0, 300);
+  return { numero, argomento: argomento || null };
+}
 async function schemaAvatar(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS avatar_piani (id INTEGER PRIMARY KEY AUTOINCREMENT, argomento TEXT NOT NULL, numero INTEGER DEFAULT 5,
     note TEXT, fase TEXT NOT NULL DEFAULT 'ricerca', stato TEXT NOT NULL DEFAULT 'in_corso', ricerca TEXT, virali TEXT, copioni TEXT, video TEXT, lavori TEXT,
@@ -3030,11 +3067,30 @@ async function apiAvatar(req, env, p, m, json3) {
     if (String(d.argomento || "").trim().length < 3) return json3({ errore: "scrivi l'argomento" }, 400);
     return json3({ id: await nuovoPianoAvatar(env, String(d.argomento).trim(), Number(d.numero) || 5, d.note) });
   }
-  const mm = p.match(/^\/api\/avatar\/(\d+)(?:\/(approva|video|riprova))?$/);
+  if (p === "/api/avatar/instagram" && m === "GET") {
+    try {
+      return json3({ collegato: true, stato: await instagram2(env, "GET", "/stato"), coda: await instagram2(env, "GET", "/coda") });
+    } catch (e) {
+      return json3({ collegato: false, errore: String(e.message || e) });
+    }
+  }
+  const mm = p.match(/^\/api\/avatar\/(\d+)(?:\/(approva|video|riprova|pubblica))?$/);
   if (!mm) return null;
   const A = await one(env, "SELECT * FROM avatar_piani WHERE id=?", mm[1]);
   if (!A) return json3({ errore: "non trovato" }, 404);
-  if (m === "GET" && !mm[2]) return json3({ ...A, ricerca: J(A.ricerca), virali: J(A.virali), copioni: J(A.copioni, []), video: J(A.video, []), lavori: J(A.lavori, []) });
+  if (m === "GET" && !mm[2]) {
+    const lavori = J(A.lavori, []) || [];
+    for (const l of lavori) l.stato = (await one(env, "SELECT stato FROM lavori WHERE id=?", l.lavoro))?.stato || "sparito";
+    if (lavori.some((l) => l.ig_id)) try {
+      const coda = await instagram2(env, "GET", "/coda");
+      for (const l of lavori) {
+        const q = coda.find((x) => x.id === l.ig_id);
+        if (q) Object.assign(l, { ig_stato: q.stato, ig_link: q.permalink || null, ig_errore: q.errore || null });
+      }
+    } catch (_) {
+    }
+    return json3({ ...A, ricerca: J(A.ricerca), virali: J(A.virali), copioni: J(A.copioni, []), video: J(A.video, []), lavori, orari: orariPubblicazione(lavori.filter((l) => !l.ig_id).length) });
+  }
   if (m === "POST" && mm[2] === "approva") {
     const d = await corpo();
     const ok = new Set((d.n || []).map(Number));
@@ -3055,6 +3111,34 @@ async function apiAvatar(req, env, p, m, json3) {
     }
     await run(env, "UPDATE avatar_piani SET video=?, fase='montaggio', stato='in_corso', blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(video), ora(), A.id);
     return json3({ ok: true });
+  }
+  if (m === "POST" && mm[2] === "pubblica") {
+    const d = await corpo();
+    const copioni = J(A.copioni, []), lavori = J(A.lavori, []) || [];
+    const scelti = lavori.filter((l) => d.n === "tutti" || (d.n || []).map(Number).includes(l.n)).filter((l) => !l.ig_id);
+    if (!scelti.length) return json3({ errore: "nessun reel da programmare" }, 400);
+    const origine = new URL(req.url).origin, orari = orariPubblicazione(scelti.length), fatti = [];
+    for (const [i, l] of scelti.entries()) {
+      const L = await one(env, "SELECT id, stato FROM lavori WHERE id=?", l.lavoro);
+      if (!L || L.stato !== "pronto") {
+        fatti.push({ n: l.n, errore: "montaggio non ancora pronto" });
+        continue;
+      }
+      const c = copioni.find((x) => x.n === l.n) || {};
+      const caption = [d.caption?.[l.n] || c.caption || c.titolo || "", (c.hashtag || []).map((h) => "#" + String(h).replace(/^#/, "")).join(" ")].filter(Boolean).join("\n\n").slice(0, 2200);
+      const quando = d.quando?.[l.n] && !isNaN(new Date(d.quando[l.n])) ? new Date(d.quando[l.n]).toISOString() : orari[i];
+      try {
+        const it = await instagram2(env, "POST", "/coda", { type: "reel", media_url: await linkPubblico(env, origine, L.id, "reel.mp4"), cover_url: await linkPubblico(env, origine, L.id, "copertina.jpg"), caption, ai_generated: true, publish_at: quando });
+        Object.assign(l, { ig_id: it.id, ig_quando: it.publish_at });
+        fatti.push({ n: l.n, quando: it.publish_at });
+      } catch (e) {
+        fatti.push({ n: l.n, errore: String(e.message || e) });
+      }
+    }
+    await run(env, "UPDATE avatar_piani SET lavori=?, aggiornato=? WHERE id=?", JSON.stringify(lavori), ora(), A.id);
+    const ok = fatti.filter((f) => f.quando);
+    if (ok.length) await log(env, null, "social", `\u{1F4F2} ${ok.length} reel del profilo programmati su Instagram: ${ok.map((f) => `#${f.n} ${f.quando.slice(0, 16).replace("T", " ")}`).join(", ")}`);
+    return json3({ ok: ok.length > 0, fatti });
   }
   if (m === "POST" && mm[2] === "riprova") {
     await run(env, "UPDATE avatar_piani SET stato='in_corso', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", ora(), A.id);
@@ -3701,6 +3785,19 @@ var squadraTesto = () => CAPI.map(([u, id, n, r]) => {
 }).join("\n");
 async function chiediDirettrice(env, testo, clienteId) {
   await run(env, "INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)", "capo", "user", testo, ora());
+  const prof = richiestaProfilo(testo);
+  if (prof && !prof.argomento) {
+    const risposta2 = `Ok, ${prof.numero} reel per il tuo profilo. Su che argomento? Scrivimi per esempio: "per il mio profilo ${prof.numero} reel su come trovare clienti con Instagram".`;
+    await run(env, "INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)", "capo", "assistant", risposta2, ora());
+    return { risposta: risposta2, incarichi: [] };
+  }
+  if (prof) {
+    const id = await nuovoPianoAvatar(env, prof.argomento, prof.numero, testo);
+    const risposta2 = `Ricevuto: ${prof.numero} reel per il tuo profilo su "${prof.argomento}". Parte subito la catena: Sofia si documenta, Zoe studia i video simili e i virali, Nora scrive i copioni (gancio \u2192 problema \u2192 tensione \u2192 soluzione). Quando sono pronti te li porto in "Tocca a te" da approvare; poi Ava genera i video col tuo avatar, il comparto Reel li monta e tu decidi quando pubblicarli.`;
+    await run(env, "INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)", "capo", "assistant", risposta2, ora());
+    await log(env, null, "capo", `\u{1F4F1} profilo IG di Johnny: piano #${id}, ${prof.numero} reel su "${prof.argomento.slice(0, 60)}"`);
+    return { risposta: risposta2, avatar: id, incarichi: [] };
+  }
   const r = await one(
     env,
     `INSERT INTO riunioni (tipo, stato, richiesta, cliente_id, partecipanti, titolo, creato, aggiornato) VALUES ('richiesta','in_corso',?,?,?,?,?,?) RETURNING id`,
@@ -4776,7 +4873,7 @@ async function apriLato(a) {
     $('#lato_go').disabled = true; $('#lato_r').textContent = 'invio\u2026';
     try {
       if (A.chat) { const r = await chiama('/api/chat/' + a, { method: 'POST', body: { testo } }); $('#lato_r').textContent = r.risposta.slice(0, 160); }
-      else { const r = await chiama('/api/capo', { method: 'POST', body: { testo: a === 'capo' ? testo : 'Per ' + A.n + ' (' + A.r + '): ' + testo } }); $('#lato_r').innerHTML = e(r.risposta.slice(0, 160)) + (r.riunione ? ' <a href="#/riunione/' + r.riunione + '">Segui la riunione \u25B8</a>' : ''); }
+      else { const r = await chiama('/api/capo', { method: 'POST', body: { testo: a === 'capo' ? testo : 'Per ' + A.n + ' (' + A.r + '): ' + testo } }); $('#lato_r').innerHTML = e(r.risposta.slice(0, 160)) + (r.riunione ? ' <a href="#/riunione/' + r.riunione + '">Segui la riunione \u25B8</a>' : r.avatar ? ' <a href="#/profilo/' + r.avatar + '">Segui il lavoro \u25B8</a>' : ''); }
       $('#lato_t').value = '';
     } catch (x) { $('#lato_r').textContent = x.message; }
     $('#lato_go').disabled = false;
@@ -4859,7 +4956,7 @@ async function azienda() {
     try {
       const r = await chiama('/api/capo', { method: 'POST', body: { testo: t, cliente_id: $('#k_cli').value || null } });
       $('#k_t').value = '';
-      $('#k_r').innerHTML = '<div class="card">\u{1F9ED} <b>Alba:</b> ' + e(r.risposta) + (r.riunione ? '<div style="margin-top:8px"><a class="btn" href="#/riunione/' + r.riunione + '">Segui la riunione \u25B8</a></div>' : '') + '</div>';
+      $('#k_r').innerHTML = '<div class="card">\u{1F9ED} <b>Alba:</b> ' + e(r.risposta) + (r.riunione ? '<div style="margin-top:8px"><a class="btn" href="#/riunione/' + r.riunione + '">Segui la riunione \u25B8</a></div>' : r.avatar ? '<div style="margin-top:8px"><a class="btn" href="#/profilo/' + r.avatar + '">Segui il lavoro sul profilo \u25B8</a></div>' : '') + '</div>';
     } catch (x) { $('#k_r').innerHTML = '<div class="err">' + e(x.message) + '</div>'; }
     $('#k_go').disabled = false;
   };
@@ -4876,7 +4973,7 @@ async function agentePagina(id) {
     '<h2>I suoi incarichi</h2>' + (L.map((I) => '<a class="card lav" href="#/incarico/' + I.id + '"><div class="riga"><b style="flex:1">#' + I.id + ' \xB7 ' + e(I.titolo) + '</b><span class="pill">' + (ST_INC[I.stato] || I.stato) + '</span></div><div class="mut">' + (I.cliente ? e(I.cliente) + ' \xB7 ' : '') + fa(I.aggiornato) + '</div></a>').join('') || '<p class="mut">Nessuno.</p>');
   $('#a_go').onclick = async () => {
     const ti = $('#a_ti').value.trim(); if (!ti) { $('#a_er').textContent = 'scrivi cosa deve fare'; return; }
-    try { const r = await chiama('/api/capo', { method: 'POST', body: { testo: 'Per ' + A.n + ' (' + A.r + '): ' + ti + ($('#a_br').value.trim() ? '\\n' + $('#a_br').value.trim() : ''), cliente_id: $('#a_cli').value || null } }); location.hash = '#/riunione/' + r.riunione; }
+    try { const r = await chiama('/api/capo', { method: 'POST', body: { testo: 'Per ' + A.n + ' (' + A.r + '): ' + ti + ($('#a_br').value.trim() ? '\\n' + $('#a_br').value.trim() : ''), cliente_id: $('#a_cli').value || null } }); location.hash = r.riunione ? '#/riunione/' + r.riunione : r.avatar ? '#/profilo/' + r.avatar : location.hash; if (!r.riunione && !r.avatar) alert(r.risposta); }
     catch (x) { $('#a_er').textContent = x.message; }
   };
 }
@@ -4961,11 +5058,15 @@ async function profiloDettaglio(id) {
     '<p class="mut"><b>Cartelli:</b> ' + (c.cartelli || []).map((k) => e(k.testo) + (k.stile === 'barrato' ? ' (barrato)' : '')).join(' \xB7 ') + '</p>' +
     '<p class="mut"><b>Caption:</b> ' + e(c.caption || '') + ' ' + e((c.hashtag || []).join(' ')) + '</p>' +
     (vid(c.n) ? '<p>\u{1F3AD} Avatar: ' + e(vid(c.n).stato) + (vid(c.n).url ? ' \xB7 <a href="' + e(vid(c.n).url) + '" target="_blank" rel="noopener">video grezzo</a>' : '') + '</p>' : '') +
-    (lav(c.n) ? '<a class="btn" href="#/lavoro/' + lav(c.n).lavoro + '">Reel montato \u25B8</a>' : '') + '</div>').join('');
+    (lav(c.n) ? '<div class="riga" style="gap:8px;flex-wrap:wrap"><a class="btn" href="#/lavoro/' + lav(c.n).lavoro + '">Reel ' + (lav(c.n).stato === 'pronto' ? 'montato' : 'in montaggio') + ' \u25B8</a>' +
+      (lav(c.n).ig_id ? '<span class="pill ' + (lav(c.n).ig_stato === 'pubblicato' ? 'pronto' : lav(c.n).ig_stato === 'errore' ? 'err' : 'corso') + '">\u{1F4F2} ' + e(lav(c.n).ig_stato || 'programmato') + ' \xB7 ' + new Date(lav(c.n).ig_quando).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' }) + '</span>' + (lav(c.n).ig_link ? ' <a href="' + e(lav(c.n).ig_link) + '" target="_blank" rel="noopener">apri su Instagram</a>' : '') + (lav(c.n).ig_errore ? ' <span class="err">' + e(lav(c.n).ig_errore) + '</span>' : '')
+        : lav(c.n).stato === 'pronto' ? '<label style="display:flex;gap:6px;align-items:center;font-weight:400"><input type="checkbox" class="ig_ok" data-n="' + c.n + '" checked style="width:auto"> pubblica il</label><input type="datetime-local" class="ig_q" data-n="' + c.n + '" style="width:auto">' : '') + '</div>' : '') + '</div>').join('');
+  const daPubblicare = (A.lavori || []).filter((l) => l.stato === 'pronto' && !l.ig_id).length;
   $('#app').innerHTML = '<a class="mut" href="#/profilo">\u2190 Profilo IG</a><h1>' + e(A.argomento) + '</h1><div class="mut">#' + A.id + ' \xB7 ' + A.numero + ' reel' + (A.note ? ' \xB7 ' + e(A.note) : '') + '</div>' + passi +
     (A.errore ? '<div class="card err">' + e(A.errore) + ' <button class="sec" id="av_rp">Riprova</button></div>' : '') +
     (A.stato === 'attende_avatar' ? '<div class="card">\u{1F3AD} I copioni sono approvati. Ava li genera da sola appena inserisci la chiave HeyGen in \u2699\uFE0E Impostazioni; intanto puoi chiedere a Claude in chat di generarli con il tuo avatar.</div>' : '') +
     (A.copioni.length ? '<h2>Copioni</h2>' + copioni + (A.stato === 'da_approvare' ? '<div class="riga"><button id="av_ok">Approva i selezionati e genera</button></div><div id="av_er" class="err"></div>' : '') : '') +
+    (daPubblicare ? '<div class="card"><b>\u{1F4F2} Pubblicazione su Instagram</b><p class="mut">I reel montati vanno sul tuo profilo solo quando premi qui. Orari proposti: uno al giorno alle 19:00 e alle 13:00 alternati; cambiali se vuoi.</p><div class="riga"><button id="ig_go">Programma su Instagram</button></div><div id="ig_er" class="err"></div></div>' : '') +
     (R ? '<h2>Ricerca di Sofia</h2><div class="card"><p>' + e(R.sintesi || '') + '</p><b>Fatti verificati</b><ul>' + lista(R.fatti) + '</ul><b>Numeri</b><ul>' + lista(R.numeri) + '</ul><b>Errori comuni</b><ul>' + lista(R.errori_comuni) + '</ul><b>Domande della gente</b><ul>' + lista(R.domande_della_gente) + '</ul></div>' : '') +
     (V ? '<h2>Video virali studiati da Zoe</h2><div class="card"><b>Ganci che funzionano</b><ul>' + lista(V.ganci_che_funzionano) + '</ul><b>Angoli scoperti</b><ul>' + lista(V.angoli_scoperti) + '</ul><b>Da evitare</b><ul>' + lista(V.da_evitare) + '</ul><b>I video</b><ul>' + (V.video || []).map((v) => '<li><a href="' + e(v.url) + '" target="_blank" rel="noopener">' + e((v.titolo || v.url).slice(0, 90)) + '</a> <span class="mut">' + e(v.piattaforma || '') + (v.views ? ' \xB7 ' + Number(v.views).toLocaleString('it-IT') + ' views' : '') + '</span></li>').join('') + '</ul></div>' : '') +
     '<div class="riga" style="margin-top:14px"><button class="sec" id="av_del">Elimina</button></div>';
@@ -4973,6 +5074,15 @@ async function profiloDettaglio(id) {
     const n = [...document.querySelectorAll('.av_ok')].filter((x) => x.checked).map((x) => Number(x.dataset.n));
     const modifiche = {}; document.querySelectorAll('.av_t').forEach((x) => { const c = A.copioni.find((k) => k.n === Number(x.dataset.n)); if (c && x.value !== c.testo) modifiche[c.n] = x.value; });
     try { await chiama('/api/avatar/' + id + '/approva', { method: 'POST', body: { n, modifiche } }); rotta(); } catch (x) { $('#av_er').textContent = x.message; }
+  };
+  const libere = (A.lavori || []).filter((l) => l.stato === 'pronto' && !l.ig_id);
+  document.querySelectorAll('.ig_q').forEach((x) => { const k = libere.findIndex((l) => l.n === Number(x.dataset.n)); const d = new Date((A.orari || [])[k] || Date.now() + 864e5); x.value = new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16); });
+  if ($('#ig_go')) $('#ig_go').onclick = async () => {
+    const n = [...document.querySelectorAll('.ig_ok')].filter((x) => x.checked).map((x) => Number(x.dataset.n));
+    if (!n.length) { $('#ig_er').textContent = 'seleziona almeno un reel'; return; }
+    const quando = {}; document.querySelectorAll('.ig_q').forEach((x) => { if (x.value) quando[x.dataset.n] = new Date(x.value).toISOString(); });
+    if (!confirm('Programmare ' + n.length + ' reel sul tuo profilo Instagram? Verranno pubblicati da soli agli orari scelti.')) return;
+    try { const r = await chiama('/api/avatar/' + id + '/pubblica', { method: 'POST', body: { n, quando } }); const ko = r.fatti.filter((f) => f.errore); if (ko.length) alert(ko.map((f) => '#' + f.n + ': ' + f.errore).join('\\n')); rotta(); } catch (x) { $('#ig_er').textContent = x.message; }
   };
   if ($('#av_rp')) $('#av_rp').onclick = async () => { await chiama('/api/avatar/' + id + '/riprova', { method: 'POST' }); rotta(); };
   $('#av_del').onclick = async () => { if (!confirm('Eliminare questo argomento?')) return; await chiama('/api/avatar/' + id, { method: 'DELETE' }); location.hash = '#/profilo'; };
@@ -5938,15 +6048,15 @@ export function avvia(cont, dati, cb) {
 
 // src/index.js
 var json2 = (d, status = 200, extra = {}) => new Response(JSON.stringify(d), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...extra } });
-var hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-var sha = async (s) => hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)));
+var hex2 = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+var sha = async (s) => hex2(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)));
 async function hashPassword(env) {
   if (env.ADMIN_PASSWORD) return sha("momento-reel|" + env.ADMIN_PASSWORD);
   return (await one(env, "SELECT valore FROM impostazioni WHERE chiave='ADMIN_HASH'"))?.valore || null;
 }
 async function firma(hash) {
   const k = await crypto.subtle.importKey("raw", new TextEncoder().encode(hash), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  return hex(await crypto.subtle.sign("HMAC", k, new TextEncoder().encode("momento-reel-sessione")));
+  return hex2(await crypto.subtle.sign("HMAC", k, new TextEncoder().encode("momento-reel-sessione")));
 }
 async function autorizzato(req, env) {
   const h = await hashPassword(env);
@@ -6174,6 +6284,15 @@ var index_default = {
       }
     }
     if (url.pathname === "/sala3d.js") return new Response(sala3d_default, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": url.searchParams.get("v") === VERSIONE_SALA ? "public, max-age=31536000, immutable" : "no-cache" } });
+    const pub = url.pathname.match(/^\/pubblico\/(\d+)\/(reel\.mp4|copertina\.jpg|anteprima\.jpg)$/);
+    if (pub) {
+      if (!env.IG_INTERNO_KEY || url.searchParams.get("f") !== await firmaPubblica(env, pub[1], pub[2])) return json2({ errore: "link non valido" }, 403);
+      const chiave = `lavoro-${pub[1]}/${pub[2]}`;
+      const { value, metadata } = await env.VIDEO.getWithMetadata(chiave, { type: "arrayBuffer" });
+      if (!value) return json2({ errore: "non pronto" }, 404);
+      if ((metadata?.parti || 1) > 1) return videoAPezzi(env, req, url, chiave, value, metadata, [null, pub[1], pub[2]]);
+      return new Response(value, { headers: { "content-type": metadata?.tipo || (pub[2] === "reel.mp4" ? "video/mp4" : "image/jpeg"), "accept-ranges": "bytes", "content-length": String(value.byteLength) } });
+    }
     if (url.pathname.startsWith("/api/motore/")) {
       try {
         return await motoreApi(req, env, url);

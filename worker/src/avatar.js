@@ -13,6 +13,44 @@ import { MANUALE_COPIONI } from './manuali.js';
 
 const BLOCCO_MIN = 12;
 
+// ------------------------------------------------------------------ Instagram (worker momento-instagram, collegato come service binding IG)
+const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
+export async function firmaPubblica(env, id, file) { // link che Meta può scaricare: firmato con la chiave interna, mai indovinabile
+  const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.IG_INTERNO_KEY || ''), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return hex(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(`ig|${id}|${file}`))).slice(0, 40);
+}
+async function linkPubblico(env, origine, id, file) { return `${origine}/pubblico/${id}/${file}?f=${await firmaPubblica(env, id, file)}`; }
+export async function instagram(env, metodo, percorso, corpo) {
+  if (!env.IG || !env.IG_INTERNO_KEY) throw new Error('modulo Instagram non collegato');
+  const r = await env.IG.fetch(`https://momento-instagram${percorso}`, { method: metodo, headers: { 'x-admin-key': env.IG_INTERNO_KEY, 'content-type': 'application/json' }, body: corpo ? JSON.stringify(corpo) : undefined });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errore || `Instagram HTTP ${r.status}`);
+  return d;
+}
+// prossimi orari buoni per il profilo (ora di Roma): 13:00 e 19:00, uno al giorno a partire da domani
+function orariPubblicazione(quanti, da = new Date()) {
+  const out = [], giorno = new Date(da); giorno.setUTCDate(giorno.getUTCDate() + 1);
+  for (let i = 0; i < quanti; i++) {
+    const d = new Date(giorno); d.setUTCDate(d.getUTCDate() + i);
+    const iso = d.toISOString().slice(0, 10);
+    const inverno = !(d.getUTCMonth() > 2 && d.getUTCMonth() < 10); // approssimazione: ora legale da aprile a ottobre
+    out.push(new Date(`${iso}T${i % 2 ? '13' : '19'}:00:00${inverno ? '+01:00' : '+02:00'}`).toISOString());
+  }
+  return out;
+}
+
+// frase di Johnny alla Direttrice → "è per il mio profilo personale?" → numero di reel e argomento
+export function richiestaProfilo(testo) {
+  const t = String(testo || '');
+  if (!/(mio\s+profilo|profilo\s+(personale|ig|instagram)|mio\s+(ig|instagram)|mia\s+pagina\s+(ig|instagram)|per\s+me\s+su\s+(ig|instagram))/i.test(t)) return null;
+  const nm = t.match(/(\d+)\s*(reel|video|contenut)/i) || t.match(/\b(uno|due|tre|quattro|cinque|sei|sette|otto|nove|dieci)\s+(reel|video|contenut)/i);
+  const parole = { uno: 1, due: 2, tre: 3, quattro: 4, cinque: 5, sei: 6, sette: 7, otto: 8, nove: 9, dieci: 10 };
+  const numero = Math.min(10, Math.max(1, nm ? Number(nm[1]) || parole[nm[1].toLowerCase()] : 5));
+  const am = t.match(/\b(?:su|sul|sullo|sulla|sui|sugli|sulle|riguardo(?:\s+a(?:l|lla|gli|i)?)?|argomento:?|tema:?|parlando\s+di|che\s+parlano\s+di)\s+(.{3,})/i);
+  const argomento = am && (am[1].replace(/\s+/g, ' ').replace(/[.!?]+$/, '').trim().slice(0, 300));
+  return { numero, argomento: argomento || null };
+}
+
 export async function schemaAvatar(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS avatar_piani (id INTEGER PRIMARY KEY AUTOINCREMENT, argomento TEXT NOT NULL, numero INTEGER DEFAULT 5,
     note TEXT, fase TEXT NOT NULL DEFAULT 'ricerca', stato TEXT NOT NULL DEFAULT 'in_corso', ricerca TEXT, virali TEXT, copioni TEXT, video TEXT, lavori TEXT,
@@ -222,11 +260,20 @@ export async function apiAvatar(req, env, p, m, json) {
     if (String(d.argomento || '').trim().length < 3) return json({ errore: "scrivi l'argomento" }, 400);
     return json({ id: await nuovoPianoAvatar(env, String(d.argomento).trim(), Number(d.numero) || 5, d.note) });
   }
-  const mm = p.match(/^\/api\/avatar\/(\d+)(?:\/(approva|video|riprova))?$/);
+  if (p === '/api/avatar/instagram' && m === 'GET') { // stato del profilo e coda di pubblicazione
+    try { return json({ collegato: true, stato: await instagram(env, 'GET', '/stato'), coda: await instagram(env, 'GET', '/coda') }); }
+    catch (e) { return json({ collegato: false, errore: String(e.message || e) }); }
+  }
+  const mm = p.match(/^\/api\/avatar\/(\d+)(?:\/(approva|video|riprova|pubblica))?$/);
   if (!mm) return null;
   const A = await one(env, 'SELECT * FROM avatar_piani WHERE id=?', mm[1]);
   if (!A) return json({ errore: 'non trovato' }, 404);
-  if (m === 'GET' && !mm[2]) return json({ ...A, ricerca: J(A.ricerca), virali: J(A.virali), copioni: J(A.copioni, []), video: J(A.video, []), lavori: J(A.lavori, []) });
+  if (m === 'GET' && !mm[2]) {
+    const lavori = J(A.lavori, []) || [];
+    for (const l of lavori) l.stato = (await one(env, 'SELECT stato FROM lavori WHERE id=?', l.lavoro))?.stato || 'sparito';
+    if (lavori.some((l) => l.ig_id)) try { const coda = await instagram(env, 'GET', '/coda'); for (const l of lavori) { const q = coda.find((x) => x.id === l.ig_id); if (q) Object.assign(l, { ig_stato: q.stato, ig_link: q.permalink || null, ig_errore: q.errore || null }); } } catch (_) {}
+    return json({ ...A, ricerca: J(A.ricerca), virali: J(A.virali), copioni: J(A.copioni, []), video: J(A.video, []), lavori, orari: orariPubblicazione(lavori.filter((l) => !l.ig_id).length) });
+  }
   if (m === 'POST' && mm[2] === 'approva') { // {n: [numeri approvati], modifiche: {n: testo}}
     const d = await corpo();
     const ok = new Set((d.n || []).map(Number));
@@ -242,6 +289,29 @@ export async function apiAvatar(req, env, p, m, json) {
     for (const v of d.video || []) if (/^https:\/\//.test(v.url || '')) { const i = video.findIndex((x) => x.n === Number(v.n)); const nv = { n: Number(v.n), url: v.url, durata: Number(v.durata) || null, stato: 'fatto' }; if (i >= 0) video[i] = nv; else video.push(nv); }
     await run(env, "UPDATE avatar_piani SET video=?, fase='montaggio', stato='in_corso', blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(video), ora(), A.id);
     return json({ ok: true });
+  }
+  if (m === 'POST' && mm[2] === 'pubblica') { // {n:[numeri] | 'tutti', quando:{n: ISO}} → in coda su Instagram, solo dopo l'ok di Johnny
+    const d = await corpo();
+    const copioni = J(A.copioni, []), lavori = J(A.lavori, []) || [];
+    const scelti = lavori.filter((l) => d.n === 'tutti' || (d.n || []).map(Number).includes(l.n)).filter((l) => !l.ig_id);
+    if (!scelti.length) return json({ errore: 'nessun reel da programmare' }, 400);
+    const origine = new URL(req.url).origin, orari = orariPubblicazione(scelti.length), fatti = [];
+    for (const [i, l] of scelti.entries()) {
+      const L = await one(env, 'SELECT id, stato FROM lavori WHERE id=?', l.lavoro);
+      if (!L || L.stato !== 'pronto') { fatti.push({ n: l.n, errore: 'montaggio non ancora pronto' }); continue; }
+      const c = copioni.find((x) => x.n === l.n) || {};
+      const caption = [d.caption?.[l.n] || c.caption || c.titolo || '', (c.hashtag || []).map((h) => '#' + String(h).replace(/^#/, '')).join(' ')].filter(Boolean).join('\n\n').slice(0, 2200);
+      const quando = d.quando?.[l.n] && !isNaN(new Date(d.quando[l.n])) ? new Date(d.quando[l.n]).toISOString() : orari[i];
+      try {
+        const it = await instagram(env, 'POST', '/coda', { type: 'reel', media_url: await linkPubblico(env, origine, L.id, 'reel.mp4'), cover_url: await linkPubblico(env, origine, L.id, 'copertina.jpg'), caption, ai_generated: true, publish_at: quando });
+        Object.assign(l, { ig_id: it.id, ig_quando: it.publish_at });
+        fatti.push({ n: l.n, quando: it.publish_at });
+      } catch (e) { fatti.push({ n: l.n, errore: String(e.message || e) }); }
+    }
+    await run(env, 'UPDATE avatar_piani SET lavori=?, aggiornato=? WHERE id=?', JSON.stringify(lavori), ora(), A.id);
+    const ok = fatti.filter((f) => f.quando);
+    if (ok.length) await log(env, null, 'social', `📲 ${ok.length} reel del profilo programmati su Instagram: ${ok.map((f) => `#${f.n} ${f.quando.slice(0, 16).replace('T', ' ')}`).join(', ')}`);
+    return json({ ok: ok.length > 0, fatti });
   }
   if (m === 'POST' && mm[2] === 'riprova') { await run(env, "UPDATE avatar_piani SET stato='in_corso', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", ora(), A.id); return json({ ok: true }); }
   if (m === 'DELETE') { await run(env, 'DELETE FROM avatar_piani WHERE id=?', A.id); return json({ ok: true }); }

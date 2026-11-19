@@ -6,7 +6,7 @@ import { rilevaStile } from './stili.js';
 import { apiPiani, avanzaPiani, schemaPiani } from './copioni.js';
 import { apiAgenzia, avanzaUffici, schemaAgenzia } from './agenzia.js';
 import { apiRiunioni, avanzaRiunioni } from './riunioni.js';
-import { apiAvatar, avanzaAvatar } from './avatar.js';
+import { apiAvatar, avanzaAvatar, firmaPubblica } from './avatar.js';
 import { motoreApi } from './motore.js';
 import { PAGINA } from './pagina.js';
 import SALA3D_JS from './sala3d.txt';
@@ -252,6 +252,16 @@ export default {
       catch (e) { return json({ errore: String(e?.message || e).slice(0, 300) }, 500); }
     }
     if (url.pathname === '/sala3d.js') return new Response(SALA3D_JS, { headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': url.searchParams.get('v') === VERSIONE_SALA ? 'public, max-age=31536000, immutable' : 'no-cache' } });
+    // file dei reel raggiungibili da Instagram (Meta scarica il video da qui): link firmato, niente accesso senza firma
+    const pub = url.pathname.match(/^\/pubblico\/(\d+)\/(reel\.mp4|copertina\.jpg|anteprima\.jpg)$/);
+    if (pub) {
+      if (!env.IG_INTERNO_KEY || url.searchParams.get('f') !== await firmaPubblica(env, pub[1], pub[2])) return json({ errore: 'link non valido' }, 403);
+      const chiave = `lavoro-${pub[1]}/${pub[2]}`;
+      const { value, metadata } = await env.VIDEO.getWithMetadata(chiave, { type: 'arrayBuffer' });
+      if (!value) return json({ errore: 'non pronto' }, 404);
+      if ((metadata?.parti || 1) > 1) return videoAPezzi(env, req, url, chiave, value, metadata, [null, pub[1], pub[2]]);
+      return new Response(value, { headers: { 'content-type': metadata?.tipo || (pub[2] === 'reel.mp4' ? 'video/mp4' : 'image/jpeg'), 'accept-ranges': 'bytes', 'content-length': String(value.byteLength) } });
+    }
     if (url.pathname.startsWith('/api/motore/')) {
       try { return await motoreApi(req, env, url); }
       catch (e) { return json({ errore: String(e?.message || e).slice(0, 300) }, 500); }

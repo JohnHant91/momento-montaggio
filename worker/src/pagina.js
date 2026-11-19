@@ -590,7 +590,7 @@ async function apriLato(a) {
     $('#lato_go').disabled = true; $('#lato_r').textContent = 'invio…';
     try {
       if (A.chat) { const r = await chiama('/api/chat/' + a, { method: 'POST', body: { testo } }); $('#lato_r').textContent = r.risposta.slice(0, 160); }
-      else { const r = await chiama('/api/capo', { method: 'POST', body: { testo: a === 'capo' ? testo : 'Per ' + A.n + ' (' + A.r + '): ' + testo } }); $('#lato_r').innerHTML = e(r.risposta.slice(0, 160)) + (r.riunione ? ' <a href="#/riunione/' + r.riunione + '">Segui la riunione ▸</a>' : ''); }
+      else { const r = await chiama('/api/capo', { method: 'POST', body: { testo: a === 'capo' ? testo : 'Per ' + A.n + ' (' + A.r + '): ' + testo } }); $('#lato_r').innerHTML = e(r.risposta.slice(0, 160)) + (r.riunione ? ' <a href="#/riunione/' + r.riunione + '">Segui la riunione ▸</a>' : r.avatar ? ' <a href="#/profilo/' + r.avatar + '">Segui il lavoro ▸</a>' : ''); }
       $('#lato_t').value = '';
     } catch (x) { $('#lato_r').textContent = x.message; }
     $('#lato_go').disabled = false;
@@ -673,7 +673,7 @@ async function azienda() {
     try {
       const r = await chiama('/api/capo', { method: 'POST', body: { testo: t, cliente_id: $('#k_cli').value || null } });
       $('#k_t').value = '';
-      $('#k_r').innerHTML = '<div class="card">🧭 <b>Alba:</b> ' + e(r.risposta) + (r.riunione ? '<div style="margin-top:8px"><a class="btn" href="#/riunione/' + r.riunione + '">Segui la riunione ▸</a></div>' : '') + '</div>';
+      $('#k_r').innerHTML = '<div class="card">🧭 <b>Alba:</b> ' + e(r.risposta) + (r.riunione ? '<div style="margin-top:8px"><a class="btn" href="#/riunione/' + r.riunione + '">Segui la riunione ▸</a></div>' : r.avatar ? '<div style="margin-top:8px"><a class="btn" href="#/profilo/' + r.avatar + '">Segui il lavoro sul profilo ▸</a></div>' : '') + '</div>';
     } catch (x) { $('#k_r').innerHTML = '<div class="err">' + e(x.message) + '</div>'; }
     $('#k_go').disabled = false;
   };
@@ -690,7 +690,7 @@ async function agentePagina(id) {
     '<h2>I suoi incarichi</h2>' + (L.map((I) => '<a class="card lav" href="#/incarico/' + I.id + '"><div class="riga"><b style="flex:1">#' + I.id + ' · ' + e(I.titolo) + '</b><span class="pill">' + (ST_INC[I.stato] || I.stato) + '</span></div><div class="mut">' + (I.cliente ? e(I.cliente) + ' · ' : '') + fa(I.aggiornato) + '</div></a>').join('') || '<p class="mut">Nessuno.</p>');
   $('#a_go').onclick = async () => {
     const ti = $('#a_ti').value.trim(); if (!ti) { $('#a_er').textContent = 'scrivi cosa deve fare'; return; }
-    try { const r = await chiama('/api/capo', { method: 'POST', body: { testo: 'Per ' + A.n + ' (' + A.r + '): ' + ti + ($('#a_br').value.trim() ? '\\n' + $('#a_br').value.trim() : ''), cliente_id: $('#a_cli').value || null } }); location.hash = '#/riunione/' + r.riunione; }
+    try { const r = await chiama('/api/capo', { method: 'POST', body: { testo: 'Per ' + A.n + ' (' + A.r + '): ' + ti + ($('#a_br').value.trim() ? '\\n' + $('#a_br').value.trim() : ''), cliente_id: $('#a_cli').value || null } }); location.hash = r.riunione ? '#/riunione/' + r.riunione : r.avatar ? '#/profilo/' + r.avatar : location.hash; if (!r.riunione && !r.avatar) alert(r.risposta); }
     catch (x) { $('#a_er').textContent = x.message; }
   };
 }
@@ -775,11 +775,15 @@ async function profiloDettaglio(id) {
     '<p class="mut"><b>Cartelli:</b> ' + (c.cartelli || []).map((k) => e(k.testo) + (k.stile === 'barrato' ? ' (barrato)' : '')).join(' · ') + '</p>' +
     '<p class="mut"><b>Caption:</b> ' + e(c.caption || '') + ' ' + e((c.hashtag || []).join(' ')) + '</p>' +
     (vid(c.n) ? '<p>🎭 Avatar: ' + e(vid(c.n).stato) + (vid(c.n).url ? ' · <a href="' + e(vid(c.n).url) + '" target="_blank" rel="noopener">video grezzo</a>' : '') + '</p>' : '') +
-    (lav(c.n) ? '<a class="btn" href="#/lavoro/' + lav(c.n).lavoro + '">Reel montato ▸</a>' : '') + '</div>').join('');
+    (lav(c.n) ? '<div class="riga" style="gap:8px;flex-wrap:wrap"><a class="btn" href="#/lavoro/' + lav(c.n).lavoro + '">Reel ' + (lav(c.n).stato === 'pronto' ? 'montato' : 'in montaggio') + ' ▸</a>' +
+      (lav(c.n).ig_id ? '<span class="pill ' + (lav(c.n).ig_stato === 'pubblicato' ? 'pronto' : lav(c.n).ig_stato === 'errore' ? 'err' : 'corso') + '">📲 ' + e(lav(c.n).ig_stato || 'programmato') + ' · ' + new Date(lav(c.n).ig_quando).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' }) + '</span>' + (lav(c.n).ig_link ? ' <a href="' + e(lav(c.n).ig_link) + '" target="_blank" rel="noopener">apri su Instagram</a>' : '') + (lav(c.n).ig_errore ? ' <span class="err">' + e(lav(c.n).ig_errore) + '</span>' : '')
+        : lav(c.n).stato === 'pronto' ? '<label style="display:flex;gap:6px;align-items:center;font-weight:400"><input type="checkbox" class="ig_ok" data-n="' + c.n + '" checked style="width:auto"> pubblica il</label><input type="datetime-local" class="ig_q" data-n="' + c.n + '" style="width:auto">' : '') + '</div>' : '') + '</div>').join('');
+  const daPubblicare = (A.lavori || []).filter((l) => l.stato === 'pronto' && !l.ig_id).length;
   $('#app').innerHTML = '<a class="mut" href="#/profilo">← Profilo IG</a><h1>' + e(A.argomento) + '</h1><div class="mut">#' + A.id + ' · ' + A.numero + ' reel' + (A.note ? ' · ' + e(A.note) : '') + '</div>' + passi +
     (A.errore ? '<div class="card err">' + e(A.errore) + ' <button class="sec" id="av_rp">Riprova</button></div>' : '') +
     (A.stato === 'attende_avatar' ? '<div class="card">🎭 I copioni sono approvati. Ava li genera da sola appena inserisci la chiave HeyGen in ⚙︎ Impostazioni; intanto puoi chiedere a Claude in chat di generarli con il tuo avatar.</div>' : '') +
     (A.copioni.length ? '<h2>Copioni</h2>' + copioni + (A.stato === 'da_approvare' ? '<div class="riga"><button id="av_ok">Approva i selezionati e genera</button></div><div id="av_er" class="err"></div>' : '') : '') +
+    (daPubblicare ? '<div class="card"><b>📲 Pubblicazione su Instagram</b><p class="mut">I reel montati vanno sul tuo profilo solo quando premi qui. Orari proposti: uno al giorno alle 19:00 e alle 13:00 alternati; cambiali se vuoi.</p><div class="riga"><button id="ig_go">Programma su Instagram</button></div><div id="ig_er" class="err"></div></div>' : '') +
     (R ? '<h2>Ricerca di Sofia</h2><div class="card"><p>' + e(R.sintesi || '') + '</p><b>Fatti verificati</b><ul>' + lista(R.fatti) + '</ul><b>Numeri</b><ul>' + lista(R.numeri) + '</ul><b>Errori comuni</b><ul>' + lista(R.errori_comuni) + '</ul><b>Domande della gente</b><ul>' + lista(R.domande_della_gente) + '</ul></div>' : '') +
     (V ? '<h2>Video virali studiati da Zoe</h2><div class="card"><b>Ganci che funzionano</b><ul>' + lista(V.ganci_che_funzionano) + '</ul><b>Angoli scoperti</b><ul>' + lista(V.angoli_scoperti) + '</ul><b>Da evitare</b><ul>' + lista(V.da_evitare) + '</ul><b>I video</b><ul>' + (V.video || []).map((v) => '<li><a href="' + e(v.url) + '" target="_blank" rel="noopener">' + e((v.titolo || v.url).slice(0, 90)) + '</a> <span class="mut">' + e(v.piattaforma || '') + (v.views ? ' · ' + Number(v.views).toLocaleString('it-IT') + ' views' : '') + '</span></li>').join('') + '</ul></div>' : '') +
     '<div class="riga" style="margin-top:14px"><button class="sec" id="av_del">Elimina</button></div>';
@@ -787,6 +791,15 @@ async function profiloDettaglio(id) {
     const n = [...document.querySelectorAll('.av_ok')].filter((x) => x.checked).map((x) => Number(x.dataset.n));
     const modifiche = {}; document.querySelectorAll('.av_t').forEach((x) => { const c = A.copioni.find((k) => k.n === Number(x.dataset.n)); if (c && x.value !== c.testo) modifiche[c.n] = x.value; });
     try { await chiama('/api/avatar/' + id + '/approva', { method: 'POST', body: { n, modifiche } }); rotta(); } catch (x) { $('#av_er').textContent = x.message; }
+  };
+  const libere = (A.lavori || []).filter((l) => l.stato === 'pronto' && !l.ig_id);
+  document.querySelectorAll('.ig_q').forEach((x) => { const k = libere.findIndex((l) => l.n === Number(x.dataset.n)); const d = new Date((A.orari || [])[k] || Date.now() + 864e5); x.value = new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16); });
+  if ($('#ig_go')) $('#ig_go').onclick = async () => {
+    const n = [...document.querySelectorAll('.ig_ok')].filter((x) => x.checked).map((x) => Number(x.dataset.n));
+    if (!n.length) { $('#ig_er').textContent = 'seleziona almeno un reel'; return; }
+    const quando = {}; document.querySelectorAll('.ig_q').forEach((x) => { if (x.value) quando[x.dataset.n] = new Date(x.value).toISOString(); });
+    if (!confirm('Programmare ' + n.length + ' reel sul tuo profilo Instagram? Verranno pubblicati da soli agli orari scelti.')) return;
+    try { const r = await chiama('/api/avatar/' + id + '/pubblica', { method: 'POST', body: { n, quando } }); const ko = r.fatti.filter((f) => f.errore); if (ko.length) alert(ko.map((f) => '#' + f.n + ': ' + f.errore).join('\\n')); rotta(); } catch (x) { $('#ig_er').textContent = x.message; }
   };
   if ($('#av_rp')) $('#av_rp').onclick = async () => { await chiama('/api/avatar/' + id + '/riprova', { method: 'POST' }); rotta(); };
   $('#av_del').onclick = async () => { if (!confirm('Eliminare questo argomento?')) return; await chiama('/api/avatar/' + id, { method: 'DELETE' }); location.hash = '#/profilo'; };

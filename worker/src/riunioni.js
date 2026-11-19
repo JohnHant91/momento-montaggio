@@ -6,6 +6,7 @@ import { all, one, run, J, ora, configurazione, log } from './db.js';
 import * as S from './servizi.js';
 import { SQUADRA, DELEGABILI, cliente, eseguiPiano } from './agenzia.js';
 import { GENERI } from './stili.js';
+import { nuovoPianoAvatar, richiestaProfilo } from './avatar.js';
 
 // capireparto: [ufficio, id agente, nome, ruolo]
 export const CAPI = [
@@ -38,6 +39,20 @@ const squadraTesto = () => CAPI.map(([u, id, n, r]) => {
 // ------------------------------------------------------------------ la richiesta di Johnny arriva alla Direttrice
 export async function chiediDirettrice(env, testo, clienteId) {
   await run(env, 'INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)', 'capo', 'user', testo, ora());
+  // contenuti per il profilo personale di Johnny: niente riunione preventiva, parte subito tutta la catena del Profilo IG
+  const prof = richiestaProfilo(testo);
+  if (prof && !prof.argomento) {
+    const risposta = `Ok, ${prof.numero} reel per il tuo profilo. Su che argomento? Scrivimi per esempio: "per il mio profilo ${prof.numero} reel su come trovare clienti con Instagram".`;
+    await run(env, 'INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)', 'capo', 'assistant', risposta, ora());
+    return { risposta, incarichi: [] };
+  }
+  if (prof) {
+    const id = await nuovoPianoAvatar(env, prof.argomento, prof.numero, testo);
+    const risposta = `Ricevuto: ${prof.numero} reel per il tuo profilo su "${prof.argomento}". Parte subito la catena: Sofia si documenta, Zoe studia i video simili e i virali, Nora scrive i copioni (gancio → problema → tensione → soluzione). Quando sono pronti te li porto in "Tocca a te" da approvare; poi Ava genera i video col tuo avatar, il comparto Reel li monta e tu decidi quando pubblicarli.`;
+    await run(env, 'INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)', 'capo', 'assistant', risposta, ora());
+    await log(env, null, 'capo', `📱 profilo IG di Johnny: piano #${id}, ${prof.numero} reel su "${prof.argomento.slice(0, 60)}"`);
+    return { risposta, avatar: id, incarichi: [] };
+  }
   const r = await one(env, `INSERT INTO riunioni (tipo, stato, richiesta, cliente_id, partecipanti, titolo, creato, aggiornato) VALUES ('richiesta','in_corso',?,?,?,?,?,?) RETURNING id`,
     testo, clienteId || null, JSON.stringify(PER_RICHIESTA), testo.split('\n')[0].slice(0, 80), ora(), ora());
   const risposta = 'Ricevuto. Convoco subito i capireparto in sala meeting: tra qualche minuto ti porto le proposte e scegli tu come procedere.';

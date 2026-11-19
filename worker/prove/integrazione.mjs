@@ -113,6 +113,32 @@ const lav = env.DB._db.prepare("SELECT fonte, stile, pcloud FROM lavori WHERE fo
 ok(lav.length >= 2 && JSON.parse(lav.at(-1).stile).genere === 'educativo' && JSON.parse(lav.at(-1).pcloud)[0].url.startsWith('https://heygen.example/'), 'montaggio con stile educativo e video da link');
 r = await chiama('/api/avatar/' + aid + '/video', { method: 'POST', body: { video: [{ n: 1, url: 'https://altro.example/x.mp4' }] } }); ok(r.status === 200, 'si possono anche passare video generati fuori (Claude in chat)');
 
+console.log('\n13) "per il mio profilo personale" → parte tutto, poi Instagram');
+r = await chiama('/api/capo', { method: 'POST', body: { testo: 'Alba, per il mio profilo personale preparami 2 reel sul perché i preventivi bassi uccidono le agenzie' } });
+ok(r.status === 200 && r.j.avatar && !r.j.riunione, 'niente riunione: parte subito il piano del profilo (#' + r.j.avatar + ')');
+const pid = r.j.avatar;
+r = await chiama('/api/avatar/' + pid); ok(r.j.numero === 2 && r.j.argomento.startsWith('perché i preventivi') && r.j.fase === 'ricerca', 'numero e argomento capiti: ' + r.j.argomento);
+r = await chiama('/api/capo', { method: 'POST', body: { testo: 'fammi dei reel per il mio profilo IG' } }); ok(!r.j.avatar && /argomento/.test(r.j.risposta), 'senza argomento Alba lo chiede');
+// Instagram: modulo finto collegato come service binding
+const igCoda = [];
+env.IG_INTERNO_KEY = 'chiave-interna-finta';
+env.IG = { fetch: async (u, o) => { const url = new URL(u); if (o.headers['x-admin-key'] !== env.IG_INTERNO_KEY) return new Response('{"errore":"Non autorizzato"}', { status: 401 });
+  if (url.pathname === '/coda' && o.method === 'POST') { const b = JSON.parse(o.body); const it = { id: 'ig' + (igCoda.length + 1), ...b, stato: 'programmato' }; igCoda.push(it); return new Response(JSON.stringify(it), { status: 201 }); }
+  if (url.pathname === '/coda') return new Response(JSON.stringify(igCoda)); if (url.pathname === '/stato') return new Response('{"profilo":{"username":"prova"}}'); return new Response('{}', { status: 404 }); } };
+const lavAv = (await chiama('/api/avatar/' + aid)).j.lavori;
+r = await chiama('/api/avatar/' + aid + '/pubblica', { method: 'POST', body: { n: 'tutti' } }); ok(r.j.fatti?.every((f) => /non ancora pronto/.test(f.errore || '')), 'non pubblica reel non ancora montati');
+env.DB._db.prepare("UPDATE lavori SET stato='pronto' WHERE id=?").run(lavAv[0].lavoro);
+await env.VIDEO.put('lavoro-' + lavAv[0].lavoro + '/reel.mp4', new Uint8Array([1, 2, 3]).buffer, { metadata: { tipo: 'video/mp4' } });
+r = await chiama('/api/avatar/' + aid); ok(r.j.lavori[0].stato === 'pronto' && r.j.orari.length >= 1, 'la pagina sa quali reel sono pronti e propone gli orari');
+r = await chiama('/api/avatar/' + aid + '/pubblica', { method: 'POST', body: { n: [lavAv[0].n], quando: { [lavAv[0].n]: '2026-12-01T18:00:00Z' } } });
+ok(r.j.ok && igCoda.length === 1 && igCoda[0].publish_at === '2026-12-01T18:00:00.000Z' && igCoda[0].type === 'reel' && igCoda[0].ai_generated, 'reel messo in coda su Instagram all orario scelto');
+ok(igCoda[0].caption.length > 3, 'caption con hashtag dal copione');
+const mu = new URL(igCoda[0].media_url);
+let g = await W.fetch(new Request('https://x' + mu.pathname + mu.search), env, {}); ok(g.status === 200 && (await g.arrayBuffer()).byteLength === 3, 'Meta può scaricare il reel dal link firmato');
+g = await W.fetch(new Request('https://x' + mu.pathname + '?f=sbagliata'), env, {}); ok(g.status === 403, 'senza firma giusta il reel non si scarica');
+r = await chiama('/api/avatar/' + aid + '/pubblica', { method: 'POST', body: { n: [lavAv[0].n] } }); ok(r.status === 400 && igCoda.length === 1, 'non lo programma due volte');
+r = await chiama('/api/avatar/' + aid); ok(r.j.lavori[0].ig_stato === 'programmato', 'la pagina mostra lo stato su Instagram');
+
 console.log('\n11) pagina: lo script si compila');
 const html = await (await chiama('/', { grezzo: true })).text();
 const script = html.match(/<script>([\s\S]*?)<\/script>\s*<\/body>/);
