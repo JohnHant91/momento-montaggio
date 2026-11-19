@@ -31,7 +31,7 @@ jobs:
           while read -r U; do
             n=$((n+1)); d=$(printf "r%02d" $n); mkdir -p $d; echo "$U" > $d/link.txt
             ( cd $d
-              yt-dlp -q --extractor-args "youtube:player_client=web_safari,ios,tv" -f "bv*[height<=1280]+ba/b" --merge-output-format mp4 -o rif.mp4 "$U" || yt-dlp -q -o rif.mp4 "$U" || { echo "download non riuscito" > errore.txt; exit 0; }
+              yt-dlp -q --sleep-requests 2 --extractor-args "youtube:player_client=web_safari,ios,tv" -f "bv*[height<=1280]+ba/b" --merge-output-format mp4 -o rif.mp4 "$U" || yt-dlp -q -o rif.mp4 "$U" || { echo "download non riuscito" > errore.txt; exit 0; }
               ffprobe -v error -show_entries format=duration:stream=codec_type,width,height,r_frame_rate -of compact rif.mp4 > info.txt
               ffmpeg -loglevel error -i rif.mp4 -vf "fps=4,scale=270:-2,drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:text='%{pts\:hms}':x=6:y=6:fontsize=18:fontcolor=yellow:box=1:boxcolor=black@0.6,tile=6x4" tavola_%02d.jpg
               ffmpeg -loglevel error -i rif.mp4 -vf "fps=1,scale=480:-2" grande_%02d.jpg
