@@ -81,7 +81,7 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 .et-ag.carta{background:#fff;border-radius:14px;padding:9px 11px;min-width:150px;max-width:220px;box-shadow:0 12px 30px -12px rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.05);display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;cursor:pointer;font-family:Inter,system-ui}
 .et-ag.carta b{font-size:13px;color:#141416;grid-column:1}.et-ag.carta>span{font-size:11px;color:#77736b;grid-column:1;line-height:1.3}.et-ag.carta i{grid-column:2;grid-row:1/3;font-style:normal;background:#141416;color:#fff;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:600;white-space:nowrap}
 .et-ag.carta b{display:flex;align-items:center;gap:6px}.et-ag.carta b .pt{width:8px;height:8px;border-radius:50%;background:#9a968f;flex:0 0 8px}.et-ag.carta.lavora b .pt{background:#22A55B;--c:#22A55B;animation:alone 1.3s ease-out infinite}.et-ag.carta.coda b .pt{background:#E8930C}
-.et-ag.carta b em{font-style:normal;font-size:10.5px;font-weight:600;color:#22A55B;text-transform:uppercase;letter-spacing:.03em}.et-ag.carta.coda b em{color:#8a6a1f}.et-ag.carta .pp{display:inline-block;animation:p 1.2s infinite}
+.et-ag.carta b .ic{font-size:14px;line-height:1}.et-ag.carta b em{font-style:normal;font-size:10.5px;font-weight:600;color:#22A55B;text-transform:uppercase;letter-spacing:.03em}.et-ag.carta.coda b em{color:#8a6a1f}.et-ag.carta .pp{display:inline-block;animation:p 1.2s infinite}
 .et-ag.carta>span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.et-ag.carta.lavora{box-shadow:0 0 0 2px rgba(34,165,91,.45),0 12px 30px -12px rgba(0,0,0,.35)}
 .et-ag.carta.coda i{background:#f3efe7;color:#8a6a1f}.et-ag.carta.scelto{box-shadow:0 0 0 2px var(--teal),0 12px 30px -12px rgba(0,0,0,.35)}
 .etichette:not(.vicino) .et-ag.pillola{display:none}
@@ -764,7 +764,7 @@ function datiSala(R) {
   const registro = {};
   for (const r of R.feed) { const a = AGID(r.agente); (registro[a] ||= []).length < 4 && registro[a].push(r.messaggio); }
   const reelImg = (a) => { const L = R.reel.find((x) => (FASE_AGENTI[x.fase] || []).includes(a)); return L && L.fase === 'fatto' ? '/api/lavori/' + L.id + '/anteprima.jpg' : null; };
-  for (const [u] of PIANTA) for (const a of agentiUfficio(R, u)) { const A = AGENTI[a]; if (A) agenti.push({ id: a, n: A.n, r: A.r, c: A.c || '#888888', u, stato: st[a] || '', msg: cosa[a]?.ora || cosa[a]?.testo || ultimo[a]?.messaggio || '', lavoro: cosa[a]?.testo || '', log: registro[a] || [], img: reelImg(a) }); }
+  for (const [u] of PIANTA) for (const a of agentiUfficio(R, u)) { const A = AGENTI[a]; if (A) agenti.push({ id: a, n: A.n, i: A.i, r: A.r, c: A.c || '#888888', u, stato: st[a] || '', msg: cosa[a]?.ora || cosa[a]?.testo || ultimo[a]?.messaggio || '', lavoro: cosa[a]?.testo || '', log: registro[a] || [], img: reelImg(a) }); }
   const riunioni = (R.riunioni || []).filter((x) => x.in_sala).map((x) => ({ id: x.id, stanza: x.tipo === 'settimanale' ? 'direzione' : 'meeting', partecipanti: x.partecipanti, titolo: x.titolo }));
   return { uffici: PIANTA.map(([id, nome, x, y, w, h, col]) => ({ id, nome, x, y, w, h, col })), agenti, riunioni };
 }

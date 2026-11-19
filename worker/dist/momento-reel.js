@@ -5030,7 +5030,7 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 .et-ag.carta{background:#fff;border-radius:14px;padding:9px 11px;min-width:150px;max-width:220px;box-shadow:0 12px 30px -12px rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.05);display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;cursor:pointer;font-family:Inter,system-ui}
 .et-ag.carta b{font-size:13px;color:#141416;grid-column:1}.et-ag.carta>span{font-size:11px;color:#77736b;grid-column:1;line-height:1.3}.et-ag.carta i{grid-column:2;grid-row:1/3;font-style:normal;background:#141416;color:#fff;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:600;white-space:nowrap}
 .et-ag.carta b{display:flex;align-items:center;gap:6px}.et-ag.carta b .pt{width:8px;height:8px;border-radius:50%;background:#9a968f;flex:0 0 8px}.et-ag.carta.lavora b .pt{background:#22A55B;--c:#22A55B;animation:alone 1.3s ease-out infinite}.et-ag.carta.coda b .pt{background:#E8930C}
-.et-ag.carta b em{font-style:normal;font-size:10.5px;font-weight:600;color:#22A55B;text-transform:uppercase;letter-spacing:.03em}.et-ag.carta.coda b em{color:#8a6a1f}.et-ag.carta .pp{display:inline-block;animation:p 1.2s infinite}
+.et-ag.carta b .ic{font-size:14px;line-height:1}.et-ag.carta b em{font-style:normal;font-size:10.5px;font-weight:600;color:#22A55B;text-transform:uppercase;letter-spacing:.03em}.et-ag.carta.coda b em{color:#8a6a1f}.et-ag.carta .pp{display:inline-block;animation:p 1.2s infinite}
 .et-ag.carta>span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.et-ag.carta.lavora{box-shadow:0 0 0 2px rgba(34,165,91,.45),0 12px 30px -12px rgba(0,0,0,.35)}
 .et-ag.carta.coda i{background:#f3efe7;color:#8a6a1f}.et-ag.carta.scelto{box-shadow:0 0 0 2px var(--teal),0 12px 30px -12px rgba(0,0,0,.35)}
 .etichette:not(.vicino) .et-ag.pillola{display:none}
@@ -5713,7 +5713,7 @@ function datiSala(R) {
   const registro = {};
   for (const r of R.feed) { const a = AGID(r.agente); (registro[a] ||= []).length < 4 && registro[a].push(r.messaggio); }
   const reelImg = (a) => { const L = R.reel.find((x) => (FASE_AGENTI[x.fase] || []).includes(a)); return L && L.fase === 'fatto' ? '/api/lavori/' + L.id + '/anteprima.jpg' : null; };
-  for (const [u] of PIANTA) for (const a of agentiUfficio(R, u)) { const A = AGENTI[a]; if (A) agenti.push({ id: a, n: A.n, r: A.r, c: A.c || '#888888', u, stato: st[a] || '', msg: cosa[a]?.ora || cosa[a]?.testo || ultimo[a]?.messaggio || '', lavoro: cosa[a]?.testo || '', log: registro[a] || [], img: reelImg(a) }); }
+  for (const [u] of PIANTA) for (const a of agentiUfficio(R, u)) { const A = AGENTI[a]; if (A) agenti.push({ id: a, n: A.n, i: A.i, r: A.r, c: A.c || '#888888', u, stato: st[a] || '', msg: cosa[a]?.ora || cosa[a]?.testo || ultimo[a]?.messaggio || '', lavoro: cosa[a]?.testo || '', log: registro[a] || [], img: reelImg(a) }); }
   const riunioni = (R.riunioni || []).filter((x) => x.in_sala).map((x) => ({ id: x.id, stanza: x.tipo === 'settimanale' ? 'direzione' : 'meeting', partecipanti: x.partecipanti, titolo: x.titolo }));
   return { uffici: PIANTA.map(([id, nome, x, y, w, h, col]) => ({ id, nome, x, y, w, h, col })), agenti, riunioni };
 }
@@ -6623,7 +6623,8 @@ function costruisci(dati) {
         const se = sedia(mat); se.position.set(x, 0, zDesk + 0.72); scena.add(se);
         const U = umano(A.id); U.o.position.set(x, 0, zDesk + 0.62); scena.add(U.o);
         [mon.g, se, U.o].forEach((o) => o.traverse((m) => { m.userData.ag = A.id; }));
-        S.agenti[A.id] = { A, U, x, z: zDesk + 0.62, casa: new THREE.Vector3(x, 0, zDesk + 0.62), sm: mon.sm, tex: mon.tex, ctx: mon.ctx, tipo: R.id === 'video' ? 'video' : '', stanza: R, seduto: true };
+        const sg = segnoLavoro(); scena.add(sg.gemma, sg.anello);
+        S.agenti[A.id] = { A, U, ...sg, x, z: zDesk + 0.62, casa: new THREE.Vector3(x, 0, zDesk + 0.62), sm: mon.sm, tex: mon.tex, ctx: mon.ctx, tipo: R.id === 'video' ? 'video' : '', stanza: R, seduto: true };
       }
     }
     // una pianta per stanza
@@ -6665,6 +6666,31 @@ export function aggiorna(dati) {
   disegnaEtichette();
 }
 
+// segno di chi lavora: una gemma luminosa che gira e fluttua sopra la testa e un anello che pulsa sul pavimento
+const VERDE = new THREE.Color('#22A55B'), ARANCIO = new THREE.Color('#E8930C');
+function segnoLavoro() {
+  const gemma = new THREE.Mesh(new THREE.OctahedronGeometry(0.11, 0), new THREE.MeshStandardMaterial({ color: VERDE, emissive: VERDE, emissiveIntensity: 1.1, roughness: 0.25, metalness: 0.1 }));
+  gemma.scale.y = 1.5;
+  const anello = new THREE.Mesh(new THREE.RingGeometry(0.34, 0.44, 40), new THREE.MeshBasicMaterial({ color: VERDE, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }));
+  anello.rotation.x = -Math.PI / 2;
+  gemma.visible = anello.visible = false;
+  return { gemma, anello };
+}
+function animaSegni(s) {
+  for (const id in S.agenti) {
+    const P = S.agenti[id]; if (!P.gemma) continue;
+    const on = (P.stato === 'lavora' || P.stato === 'coda') && !P.riunione;
+    P.gemma.visible = P.anello.visible = on;
+    if (!on) continue;
+    const lav = P.stato === 'lavora', col = lav ? VERDE : ARANCIO, o = P.U.o.position;
+    if (P.colSegno !== P.stato) { P.gemma.material.color.copy(col); P.gemma.material.emissive.copy(col); P.anello.material.color.copy(col); P.colSegno = P.stato; }
+    P.gemma.position.set(o.x, (P.seduto ? 1.42 : 1.9) + (lav ? Math.sin(s * 2.4 + P.x) * 0.05 : 0), o.z);
+    P.gemma.rotation.y = lav ? s * 1.8 : 0;
+    const k = lav ? (s * 0.9 + P.x * 0.3) % 1 : 0.4;
+    P.anello.position.set(o.x, 0.03, o.z); P.anello.scale.setScalar(0.8 + k * 0.7); P.anello.material.opacity = lav ? 0.6 * (1 - k) : 0.35;
+  }
+}
+
 const esc = (s) => String(s || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function disegnaEtichette() {
   const el = S.etichette; let h = '';
@@ -6673,7 +6699,7 @@ function disegnaEtichette() {
     if (!S.agenti[A.id]) continue;
     const viva = (A.stato === 'lavora' || A.stato === 'coda' || S.scelto === A.id) && (!S.agenti[A.id]?.riunione || S.scelto === A.id);
     h += viva
-      ? '<div class="et-ag carta ' + (A.stato || '') + (S.scelto === A.id ? ' scelto' : '') + '" data-ag="' + A.id + '"><b><span class="pt"></span>' + esc(A.n) + (A.stato === 'lavora' ? ' <em>al lavoro<span class="pp">...</span></em>' : A.stato === 'coda' ? ' <em>in coda</em>' : '') + '</b><span>' + esc((A.msg || A.r || '').slice(0, 90)) + '</span><i>' + (A.stato === 'coda' ? 'Tra poco' : 'Guarda \u25B8') + '</i></div>'
+      ? '<div class="et-ag carta ' + (A.stato || '') + (S.scelto === A.id ? ' scelto' : '') + '" data-ag="' + A.id + '"><b><span class="pt"></span>' + (A.i ? '<span class="ic">' + A.i + '</span>' : '') + esc(A.n) + (A.stato === 'lavora' ? ' <em>al lavoro<span class="pp">...</span></em>' : A.stato === 'coda' ? ' <em>in coda</em>' : '') + '</b><span>' + esc((A.msg || A.r || '').slice(0, 90)) + '</span><i>' + (A.stato === 'coda' ? 'Tra poco' : 'Guarda \u25B8') + '</i></div>'
       : '<div class="et-ag pillola ' + (A.stato || '') + '" data-ag="' + A.id + '"><span class="pt"></span>' + esc(A.n) + '</div>';
   }
   el.innerHTML = h;
@@ -6691,7 +6717,7 @@ function posiziona() {
   const scala = Math.min(1.1, Math.max(0.68, Math.sqrt(S.distTutto / dist) * 0.72));
   for (const el of S.nodiAg || []) {
     const P = S.agenti[el.dataset.ag]; if (!P) continue;
-    const [x, y] = schermo(tmp.set(P.U.o.position.x, P.seduto ? 1.5 : 1.95, P.U.o.position.z), W, H);
+    const [x, y] = schermo(tmp.set(P.U.o.position.x, P.seduto ? 1.66 : 2.12, P.U.o.position.z), W, H);
     el.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px) translate(-50%,-100%) scale(' + scala.toFixed(3) + ')';
     el.style.zIndex = String(Math.round(y));
   }
@@ -6881,6 +6907,7 @@ function anima(t) {
     if (P.stato === 'lavora' && s - (P.ts || 0) > (S.lontano ? 1.5 : 0.35)) { P.ts = s; disegnaSchermo(P, s); P.sm.emissiveIntensity = 0.8 + Math.sin(s * 3 + P.x) * 0.1; }
   }
   passeggiate(s);
+  animaSegni(s);
   if (S.cervello) { S.cervello.punti.rotation.y = s * 0.35; S.cervello.punti.rotation.x = Math.sin(s * 0.3) * 0.3; S.cervello.nucleo.material.emissiveIntensity = 0.7 + Math.sin(s * 2) * 0.25; }
   S.lontano = S.camera.position.distanceTo(S.controls.target) > 22;
   adatta(t);
