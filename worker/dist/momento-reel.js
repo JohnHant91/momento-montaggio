@@ -4293,12 +4293,20 @@ var PAGINA = `<!DOCTYPE html>
 <style>
 @media print{header,.noprint,button{display:none!important}body{background:#fff;color:#000}.card{border-color:#ccc;background:#fff}.mut{color:#555}a{color:#000}}
 details.copione summary{cursor:pointer;list-style:none}details.copione[open]{border-color:var(--teal)}
-:root{--teal:#2B59FF;--teal2:#2B59FF;--bg:#F4F2EE;--card:#FFFFFF;--line:#E6E2DA;--txt:#17171A;--mut:#8A8780;--warn:#E8930C;--err:#E5484D;--ok:#22A55B;--nero:#141416;--legno:#E9D9BC;--legno2:#D9C29A}
+:root{--teal:#0E9F9A;--teal2:#0B8782;--tealbg:#E3F4F3;--bg:#F4F2EE;--card:#FFFFFF;--line:#E6E2DA;--txt:#17171A;--mut:#8A8780;--warn:#E8930C;--err:#E5484D;--ok:#22A55B;--nero:#141416;--legno:#E9D9BC;--legno2:#D9C29A}
 *{box-sizing:border-box}body{margin:0;font-family:"Inter",system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--txt);font-size:15px;-webkit-font-smoothing:antialiased}
-header{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(255,255,255,.88);backdrop-filter:blur(14px);z-index:30}
-.logo{font-weight:800;font-size:17px;color:var(--txt);letter-spacing:-.3px;display:flex;align-items:center;gap:9px}.logo:before{content:'M';display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:var(--nero);color:#fff;font-size:15px}.logo small{color:var(--mut);font-weight:500;font-size:12px}
-header nav{margin-left:auto;display:flex;gap:4px;overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch;scrollbar-width:none}header nav .btn{white-space:nowrap;padding:7px 12px;font-size:14px}header nav .btn.sec{border:0;color:#55534e;font-weight:500}header nav .btn.sec:hover{background:#efece6}
-@media(max-width:700px){header{flex-wrap:wrap;padding:10px 12px}header nav{margin-left:0;width:100%}}
+header{display:flex;align-items:center;gap:18px;height:64px;padding:0 24px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(255,255,255,.92);backdrop-filter:blur(14px);z-index:30}
+.logo{display:flex;flex-direction:column;line-height:1;text-decoration:none;flex:none}.logo b{font-family:"Inter",system-ui,sans-serif;font-weight:700;font-size:26px;letter-spacing:-1.2px;color:var(--teal)}.logo small{margin-top:3px;font-size:9.5px;font-weight:600;letter-spacing:1.6px;text-transform:uppercase;color:var(--mut)}
+.logo:hover{opacity:.85}.sep{width:1px;height:28px;background:var(--line);flex:none}.sez{font-size:13px;font-weight:600;color:var(--mut);white-space:nowrap}
+header nav{margin-left:auto;display:flex;align-items:center;gap:2px}
+.vm{display:flex;align-items:center;gap:7px;padding:8px 12px;border-radius:10px;color:#4a4843;font-size:14px;font-weight:500;text-decoration:none;white-space:nowrap;border:0;background:none;cursor:pointer;font-family:inherit;position:relative}
+.vm svg{width:17px;height:17px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.vm:hover{background:#f1efea;color:var(--txt)}.vm.att{background:var(--tealbg);color:var(--teal2);font-weight:600}
+.altro{position:relative}.tendina{display:none;position:absolute;right:0;top:calc(100% + 6px);min-width:210px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 14px 40px rgba(20,20,22,.12);padding:6px;z-index:40}.tendina .vm{width:100%}.altro.aperto .tendina{display:block}
+.ham{display:none;margin-left:auto}.ham[hidden]{display:none!important}.ham svg{width:22px;height:22px}
+@media(max-width:980px){.vm .tx{display:none}.vm{padding:9px}.tendina .vm .tx{display:inline}.sez,.sep{display:none}}
+@media(max-width:700px){header{height:58px;padding:0 14px}.logo b{font-size:23px}.ham{display:flex}header nav{display:none;position:fixed;inset:58px 0 auto 0;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 18px 40px rgba(20,20,22,.12);padding:10px 12px 16px;flex-direction:column;align-items:stretch;gap:2px;max-height:calc(100vh - 58px);overflow:auto}
+header.aperto nav{display:flex}header nav .vm{padding:12px 14px;font-size:15px}.vm .tx{display:inline}.altro .tendina{display:block;position:static;box-shadow:none;border:0;padding:0;min-width:0}.altro>.vm{display:none}.tendina:before{content:'Strumenti';display:block;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--mut);padding:12px 14px 4px;border-top:1px solid var(--line);margin-top:6px}}
 main{max-width:1180px;margin:auto;padding:22px}
 a{color:var(--teal)}h2{margin:28px 0 10px;font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:1.2px;font-weight:600}h1{font-size:24px;margin:6px 0 4px;letter-spacing:-.5px}
 button,.btn{background:var(--teal);color:#fff;border:0;border-radius:999px;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-block;transition:transform .15s,box-shadow .15s}
@@ -4415,9 +4423,9 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 .lavoro-card small{display:block;color:var(--mut);font-size:11px;letter-spacing:1px;text-transform:uppercase}
 .lavoro-card b{display:block;font-size:14px;margin:2px 0 6px;line-height:1.25}
 @media(max-width:700px){main{padding:14px}.sala{margin:12px -14px 0;height:62vh}.saluto h1{font-size:24px}.lato{top:auto;bottom:0;right:0;left:0;width:auto;max-height:70vh;border-radius:22px 22px 0 0;transform:translateY(110%)}.chiedi select{display:none}}
-@media(max-width:600px){.logo small{display:none}.posti{grid-template-columns:1fr 1fr}.kv{grid-template-columns:1fr}.kv b{margin-top:6px}}
+@media(max-width:600px){.posti{grid-template-columns:1fr 1fr}.kv{grid-template-columns:1fr}.kv b{margin-top:6px}}
 </style></head><body>
-<header><div class="logo">momento<small>agenzia AI</small></div><nav id="nav"></nav></header>
+<header id="testa"><a class="logo" href="#/" aria-label="momento, agenzia AI"><b>momento</b><small>agenzia AI</small></a><span class="sep"></span><span class="sez" id="sez"></span><button class="vm ham" id="ham" aria-label="Menu" hidden><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><nav id="nav"></nav></header>
 <main id="app"><div class="vuoto">Carico\u2026</div></main>
 <script>
 const $ = (s) => document.querySelector(s);
@@ -4505,9 +4513,41 @@ async function chiama(path, opts = {}) {
   return d;
 }
 
+const ICO = {
+  agenzia: '<path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/>',
+  riunioni: '<circle cx="12" cy="8" r="3"/><path d="M5 20c.8-3.5 3.6-5.5 7-5.5s6.2 2 7 5.5M4.5 10.5a2.3 2.3 0 1 0 0-.1M19.5 10.5a2.3 2.3 0 1 0 0-.1"/>',
+  profilo: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".6"/>',
+  approvazioni: '<path d="M20 6 9 17l-5-5"/>',
+  clienti: '<path d="M16 20v-1.5a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4V20M9.5 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M21 20v-1.5a4 4 0 0 0-3-3.9M15.5 3.6a3.5 3.5 0 0 1 0 6.8"/>',
+  altro: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
+  reel: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="m10 9 5 3-5 3z"/>',
+  copioni: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h4"/>',
+  gestionale: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  impostazioni: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'
+};
+const VOCI = [['agenzia', 'Agenzia', '#/'], ['riunioni', 'Riunioni', '#/riunioni'], ['profilo', 'Profilo IG', '#/profilo'], ['approvazioni', 'Approvazioni', '#/approvazioni'], ['clienti', 'Clienti', '#/clienti']];
+const STRUMENTI = [['reel', 'Reel', '#/reel'], ['copioni', 'Copioni', '#/copioni'], ['gestionale', 'Gestionale', '#/chat/gestionale'], ['impostazioni', 'Impostazioni', '#/impostazioni']];
+const voce = (v) => '<a class="vm" href="' + v[2] + '" data-k="' + v[0] + '" title="' + v[1] + '"><svg viewBox="0 0 24 24">' + ICO[v[0]] + '</svg><span class="tx">' + v[1] + '</span></a>';
 function menu(on) {
-  $('#nav').innerHTML = on ? '<a class="btn sec" href="#/">Agenzia</a><a class="btn sec" href="#/riunioni">Riunioni</a><a class="btn sec" href="#/profilo">Profilo IG</a><a class="btn sec" href="#/approvazioni">Approvazioni</a><a class="btn sec" href="#/clienti">Clienti</a><a class="btn sec" href="#/chat/gestionale">Gestionale</a><a class="btn sec" href="#/reel">Reel</a><a class="btn sec" href="#/copioni">Copioni</a><a class="btn sec" href="#/impostazioni" title="Impostazioni">\u2699\uFE0E</a>' : '';
+  $('#ham').hidden = !on;
+  $('#nav').innerHTML = on ? VOCI.map(voce).join('') + '<div class="altro" id="altro"><button class="vm" id="altro_b" title="Strumenti"><svg viewBox="0 0 24 24">' + ICO.altro + '</svg><span class="tx">Strumenti</span></button><div class="tendina">' + STRUMENTI.map(voce).join('') + '</div></div>' : '';
+  if (!on) { $('#sez').textContent = ''; return; }
+  $('#altro_b').onclick = (ev) => { ev.stopPropagation(); $('#altro').classList.toggle('aperto'); };
+  $('#ham').onclick = (ev) => { ev.stopPropagation(); $('#testa').classList.toggle('aperto'); };
+  document.onclick = () => { $('#altro')?.classList.remove('aperto'); $('#testa').classList.remove('aperto'); };
+  evidenzia();
 }
+function evidenzia() {
+  const h = location.hash || '#/';
+  const k = h === '#/' || h.startsWith('#/agente') || h.startsWith('#/ufficio') || h.startsWith('#/incarico') || (h.startsWith('#/chat/') && !h.startsWith('#/chat/gestionale')) ? 'agenzia' : h.startsWith('#/riunion') ? 'riunioni' : h.startsWith('#/profilo') ? 'profilo' : h.startsWith('#/approvazion') ? 'approvazioni' : h.startsWith('#/client') ? 'clienti' :
+    h.startsWith('#/reel') || h.startsWith('#/lavoro') ? 'reel' : h.startsWith('#/copion') || h.startsWith('#/piano') ? 'copioni' : h.startsWith('#/chat/gestionale') ? 'gestionale' : h.startsWith('#/impostazioni') ? 'impostazioni' : '';
+  document.querySelectorAll('#nav .vm[data-k]').forEach((a) => a.classList.toggle('att', a.dataset.k === k));
+  $('#altro_b')?.classList.toggle('att', STRUMENTI.some((s) => s[0] === k));
+  const tutte = VOCI.concat(STRUMENTI).find((v) => v[0] === k);
+  $('#sez').textContent = tutte && k !== 'agenzia' ? tutte[1] : 'Sala operativa';
+  $('#testa').classList.remove('aperto'); $('#altro')?.classList.remove('aperto');
+}
+addEventListener('hashchange', () => { if ($('#altro')) evidenzia(); });
 
 async function accesso() {
   menu(false);
