@@ -7375,7 +7375,21 @@ async function gestionaleUfficiale(req, env, url) {
   }
   return new Response(r.body, { status: r.status, headers: out });
 }
+async function provaYoutube(env) {
+  const K = "prova_youtube_1";
+  if (await env.VIDEO.get(K)) return;
+  await env.VIDEO.put(K, "1", { expirationTtl: 86400 * 30 });
+  const cfg = await configurazione(env);
+  if (!cfg.YOUTUBE_API_KEY) return;
+  try {
+    const v = await youtube(cfg, ["claude ai tutorial"], 5);
+    await log(env, null, "scout_yt", `\u{1FA7A} chiave YouTube ok: ${v.length} Shorts trovati con l'API ufficiale (gratis)`);
+  } catch (e) {
+    await log(env, null, "scout_yt", "\u{1FA7A} chiave YouTube non funziona: " + String(e.message).slice(0, 300), "warn");
+  }
+}
 async function diagnosiUnaVolta(env) {
+  await provaYoutube(env);
   const K = "diagnosi_gemini_2";
   if (await env.VIDEO.get(K)) return;
   await env.VIDEO.put(K, "in_corso", { expirationTtl: 86400 * 30 });

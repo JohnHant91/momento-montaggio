@@ -8,7 +8,7 @@ import { apiAgenzia, avanzaUffici, schemaAgenzia } from './agenzia.js';
 import { apiRiunioni, avanzaRiunioni } from './riunioni.js';
 import { apiAvatar, avanzaAvatar, firmaPubblica } from './avatar.js';
 import { apiConsumi } from './consumi.js';
-import { diagnosiGemini } from './servizi.js';
+import { diagnosiGemini, youtube } from './servizi.js';
 import { apiPost, avanzaPost } from './post.js';
 import { motoreApi } from './motore.js';
 import { PAGINA } from './pagina.js';
@@ -327,7 +327,17 @@ async function gestionaleUfficiale(req, env, url) {
 }
 
 // diagnosi Gemini una sola volta dopo il rilascio: il risultato finisce nel registro
+async function provaYoutube(env) { // una volta: la chiave YouTube appena aggiunta funziona?
+  const K = 'prova_youtube_1';
+  if (await env.VIDEO.get(K)) return;
+  await env.VIDEO.put(K, '1', { expirationTtl: 86400 * 30 });
+  const cfg = await configurazione(env);
+  if (!cfg.YOUTUBE_API_KEY) return;
+  try { const v = await youtube(cfg, ['claude ai tutorial'], 5); await log(env, null, 'scout_yt', `🩺 chiave YouTube ok: ${v.length} Shorts trovati con l'API ufficiale (gratis)`); }
+  catch (e) { await log(env, null, 'scout_yt', '🩺 chiave YouTube non funziona: ' + String(e.message).slice(0, 300), 'warn'); }
+}
 async function diagnosiUnaVolta(env) {
+  await provaYoutube(env);
   const K = 'diagnosi_gemini_2';
   if (await env.VIDEO.get(K)) return;
   await env.VIDEO.put(K, 'in_corso', { expirationTtl: 86400 * 30 });
