@@ -12,18 +12,23 @@ export const PAGINA = `<!DOCTYPE html>
 details.copione summary{cursor:pointer;list-style:none}details.copione[open]{border-color:var(--teal)}
 :root{--teal:#0E9F9A;--teal2:#0B8782;--tealbg:#E3F4F3;--bg:#F4F2EE;--card:#FFFFFF;--line:#E6E2DA;--txt:#17171A;--mut:#8A8780;--warn:#E8930C;--err:#E5484D;--ok:#22A55B;--nero:#141416;--legno:#E9D9BC;--legno2:#D9C29A}
 *{box-sizing:border-box}body{margin:0;font-family:"Inter",system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--txt);font-size:15px;-webkit-font-smoothing:antialiased}
-header{display:flex;align-items:center;gap:18px;height:64px;padding:0 24px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(255,255,255,.92);backdrop-filter:blur(14px);z-index:30}
-.logo{display:flex;flex-direction:column;line-height:1;text-decoration:none;flex:none}.logo b{font-family:"Inter",system-ui,sans-serif;font-weight:700;font-size:26px;letter-spacing:-1.2px;color:var(--teal)}.logo small{margin-top:3px;font-size:9.5px;font-weight:600;letter-spacing:1.6px;text-transform:uppercase;color:var(--mut)}
-.logo:hover{opacity:.85}.sep{width:1px;height:28px;background:var(--line);flex:none}.sez{font-size:13px;font-weight:600;color:var(--mut);white-space:nowrap}
-header nav{margin-left:auto;display:flex;align-items:center;gap:2px}
-.vm{display:flex;align-items:center;gap:7px;padding:8px 12px;border-radius:10px;color:#4a4843;font-size:14px;font-weight:500;text-decoration:none;white-space:nowrap;border:0;background:none;cursor:pointer;font-family:inherit;position:relative}
-.vm svg{width:17px;height:17px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.vm:hover{background:#f1efea;color:var(--txt)}.vm.att{background:var(--tealbg);color:var(--teal2);font-weight:600}
-.altro{position:relative}.tendina{display:none;position:absolute;right:0;top:calc(100% + 6px);min-width:210px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 14px 40px rgba(20,20,22,.12);padding:6px;z-index:40}.tendina .vm{width:100%}.altro.aperto .tendina{display:block}
-.ham{display:none;margin-left:auto}.ham[hidden]{display:none!important}.ham svg{width:22px;height:22px}
-@media(max-width:980px){.vm .tx{display:none}.vm{padding:9px}.tendina .vm .tx{display:inline}.sez,.sep{display:none}}
-@media(max-width:700px){header{height:58px;padding:0 14px}.logo b{font-size:23px}.ham{display:flex}header nav{display:none;position:fixed;inset:58px 0 auto 0;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 18px 40px rgba(20,20,22,.12);padding:10px 12px 16px;flex-direction:column;align-items:stretch;gap:2px;max-height:calc(100vh - 58px);overflow:auto}
-header.aperto nav{display:flex}header nav .vm{padding:12px 14px;font-size:15px}.vm .tx{display:inline}.altro .tendina{display:block;position:static;box-shadow:none;border:0;padding:0;min-width:0}.altro>.vm{display:none}.tendina:before{content:'Strumenti';display:block;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--mut);padding:12px 14px 4px;border-top:1px solid var(--line);margin-top:6px}}
+header{position:fixed;left:0;top:0;bottom:0;width:236px;display:flex;flex-direction:column;gap:4px;padding:22px 14px 16px;background:#fff;border-right:1px solid var(--line);z-index:30;overflow-y:auto}
+body.dentro{padding-left:236px}body:not(.dentro) header{display:none}
+.logo{display:flex;flex-direction:column;line-height:1;text-decoration:none;padding:2px 10px 18px}.logo b{font-family:"Inter",system-ui,sans-serif;font-weight:700;font-size:28px;letter-spacing:-1.3px;color:var(--teal)}.logo small{margin-top:4px;font-size:9.5px;font-weight:600;letter-spacing:1.7px;text-transform:uppercase;color:var(--mut)}
+.logo:hover{opacity:.85}.sep,.sez{display:none}
+header nav{display:flex;flex-direction:column;gap:2px;flex:1}
+.gruppo{font-size:10.5px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--mut);padding:16px 12px 6px}
+.vm{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:11px;color:#4a4843;font-size:14px;font-weight:500;text-decoration:none;white-space:nowrap;border:0;background:none;cursor:pointer;font-family:inherit;width:100%;text-align:left}
+.vm svg{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.vm:hover{background:#f3f1ec;color:var(--txt)}.vm.att{background:var(--tealbg);color:var(--teal2);font-weight:600}
+.vm .num{margin-left:auto;font-size:11.5px;font-weight:600;color:var(--mut);font-variant-numeric:tabular-nums}.vm.att .num{color:var(--teal2)}
+.piede{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
+.ham,.barra{display:none}.ham[hidden]{display:none!important}.ham svg{width:22px;height:22px}
+@media(max-width:900px){header{transform:translateX(-105%);transition:transform .3s cubic-bezier(.2,.75,.2,1);box-shadow:20px 0 60px rgba(20,20,22,.18);z-index:45;width:260px}header.aperto{transform:none}
+ body.dentro{padding-left:0}.barra{display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:31;height:56px;padding:0 12px;background:rgba(255,255,255,.94);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}body:not(.dentro) .barra{display:none}
+ .barra .logo{flex-direction:row;align-items:baseline;gap:8px;padding:0}.barra .logo b{font-size:23px}.barra .logo small{margin:0}.ham{display:flex;padding:9px;width:auto}.barra .tit{margin-left:auto;font-size:13px;font-weight:600;color:var(--mut)}
+ .velo-menu{position:fixed;inset:0;background:rgba(20,20,22,.3);z-index:44;display:none}header.aperto~.velo-menu{display:block}}
+@media(min-width:901px){.lato{top:16px}}
 main{max-width:1180px;margin:auto;padding:22px}
 a{color:var(--teal)}h2{margin:28px 0 10px;font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:1.2px;font-weight:600}h1{font-size:24px;margin:6px 0 4px;letter-spacing:-.5px}
 button,.btn{background:var(--teal);color:#fff;border:0;border-radius:999px;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-block;transition:transform .15s,box-shadow .15s}
@@ -142,7 +147,7 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 @media(max-width:700px){main{padding:14px}.sala{margin:12px -14px 0;height:62vh}.saluto h1{font-size:24px}.lato{top:auto;bottom:0;right:0;left:0;width:auto;max-height:70vh;border-radius:22px 22px 0 0;transform:translateY(110%)}.chiedi select{display:none}}
 @media(max-width:600px){.posti{grid-template-columns:1fr 1fr}.kv{grid-template-columns:1fr}.kv b{margin-top:6px}}
 </style></head><body>
-<header id="testa"><a class="logo" href="#/" aria-label="momento, agenzia AI"><b>momento</b><small>agenzia AI</small></a><span class="sep"></span><span class="sez" id="sez"></span><button class="vm ham" id="ham" aria-label="Menu" hidden><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><nav id="nav"></nav></header>
+<div class="barra"><button class="vm ham" id="ham" aria-label="Menu" hidden><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><a class="logo" href="#/" aria-label="momento, agenzia AI"><b>momento</b><small>agenzia AI</small></a><span class="tit" id="sez"></span></div><header id="testa"><a class="logo" href="#/" aria-label="momento, agenzia AI"><b>momento</b><small>agenzia AI</small></a><nav id="nav"></nav></header><div class="velo-menu" id="velo_menu"></div>
 <main id="app"><div class="vuoto">Carico…</div></main>
 <script>
 const $ = (s) => document.querySelector(s);
@@ -236,35 +241,40 @@ const ICO = {
   profilo: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".6"/>',
   approvazioni: '<path d="M20 6 9 17l-5-5"/>',
   clienti: '<path d="M16 20v-1.5a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4V20M9.5 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M21 20v-1.5a4 4 0 0 0-3-3.9M15.5 3.6a3.5 3.5 0 0 1 0 6.8"/>',
-  altro: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
+  costi: '<path d="M12 2v20M17 6.5c0-1.9-2.2-3-5-3s-5 1.3-5 3.3c0 4.7 10 2.4 10 7.2 0 2-2.2 3.5-5 3.5s-5-1.2-5-3.2"/>',
   reel: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="m10 9 5 3-5 3z"/>',
   copioni: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h4"/>',
   gestionale: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   impostazioni: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'
 };
-const VOCI = [['agenzia', 'Agenzia', '#/'], ['riunioni', 'Riunioni', '#/riunioni'], ['profilo', 'Profilo IG', '#/profilo'], ['approvazioni', 'Approvazioni', '#/approvazioni'], ['clienti', 'Clienti', '#/clienti']];
-const STRUMENTI = [['reel', 'Reel', '#/reel'], ['copioni', 'Copioni', '#/copioni'], ['gestionale', 'Gestionale', '#/chat/gestionale'], ['impostazioni', 'Impostazioni', '#/impostazioni']];
-const voce = (v) => '<a class="vm" href="' + v[2] + '" data-k="' + v[0] + '" title="' + v[1] + '"><svg viewBox="0 0 24 24">' + ICO[v[0]] + '</svg><span class="tx">' + v[1] + '</span></a>';
+const VOCI = [['agenzia', 'Agenzia', '#/'], ['riunioni', 'Riunioni', '#/riunioni'], ['approvazioni', 'Approvazioni', '#/approvazioni'], ['profilo', 'Profilo IG', '#/profilo'], ['clienti', 'Clienti', '#/clienti']];
+const STRUMENTI = [['reel', 'Reel', '#/reel'], ['copioni', 'Copioni', '#/copioni'], ['gestionale', 'Gestionale', '#/chat/gestionale'], ['costi', 'Costi', '#/costi']];
+const voce = (v) => '<a class="vm" href="' + v[2] + '" data-k="' + v[0] + '"><svg viewBox="0 0 24 24">' + ICO[v[0]] + '</svg><span class="tx">' + v[1] + '</span>' + (v[0] === 'costi' ? '<span class="num" id="num_costi"></span>' : '') + '</a>';
 function menu(on) {
+  document.body.classList.toggle('dentro', !!on);
   $('#ham').hidden = !on;
-  $('#nav').innerHTML = on ? VOCI.map(voce).join('') + '<div class="altro" id="altro"><button class="vm" id="altro_b" title="Strumenti"><svg viewBox="0 0 24 24">' + ICO.altro + '</svg><span class="tx">Strumenti</span></button><div class="tendina">' + STRUMENTI.map(voce).join('') + '</div></div>' : '';
+  $('#nav').innerHTML = on ? '<div class="gruppo">Agenzia</div>' + VOCI.map(voce).join('') + '<div class="gruppo">Strumenti</div>' + STRUMENTI.map(voce).join('') +
+    '<div class="piede">' + voce(['impostazioni', 'Impostazioni', '#/impostazioni']) + '</div>' : '';
   if (!on) { $('#sez').textContent = ''; return; }
-  $('#altro_b').onclick = (ev) => { ev.stopPropagation(); $('#altro').classList.toggle('aperto'); };
   $('#ham').onclick = (ev) => { ev.stopPropagation(); $('#testa').classList.toggle('aperto'); };
-  document.onclick = () => { $('#altro')?.classList.remove('aperto'); $('#testa').classList.remove('aperto'); };
+  $('#velo_menu').onclick = () => $('#testa').classList.remove('aperto');
   evidenzia();
+  aggiornaNumCosti();
 }
+async function aggiornaNumCosti() {
+  try { const c = await chiama('/api/consumi?giorni=30'); const n = $('#num_costi'); if (n) n.textContent = soldi(c.questo_mese, c.cambio); } catch (_) {}
+}
+const soldi = (usd, cambio) => '€ ' + (usd * (cambio || 0.86)).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 function evidenzia() {
   const h = location.hash || '#/';
   const k = h === '#/' || h.startsWith('#/agente') || h.startsWith('#/ufficio') || h.startsWith('#/incarico') || (h.startsWith('#/chat/') && !h.startsWith('#/chat/gestionale')) ? 'agenzia' : h.startsWith('#/riunion') ? 'riunioni' : h.startsWith('#/profilo') ? 'profilo' : h.startsWith('#/approvazion') ? 'approvazioni' : h.startsWith('#/client') ? 'clienti' :
-    h.startsWith('#/reel') || h.startsWith('#/lavoro') ? 'reel' : h.startsWith('#/copion') || h.startsWith('#/piano') ? 'copioni' : h.startsWith('#/chat/gestionale') ? 'gestionale' : h.startsWith('#/impostazioni') ? 'impostazioni' : '';
+    h.startsWith('#/reel') || h.startsWith('#/lavoro') ? 'reel' : h.startsWith('#/copion') || h.startsWith('#/piano') ? 'copioni' : h.startsWith('#/chat/gestionale') ? 'gestionale' : h.startsWith('#/costi') ? 'costi' : h.startsWith('#/impostazioni') ? 'impostazioni' : '';
   document.querySelectorAll('#nav .vm[data-k]').forEach((a) => a.classList.toggle('att', a.dataset.k === k));
-  $('#altro_b')?.classList.toggle('att', STRUMENTI.some((s) => s[0] === k));
-  const tutte = VOCI.concat(STRUMENTI).find((v) => v[0] === k);
-  $('#sez').textContent = tutte && k !== 'agenzia' ? tutte[1] : 'Sala operativa';
-  $('#testa').classList.remove('aperto'); $('#altro')?.classList.remove('aperto');
+  const tutte = VOCI.concat(STRUMENTI, [['impostazioni', 'Impostazioni']]).find((v) => v[0] === k);
+  $('#sez').textContent = tutte ? tutte[1] : '';
+  $('#testa').classList.remove('aperto');
 }
-addEventListener('hashchange', () => { if ($('#altro')) evidenzia(); });
+addEventListener('hashchange', () => { if ($('#nav').innerHTML) evidenzia(); });
 
 async function accesso() {
   menu(false);
@@ -432,6 +442,39 @@ async function impostazioni() {
     try { await chiama('/api/impostazioni', { method: 'POST', body }); await impostazioni(); $('#er').style.color = 'var(--ok)'; $('#er').textContent = '✓ Salvato'; } catch (x) { $('#er').textContent = x.message; }
   };
   $('#out').onclick = async () => { await fetch('/api/esci'); accesso(); };
+}
+
+// ---------------------------------------------------------------- Costi: contatori di ogni chiamata a pagamento
+const AREE_C = { reel: 'Comparto Reel', uffici: 'Uffici (incarichi)', riunioni: 'Riunioni', profilo: 'Profilo IG (ricerca, copioni, avatar)', copioni: 'Copioni di Nora', gestionale: 'Gestionale e contabilità', altro: 'Altro' };
+const SERV_C = { claude: 'Claude (agenti + ricerche web)', heygen: 'HeyGen (avatar)' };
+async function costiPagina(giorni) {
+  const C = await chiama('/api/consumi?giorni=' + giorni);
+  if (!AGENTI.capo?.n) { try { const A = await chiama('/api/azienda'); Object.assign(AGENTI, A.squadra); } catch (_) {} }
+  const eur = (u) => soldi(u || 0, C.cambio), usd = (u) => '$ ' + (u || 0).toFixed(2);
+  const k = (tit, val, sub) => '<div class="card" style="margin:0"><div class="mut" style="font-size:12px;text-transform:uppercase;letter-spacing:1px">' + tit + '</div><div style="font-size:26px;font-weight:700;margin:6px 0 2px;letter-spacing:-.5px">' + val + '</div><div class="mut" style="font-size:12.5px">' + sub + '</div></div>';
+  const max = Math.max(0.0001, ...C.giornaliero.map((g) => g.costo));
+  const barre = C.giornaliero.length ? '<div style="display:flex;align-items:flex-end;gap:3px;height:120px;margin-top:10px">' + C.giornaliero.map((g) => '<div title="' + g.giorno + ': ' + eur(g.costo) + '" style="flex:1;min-width:4px;background:var(--teal);opacity:.85;border-radius:4px 4px 0 0;height:' + Math.max(2, (g.costo / max) * 100) + '%"></div>').join('') + '</div><div class="riga mut" style="font-size:11.5px;margin-top:4px"><span style="flex:1">' + C.giornaliero[0].giorno + '</span><span>' + C.giornaliero.at(-1).giorno + '</span></div>' : '<p class="mut">Ancora nessun dato.</p>';
+  const tab = (titolo, righe, nome) => '<div class="card"><b>' + titolo + '</b>' + (righe.length ? '<table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:14px">' + righe.map((r) => '<tr style="border-top:1px solid var(--line)"><td style="padding:7px 0">' + nome(r) + '</td><td class="mut" style="text-align:right;padding:7px 8px;white-space:nowrap">' + r.n + ' chiam.</td><td style="text-align:right;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums">' + eur(r.costo) + '</td></tr>').join('') + '</table>' : '<p class="mut" style="margin:8px 0 0">Niente in questo periodo.</p>') + '</div>';
+  const nomeAg = (a) => (AGENTI[a] ? AGENTI[a].i + ' ' + AGENTI[a].n + ' <span class="mut">' + e(AGENTI[a].r || '') + '</span>' : e(a));
+  const T = C.totale;
+  $('#app').innerHTML = '<div class="riga" style="flex-wrap:wrap;gap:10px"><h1 style="flex:1;margin-right:auto">Costi</h1><div style="display:flex;background:#ebe8e2;border-radius:12px;padding:3px">' + [7, 30, 90].map((g) => '<a href="#/costi/' + g + '" style="padding:7px 14px;border-radius:9px;font-size:13.5px;font-weight:600;text-decoration:none;' + (g === giorni ? 'background:#fff;color:var(--txt);box-shadow:0 1px 3px rgba(0,0,0,.08)' : 'color:#6b6862') + '">' + g + ' gg</a>').join('') + '</div></div>' +
+    '<p class="mut">Ogni chiamata a pagamento degli agenti viene contata qui: chi l’ha fatta, per quale cliente o reel, quanto costa a prezzo di listino. Importi in euro al cambio ' + C.cambio + ' (modificabile in Impostazioni).</p>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:14px 0">' +
+      k('Questo mese', eur(C.questo_mese), usd(C.questo_mese) + ' a consumo') +
+      k('Previsione mese', eur(C.proiezione_mese), C.giorni_con_dati >= 3 ? 'media ' + eur(C.al_giorno) + '/giorno × 30 + fissi' : 'servono qualche giorno di dati') +
+      k('Ultimi ' + giorni + ' giorni', eur(T.costo), T.chiamate + ' chiamate · ' + T.ricerche + ' ricerche web') +
+      k('Costi fissi', eur(C.fissi_totale), C.fissi.map((f) => e(f.nome)).join(', ') || 'nessuno') + '</div>' +
+    '<div class="card"><b>Spesa al giorno</b>' + barre + '</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px">' +
+      tab('Per servizio', C.servizi, (r) => e(SERV_C[r.servizio] || r.servizio)) +
+      tab('Per area', C.aree, (r) => e(AREE_C[r.area] || r.area)) + '</div>' +
+    tab('Per agente', C.agenti, (r) => nomeAg(r.agente)) +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px">' +
+      tab('Costo per reel', C.reel, (r) => '<a href="#/lavoro/' + r.lavoro_id + '">#' + r.lavoro_id + ' ' + e(r.titolo || r.prompt || '') + '</a>' + (r.stato === 'pronto' ? '' : ' <span class="mut">(' + e(r.stato || '') + ')</span>')) +
+      tab('Per cliente', C.clienti, (r) => '<a href="#/cliente/' + r.cliente_id + '">' + e(r.nome || '#' + r.cliente_id) + '</a>') + '</div>' +
+    tab('Profilo IG: costo per argomento (ricerca, copioni, avatar; il montaggio è nei reel)', C.profilo, (r) => '<a href="#/profilo/' + r.piano_id + '">' + e(r.argomento || '#' + r.piano_id) + '</a> <span class="mut">· ' + (r.numero || '') + ' reel</span>') +
+    '<div class="card"><b>Costi fissi del mese</b>' + (C.fissi.length ? '<table style="width:100%;margin-top:8px;font-size:14px">' + C.fissi.map((f) => '<tr><td style="padding:5px 0">' + e(f.nome) + '</td><td style="text-align:right;font-weight:600">' + eur(f.dollari) + ' <span class="mut">(' + usd(f.dollari) + ')</span></td></tr>').join('') + '</table>' : '') +
+      '<p class="mut" style="font-size:13px;margin-bottom:0">Si cambiano in ⚙︎ Impostazioni → COSTI_FISSI (es. <code>Cloudflare Workers Paid:5,Apify:19</code>). HeyGen è contato a ' + usd(C.heygen_minuto) + ' al minuto di video (HEYGEN_DOLLARI_MINUTO). Gli importi sono a listino: la cifra esatta addebitata la trovi nelle console di Anthropic e HeyGen.</p></div>';
 }
 
 // ---------------------------------------------------------------- Nora · idee e copioni
@@ -988,6 +1031,7 @@ async function rotta() {
     else if (h === '#/clienti') await clientiPagina();
     else if (h.startsWith('#/cliente/')) await clientePagina(h.split('/')[2]);
     else if (h.startsWith('#/chat/')) await chatPagina(h.split('/')[2]);
+    else if (h.startsWith('#/costi')) await costiPagina(Number(h.split('/')[2]) || 30);
     else if (h === '#/copioni') await piani();
     else if (h === '#/copioni/nuovo') nuovoPiano();
     else if (h.startsWith('#/copioni/')) await piano(h.split('/')[2]);

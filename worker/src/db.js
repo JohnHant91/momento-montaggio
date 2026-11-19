@@ -34,7 +34,7 @@ export async function log(env, lavoroId, agente, messaggio, livello = 'info') {
 }
 
 export const CHIAVI_SEGRETE = ['ANTHROPIC_API_KEY', 'YOUTUBE_API_KEY', 'APIFY_TOKEN', 'GITHUB_TOKEN', 'HEYGEN_API_KEY'];
-export const CHIAVI_OPZIONI = ['CLAUDE_MODEL', 'CLAUDE_MODEL_LIGHT', 'APIFY_TIKTOK_ACTOR', 'APIFY_INSTAGRAM_ACTOR', 'NUM_RIFERIMENTI', 'DURATA_MAX', 'MESI_RICERCA', 'HEYGEN_AVATAR', 'HEYGEN_VOCE'];
+export const CHIAVI_OPZIONI = ['CLAUDE_MODEL', 'CLAUDE_MODEL_LIGHT', 'APIFY_TIKTOK_ACTOR', 'APIFY_INSTAGRAM_ACTOR', 'NUM_RIFERIMENTI', 'DURATA_MAX', 'MESI_RICERCA', 'HEYGEN_AVATAR', 'HEYGEN_VOCE', 'HEYGEN_DOLLARI_MINUTO', 'COSTI_FISSI', 'CAMBIO_USD_EUR'];
 
 // configurazione: i segreti di Cloudflare hanno la precedenza su quelli salvati dalla pagina Impostazioni
 export async function configurazione(env) {
@@ -50,6 +50,7 @@ export async function configurazione(env) {
     APIFY_INSTAGRAM_ACTOR: v('APIFY_INSTAGRAM_ACTOR', 'apify/instagram-scraper'),
     NUM_RIFERIMENTI: Number(v('NUM_RIFERIMENTI', 9)), DURATA_MAX: Number(v('DURATA_MAX', 90)),
     MESI_RICERCA: Number(v('MESI_RICERCA', 18)), FPS_ANALISI: Number(v('FPS_ANALISI', 4)),
-    _salvate: salvate, _env: Object.fromEntries(CHIAVI_SEGRETE.map((k) => [k, !!env[k]])),
+    HEYGEN_DOLLARI_MINUTO: v('HEYGEN_DOLLARI_MINUTO', '1'), COSTI_FISSI: v('COSTI_FISSI', 'Cloudflare Workers Paid:5,Apify (piano gratuito):0'), CAMBIO_USD_EUR: v('CAMBIO_USD_EUR', '0.86'),
+    _rec: env, _salvate: salvate, _env: Object.fromEntries(CHIAVI_SEGRETE.map((k) => [k, !!env[k]])),
   };
 }

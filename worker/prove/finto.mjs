@@ -70,7 +70,7 @@ function rispostaClaude(body) {
 }
 function sse(obj) {
   const testo = JSON.stringify(obj);
-  const ev = [{ type: 'message_start' }, { type: 'content_block_delta', delta: { type: 'text_delta', text: testo } }, { type: 'message_delta', delta: { stop_reason: 'end_turn' } }];
+  const ev = [{ type: 'message_start', message: { usage: { input_tokens: 10000, output_tokens: 1 } } }, { type: 'content_block_delta', delta: { type: 'text_delta', text: testo } }, { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 2000 } }];
   return ev.map((e) => 'event: x\ndata: ' + JSON.stringify(e) + '\n\n').join('');
 }
 let giroGest = 0;

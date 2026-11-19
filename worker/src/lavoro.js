@@ -6,6 +6,7 @@ import * as S from './servizi.js';
 import { rilevaStile, ricetta, ricercaStile } from './stili.js';
 import { LUT, LUT_NOMI, lutPerStile, descriviLut, voceLut } from './lut.js';
 import { MANUALE_AUDIO, MANUALE_COPY, MANUALE_DIRETTORE, MANUALE_FORMATI, MANUALE_IRIS, MANUALE_MODELLO, MANUALE_PUBBLICAZIONE, MANUALE_REGISTA, MANUALE_SPOT } from './manuali.js';
+import { chi } from './consumi.js';
 
 const FASI = ['piano', 'ricerca', 'riferimenti', 'clip', 'scheda', 'regia', 'montaggio', 'fatto'];
 const BLOCCO_MIN = 15;       // un lavoro "preso" resta riservato per 15 minuti (le risposte lunghe di Claude ci stanno)
@@ -592,6 +593,7 @@ async function lavora(env, cfg, L, scadenza) {
   while (Date.now() < scadenza) {
     L = await one(env, 'SELECT * FROM lavori WHERE id=?', L.id);
     let finita = true;
+    cfg = chi(cfg, { area: 'reel', lavoro_id: L.id, agente: { piano: 'direttore', ricerca: 'scout_yt', riferimenti: 'occhi', clip: 'analista', scheda: 'regista', regia: 'regista', montaggio: 'editor' }[L.fase] || 'regia' });
     if (L.fase === 'piano') await fasePiano(env, cfg, L);
     else if (L.fase === 'ricerca') await faseRicerca(env, cfg, L);
     else if (L.fase === 'riferimenti') finita = await faseRiferimenti(env, cfg, L);

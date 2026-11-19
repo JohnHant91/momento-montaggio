@@ -10,6 +10,7 @@ import { all, one, run, J, ora, configurazione, log } from './db.js';
 import * as S from './servizi.js';
 import { SKILL } from './skill_testi.js';
 import { MANUALE_COPIONI } from './manuali.js';
+import { registra, daUsage, chi } from './consumi.js';
 
 const BLOCCO_MIN = 12;
 
@@ -74,6 +75,7 @@ async function claudeWeb(cfg, sistema, domanda, maxUses = 8) {
   });
   if (r.status !== 200) throw new Error(`Claude ${r.status}: ${(await r.text()).slice(0, 300)}`);
   const d = await r.json();
+  await registra(cfg, 'claude', cfg.CLAUDE_MODEL, daUsage(d.usage));
   const fonti = new Map();
   for (const b of d.content || []) if (b.type === 'web_search_tool_result' && Array.isArray(b.content)) b.content.forEach((x) => x.url && fonti.set(x.url, x.title || ''));
   const testo = (d.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
@@ -190,7 +192,7 @@ async function faseAvatar(env, cfg, A) {
       await log(env, null, 'avatar', `🎭 genero il reel ${c.n} "${c.titolo}" con il tuo avatar`);
     } else if (v.stato === 'in_corso' && v.video_id) {
       const d = await heygen(cfg, 'GET', '/v1/video_status.get?video_id=' + encodeURIComponent(v.video_id));
-      if (d.status === 'completed' && d.video_url) { Object.assign(v, { stato: 'fatto', url: d.video_url, durata: d.duration || null }); cambiato = true; await log(env, null, 'avatar', `✅ reel ${c.n} generato (${Math.round(d.duration || 0)} s)`); }
+      if (d.status === 'completed' && d.video_url) { Object.assign(v, { stato: 'fatto', url: d.video_url, durata: d.duration || null }); cambiato = true; await registra(cfg, 'heygen', 'avatar', { secondi: d.duration || 0 }, ((d.duration || 0) / 60) * (Number(cfg.HEYGEN_DOLLARI_MINUTO) || 1)); await log(env, null, 'avatar', `✅ reel ${c.n} generato (${Math.round(d.duration || 0)} s)`); }
       if (d.status === 'failed') { Object.assign(v, { stato: 'errore', errore: JSON.stringify(d.error || '').slice(0, 200) }); cambiato = true; await log(env, null, 'avatar', `❌ reel ${c.n}: ${v.errore}`, 'errore'); }
     }
   }
@@ -224,9 +226,10 @@ export async function avanzaAvatar(env) {
   const adesso = ora();
   const L = await all(env, "SELECT * FROM avatar_piani WHERE stato IN ('in_corso','attende_avatar') AND (blocco_fino IS NULL OR blocco_fino < ?) ORDER BY id LIMIT 2", adesso);
   if (!L.length) return;
-  const cfg = await configurazione(env);
+  const cfg0 = await configurazione(env);
   for (const A0 of L) {
-    if (A0.stato === 'attende_avatar' && !cfg.HEYGEN_API_KEY) continue;
+    if (A0.stato === 'attende_avatar' && !cfg0.HEYGEN_API_KEY) continue;
+    const cfg = chi(cfg0, { area: 'profilo', piano_id: A0.id, agente: { ricerca: 'ricerca', virali: 'trend', copioni: 'idee', avatar: 'avatar' }[A0.fase] || 'avatar' });
     const A = await one(env, 'UPDATE avatar_piani SET blocco_fino=?, tentativi=tentativi+1 WHERE id=? AND (blocco_fino IS NULL OR blocco_fino < ?) RETURNING *', new Date(Date.now() + BLOCCO_MIN * 60e3).toISOString(), A0.id, adesso);
     if (!A) continue;
     try {

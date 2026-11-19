@@ -172,7 +172,7 @@ async function log(env, lavoroId, agente, messaggio, livello = "info") {
   );
 }
 var CHIAVI_SEGRETE = ["ANTHROPIC_API_KEY", "YOUTUBE_API_KEY", "APIFY_TOKEN", "GITHUB_TOKEN", "HEYGEN_API_KEY"];
-var CHIAVI_OPZIONI = ["CLAUDE_MODEL", "CLAUDE_MODEL_LIGHT", "APIFY_TIKTOK_ACTOR", "APIFY_INSTAGRAM_ACTOR", "NUM_RIFERIMENTI", "DURATA_MAX", "MESI_RICERCA", "HEYGEN_AVATAR", "HEYGEN_VOCE"];
+var CHIAVI_OPZIONI = ["CLAUDE_MODEL", "CLAUDE_MODEL_LIGHT", "APIFY_TIKTOK_ACTOR", "APIFY_INSTAGRAM_ACTOR", "NUM_RIFERIMENTI", "DURATA_MAX", "MESI_RICERCA", "HEYGEN_AVATAR", "HEYGEN_VOCE", "HEYGEN_DOLLARI_MINUTO", "COSTI_FISSI", "CAMBIO_USD_EUR"];
 async function configurazione(env) {
   const salvate = Object.fromEntries((await all(env, "SELECT chiave, valore FROM impostazioni")).map((r) => [r.chiave, r.valore]));
   const v = (k, d) => env[k] || salvate[k] || d;
@@ -195,6 +195,10 @@ async function configurazione(env) {
     DURATA_MAX: Number(v("DURATA_MAX", 90)),
     MESI_RICERCA: Number(v("MESI_RICERCA", 18)),
     FPS_ANALISI: Number(v("FPS_ANALISI", 4)),
+    HEYGEN_DOLLARI_MINUTO: v("HEYGEN_DOLLARI_MINUTO", "1"),
+    COSTI_FISSI: v("COSTI_FISSI", "Cloudflare Workers Paid:5,Apify (piano gratuito):0"),
+    CAMBIO_USD_EUR: v("CAMBIO_USD_EUR", "0.86"),
+    _rec: env,
     _salvate: salvate,
     _env: Object.fromEntries(CHIAVI_SEGRETE.map((k) => [k, !!env[k]]))
   };
@@ -252,6 +256,105 @@ POSIZIONI TESTO: ${POSIZIONI.join(", ")}`);
   return r.join("\n");
 }
 
+// src/consumi.js
+var PREZZI = [
+  [/haiku/i, 0.1, 0.5],
+  [/opus/i, 4, 20],
+  [/sonnet/i, 2, 10]
+];
+var RICERCA_WEB = 0.01;
+function prezzoClaude(modello, u = {}) {
+  const p = PREZZI.find(([re]) => re.test(modello || "")) || PREZZI[2];
+  const inp = (u.in || 0) * p[1] + (u.cache_w || 0) * p[1] * 1.25 + (u.cache_r || 0) * p[1] * 0.1;
+  return inp / 1e6 + (u.out || 0) * p[2] / 1e6 + (u.ricerche || 0) * RICERCA_WEB;
+}
+async function schemaConsumi(env) {
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS consumi (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, quando TEXT, servizio TEXT, modello TEXT, area TEXT, agente TEXT, cliente_id INTEGER, lavoro_id INTEGER, piano_id INTEGER,
+    in_tok INTEGER DEFAULT 0, out_tok INTEGER DEFAULT 0, cache_r INTEGER DEFAULT 0, cache_w INTEGER DEFAULT 0, ricerche INTEGER DEFAULT 0, secondi REAL DEFAULT 0, costo REAL DEFAULT 0)`).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS consumi_quando ON consumi (quando)").run();
+}
+function daUsage(usage) {
+  if (!usage) return null;
+  return { in: usage.input_tokens || 0, out: usage.output_tokens || 0, cache_w: usage.cache_creation_input_tokens || 0, cache_r: usage.cache_read_input_tokens || 0, ricerche: usage.server_tool_use?.web_search_requests || 0 };
+}
+var pronto2 = false;
+async function registra(cfg, servizio, modello, u = {}, costo = null) {
+  const env = cfg?._rec;
+  if (!env?.DB) return;
+  u = u || {};
+  try {
+    if (!pronto2) {
+      await schemaConsumi(env);
+      pronto2 = true;
+    }
+    const c = cfg._chi || {};
+    const tot = costo ?? (servizio === "claude" ? prezzoClaude(modello, u) : 0);
+    await env.DB.prepare("INSERT INTO consumi (quando, servizio, modello, area, agente, cliente_id, lavoro_id, piano_id, in_tok, out_tok, cache_r, cache_w, ricerche, secondi, costo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(
+      ora(),
+      servizio,
+      modello || null,
+      c.area || "altro",
+      c.agente || null,
+      c.cliente_id || null,
+      c.lavoro_id || null,
+      c.piano_id || null,
+      u.in || 0,
+      u.out || 0,
+      u.cache_r || 0,
+      u.cache_w || 0,
+      u.ricerche || 0,
+      u.secondi || 0,
+      Math.round(tot * 1e6) / 1e6
+    ).run();
+  } catch (_) {
+  }
+}
+var chi = (cfg, etichetta) => ({ ...cfg, _chi: { ...cfg._chi || {}, ...etichetta } });
+async function apiConsumi(req, env, p, m, json3) {
+  if (p !== "/api/consumi" || m !== "GET") return null;
+  await schemaConsumi(env);
+  const url = new URL(req.url);
+  const giorni = Math.min(365, Math.max(1, Number(url.searchParams.get("giorni")) || 30));
+  const da = new Date(Date.now() - giorni * 864e5).toISOString();
+  const cfg = await configurazione(env);
+  const q = (sql, ...a) => all(env, sql, da, ...a);
+  const [totale, servizi, aree, agenti, clienti, reel, profilo, giornaliero, mese] = await Promise.all([
+    one(env, "SELECT COALESCE(SUM(costo),0) AS costo, COUNT(*) AS chiamate, COALESCE(SUM(in_tok),0) AS in_tok, COALESCE(SUM(out_tok),0) AS out_tok, COALESCE(SUM(ricerche),0) AS ricerche, COALESCE(SUM(secondi),0) AS secondi, MIN(quando) AS primo FROM consumi WHERE quando > ?", da),
+    q("SELECT servizio, SUM(costo) AS costo, COUNT(*) AS n FROM consumi WHERE quando > ? GROUP BY servizio ORDER BY costo DESC"),
+    q("SELECT area, SUM(costo) AS costo, COUNT(*) AS n FROM consumi WHERE quando > ? GROUP BY area ORDER BY costo DESC"),
+    q("SELECT agente, SUM(costo) AS costo, COUNT(*) AS n FROM consumi WHERE quando > ? AND agente IS NOT NULL GROUP BY agente ORDER BY costo DESC LIMIT 40"),
+    q("SELECT c.cliente_id, k.nome, SUM(c.costo) AS costo, COUNT(*) AS n FROM consumi c LEFT JOIN clienti k ON k.id = c.cliente_id WHERE c.quando > ? AND c.cliente_id IS NOT NULL GROUP BY c.cliente_id ORDER BY costo DESC").catch(() => []),
+    q("SELECT c.lavoro_id, json_extract(l.scheda, '$.titolo_lavoro') AS titolo, substr(l.prompt, 1, 80) AS prompt, l.stato, SUM(c.costo) AS costo, COUNT(*) AS n FROM consumi c LEFT JOIN lavori l ON l.id = c.lavoro_id WHERE c.quando > ? AND c.lavoro_id IS NOT NULL GROUP BY c.lavoro_id ORDER BY c.lavoro_id DESC LIMIT 40"),
+    q("SELECT c.piano_id, a.argomento, a.numero, SUM(c.costo) AS costo, COUNT(*) AS n FROM consumi c LEFT JOIN avatar_piani a ON a.id = c.piano_id WHERE c.quando > ? AND c.piano_id IS NOT NULL GROUP BY c.piano_id ORDER BY c.piano_id DESC LIMIT 20").catch(() => []),
+    q("SELECT substr(quando, 1, 10) AS giorno, SUM(costo) AS costo FROM consumi WHERE quando > ? GROUP BY giorno ORDER BY giorno"),
+    one(env, "SELECT COALESCE(SUM(costo),0) AS costo FROM consumi WHERE quando >= ?", (/* @__PURE__ */ new Date()).toISOString().slice(0, 8) + "01")
+  ]);
+  const fissi = String(cfg.COSTI_FISSI || "").split(",").map((x) => x.split(":")).filter((x) => x[0]?.trim()).map(([n, v]) => ({ nome: n.trim(), dollari: Number(v) || 0 }));
+  const fissiTot = fissi.reduce((s, f) => s + f.dollari, 0);
+  const giorniDati = totale.primo ? Math.max(1, Math.min(giorni, (Date.now() - new Date(totale.primo).getTime()) / 864e5)) : 0;
+  const alGiorno = giorniDati ? totale.costo / giorniDati : 0;
+  return json3({
+    giorni,
+    totale,
+    servizi,
+    aree,
+    agenti,
+    clienti,
+    reel,
+    profilo,
+    giornaliero,
+    fissi,
+    fissi_totale: fissiTot,
+    questo_mese: mese.costo,
+    al_giorno: alGiorno,
+    proiezione_mese: alGiorno * 30 + fissiTot,
+    giorni_con_dati: giorniDati,
+    cambio: Number(cfg.CAMBIO_USD_EUR) || 0.86,
+    heygen_minuto: Number(cfg.HEYGEN_DOLLARI_MINUTO) || 1
+  });
+}
+
 // src/servizi.js
 var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function estraiJson(testo) {
@@ -301,6 +404,7 @@ async function claude(cfg, sistema, messaggio, { maxTokens = 8e3, json: json3 = 
     });
     if (r.status !== 200) throw new Error(`Claude ${r.status}: ${(await r.text()).slice(0, 400)}`);
     let testo = "", stop = null, resto = "";
+    const uso = { in: 0, out: 0, cache_r: 0, cache_w: 0, ricerche: 0 };
     const dec = new TextDecoder();
     for await (const chunk of r.body) {
       resto += dec.decode(chunk, { stream: true });
@@ -314,11 +418,17 @@ async function claude(cfg, sistema, messaggio, { maxTokens = 8e3, json: json3 = 
         } catch {
           continue;
         }
+        if (ev.type === "message_start" && ev.message?.usage) Object.assign(uso, daUsage(ev.message.usage));
+        if (ev.type === "message_delta" && ev.usage) {
+          uso.out = ev.usage.output_tokens || uso.out;
+          uso.ricerche = ev.usage.server_tool_use?.web_search_requests || uso.ricerche;
+        }
         if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") testo += ev.delta.text;
         else if (ev.type === "message_delta" && ev.delta?.stop_reason) stop = ev.delta.stop_reason;
         else if (ev.type === "error") throw new Error("Claude: " + (ev.error?.message || "errore nello streaming"));
       }
     }
+    await registra(cfg, "claude", cfg.CLAUDE_MODEL, uso);
     if (stop !== "max_tokens") return json3 ? estraiJson(testo) : testo;
     if (budget >= 64e3) break;
   }
@@ -343,6 +453,7 @@ async function claudeVisione(cfg, modello, sistema, testo, immagini, maxTokens =
     throw new Error(`Claude ${r.status}: ${t.slice(0, 300)}`);
   }
   const d = JSON.parse(t);
+  await registra(cfg, "claude", modello, daUsage(d.usage));
   if (d.stop_reason === "max_tokens") throw new Error("risposta di Claude troncata");
   const out = estraiJson((d.content || []).filter((b) => b.type === "text").map((b) => b.text).join(""));
   out._uso = d.usage ? { in: d.usage.input_tokens, out: d.usage.output_tokens, modello } : void 0;
@@ -413,6 +524,7 @@ Alla fine elenca SOLO i link YouTube trovati nei risultati (massimo 10), uno per
   });
   if (r.status !== 200) throw new Error(`ricerca web ${r.status}: ${(await r.text()).slice(0, 200)}`);
   const d = await r.json();
+  await registra(cfg, "claude", cfg.CLAUDE_MODEL, daUsage(d.usage));
   const visti = /* @__PURE__ */ new Map();
   const aggiungi = (url, titolo) => {
     const m = /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([\w-]{11})/.exec(url || "");
@@ -2387,6 +2499,7 @@ async function lavora(env, cfg, L, scadenza) {
   while (Date.now() < scadenza) {
     L = await one(env, "SELECT * FROM lavori WHERE id=?", L.id);
     let finita = true;
+    cfg = chi(cfg, { area: "reel", lavoro_id: L.id, agente: { piano: "direttore", ricerca: "scout_yt", riferimenti: "occhi", clip: "analista", scheda: "regista", regia: "regista", montaggio: "editor" }[L.fase] || "regia" });
     if (L.fase === "piano") await fasePiano(env, cfg, L);
     else if (L.fase === "ricerca") await faseRicerca(env, cfg, L);
     else if (L.fase === "riferimenti") finita = await faseRiferimenti(env, cfg, L);
@@ -2587,7 +2700,7 @@ async function avanzaPiani(env) {
   );
   if (!presi.length) return;
   const P2 = presi[0];
-  const cfg = await configurazione(env);
+  const cfg = chi(await configurazione(env), { area: "copioni", agente: "idee" });
   try {
     if (P2.fase === "strategia") await faseStrategia(env, cfg, P2);
     else await faseCopioni(env, cfg, P2);
@@ -2840,6 +2953,7 @@ async function claudeWeb(cfg, sistema, domanda, maxUses = 8) {
   });
   if (r.status !== 200) throw new Error(`Claude ${r.status}: ${(await r.text()).slice(0, 300)}`);
   const d = await r.json();
+  await registra(cfg, "claude", cfg.CLAUDE_MODEL, daUsage(d.usage));
   const fonti = /* @__PURE__ */ new Map();
   for (const b of d.content || []) if (b.type === "web_search_tool_result" && Array.isArray(b.content)) b.content.forEach((x) => x.url && fonti.set(x.url, x.title || ""));
   const testo = (d.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
@@ -2975,6 +3089,7 @@ async function faseAvatar(env, cfg, A) {
       if (d.status === "completed" && d.video_url) {
         Object.assign(v, { stato: "fatto", url: d.video_url, durata: d.duration || null });
         cambiato = true;
+        await registra(cfg, "heygen", "avatar", { secondi: d.duration || 0 }, (d.duration || 0) / 60 * (Number(cfg.HEYGEN_DOLLARI_MINUTO) || 1));
         await log(env, null, "avatar", `\u2705 reel ${c.n} generato (${Math.round(d.duration || 0)} s)`);
       }
       if (d.status === "failed") {
@@ -3025,9 +3140,10 @@ async function avanzaAvatar(env) {
   const adesso = ora();
   const L = await all(env, "SELECT * FROM avatar_piani WHERE stato IN ('in_corso','attende_avatar') AND (blocco_fino IS NULL OR blocco_fino < ?) ORDER BY id LIMIT 2", adesso);
   if (!L.length) return;
-  const cfg = await configurazione(env);
+  const cfg0 = await configurazione(env);
   for (const A0 of L) {
-    if (A0.stato === "attende_avatar" && !cfg.HEYGEN_API_KEY) continue;
+    if (A0.stato === "attende_avatar" && !cfg0.HEYGEN_API_KEY) continue;
+    const cfg = chi(cfg0, { area: "profilo", piano_id: A0.id, agente: { ricerca: "ricerca", virali: "trend", copioni: "idee", avatar: "avatar" }[A0.fase] || "avatar" });
     const A = await one(env, "UPDATE avatar_piani SET blocco_fino=?, tentativi=tentativi+1 WHERE id=? AND (blocco_fino IS NULL OR blocco_fino < ?) RETURNING *", new Date(Date.now() + BLOCCO_MIN3 * 6e4).toISOString(), A0.id, adesso);
     if (!A) continue;
     try {
@@ -3329,7 +3445,7 @@ async function avanzaUffici(env) {
     );
     if (!I) return;
     try {
-      await eseguiIncarico(env, cfg, I);
+      await eseguiIncarico(env, chi(cfg, { area: "uffici", agente: I.agente, cliente_id: I.cliente_id }), I);
     } catch (e) {
       const msg = String(e?.message || e).slice(0, 400);
       if (/credit balance|billing/i.test(msg)) {
@@ -3371,9 +3487,9 @@ var STORE = {
 };
 var gid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 var titoloRec = (d) => d.titolo || d.nome || d.descrizione || d.numero || "";
-async function logGest(env, chi, azione, store, id, titolo) {
+async function logGest(env, chi2, azione, store, id, titolo) {
   try {
-    await env.GEST.prepare("INSERT INTO log(ts,user_id,nome,azione,store,rec_id,titolo) VALUES(?,?,?,?,?,?,?)").bind(ora(), "agente-ai", "Agente AI \xB7 " + chi, azione, store, id, String(titolo || "").slice(0, 150)).run();
+    await env.GEST.prepare("INSERT INTO log(ts,user_id,nome,azione,store,rec_id,titolo) VALUES(?,?,?,?,?,?,?)").bind(ora(), "agente-ai", "Agente AI \xB7 " + chi2, azione, store, id, String(titolo || "").slice(0, 150)).run();
   } catch {
   }
 }
@@ -3385,7 +3501,7 @@ var STRUMENTI = [
   { name: "modifica", description: "Modifica solo i campi indicati di un record esistente.", input_schema: { type: "object", properties: { sezione: { type: "string", enum: Object.keys(STORE) }, id: { type: "string" }, campi: { type: "object" } }, required: ["sezione", "id", "campi"] } },
   { name: "elimina", description: "Elimina un record. Usalo SOLO se Johnny ha confermato esplicitamente in chat di eliminare proprio quel record.", input_schema: { type: "object", properties: { sezione: { type: "string", enum: Object.keys(STORE) }, id: { type: "string" }, confermato: { type: "boolean" } }, required: ["sezione", "id", "confermato"] } }
 ];
-async function strumento(env, chi, nome, a) {
+async function strumento(env, chi2, nome, a) {
   const G = env.GEST;
   if (!G) return { errore: "gestionale non collegato" };
   if (nome === "utenti") return (await G.prepare("SELECT id, nome, username, ruolo FROM users WHERE attivo=1").all()).results;
@@ -3415,7 +3531,7 @@ async function strumento(env, chi, nome, a) {
     }
     if (a.sezione === "clienti") d.stato ||= "Attivo";
     await G.prepare("INSERT INTO records(store,id,data,updated,by_user) VALUES(?,?,?,?,?)").bind(a.sezione, id, JSON.stringify(d), t, "agente-ai").run();
-    await logGest(env, chi, "crea", a.sezione, id, titoloRec(d));
+    await logGest(env, chi2, "crea", a.sezione, id, titoloRec(d));
     return { ok: true, id, record: d };
   }
   if (nome === "modifica") {
@@ -3423,7 +3539,7 @@ async function strumento(env, chi, nome, a) {
     if (!r) return { errore: "non trovato" };
     const d = { ...J(r.data, {}), ...a.campi || {}, id: a.id, updated: ora(), mod: ora() };
     await G.prepare("UPDATE records SET data=?, updated=?, by_user=? WHERE store=? AND id=?").bind(JSON.stringify(d), ora(), "agente-ai", a.sezione, a.id).run();
-    await logGest(env, chi, "modifica", a.sezione, a.id, titoloRec(d));
+    await logGest(env, chi2, "modifica", a.sezione, a.id, titoloRec(d));
     return { ok: true, record: d };
   }
   if (nome === "elimina") {
@@ -3431,7 +3547,7 @@ async function strumento(env, chi, nome, a) {
     const r = await G.prepare("SELECT data FROM records WHERE store=? AND id=?").bind(a.sezione, a.id).first();
     if (!r) return { errore: "non trovato" };
     await G.prepare("DELETE FROM records WHERE store=? AND id=?").bind(a.sezione, a.id).run();
-    await logGest(env, chi, "elimina", a.sezione, a.id, titoloRec(J(r.data, {})));
+    await logGest(env, chi2, "elimina", a.sezione, a.id, titoloRec(J(r.data, {})));
     return { ok: true };
   }
   return { errore: "strumento sconosciuto" };
@@ -3477,6 +3593,7 @@ async function chatGestionale(env, canale, testo) {
     });
     if (r.status !== 200) throw new Error(`Claude ${r.status}: ${(await r.text()).slice(0, 300)}`);
     const d = await r.json();
+    await registra(chi(cfg, { area: "gestionale", agente: canale }), "claude", cfg.CLAUDE_MODEL, daUsage(d.usage));
     messaggi.push({ role: "assistant", content: d.content });
     const usi = d.content.filter((c) => c.type === "tool_use");
     risposta = d.content.filter((c) => c.type === "text").map((c) => c.text).join("\n").trim() || risposta;
@@ -3979,9 +4096,10 @@ async function avanzaRiunioni(env) {
       adesso
     );
     if (!R) return;
+    const cfgR = chi(cfg, { area: "riunioni", agente: "capo", cliente_id: R.cliente_id });
     try {
-      if (R.tipo === "settimanale") await svolgiSettimanale(env, cfg, R);
-      else await svolgiRichiesta(env, cfg, R);
+      if (R.tipo === "settimanale") await svolgiSettimanale(env, cfgR, R);
+      else await svolgiRichiesta(env, cfgR, R);
     } catch (e) {
       const msg = String(e?.message || e).slice(0, 400);
       const credito = /credit balance|billing/i.test(msg);
@@ -4006,7 +4124,7 @@ async function scegli(env, R, indice, modifica) {
   if (!P2) throw new Error("proposta non trovata");
   let piano2 = P2.piano || {}, messaggio = `Perfetto, parto con "${P2.titolo}".`;
   if (modifica) {
-    const cfg = await configurazione(env);
+    const cfg = chi(await configurazione(env), { area: "riunioni", agente: "capo", cliente_id: R.cliente_id });
     const out = await claude(
       cfg,
       `Sei Alba, Direttrice di AGENZIA MOMENTO AI. Johnny ha scelto una proposta della riunione ma vuole delle modifiche. Aggiorna il piano rispettando ESATTAMENTE le sue modifiche e lo stesso formato. Agenti disponibili per gli incarichi: ${DELEGABILI.join(", ")}.`,
@@ -4223,9 +4341,9 @@ async function motoreApi(req, env, url) {
       return json({ ok: true });
     }
     if (!d?.misure || !Array.isArray(d.immagini) || !d.immagini.length) return json({ errore: "dati mancanti" }, 400);
-    const cfg = await configurazione(env);
     const rif = tipo === "riferimenti";
     const agente = rif ? "occhi" : "analista";
+    const cfg = chi(await configurazione(env), { area: "reel", lavoro_id: Number(id) || null, agente });
     const mis = d.misure;
     await log(env, id, agente, `sto guardando ${rif ? el.video.piattaforma + " \xB7 " + (el.video.titolo || el.video.url).slice(0, 50) : el.nome} (${mis.tecnico?.tipo === "immagine" ? "foto " + (mis.tecnico?.risoluzione || "") : `${mis.tecnico?.risoluzione || "?"} \xB7 ${mis.tecnico?.fps || "?"} fps \xB7 ${mis.numero_tagli} tagli${mis.bpm_stimato ? " \xB7 " + mis.bpm_stimato + " BPM" : ""}`})`);
     try {
@@ -4295,18 +4413,23 @@ var PAGINA = `<!DOCTYPE html>
 details.copione summary{cursor:pointer;list-style:none}details.copione[open]{border-color:var(--teal)}
 :root{--teal:#0E9F9A;--teal2:#0B8782;--tealbg:#E3F4F3;--bg:#F4F2EE;--card:#FFFFFF;--line:#E6E2DA;--txt:#17171A;--mut:#8A8780;--warn:#E8930C;--err:#E5484D;--ok:#22A55B;--nero:#141416;--legno:#E9D9BC;--legno2:#D9C29A}
 *{box-sizing:border-box}body{margin:0;font-family:"Inter",system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--txt);font-size:15px;-webkit-font-smoothing:antialiased}
-header{display:flex;align-items:center;gap:18px;height:64px;padding:0 24px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(255,255,255,.92);backdrop-filter:blur(14px);z-index:30}
-.logo{display:flex;flex-direction:column;line-height:1;text-decoration:none;flex:none}.logo b{font-family:"Inter",system-ui,sans-serif;font-weight:700;font-size:26px;letter-spacing:-1.2px;color:var(--teal)}.logo small{margin-top:3px;font-size:9.5px;font-weight:600;letter-spacing:1.6px;text-transform:uppercase;color:var(--mut)}
-.logo:hover{opacity:.85}.sep{width:1px;height:28px;background:var(--line);flex:none}.sez{font-size:13px;font-weight:600;color:var(--mut);white-space:nowrap}
-header nav{margin-left:auto;display:flex;align-items:center;gap:2px}
-.vm{display:flex;align-items:center;gap:7px;padding:8px 12px;border-radius:10px;color:#4a4843;font-size:14px;font-weight:500;text-decoration:none;white-space:nowrap;border:0;background:none;cursor:pointer;font-family:inherit;position:relative}
-.vm svg{width:17px;height:17px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.vm:hover{background:#f1efea;color:var(--txt)}.vm.att{background:var(--tealbg);color:var(--teal2);font-weight:600}
-.altro{position:relative}.tendina{display:none;position:absolute;right:0;top:calc(100% + 6px);min-width:210px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 14px 40px rgba(20,20,22,.12);padding:6px;z-index:40}.tendina .vm{width:100%}.altro.aperto .tendina{display:block}
-.ham{display:none;margin-left:auto}.ham[hidden]{display:none!important}.ham svg{width:22px;height:22px}
-@media(max-width:980px){.vm .tx{display:none}.vm{padding:9px}.tendina .vm .tx{display:inline}.sez,.sep{display:none}}
-@media(max-width:700px){header{height:58px;padding:0 14px}.logo b{font-size:23px}.ham{display:flex}header nav{display:none;position:fixed;inset:58px 0 auto 0;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 18px 40px rgba(20,20,22,.12);padding:10px 12px 16px;flex-direction:column;align-items:stretch;gap:2px;max-height:calc(100vh - 58px);overflow:auto}
-header.aperto nav{display:flex}header nav .vm{padding:12px 14px;font-size:15px}.vm .tx{display:inline}.altro .tendina{display:block;position:static;box-shadow:none;border:0;padding:0;min-width:0}.altro>.vm{display:none}.tendina:before{content:'Strumenti';display:block;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--mut);padding:12px 14px 4px;border-top:1px solid var(--line);margin-top:6px}}
+header{position:fixed;left:0;top:0;bottom:0;width:236px;display:flex;flex-direction:column;gap:4px;padding:22px 14px 16px;background:#fff;border-right:1px solid var(--line);z-index:30;overflow-y:auto}
+body.dentro{padding-left:236px}body:not(.dentro) header{display:none}
+.logo{display:flex;flex-direction:column;line-height:1;text-decoration:none;padding:2px 10px 18px}.logo b{font-family:"Inter",system-ui,sans-serif;font-weight:700;font-size:28px;letter-spacing:-1.3px;color:var(--teal)}.logo small{margin-top:4px;font-size:9.5px;font-weight:600;letter-spacing:1.7px;text-transform:uppercase;color:var(--mut)}
+.logo:hover{opacity:.85}.sep,.sez{display:none}
+header nav{display:flex;flex-direction:column;gap:2px;flex:1}
+.gruppo{font-size:10.5px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--mut);padding:16px 12px 6px}
+.vm{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:11px;color:#4a4843;font-size:14px;font-weight:500;text-decoration:none;white-space:nowrap;border:0;background:none;cursor:pointer;font-family:inherit;width:100%;text-align:left}
+.vm svg{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.vm:hover{background:#f3f1ec;color:var(--txt)}.vm.att{background:var(--tealbg);color:var(--teal2);font-weight:600}
+.vm .num{margin-left:auto;font-size:11.5px;font-weight:600;color:var(--mut);font-variant-numeric:tabular-nums}.vm.att .num{color:var(--teal2)}
+.piede{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
+.ham,.barra{display:none}.ham[hidden]{display:none!important}.ham svg{width:22px;height:22px}
+@media(max-width:900px){header{transform:translateX(-105%);transition:transform .3s cubic-bezier(.2,.75,.2,1);box-shadow:20px 0 60px rgba(20,20,22,.18);z-index:45;width:260px}header.aperto{transform:none}
+ body.dentro{padding-left:0}.barra{display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:31;height:56px;padding:0 12px;background:rgba(255,255,255,.94);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}body:not(.dentro) .barra{display:none}
+ .barra .logo{flex-direction:row;align-items:baseline;gap:8px;padding:0}.barra .logo b{font-size:23px}.barra .logo small{margin:0}.ham{display:flex;padding:9px;width:auto}.barra .tit{margin-left:auto;font-size:13px;font-weight:600;color:var(--mut)}
+ .velo-menu{position:fixed;inset:0;background:rgba(20,20,22,.3);z-index:44;display:none}header.aperto~.velo-menu{display:block}}
+@media(min-width:901px){.lato{top:16px}}
 main{max-width:1180px;margin:auto;padding:22px}
 a{color:var(--teal)}h2{margin:28px 0 10px;font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:1.2px;font-weight:600}h1{font-size:24px;margin:6px 0 4px;letter-spacing:-.5px}
 button,.btn{background:var(--teal);color:#fff;border:0;border-radius:999px;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-block;transition:transform .15s,box-shadow .15s}
@@ -4425,7 +4548,7 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 @media(max-width:700px){main{padding:14px}.sala{margin:12px -14px 0;height:62vh}.saluto h1{font-size:24px}.lato{top:auto;bottom:0;right:0;left:0;width:auto;max-height:70vh;border-radius:22px 22px 0 0;transform:translateY(110%)}.chiedi select{display:none}}
 @media(max-width:600px){.posti{grid-template-columns:1fr 1fr}.kv{grid-template-columns:1fr}.kv b{margin-top:6px}}
 </style></head><body>
-<header id="testa"><a class="logo" href="#/" aria-label="momento, agenzia AI"><b>momento</b><small>agenzia AI</small></a><span class="sep"></span><span class="sez" id="sez"></span><button class="vm ham" id="ham" aria-label="Menu" hidden><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><nav id="nav"></nav></header>
+<div class="barra"><button class="vm ham" id="ham" aria-label="Menu" hidden><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><a class="logo" href="#/" aria-label="momento, agenzia AI"><b>momento</b><small>agenzia AI</small></a><span class="tit" id="sez"></span></div><header id="testa"><a class="logo" href="#/" aria-label="momento, agenzia AI"><b>momento</b><small>agenzia AI</small></a><nav id="nav"></nav></header><div class="velo-menu" id="velo_menu"></div>
 <main id="app"><div class="vuoto">Carico\u2026</div></main>
 <script>
 const $ = (s) => document.querySelector(s);
@@ -4519,35 +4642,40 @@ const ICO = {
   profilo: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".6"/>',
   approvazioni: '<path d="M20 6 9 17l-5-5"/>',
   clienti: '<path d="M16 20v-1.5a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4V20M9.5 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M21 20v-1.5a4 4 0 0 0-3-3.9M15.5 3.6a3.5 3.5 0 0 1 0 6.8"/>',
-  altro: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
+  costi: '<path d="M12 2v20M17 6.5c0-1.9-2.2-3-5-3s-5 1.3-5 3.3c0 4.7 10 2.4 10 7.2 0 2-2.2 3.5-5 3.5s-5-1.2-5-3.2"/>',
   reel: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="m10 9 5 3-5 3z"/>',
   copioni: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h4"/>',
   gestionale: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   impostazioni: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'
 };
-const VOCI = [['agenzia', 'Agenzia', '#/'], ['riunioni', 'Riunioni', '#/riunioni'], ['profilo', 'Profilo IG', '#/profilo'], ['approvazioni', 'Approvazioni', '#/approvazioni'], ['clienti', 'Clienti', '#/clienti']];
-const STRUMENTI = [['reel', 'Reel', '#/reel'], ['copioni', 'Copioni', '#/copioni'], ['gestionale', 'Gestionale', '#/chat/gestionale'], ['impostazioni', 'Impostazioni', '#/impostazioni']];
-const voce = (v) => '<a class="vm" href="' + v[2] + '" data-k="' + v[0] + '" title="' + v[1] + '"><svg viewBox="0 0 24 24">' + ICO[v[0]] + '</svg><span class="tx">' + v[1] + '</span></a>';
+const VOCI = [['agenzia', 'Agenzia', '#/'], ['riunioni', 'Riunioni', '#/riunioni'], ['approvazioni', 'Approvazioni', '#/approvazioni'], ['profilo', 'Profilo IG', '#/profilo'], ['clienti', 'Clienti', '#/clienti']];
+const STRUMENTI = [['reel', 'Reel', '#/reel'], ['copioni', 'Copioni', '#/copioni'], ['gestionale', 'Gestionale', '#/chat/gestionale'], ['costi', 'Costi', '#/costi']];
+const voce = (v) => '<a class="vm" href="' + v[2] + '" data-k="' + v[0] + '"><svg viewBox="0 0 24 24">' + ICO[v[0]] + '</svg><span class="tx">' + v[1] + '</span>' + (v[0] === 'costi' ? '<span class="num" id="num_costi"></span>' : '') + '</a>';
 function menu(on) {
+  document.body.classList.toggle('dentro', !!on);
   $('#ham').hidden = !on;
-  $('#nav').innerHTML = on ? VOCI.map(voce).join('') + '<div class="altro" id="altro"><button class="vm" id="altro_b" title="Strumenti"><svg viewBox="0 0 24 24">' + ICO.altro + '</svg><span class="tx">Strumenti</span></button><div class="tendina">' + STRUMENTI.map(voce).join('') + '</div></div>' : '';
+  $('#nav').innerHTML = on ? '<div class="gruppo">Agenzia</div>' + VOCI.map(voce).join('') + '<div class="gruppo">Strumenti</div>' + STRUMENTI.map(voce).join('') +
+    '<div class="piede">' + voce(['impostazioni', 'Impostazioni', '#/impostazioni']) + '</div>' : '';
   if (!on) { $('#sez').textContent = ''; return; }
-  $('#altro_b').onclick = (ev) => { ev.stopPropagation(); $('#altro').classList.toggle('aperto'); };
   $('#ham').onclick = (ev) => { ev.stopPropagation(); $('#testa').classList.toggle('aperto'); };
-  document.onclick = () => { $('#altro')?.classList.remove('aperto'); $('#testa').classList.remove('aperto'); };
+  $('#velo_menu').onclick = () => $('#testa').classList.remove('aperto');
   evidenzia();
+  aggiornaNumCosti();
 }
+async function aggiornaNumCosti() {
+  try { const c = await chiama('/api/consumi?giorni=30'); const n = $('#num_costi'); if (n) n.textContent = soldi(c.questo_mese, c.cambio); } catch (_) {}
+}
+const soldi = (usd, cambio) => '\u20AC ' + (usd * (cambio || 0.86)).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 function evidenzia() {
   const h = location.hash || '#/';
   const k = h === '#/' || h.startsWith('#/agente') || h.startsWith('#/ufficio') || h.startsWith('#/incarico') || (h.startsWith('#/chat/') && !h.startsWith('#/chat/gestionale')) ? 'agenzia' : h.startsWith('#/riunion') ? 'riunioni' : h.startsWith('#/profilo') ? 'profilo' : h.startsWith('#/approvazion') ? 'approvazioni' : h.startsWith('#/client') ? 'clienti' :
-    h.startsWith('#/reel') || h.startsWith('#/lavoro') ? 'reel' : h.startsWith('#/copion') || h.startsWith('#/piano') ? 'copioni' : h.startsWith('#/chat/gestionale') ? 'gestionale' : h.startsWith('#/impostazioni') ? 'impostazioni' : '';
+    h.startsWith('#/reel') || h.startsWith('#/lavoro') ? 'reel' : h.startsWith('#/copion') || h.startsWith('#/piano') ? 'copioni' : h.startsWith('#/chat/gestionale') ? 'gestionale' : h.startsWith('#/costi') ? 'costi' : h.startsWith('#/impostazioni') ? 'impostazioni' : '';
   document.querySelectorAll('#nav .vm[data-k]').forEach((a) => a.classList.toggle('att', a.dataset.k === k));
-  $('#altro_b')?.classList.toggle('att', STRUMENTI.some((s) => s[0] === k));
-  const tutte = VOCI.concat(STRUMENTI).find((v) => v[0] === k);
-  $('#sez').textContent = tutte && k !== 'agenzia' ? tutte[1] : 'Sala operativa';
-  $('#testa').classList.remove('aperto'); $('#altro')?.classList.remove('aperto');
+  const tutte = VOCI.concat(STRUMENTI, [['impostazioni', 'Impostazioni']]).find((v) => v[0] === k);
+  $('#sez').textContent = tutte ? tutte[1] : '';
+  $('#testa').classList.remove('aperto');
 }
-addEventListener('hashchange', () => { if ($('#altro')) evidenzia(); });
+addEventListener('hashchange', () => { if ($('#nav').innerHTML) evidenzia(); });
 
 async function accesso() {
   menu(false);
@@ -4715,6 +4843,39 @@ async function impostazioni() {
     try { await chiama('/api/impostazioni', { method: 'POST', body }); await impostazioni(); $('#er').style.color = 'var(--ok)'; $('#er').textContent = '\u2713 Salvato'; } catch (x) { $('#er').textContent = x.message; }
   };
   $('#out').onclick = async () => { await fetch('/api/esci'); accesso(); };
+}
+
+// ---------------------------------------------------------------- Costi: contatori di ogni chiamata a pagamento
+const AREE_C = { reel: 'Comparto Reel', uffici: 'Uffici (incarichi)', riunioni: 'Riunioni', profilo: 'Profilo IG (ricerca, copioni, avatar)', copioni: 'Copioni di Nora', gestionale: 'Gestionale e contabilit\xE0', altro: 'Altro' };
+const SERV_C = { claude: 'Claude (agenti + ricerche web)', heygen: 'HeyGen (avatar)' };
+async function costiPagina(giorni) {
+  const C = await chiama('/api/consumi?giorni=' + giorni);
+  if (!AGENTI.capo?.n) { try { const A = await chiama('/api/azienda'); Object.assign(AGENTI, A.squadra); } catch (_) {} }
+  const eur = (u) => soldi(u || 0, C.cambio), usd = (u) => '$ ' + (u || 0).toFixed(2);
+  const k = (tit, val, sub) => '<div class="card" style="margin:0"><div class="mut" style="font-size:12px;text-transform:uppercase;letter-spacing:1px">' + tit + '</div><div style="font-size:26px;font-weight:700;margin:6px 0 2px;letter-spacing:-.5px">' + val + '</div><div class="mut" style="font-size:12.5px">' + sub + '</div></div>';
+  const max = Math.max(0.0001, ...C.giornaliero.map((g) => g.costo));
+  const barre = C.giornaliero.length ? '<div style="display:flex;align-items:flex-end;gap:3px;height:120px;margin-top:10px">' + C.giornaliero.map((g) => '<div title="' + g.giorno + ': ' + eur(g.costo) + '" style="flex:1;min-width:4px;background:var(--teal);opacity:.85;border-radius:4px 4px 0 0;height:' + Math.max(2, (g.costo / max) * 100) + '%"></div>').join('') + '</div><div class="riga mut" style="font-size:11.5px;margin-top:4px"><span style="flex:1">' + C.giornaliero[0].giorno + '</span><span>' + C.giornaliero.at(-1).giorno + '</span></div>' : '<p class="mut">Ancora nessun dato.</p>';
+  const tab = (titolo, righe, nome) => '<div class="card"><b>' + titolo + '</b>' + (righe.length ? '<table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:14px">' + righe.map((r) => '<tr style="border-top:1px solid var(--line)"><td style="padding:7px 0">' + nome(r) + '</td><td class="mut" style="text-align:right;padding:7px 8px;white-space:nowrap">' + r.n + ' chiam.</td><td style="text-align:right;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums">' + eur(r.costo) + '</td></tr>').join('') + '</table>' : '<p class="mut" style="margin:8px 0 0">Niente in questo periodo.</p>') + '</div>';
+  const nomeAg = (a) => (AGENTI[a] ? AGENTI[a].i + ' ' + AGENTI[a].n + ' <span class="mut">' + e(AGENTI[a].r || '') + '</span>' : e(a));
+  const T = C.totale;
+  $('#app').innerHTML = '<div class="riga" style="flex-wrap:wrap;gap:10px"><h1 style="flex:1;margin-right:auto">Costi</h1><div style="display:flex;background:#ebe8e2;border-radius:12px;padding:3px">' + [7, 30, 90].map((g) => '<a href="#/costi/' + g + '" style="padding:7px 14px;border-radius:9px;font-size:13.5px;font-weight:600;text-decoration:none;' + (g === giorni ? 'background:#fff;color:var(--txt);box-shadow:0 1px 3px rgba(0,0,0,.08)' : 'color:#6b6862') + '">' + g + ' gg</a>').join('') + '</div></div>' +
+    '<p class="mut">Ogni chiamata a pagamento degli agenti viene contata qui: chi l\u2019ha fatta, per quale cliente o reel, quanto costa a prezzo di listino. Importi in euro al cambio ' + C.cambio + ' (modificabile in Impostazioni).</p>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:14px 0">' +
+      k('Questo mese', eur(C.questo_mese), usd(C.questo_mese) + ' a consumo') +
+      k('Previsione mese', eur(C.proiezione_mese), C.giorni_con_dati >= 3 ? 'media ' + eur(C.al_giorno) + '/giorno \xD7 30 + fissi' : 'servono qualche giorno di dati') +
+      k('Ultimi ' + giorni + ' giorni', eur(T.costo), T.chiamate + ' chiamate \xB7 ' + T.ricerche + ' ricerche web') +
+      k('Costi fissi', eur(C.fissi_totale), C.fissi.map((f) => e(f.nome)).join(', ') || 'nessuno') + '</div>' +
+    '<div class="card"><b>Spesa al giorno</b>' + barre + '</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px">' +
+      tab('Per servizio', C.servizi, (r) => e(SERV_C[r.servizio] || r.servizio)) +
+      tab('Per area', C.aree, (r) => e(AREE_C[r.area] || r.area)) + '</div>' +
+    tab('Per agente', C.agenti, (r) => nomeAg(r.agente)) +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px">' +
+      tab('Costo per reel', C.reel, (r) => '<a href="#/lavoro/' + r.lavoro_id + '">#' + r.lavoro_id + ' ' + e(r.titolo || r.prompt || '') + '</a>' + (r.stato === 'pronto' ? '' : ' <span class="mut">(' + e(r.stato || '') + ')</span>')) +
+      tab('Per cliente', C.clienti, (r) => '<a href="#/cliente/' + r.cliente_id + '">' + e(r.nome || '#' + r.cliente_id) + '</a>') + '</div>' +
+    tab('Profilo IG: costo per argomento (ricerca, copioni, avatar; il montaggio \xE8 nei reel)', C.profilo, (r) => '<a href="#/profilo/' + r.piano_id + '">' + e(r.argomento || '#' + r.piano_id) + '</a> <span class="mut">\xB7 ' + (r.numero || '') + ' reel</span>') +
+    '<div class="card"><b>Costi fissi del mese</b>' + (C.fissi.length ? '<table style="width:100%;margin-top:8px;font-size:14px">' + C.fissi.map((f) => '<tr><td style="padding:5px 0">' + e(f.nome) + '</td><td style="text-align:right;font-weight:600">' + eur(f.dollari) + ' <span class="mut">(' + usd(f.dollari) + ')</span></td></tr>').join('') + '</table>' : '') +
+      '<p class="mut" style="font-size:13px;margin-bottom:0">Si cambiano in \u2699\uFE0E Impostazioni \u2192 COSTI_FISSI (es. <code>Cloudflare Workers Paid:5,Apify:19</code>). HeyGen \xE8 contato a ' + usd(C.heygen_minuto) + ' al minuto di video (HEYGEN_DOLLARI_MINUTO). Gli importi sono a listino: la cifra esatta addebitata la trovi nelle console di Anthropic e HeyGen.</p></div>';
 }
 
 // ---------------------------------------------------------------- Nora \xB7 idee e copioni
@@ -5271,6 +5432,7 @@ async function rotta() {
     else if (h === '#/clienti') await clientiPagina();
     else if (h.startsWith('#/cliente/')) await clientePagina(h.split('/')[2]);
     else if (h.startsWith('#/chat/')) await chatPagina(h.split('/')[2]);
+    else if (h.startsWith('#/costi')) await costiPagina(Number(h.split('/')[2]) || 30);
     else if (h === '#/copioni') await piani();
     else if (h === '#/copioni/nuovo') nuovoPiano();
     else if (h.startsWith('#/copioni/')) await piano(h.split('/')[2]);
@@ -6294,6 +6456,7 @@ async function api(req, env, url) {
       return json2({ ok: true });
     }
   }
+  if (p === "/api/consumi") return await apiConsumi(req, env, p, m, json2) || json2({ errore: "metodo non valido" }, 405);
   if (p.startsWith("/api/avatar")) {
     const r = await apiAvatar(req, env, p, m, json2);
     if (r) return r;

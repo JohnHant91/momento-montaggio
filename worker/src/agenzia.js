@@ -6,6 +6,7 @@ import { all, one, run, J, ora, configurazione, log } from './db.js';
 import * as S from './servizi.js';
 import { SKILL } from './skill_testi.js';
 import { nuovoPianoAvatar } from './avatar.js';
+import { registra, daUsage, chi } from './consumi.js';
 
 export const UFFICI = [
   ['direzione', 'Direzione'], ['marketing', 'Ufficio Marketing'], ['social', 'Ufficio Social'], ['video', 'Ufficio Video'],
@@ -144,7 +145,7 @@ export async function avanzaUffici(env) {
     const I = await one(env, "UPDATE incarichi SET stato='in_corso', blocco_fino=?, tentativi=tentativi+1, aggiornato=? WHERE id=? AND stato='in_coda' RETURNING *",
       new Date(Date.now() + BLOCCO_MIN * 60e3).toISOString(), ora(), I0.id);
     if (!I) return;
-    try { await eseguiIncarico(env, cfg, I); } catch (e) {
+    try { await eseguiIncarico(env, chi(cfg, { area: 'uffici', agente: I.agente, cliente_id: I.cliente_id }), I); } catch (e) {
       const msg = String(e?.message || e).slice(0, 400);
       if (/credit balance|billing/i.test(msg)) { // credito Claude finito: metto in pausa senza bruciare i tentativi
         await run(env, "UPDATE incarichi SET stato='in_coda', errore=?, tentativi=0, blocco_fino=?, aggiornato=? WHERE id=?", 'Credito Claude esaurito: riparto da solo quando lo ricarichi', new Date(Date.now() + 10 * 60e3).toISOString(), ora(), I.id);
@@ -276,6 +277,7 @@ export async function chatGestionale(env, canale, testo) {
     });
     if (r.status !== 200) throw new Error(`Claude ${r.status}: ${(await r.text()).slice(0, 300)}`);
     const d = await r.json();
+    await registra(chi(cfg, { area: 'gestionale', agente: canale }), 'claude', cfg.CLAUDE_MODEL, daUsage(d.usage));
     messaggi.push({ role: 'assistant', content: d.content });
     const usi = d.content.filter((c) => c.type === 'tool_use');
     risposta = d.content.filter((c) => c.type === 'text').map((c) => c.text).join('\n').trim() || risposta;

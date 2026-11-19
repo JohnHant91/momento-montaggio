@@ -7,6 +7,7 @@ import * as S from './servizi.js';
 import { SQUADRA, DELEGABILI, cliente, eseguiPiano } from './agenzia.js';
 import { GENERI } from './stili.js';
 import { nuovoPianoAvatar, richiestaProfilo } from './avatar.js';
+import { chi } from './consumi.js';
 
 // capireparto: [ufficio, id agente, nome, ruolo]
 export const CAPI = [
@@ -186,7 +187,8 @@ export async function avanzaRiunioni(env) {
     const R = await one(env, "UPDATE riunioni SET blocco_fino=?, tentativi=tentativi+1, aggiornato=? WHERE id=? AND stato='in_corso' AND (blocco_fino IS NULL OR blocco_fino < ?) RETURNING *",
       new Date(Date.now() + 10 * 60e3).toISOString(), ora(), R0.id, adesso);
     if (!R) return;
-    try { if (R.tipo === 'settimanale') await svolgiSettimanale(env, cfg, R); else await svolgiRichiesta(env, cfg, R); }
+    const cfgR = chi(cfg, { area: 'riunioni', agente: 'capo', cliente_id: R.cliente_id });
+    try { if (R.tipo === 'settimanale') await svolgiSettimanale(env, cfgR, R); else await svolgiRichiesta(env, cfgR, R); }
     catch (e) {
       const msg = String(e?.message || e).slice(0, 400);
       const credito = /credit balance|billing/i.test(msg);
@@ -206,7 +208,7 @@ async function scegli(env, R, indice, modifica) {
   if (!P) throw new Error('proposta non trovata');
   let piano = P.piano || {}, messaggio = `Perfetto, parto con "${P.titolo}".`;
   if (modifica) {
-    const cfg = await configurazione(env);
+    const cfg = chi(await configurazione(env), { area: 'riunioni', agente: 'capo', cliente_id: R.cliente_id });
     const out = await S.claude(cfg, `Sei Alba, Direttrice di AGENZIA MOMENTO AI. Johnny ha scelto una proposta della riunione ma vuole delle modifiche. Aggiorna il piano rispettando ESATTAMENTE le sue modifiche e lo stesso formato. Agenti disponibili per gli incarichi: ${DELEGABILI.join(', ')}.`,
       `RICHIESTA ORIGINALE: ${R.richiesta}\nPROPOSTA SCELTA: ${JSON.stringify(P)}\nMODIFICHE DI JOHNNY: ${modifica}\n\nRispondi SOLO JSON: {"piano": {stesso formato del piano}, "messaggio": "conferma breve a Johnny di cosa parte"}`, { maxTokens: 10000 });
     piano = out.piano || piano; messaggio = out.messaggio || messaggio;

@@ -4,6 +4,7 @@
 import { all, one, run, J, ora, configurazione, log } from './db.js';
 import * as S from './servizi.js';
 import { MANUALE_COPIONI, MANUALE_COPY, MANUALE_DIRETTORE } from './manuali.js';
+import { chi } from './consumi.js';
 
 const GRUPPO = 4; // reel per chiamata a Claude
 const BLOCCO_MIN = 15;
@@ -155,7 +156,7 @@ export async function avanzaPiani(env) {
   new Date(Date.now() + BLOCCO_MIN * 60e3).toISOString(), adesso, adesso);
   if (!presi.length) return;
   const P = presi[0];
-  const cfg = await configurazione(env);
+  const cfg = chi(await configurazione(env), { area: 'copioni', agente: 'idee' });
   try {
     if (P.fase === 'strategia') await faseStrategia(env, cfg, P);
     else await faseCopioni(env, cfg, P);

@@ -139,6 +139,16 @@ g = await W.fetch(new Request('https://x' + mu.pathname + '?f=sbagliata'), env, 
 r = await chiama('/api/avatar/' + aid + '/pubblica', { method: 'POST', body: { n: [lavAv[0].n] } }); ok(r.status === 400 && igCoda.length === 1, 'non lo programma due volte');
 r = await chiama('/api/avatar/' + aid); ok(r.j.lavori[0].ig_stato === 'programmato', 'la pagina mostra lo stato su Instagram');
 
+console.log('\n14) contatori dei costi');
+r = await chiama('/api/consumi?giorni=30');
+ok(r.status === 200 && r.j.totale.chiamate > 5 && r.j.totale.costo > 0, 'le chiamate sono contate (' + r.j.totale.chiamate + ', $' + r.j.totale.costo.toFixed(3) + ')');
+const aree = r.j.aree.map((a) => a.area);
+ok(['reel', 'riunioni', 'uffici', 'profilo'].every((a) => aree.includes(a)), 'divise per area: ' + aree.join(', '));
+ok(r.j.agenti.some((a) => a.agente === 'capo') && r.j.agenti.some((a) => a.agente === 'ricerca'), 'divise per agente: ' + r.j.agenti.map((a) => a.agente).join(', '));
+ok(r.j.servizi.some((s) => s.servizio === 'heygen' && s.costo > 1.9), 'HeyGen contato a minuti di video');
+ok(r.j.reel.length >= 1 && r.j.profilo.length >= 1, 'costo per reel e per argomento del profilo');
+ok(Math.abs(r.j.fissi_totale - 5) < 0.01 && r.j.proiezione_mese >= 5, 'costi fissi e previsione del mese');
+
 console.log('\n11) pagina: lo script si compila');
 const html = await (await chiama('/', { grezzo: true })).text();
 const script = html.match(/<script>([\s\S]*?)<\/script>\s*<\/body>/);

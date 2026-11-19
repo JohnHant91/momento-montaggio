@@ -4,6 +4,7 @@
 import { J, log, one, ora, run, configurazione } from './db.js';
 import { analisiClip, analisiRiferimento, chiaveClip, chiaveRif } from './lavoro.js';
 import * as S from './servizi.js';
+import { chi } from './consumi.js';
 
 const REPO = 'johnhant91/momento-montaggio';
 const AUD = 'momento-reel';
@@ -156,9 +157,9 @@ export async function motoreApi(req, env, url) {
       return json({ ok: true });
     }
     if (!d?.misure || !Array.isArray(d.immagini) || !d.immagini.length) return json({ errore: 'dati mancanti' }, 400);
-    const cfg = await configurazione(env);
     const rif = tipo === 'riferimenti';
     const agente = rif ? 'occhi' : 'analista';
+    const cfg = chi(await configurazione(env), { area: 'reel', lavoro_id: Number(id) || null, agente });
     const mis = d.misure;
     await log(env, id, agente, `sto guardando ${rif ? el.video.piattaforma + ' · ' + (el.video.titolo || el.video.url).slice(0, 50) : el.nome} (${mis.tecnico?.tipo === 'immagine' ? 'foto ' + (mis.tecnico?.risoluzione || '') : `${mis.tecnico?.risoluzione || '?'} · ${mis.tecnico?.fps || '?'} fps · ${mis.numero_tagli} tagli${mis.bpm_stimato ? ' · ' + mis.bpm_stimato + ' BPM' : ''}`})`);
     try {

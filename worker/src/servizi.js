@@ -36,6 +36,7 @@ export async function richiesta(url, opts = {}, tentativi = 4) {
 }
 
 // ------------------------------------------------------------------ Claude
+import { registra, daUsage } from './consumi.js';
 export async function claude(cfg, sistema, messaggio, { maxTokens = 8000, json = true } = {}) {
   if (!cfg.ANTHROPIC_API_KEY) throw new Error('manca la chiave Claude (Impostazioni)');
   // in streaming (le risposte lunghe non vanno in timeout); se non ci sta, riprovo una volta con il doppio dello spazio
@@ -47,6 +48,7 @@ export async function claude(cfg, sistema, messaggio, { maxTokens = 8000, json =
     });
     if (r.status !== 200) throw new Error(`Claude ${r.status}: ${(await r.text()).slice(0, 400)}`);
     let testo = '', stop = null, resto = '';
+    const uso = { in: 0, out: 0, cache_r: 0, cache_w: 0, ricerche: 0 };
     const dec = new TextDecoder();
     for await (const chunk of r.body) {
       resto += dec.decode(chunk, { stream: true });
@@ -56,11 +58,14 @@ export async function claude(cfg, sistema, messaggio, { maxTokens = 8000, json =
         if (!riga.startsWith('data:')) continue;
         let ev;
         try { ev = JSON.parse(riga.slice(5)); } catch { continue; }
+        if (ev.type === 'message_start' && ev.message?.usage) Object.assign(uso, daUsage(ev.message.usage));
+        if (ev.type === 'message_delta' && ev.usage) { uso.out = ev.usage.output_tokens || uso.out; uso.ricerche = ev.usage.server_tool_use?.web_search_requests || uso.ricerche; }
         if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta') testo += ev.delta.text;
         else if (ev.type === 'message_delta' && ev.delta?.stop_reason) stop = ev.delta.stop_reason;
         else if (ev.type === 'error') throw new Error('Claude: ' + (ev.error?.message || 'errore nello streaming'));
       }
     }
+    await registra(cfg, 'claude', cfg.CLAUDE_MODEL, uso);
     if (stop !== 'max_tokens') return json ? estraiJson(testo) : testo;
     if (budget >= 64000) break;
   }
@@ -88,6 +93,7 @@ export async function claudeVisione(cfg, modello, sistema, testo, immagini, maxT
     throw new Error(`Claude ${r.status}: ${t.slice(0, 300)}`);
   }
   const d = JSON.parse(t);
+  await registra(cfg, 'claude', modello, daUsage(d.usage));
   if (d.stop_reason === 'max_tokens') throw new Error('risposta di Claude troncata');
   const out = estraiJson((d.content || []).filter((b) => b.type === 'text').map((b) => b.text).join(''));
   out._uso = d.usage ? { in: d.usage.input_tokens, out: d.usage.output_tokens, modello } : undefined;
@@ -228,6 +234,7 @@ Alla fine elenca SOLO i link YouTube trovati nei risultati (massimo 10), uno per
   });
   if (r.status !== 200) throw new Error(`ricerca web ${r.status}: ${(await r.text()).slice(0, 200)}`);
   const d = await r.json();
+  await registra(cfg, 'claude', cfg.CLAUDE_MODEL, daUsage(d.usage));
   const visti = new Map();
   const aggiungi = (url, titolo) => {
     const m = /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([\w-]{11})/.exec(url || '');
