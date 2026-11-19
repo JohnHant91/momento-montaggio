@@ -4955,6 +4955,7 @@ var PAGINA = `<!DOCTYPE html>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#F4F2EE">
 <title>MOMENTO AGENCY AI</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=1"><link rel="apple-touch-icon" href="/favicon.svg?v=1"><meta name="theme-color" content="#0E9F9A">
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}<\/script>
 <style>
 @media print{header,.noprint,button{display:none!important}body{background:#fff;color:#000}.card{border-color:#ccc;background:#fff}.mut{color:#555}a{color:#000}}
@@ -7432,6 +7433,7 @@ var index_default = {
         return json2({ errore: String(e?.message || e).slice(0, 300) }, 500);
       }
     }
+    if (url.pathname === "/favicon.svg" || url.pathname === "/favicon.ico") return new Response(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0E9F9A"/><path d="M15 48V17h7l10 15 10-15h7v31h-7.5V29.5L32 42l-9.5-12.5V48z" fill="#fff"/></svg>`, { headers: { "content-type": "image/svg+xml", "cache-control": "public, max-age=86400" } });
     if (url.pathname === "/sala3d.js") return new Response(sala3d_default, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": url.searchParams.get("v") === VERSIONE_SALA ? "public, max-age=31536000, immutable" : "no-cache" } });
     const pubP = url.pathname.match(/^\/pubblico\/post\/(\d+)\/(\d+-\d+)\.jpg$/);
     if (pubP) {

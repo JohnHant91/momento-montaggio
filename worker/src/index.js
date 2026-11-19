@@ -369,6 +369,8 @@ export default {
       try { return await persone(req, env, url); }
       catch (e) { return json({ errore: String(e?.message || e).slice(0, 300) }, 500); }
     }
+    // icona della scheda del browser: M bianca su quadrato teal (colore Momento)
+    if (url.pathname === '/favicon.svg' || url.pathname === '/favicon.ico') return new Response(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0E9F9A"/><path d="M15 48V17h7l10 15 10-15h7v31h-7.5V29.5L32 42l-9.5-12.5V48z" fill="#fff"/></svg>`, { headers: { 'content-type': 'image/svg+xml', 'cache-control': 'public, max-age=86400' } });
     if (url.pathname === '/sala3d.js') return new Response(SALA3D_JS, { headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': url.searchParams.get('v') === VERSIONE_SALA ? 'public, max-age=31536000, immutable' : 'no-cache' } });
     // file dei reel raggiungibili da Instagram (Meta scarica il video da qui): link firmato, niente accesso senza firma
     const pubP = url.pathname.match(/^\/pubblico\/post\/(\d+)\/(\d+-\d+)\.jpg$/); // slide dei caroselli per Instagram
