@@ -243,7 +243,7 @@ async function agente(id, st) {
 async function chiama(path, opts = {}) {
   const r = await fetch(path, { ...opts, headers: { 'content-type': 'application/json' }, body: opts.body ? JSON.stringify(opts.body) : undefined });
   const d = await r.json().catch(() => ({}));
-  if (r.status === 401 && path !== '/api/accedi') { accesso(); throw new Error('accesso'); }
+  if (r.status === 401 && !['/api/accedi', '/api/recupera', '/api/password'].includes(path)) { accesso(); throw new Error('accesso'); }
   if (!r.ok) throw new Error(d.errore || 'errore ' + r.status);
   return d;
 }
@@ -290,22 +290,45 @@ function evidenzia() {
 }
 addEventListener('hashchange', () => { if ($('#nav').innerHTML) evidenzia(); });
 
-async function accesso() {
+async function accesso(modo) {
   clearTimeout(timer);
   // se il modulo d'accesso è già aperto non lo ridisegno: altrimenti si cancella quello che stai scrivendo
-  if ($('#em') && $('#pw')) return;
+  if (!modo && $('#em') && $('#pw')) return;
   menu(false);
   const s = await fetch('/api/stato').then((r) => r.json());
-  $('#app').innerHTML = '<div class="card" style="max-width:420px;margin:40px auto"><div class="mut" style="font-size:12px;letter-spacing:.12em;font-weight:600">MOMENTO AGENCY AI</div><h1>' + (s.configurato ? 'Accedi' : 'Crea l’accesso') + '</h1>' +
-    '<p class="mut">' + (s.configurato ? (s.email ? 'Email e password dell’agenzia.' : 'Email e password: l’email che scrivi ora diventa quella dell’accesso.') : 'Primo accesso: email e password che scrivi diventano quelle dell’agenzia (password di almeno 8 caratteri).') + '</p>' +
-    '<label>Email</label><input id="em" type="email" autocomplete="username" placeholder="nome@esempio.it">' +
-    '<label>Password</label><input id="pw" type="password" autocomplete="current-password"><div style="margin-top:14px"><button id="go">Entra</button></div><div id="er" class="err"></div></div>';
+  const crea = !s.configurato, recupera = modo === 'recupera' && !crea;
+  const campo = (id, lab, tipo, auto, ph) => '<label>' + lab + '</label><input id="' + id + '" type="' + tipo + '" autocomplete="' + auto + '"' + (ph ? ' placeholder="' + ph + '"' : '') + '>';
+  $('#app').innerHTML = '<div class="card" style="max-width:420px;margin:40px auto"><div class="mut" style="font-size:12px;letter-spacing:.12em;font-weight:600">MOMENTO AGENCY AI</div>' +
+    '<h1>' + (crea ? 'Crea l’accesso' : recupera ? 'Password dimenticata' : 'Accedi') + '</h1>' +
+    '<p class="mut">' + (crea ? 'Primo accesso: l’email e la password che scrivi diventano quelle dell’agenzia. Poi ti do un codice di recupero da conservare.' : recupera ? 'Scrivi la tua email e il codice di recupero che hai salvato, poi scegli una password nuova.' : 'Email e password dell’agenzia.') + '</p>' +
+    campo('em', 'Email', 'email', 'username', 'nome@esempio.it') +
+    (recupera ? campo('cod', 'Codice di recupero', 'text', 'off', 'XXXX-XXXX-XXXX-XXXX') : '') +
+    campo('pw', recupera ? 'Nuova password' : 'Password', 'password', crea || recupera ? 'new-password' : 'current-password', crea || recupera ? 'almeno 8 caratteri' : '') +
+    (crea || recupera ? campo('pw2', 'Ripeti la password', 'password', 'new-password') : '') +
+    '<div class="riga" style="margin-top:14px"><button id="go">' + (crea ? 'Crea e entra' : recupera ? 'Cambia password' : 'Entra') + '</button>' +
+    (crea ? '' : '<a href="#" id="alt" class="mut" style="font-size:13px">' + (recupera ? '← Torna all’accesso' : 'Password dimenticata?') + '</a>') + '</div><div id="er" class="err"></div></div>';
   const vai = async () => {
     $('#er').textContent = '';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test($('#em').value.trim())) { $('#er').textContent = 'scrivi un’email valida'; return; }
-    try { await chiama('/api/accedi', { method: 'POST', body: { email: $('#em').value.trim(), password: $('#pw').value } }); location.hash = '#/'; rotta(); } catch (x) { $('#er').textContent = x.message; }
+    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test($('#em').value.trim())) { $('#er').textContent = 'scrivi un’email valida'; return; }
+    if ((crea || recupera) && $('#pw').value !== $('#pw2').value) { $('#er').textContent = 'le due password non coincidono'; return; }
+    try {
+      const r = await chiama(recupera ? '/api/recupera' : '/api/accedi', { method: 'POST', body: { email: $('#em').value.trim(), password: $('#pw').value, codice: recupera ? $('#cod').value : undefined } });
+      if (r.codice_recupero) mostraCodice(r.codice_recupero); else { location.hash = '#/'; rotta(); }
+    } catch (x) { $('#er').textContent = x.message; }
   };
-  $('#go').onclick = vai; $('#pw').onkeydown = (ev) => { if (ev.key === 'Enter') vai(); }; $('#em').onkeydown = (ev) => { if (ev.key === 'Enter') $('#pw').focus(); }; $('#em').focus();
+  $('#go').onclick = vai;
+  document.querySelectorAll('#app input').forEach((i, k, tutti) => { i.onkeydown = (ev) => { if (ev.key === 'Enter') { if (tutti[k + 1]) tutti[k + 1].focus(); else vai(); } }; });
+  if ($('#alt')) $('#alt').onclick = (ev) => { ev.preventDefault(); accesso(recupera ? 'accedi' : 'recupera'); };
+  $('#em').focus();
+}
+// il codice di recupero si vede una volta sola: serve se perdi la password
+function mostraCodice(codice) {
+  $('#app').innerHTML = '<div class="card" style="max-width:460px;margin:40px auto"><div class="mut" style="font-size:12px;letter-spacing:.12em;font-weight:600">MOMENTO AGENCY AI</div><h1>Il tuo codice di recupero</h1>' +
+    '<p>Se perdi la password, con questo codice e la tua email ne scegli una nuova. <b>Lo vedi solo adesso</b>: salvalo (foto, note del telefono, gestore password).</p>' +
+    '<div style="font:700 24px/1.2 ui-monospace,Menlo,monospace;letter-spacing:.06em;background:#141416;color:#fff;border-radius:14px;padding:18px;text-align:center;margin:14px 0">' + e(codice) + '</div>' +
+    '<div class="riga"><button class="sec" id="cp">Copia</button><button id="ok">L’ho salvato, entra</button></div></div>';
+  $('#cp').onclick = async () => { try { await navigator.clipboard.writeText(codice); $('#cp').textContent = 'Copiato ✓'; } catch (_) { $('#cp').textContent = 'Copia a mano'; } };
+  $('#ok').onclick = () => { location.hash = '#/'; rotta(); };
 }
 
 async function lista() {
@@ -457,13 +480,20 @@ async function impostazioni() {
     Object.entries(d.segreti).map(([k, v]) => '<label>' + (NOMI[k] || [k])[0] + ' ' + (v.impostata ? '<span class="pill pronto">impostata ' + e(v.anteprima) + '</span>' : '<span class="pill errore">manca</span>') + '</label>' +
       '<div class="aiuto">' + (v.da_cloudflare ? 'Impostata come segreto su Cloudflare.' : (NOMI[k] || ['', ''])[1] + ' · Per sicurezza non si incolla qui: chiedi a Claude in chat di metterla come segreto su Cloudflare.') + '</div>').join('') +
     '<h2>Avanzate</h2>' + Object.entries(d.opzioni).map(([k, v]) => '<label>' + k + '</label><input data-k="' + k + '" data-o="1" value="' + e(v) + '">').join('') +
-    '<div class="riga" style="margin-top:18px"><button id="sv">Salva</button><button class="sec" id="out">Esci</button></div><div id="er" class="err"></div>';
+    '<div class="riga" style="margin-top:18px"><button id="sv">Salva</button><button class="sec" id="out">Esci</button></div><div id="er" class="err"></div>' +
+    '<h2>Password dell’agenzia</h2><div class="card"><label>Password attuale</label><input id="pa" type="password" autocomplete="current-password"><label>Nuova password</label><input id="pn" type="password" autocomplete="new-password" placeholder="almeno 8 caratteri"><label>Ripeti la nuova password</label><input id="pn2" type="password" autocomplete="new-password">' +
+    '<div class="aiuto">Cambiandola ricevi anche un codice di recupero nuovo (quello vecchio non vale più).</div><div style="margin-top:12px"><button id="cpw">Cambia password</button></div><div id="erp" class="err"></div></div>';
   $('#sv').onclick = async () => {
     const body = {};
     document.querySelectorAll('[data-k]').forEach((i) => { if (i.dataset.o || i.value.trim()) body[i.dataset.k] = i.value; });
     try { await chiama('/api/impostazioni', { method: 'POST', body }); await impostazioni(); $('#er').style.color = 'var(--ok)'; $('#er').textContent = '✓ Salvato'; } catch (x) { $('#er').textContent = x.message; }
   };
-  $('#out').onclick = async () => { await fetch('/api/esci'); accesso(); };
+  $('#out').onclick = async () => { await fetch('/api/esci'); accesso('accedi'); };
+  $('#cpw').onclick = async () => {
+    $('#erp').textContent = '';
+    if ($('#pn').value !== $('#pn2').value) { $('#erp').textContent = 'le due password non coincidono'; return; }
+    try { const r = await chiama('/api/password', { method: 'POST', body: { attuale: $('#pa').value, nuova: $('#pn').value } }); mostraCodice(r.codice_recupero); } catch (x) { $('#erp').textContent = x.message; }
+  };
 }
 
 // ---------------------------------------------------------------- Post e caroselli

@@ -5192,7 +5192,7 @@ async function agente(id, st) {
 async function chiama(path, opts = {}) {
   const r = await fetch(path, { ...opts, headers: { 'content-type': 'application/json' }, body: opts.body ? JSON.stringify(opts.body) : undefined });
   const d = await r.json().catch(() => ({}));
-  if (r.status === 401 && path !== '/api/accedi') { accesso(); throw new Error('accesso'); }
+  if (r.status === 401 && !['/api/accedi', '/api/recupera', '/api/password'].includes(path)) { accesso(); throw new Error('accesso'); }
   if (!r.ok) throw new Error(d.errore || 'errore ' + r.status);
   return d;
 }
@@ -5239,22 +5239,45 @@ function evidenzia() {
 }
 addEventListener('hashchange', () => { if ($('#nav').innerHTML) evidenzia(); });
 
-async function accesso() {
+async function accesso(modo) {
   clearTimeout(timer);
   // se il modulo d'accesso \xE8 gi\xE0 aperto non lo ridisegno: altrimenti si cancella quello che stai scrivendo
-  if ($('#em') && $('#pw')) return;
+  if (!modo && $('#em') && $('#pw')) return;
   menu(false);
   const s = await fetch('/api/stato').then((r) => r.json());
-  $('#app').innerHTML = '<div class="card" style="max-width:420px;margin:40px auto"><div class="mut" style="font-size:12px;letter-spacing:.12em;font-weight:600">MOMENTO AGENCY AI</div><h1>' + (s.configurato ? 'Accedi' : 'Crea l\u2019accesso') + '</h1>' +
-    '<p class="mut">' + (s.configurato ? (s.email ? 'Email e password dell\u2019agenzia.' : 'Email e password: l\u2019email che scrivi ora diventa quella dell\u2019accesso.') : 'Primo accesso: email e password che scrivi diventano quelle dell\u2019agenzia (password di almeno 8 caratteri).') + '</p>' +
-    '<label>Email</label><input id="em" type="email" autocomplete="username" placeholder="nome@esempio.it">' +
-    '<label>Password</label><input id="pw" type="password" autocomplete="current-password"><div style="margin-top:14px"><button id="go">Entra</button></div><div id="er" class="err"></div></div>';
+  const crea = !s.configurato, recupera = modo === 'recupera' && !crea;
+  const campo = (id, lab, tipo, auto, ph) => '<label>' + lab + '</label><input id="' + id + '" type="' + tipo + '" autocomplete="' + auto + '"' + (ph ? ' placeholder="' + ph + '"' : '') + '>';
+  $('#app').innerHTML = '<div class="card" style="max-width:420px;margin:40px auto"><div class="mut" style="font-size:12px;letter-spacing:.12em;font-weight:600">MOMENTO AGENCY AI</div>' +
+    '<h1>' + (crea ? 'Crea l\u2019accesso' : recupera ? 'Password dimenticata' : 'Accedi') + '</h1>' +
+    '<p class="mut">' + (crea ? 'Primo accesso: l\u2019email e la password che scrivi diventano quelle dell\u2019agenzia. Poi ti do un codice di recupero da conservare.' : recupera ? 'Scrivi la tua email e il codice di recupero che hai salvato, poi scegli una password nuova.' : 'Email e password dell\u2019agenzia.') + '</p>' +
+    campo('em', 'Email', 'email', 'username', 'nome@esempio.it') +
+    (recupera ? campo('cod', 'Codice di recupero', 'text', 'off', 'XXXX-XXXX-XXXX-XXXX') : '') +
+    campo('pw', recupera ? 'Nuova password' : 'Password', 'password', crea || recupera ? 'new-password' : 'current-password', crea || recupera ? 'almeno 8 caratteri' : '') +
+    (crea || recupera ? campo('pw2', 'Ripeti la password', 'password', 'new-password') : '') +
+    '<div class="riga" style="margin-top:14px"><button id="go">' + (crea ? 'Crea e entra' : recupera ? 'Cambia password' : 'Entra') + '</button>' +
+    (crea ? '' : '<a href="#" id="alt" class="mut" style="font-size:13px">' + (recupera ? '\u2190 Torna all\u2019accesso' : 'Password dimenticata?') + '</a>') + '</div><div id="er" class="err"></div></div>';
   const vai = async () => {
     $('#er').textContent = '';
-    if (!/^[^s@]+@[^s@]+.[^s@]+$/.test($('#em').value.trim())) { $('#er').textContent = 'scrivi un\u2019email valida'; return; }
-    try { await chiama('/api/accedi', { method: 'POST', body: { email: $('#em').value.trim(), password: $('#pw').value } }); location.hash = '#/'; rotta(); } catch (x) { $('#er').textContent = x.message; }
+    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test($('#em').value.trim())) { $('#er').textContent = 'scrivi un\u2019email valida'; return; }
+    if ((crea || recupera) && $('#pw').value !== $('#pw2').value) { $('#er').textContent = 'le due password non coincidono'; return; }
+    try {
+      const r = await chiama(recupera ? '/api/recupera' : '/api/accedi', { method: 'POST', body: { email: $('#em').value.trim(), password: $('#pw').value, codice: recupera ? $('#cod').value : undefined } });
+      if (r.codice_recupero) mostraCodice(r.codice_recupero); else { location.hash = '#/'; rotta(); }
+    } catch (x) { $('#er').textContent = x.message; }
   };
-  $('#go').onclick = vai; $('#pw').onkeydown = (ev) => { if (ev.key === 'Enter') vai(); }; $('#em').onkeydown = (ev) => { if (ev.key === 'Enter') $('#pw').focus(); }; $('#em').focus();
+  $('#go').onclick = vai;
+  document.querySelectorAll('#app input').forEach((i, k, tutti) => { i.onkeydown = (ev) => { if (ev.key === 'Enter') { if (tutti[k + 1]) tutti[k + 1].focus(); else vai(); } }; });
+  if ($('#alt')) $('#alt').onclick = (ev) => { ev.preventDefault(); accesso(recupera ? 'accedi' : 'recupera'); };
+  $('#em').focus();
+}
+// il codice di recupero si vede una volta sola: serve se perdi la password
+function mostraCodice(codice) {
+  $('#app').innerHTML = '<div class="card" style="max-width:460px;margin:40px auto"><div class="mut" style="font-size:12px;letter-spacing:.12em;font-weight:600">MOMENTO AGENCY AI</div><h1>Il tuo codice di recupero</h1>' +
+    '<p>Se perdi la password, con questo codice e la tua email ne scegli una nuova. <b>Lo vedi solo adesso</b>: salvalo (foto, note del telefono, gestore password).</p>' +
+    '<div style="font:700 24px/1.2 ui-monospace,Menlo,monospace;letter-spacing:.06em;background:#141416;color:#fff;border-radius:14px;padding:18px;text-align:center;margin:14px 0">' + e(codice) + '</div>' +
+    '<div class="riga"><button class="sec" id="cp">Copia</button><button id="ok">L\u2019ho salvato, entra</button></div></div>';
+  $('#cp').onclick = async () => { try { await navigator.clipboard.writeText(codice); $('#cp').textContent = 'Copiato \u2713'; } catch (_) { $('#cp').textContent = 'Copia a mano'; } };
+  $('#ok').onclick = () => { location.hash = '#/'; rotta(); };
 }
 
 async function lista() {
@@ -5406,13 +5429,20 @@ async function impostazioni() {
     Object.entries(d.segreti).map(([k, v]) => '<label>' + (NOMI[k] || [k])[0] + ' ' + (v.impostata ? '<span class="pill pronto">impostata ' + e(v.anteprima) + '</span>' : '<span class="pill errore">manca</span>') + '</label>' +
       '<div class="aiuto">' + (v.da_cloudflare ? 'Impostata come segreto su Cloudflare.' : (NOMI[k] || ['', ''])[1] + ' \xB7 Per sicurezza non si incolla qui: chiedi a Claude in chat di metterla come segreto su Cloudflare.') + '</div>').join('') +
     '<h2>Avanzate</h2>' + Object.entries(d.opzioni).map(([k, v]) => '<label>' + k + '</label><input data-k="' + k + '" data-o="1" value="' + e(v) + '">').join('') +
-    '<div class="riga" style="margin-top:18px"><button id="sv">Salva</button><button class="sec" id="out">Esci</button></div><div id="er" class="err"></div>';
+    '<div class="riga" style="margin-top:18px"><button id="sv">Salva</button><button class="sec" id="out">Esci</button></div><div id="er" class="err"></div>' +
+    '<h2>Password dell\u2019agenzia</h2><div class="card"><label>Password attuale</label><input id="pa" type="password" autocomplete="current-password"><label>Nuova password</label><input id="pn" type="password" autocomplete="new-password" placeholder="almeno 8 caratteri"><label>Ripeti la nuova password</label><input id="pn2" type="password" autocomplete="new-password">' +
+    '<div class="aiuto">Cambiandola ricevi anche un codice di recupero nuovo (quello vecchio non vale pi\xF9).</div><div style="margin-top:12px"><button id="cpw">Cambia password</button></div><div id="erp" class="err"></div></div>';
   $('#sv').onclick = async () => {
     const body = {};
     document.querySelectorAll('[data-k]').forEach((i) => { if (i.dataset.o || i.value.trim()) body[i.dataset.k] = i.value; });
     try { await chiama('/api/impostazioni', { method: 'POST', body }); await impostazioni(); $('#er').style.color = 'var(--ok)'; $('#er').textContent = '\u2713 Salvato'; } catch (x) { $('#er').textContent = x.message; }
   };
-  $('#out').onclick = async () => { await fetch('/api/esci'); accesso(); };
+  $('#out').onclick = async () => { await fetch('/api/esci'); accesso('accedi'); };
+  $('#cpw').onclick = async () => {
+    $('#erp').textContent = '';
+    if ($('#pn').value !== $('#pn2').value) { $('#erp').textContent = 'le due password non coincidono'; return; }
+    try { const r = await chiama('/api/password', { method: 'POST', body: { attuale: $('#pa').value, nuova: $('#pn').value } }); mostraCodice(r.codice_recupero); } catch (x) { $('#erp').textContent = x.message; }
+  };
 }
 
 // ---------------------------------------------------------------- Post e caroselli
@@ -7032,21 +7062,41 @@ export function avvia(cont, dati, cb) {
 // src/index.js
 var json2 = (d, status = 200, extra = {}) => new Response(JSON.stringify(d), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...extra } });
 var hex2 = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-var sha = async (s) => hex2(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)));
+var imp = async (env, k) => (await one(env, "SELECT valore FROM impostazioni WHERE chiave=?", k))?.valore || "";
+var salva2 = (env, k, v) => run(env, "INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES (?,?)", k, v);
+async function pbkdf2(password, sale, giri = 1e5) {
+  const k = await crypto.subtle.importKey("raw", new TextEncoder().encode(String(password)), "PBKDF2", false, ["deriveBits"]);
+  return hex2(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: new TextEncoder().encode(sale), iterations: giri }, k, 256));
+}
+var casuale = (n) => hex2(crypto.getRandomValues(new Uint8Array(n)));
+async function nuovoSegreto(testo) {
+  const sale = casuale(16);
+  return `pbkdf2$100000$${sale}$${await pbkdf2(testo, sale)}`;
+}
+async function verifica(testo, salvato) {
+  const [tipo, giri, sale, h] = String(salvato || "").split("$");
+  if (tipo !== "pbkdf2" || !h) return false;
+  const x = await pbkdf2(testo, sale, Number(giri));
+  let d = 0;
+  for (let i = 0; i < Math.max(x.length, h.length); i++) d |= (x.charCodeAt(i) || 0) ^ (h.charCodeAt(i) || 0);
+  return d === 0;
+}
+function codiceRecupero() {
+  const A = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789", b = crypto.getRandomValues(new Uint8Array(16));
+  return [...b].map((x) => A[x % A.length]).join("").match(/.{4}/g).join("-");
+}
+var normCodice = (c) => String(c || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 async function hashPassword(env) {
-  if (env.ADMIN_PASSWORD) return sha("momento-reel|" + env.ADMIN_PASSWORD);
-  return (await one(env, "SELECT valore FROM impostazioni WHERE chiave='ADMIN_HASH'"))?.valore || null;
+  return await imp(env, "ADMIN_PW") || null;
 }
 async function firma(hash, email) {
   const k = await crypto.subtle.importKey("raw", new TextEncoder().encode(hash), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   return hex2(await crypto.subtle.sign("HMAC", k, new TextEncoder().encode("momento-agency-sessione|" + email)));
 }
-var emailAccesso = async (env) => (await one(env, "SELECT valore FROM impostazioni WHERE chiave='ADMIN_EMAIL'"))?.valore || "";
+var emailAccesso = (env) => imp(env, "ADMIN_EMAIL");
 async function autorizzato(req, env) {
-  const h = await hashPassword(env);
-  if (!h) return false;
-  const email = await emailAccesso(env);
-  if (!email) return false;
+  const h = await hashPassword(env), email = await emailAccesso(env);
+  if (!h || !email) return false;
   const c = /(?:^|;\s*)mr_s=([a-f0-9]{64})/.exec(req.headers.get("cookie") || "");
   return !!c && c[1] === await firma(h, email);
 }
@@ -7083,29 +7133,57 @@ async function videoAPezzi(env, req, url, chiave, primo2, md, vv) {
 }
 async function api(req, env, url) {
   const p = url.pathname, m = req.method;
-  if (p === "/api/stato") return json2({ configurato: !!await hashPassword(env), email: !!await one(env, "SELECT 1 AS x FROM impostazioni WHERE chiave='ADMIN_EMAIL'"), dentro: await autorizzato(req, env) });
-  if (p === "/api/accedi" && m === "POST") {
-    const { password, email: em } = await req.json().catch(() => ({}));
-    const email = String(em || "").trim().toLowerCase();
+  if (p === "/api/stato") return json2({ configurato: !!(await hashPassword(env) && await emailAccesso(env)), dentro: await autorizzato(req, env) });
+  if ((p === "/api/accedi" || p === "/api/recupera") && m === "POST") {
+    const d = await req.json().catch(() => ({}));
+    const email = String(d.email || "").trim().toLowerCase(), password = String(d.password || "");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json2({ errore: "scrivi un\u2019email valida" }, 400);
-    if (!password || String(password).length < 6) return json2({ errore: "password di almeno 6 caratteri" }, 400);
-    const emailSalvata = (await one(env, "SELECT valore FROM impostazioni WHERE chiave='ADMIN_EMAIL'"))?.valore || "";
     const kip = "accesso_ko:" + (req.headers.get("cf-connecting-ip") || "x");
     const falliti = Number(await env.VIDEO.get(kip).catch(() => 0)) || 0;
     if (falliti >= 8) return json2({ errore: "troppi tentativi sbagliati: riprova tra 15 minuti" }, 429);
-    let h = await hashPassword(env);
-    const nuovo = sha("momento-reel|" + password);
-    if (!h) {
-      if (String(password).length < 8) return json2({ errore: "password di almeno 8 caratteri" }, 400);
-      h = await nuovo;
-      await run(env, "INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES ('ADMIN_HASH', ?)", h);
-    } else if (await nuovo !== h || emailSalvata && emailSalvata !== email) {
+    const sbagliato = async (msg) => {
       await env.VIDEO.put(kip, String(falliti + 1), { expirationTtl: 900 }).catch(() => {
       });
-      return json2({ errore: "email o password errata" }, 401);
+      return json2({ errore: msg }, 401);
+    };
+    const [salvata, pw] = [await emailAccesso(env), await hashPassword(env)];
+    const entra = async (extra = {}) => {
+      const h = await hashPassword(env);
+      return json2({ ok: true, ...extra }, 200, { "set-cookie": cookie(await firma(h, email), 60 * 60 * 24 * 60) });
+    };
+    const nuovaPassword = async (testo) => {
+      await salva2(env, "ADMIN_PW", await nuovoSegreto(testo));
+      const codice2 = codiceRecupero();
+      await salva2(env, "RECUPERO", await nuovoSegreto(normCodice(codice2)));
+      await run(env, "DELETE FROM impostazioni WHERE chiave='ADMIN_HASH'");
+      return codice2;
+    };
+    if (p === "/api/recupera") {
+      if (!salvata || !pw) return json2({ errore: "l\u2019accesso non \xE8 ancora stato creato" }, 400);
+      if (password.length < 8) return json2({ errore: "la nuova password deve avere almeno 8 caratteri" }, 400);
+      if (email !== salvata || !await verifica(normCodice(d.codice), await imp(env, "RECUPERO"))) return sbagliato("email o codice di recupero errato");
+      const codice2 = await nuovaPassword(password);
+      return entra({ codice_recupero: codice2 });
     }
-    if (!emailSalvata) await run(env, "INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES ('ADMIN_EMAIL', ?)", email);
-    return json2({ ok: true }, 200, { "set-cookie": cookie(await firma(h, email), 60 * 60 * 24 * 60) });
+    if (!salvata || !pw) {
+      if (password.length < 8) return json2({ errore: "la password deve avere almeno 8 caratteri" }, 400);
+      await salva2(env, "ADMIN_EMAIL", email);
+      const codice2 = await nuovaPassword(password);
+      return entra({ codice_recupero: codice2, nuovo: true });
+    }
+    if (email !== salvata || !await verifica(password, pw)) return sbagliato("email o password errata");
+    return entra();
+  }
+  if (p === "/api/password" && m === "POST") {
+    if (!await autorizzato(req, env)) return json2({ errore: "accesso richiesto" }, 401);
+    const d = await req.json().catch(() => ({}));
+    if (!await verifica(String(d.attuale || ""), await hashPassword(env))) return json2({ errore: "la password attuale non \xE8 giusta" }, 400);
+    if (String(d.nuova || "").length < 8) return json2({ errore: "la nuova password deve avere almeno 8 caratteri" }, 400);
+    await salva2(env, "ADMIN_PW", await nuovoSegreto(String(d.nuova)));
+    const codice2 = codiceRecupero();
+    await salva2(env, "RECUPERO", await nuovoSegreto(normCodice(codice2)));
+    const email = await emailAccesso(env);
+    return json2({ ok: true, codice_recupero: codice2 }, 200, { "set-cookie": cookie(await firma(await hashPassword(env), email), 60 * 60 * 24 * 60) });
   }
   if (p === "/api/esci") return json2({ ok: true }, 200, { "set-cookie": cookie("", 0) });
   if (!await autorizzato(req, env)) return json2({ errore: "accesso richiesto" }, 401);

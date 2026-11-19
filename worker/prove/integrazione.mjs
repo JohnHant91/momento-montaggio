@@ -6,11 +6,23 @@ const ok = (cond, cosa) => { if (cond) console.log('  ✓', cosa); else { consol
 console.log('\n1) pagina e accesso');
 let r = await chiama('/'); ok(r.status === 200 && String(r.j).includes('<html'), 'la pagina si apre');
 r = await chiama('/api/azienda'); ok(r.status === 401 || r.status === 403, 'senza accesso le API sono chiuse (' + r.status + ')');
+r = await chiama('/api/stato'); ok(r.j.configurato === false, 'accesso ancora da creare');
+r = await chiama('/api/accedi', { method: 'POST', body: { email: 'johnny@prova.it', password: 'corta' } }); ok(r.status === 400, 'password troppo corta rifiutata al primo accesso');
+r = await chiama('/api/accedi', { method: 'POST', body: { email: 'johnny@prova.it', password: 'provaprova' } }); ok(r.status === 200 && /^[A-Z0-9]{4}(-[A-Z0-9]{4}){3}$/.test(r.j.codice_recupero || ''), 'primo accesso: email e password salvate, codice di recupero dato');
+const codice1 = r.j.codice_recupero;
+r = await chiama('/api/azienda'); ok(r.status === 200, 'dopo il primo accesso si entra');
+r = await chiama('/api/esci');
 r = await chiama('/api/accedi', { method: 'POST', body: { email: 'johnny@prova.it', password: 'sbagliata1' } }); ok(r.status === 401, 'password errata rifiutata');
 r = await chiama('/api/accedi', { method: 'POST', body: { password: 'provaprova' } }); ok(r.status === 400, 'senza email rifiutato');
-r = await chiama('/api/accedi', { method: 'POST', body: { email: 'johnny@prova.it', password: 'provaprova' } }); ok(r.status === 200, 'accesso con email e password giuste');
 r = await chiama('/api/accedi', { method: 'POST', body: { email: 'altro@prova.it', password: 'provaprova' } }); ok(r.status === 401, 'email diversa da quella registrata rifiutata');
-r = await chiama('/api/accedi', { method: 'POST', body: { email: 'Johnny@Prova.it', password: 'provaprova' } }); ok(r.status === 200, 'email con maiuscole accettata');
+r = await chiama('/api/recupera', { method: 'POST', body: { email: 'johnny@prova.it', codice: 'AAAA-BBBB-CCCC-DDDD', password: 'nuovapass1' } }); ok(r.status === 401, 'codice di recupero sbagliato rifiutato');
+r = await chiama('/api/recupera', { method: 'POST', body: { email: 'johnny@prova.it', codice: codice1.toLowerCase().replace(/-/g, ' '), password: 'nuovapass1' } }); ok(r.status === 200 && r.j.codice_recupero && r.j.codice_recupero !== codice1, 'recupero: nuova password e nuovo codice');
+r = await chiama('/api/recupera', { method: 'POST', body: { email: 'johnny@prova.it', codice: codice1, password: 'altrapass1' } }); ok(r.status === 401, 'il codice usato non vale più');
+r = await chiama('/api/accedi', { method: 'POST', body: { email: 'johnny@prova.it', password: 'provaprova' } }); ok(r.status === 401, 'la password vecchia non vale più');
+r = await chiama('/api/accedi', { method: 'POST', body: { email: 'Johnny@Prova.it', password: 'nuovapass1' } }); ok(r.status === 200, 'accesso con la password nuova (email con maiuscole)');
+r = await chiama('/api/password', { method: 'POST', body: { attuale: 'sbagliata', nuova: 'provaprova' } }); ok(r.status === 400, 'cambio password: serve quella attuale');
+r = await chiama('/api/password', { method: 'POST', body: { attuale: 'nuovapass1', nuova: 'provaprova' } }); ok(r.status === 200 && r.j.codice_recupero, 'cambio password riuscito');
+r = await chiama('/api/azienda'); ok(r.status === 200, 'dopo il cambio resti dentro');
 r = await chiama('/sala3d.js'); ok(r.status === 200, 'modulo sala 3D servito');
 
 console.log('\n2) agenzia e sala');

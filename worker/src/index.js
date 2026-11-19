@@ -18,21 +18,38 @@ const json = (d, status = 200, extra = {}) => new Response(JSON.stringify(d), { 
 const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 const sha = async (s) => hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)));
 
-async function hashPassword(env) {
-  if (env.ADMIN_PASSWORD) return sha('momento-reel|' + env.ADMIN_PASSWORD);
-  return (await one(env, "SELECT valore FROM impostazioni WHERE chiave='ADMIN_HASH'"))?.valore || null;
+// ACCESSO: email + password scelte al primo accesso. La password non è mai salvata in chiaro: PBKDF2 con sale casuale.
+// Se la perdi: codice di recupero (mostrato una volta sola al primo accesso) → nuova password.
+const imp = async (env, k) => (await one(env, 'SELECT valore FROM impostazioni WHERE chiave=?', k))?.valore || '';
+const salva = (env, k, v) => run(env, 'INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES (?,?)', k, v);
+async function pbkdf2(password, sale, giri = 100000) {
+  const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(String(password)), 'PBKDF2', false, ['deriveBits']);
+  return hex(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode(sale), iterations: giri }, k, 256));
 }
+const casuale = (n) => hex(crypto.getRandomValues(new Uint8Array(n)));
+async function nuovoSegreto(testo) { const sale = casuale(16); return `pbkdf2$100000$${sale}$${await pbkdf2(testo, sale)}`; }
+async function verifica(testo, salvato) {
+  const [tipo, giri, sale, h] = String(salvato || '').split('$');
+  if (tipo !== 'pbkdf2' || !h) return false;
+  const x = await pbkdf2(testo, sale, Number(giri));
+  let d = 0; for (let i = 0; i < Math.max(x.length, h.length); i++) d |= (x.charCodeAt(i) || 0) ^ (h.charCodeAt(i) || 0);
+  return d === 0;
+}
+function codiceRecupero() { // es. K7QM-2XPA-9TRB-W4HC: facile da scrivere, niente lettere ambigue
+  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', b = crypto.getRandomValues(new Uint8Array(16));
+  return [...b].map((x) => A[x % A.length]).join('').match(/.{4}/g).join('-');
+}
+const normCodice = (c) => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+async function hashPassword(env) { return (await imp(env, 'ADMIN_PW')) || null; }
 // la sessione è legata a password ED email: cambiando una delle due, tutti gli accessi vecchi decadono
 async function firma(hash, email) {
   const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(hash), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   return hex(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode('momento-agency-sessione|' + email)));
 }
-const emailAccesso = async (env) => (await one(env, "SELECT valore FROM impostazioni WHERE chiave='ADMIN_EMAIL'"))?.valore || '';
+const emailAccesso = (env) => imp(env, 'ADMIN_EMAIL');
 async function autorizzato(req, env) {
-  const h = await hashPassword(env);
-  if (!h) return false;
-  const email = await emailAccesso(env);
-  if (!email) return false; // serve l'accesso con email
+  const h = await hashPassword(env), email = await emailAccesso(env);
+  if (!h || !email) return false;
   const c = /(?:^|;\s*)mr_s=([a-f0-9]{64})/.exec(req.headers.get('cookie') || '');
   return !!c && c[1] === await firma(h, email);
 }
@@ -70,28 +87,52 @@ async function videoAPezzi(env, req, url, chiave, primo, md, vv) {
 async function api(req, env, url) {
   const p = url.pathname, m = req.method;
 
-  if (p === '/api/stato') return json({ configurato: !!(await hashPassword(env)), email: !!(await one(env, "SELECT 1 AS x FROM impostazioni WHERE chiave='ADMIN_EMAIL'")), dentro: await autorizzato(req, env) });
+  if (p === '/api/stato') return json({ configurato: !!((await hashPassword(env)) && (await emailAccesso(env))), dentro: await autorizzato(req, env) });
 
-  if (p === '/api/accedi' && m === 'POST') {
-    const { password, email: em } = await req.json().catch(() => ({}));
-    const email = String(em || '').trim().toLowerCase();
+  if ((p === '/api/accedi' || p === '/api/recupera') && m === 'POST') {
+    const d = await req.json().catch(() => ({}));
+    const email = String(d.email || '').trim().toLowerCase(), password = String(d.password || '');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ errore: 'scrivi un’email valida' }, 400);
-    if (!password || String(password).length < 6) return json({ errore: 'password di almeno 6 caratteri' }, 400);
-    const emailSalvata = (await one(env, "SELECT valore FROM impostazioni WHERE chiave='ADMIN_EMAIL'"))?.valore || '';
-    // troppi tentativi sbagliati dallo stesso indirizzo: blocco per 15 minuti (contro chi prova password a raffica)
+    // troppi tentativi sbagliati dallo stesso indirizzo: blocco per 15 minuti (contro chi prova password o codici a raffica)
     const kip = 'accesso_ko:' + (req.headers.get('cf-connecting-ip') || 'x');
     const falliti = Number(await env.VIDEO.get(kip).catch(() => 0)) || 0;
     if (falliti >= 8) return json({ errore: 'troppi tentativi sbagliati: riprova tra 15 minuti' }, 429);
-    let h = await hashPassword(env);
-    const nuovo = sha('momento-reel|' + password);
-    if (!h) { // primo accesso: email e password scelte diventano quelle dell'agenzia
-      if (String(password).length < 8) return json({ errore: 'password di almeno 8 caratteri' }, 400);
-      h = await nuovo;
-      await run(env, "INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES ('ADMIN_HASH', ?)", h);
-    } else if (await nuovo !== h || (emailSalvata && emailSalvata !== email)) { await env.VIDEO.put(kip, String(falliti + 1), { expirationTtl: 900 }).catch(() => {}); return json({ errore: 'email o password errata' }, 401); }
-    // l'email si fissa al primo accesso riuscito (anche per chi aveva già solo la password)
-    if (!emailSalvata) await run(env, "INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES ('ADMIN_EMAIL', ?)", email);
-    return json({ ok: true }, 200, { 'set-cookie': cookie(await firma(h, email), 60 * 60 * 24 * 60) });
+    const sbagliato = async (msg) => { await env.VIDEO.put(kip, String(falliti + 1), { expirationTtl: 900 }).catch(() => {}); return json({ errore: msg }, 401); };
+    const [salvata, pw] = [await emailAccesso(env), await hashPassword(env)];
+    const entra = async (extra = {}) => { const h = await hashPassword(env); return json({ ok: true, ...extra }, 200, { 'set-cookie': cookie(await firma(h, email), 60 * 60 * 24 * 60) }); };
+    const nuovaPassword = async (testo) => {
+      await salva(env, 'ADMIN_PW', await nuovoSegreto(testo));
+      const codice = codiceRecupero();
+      await salva(env, 'RECUPERO', await nuovoSegreto(normCodice(codice)));
+      await run(env, "DELETE FROM impostazioni WHERE chiave='ADMIN_HASH'"); // la vecchia password (solo password) non vale più
+      return codice;
+    };
+    if (p === '/api/recupera') { // password persa: email + codice di recupero → nuova password (e nuovo codice)
+      if (!salvata || !pw) return json({ errore: 'l’accesso non è ancora stato creato' }, 400);
+      if (password.length < 8) return json({ errore: 'la nuova password deve avere almeno 8 caratteri' }, 400);
+      if (email !== salvata || !(await verifica(normCodice(d.codice), await imp(env, 'RECUPERO')))) return sbagliato('email o codice di recupero errato');
+      const codice = await nuovaPassword(password);
+      return entra({ codice_recupero: codice });
+    }
+    if (!salvata || !pw) { // primo accesso: email e password scelte ora diventano quelle dell'agenzia
+      if (password.length < 8) return json({ errore: 'la password deve avere almeno 8 caratteri' }, 400);
+      await salva(env, 'ADMIN_EMAIL', email);
+      const codice = await nuovaPassword(password);
+      return entra({ codice_recupero: codice, nuovo: true });
+    }
+    if (email !== salvata || !(await verifica(password, pw))) return sbagliato('email o password errata');
+    return entra();
+  }
+  if (p === '/api/password' && m === 'POST') { // cambio password da dentro: serve quella attuale
+    if (!(await autorizzato(req, env))) return json({ errore: 'accesso richiesto' }, 401);
+    const d = await req.json().catch(() => ({}));
+    if (!(await verifica(String(d.attuale || ''), await hashPassword(env)))) return json({ errore: 'la password attuale non è giusta' }, 400);
+    if (String(d.nuova || '').length < 8) return json({ errore: 'la nuova password deve avere almeno 8 caratteri' }, 400);
+    await salva(env, 'ADMIN_PW', await nuovoSegreto(String(d.nuova)));
+    const codice = codiceRecupero();
+    await salva(env, 'RECUPERO', await nuovoSegreto(normCodice(codice)));
+    const email = await emailAccesso(env);
+    return json({ ok: true, codice_recupero: codice }, 200, { 'set-cookie': cookie(await firma(await hashPassword(env), email), 60 * 60 * 24 * 60) });
   }
   if (p === '/api/esci') return json({ ok: true }, 200, { 'set-cookie': cookie('', 0) });
 
