@@ -58,7 +58,7 @@ export async function schemaAvatar(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS avatar_piani (id INTEGER PRIMARY KEY AUTOINCREMENT, argomento TEXT NOT NULL, numero INTEGER DEFAULT 5,
     note TEXT, fase TEXT NOT NULL DEFAULT 'ricerca', stato TEXT NOT NULL DEFAULT 'in_corso', ricerca TEXT, virali TEXT, copioni TEXT, video TEXT, lavori TEXT,
     errore TEXT, tentativi INTEGER DEFAULT 0, blocco_fino TEXT, riunione_id INTEGER, creato TEXT, aggiornato TEXT)`).run();
-  for (const c of ['idee TEXT', 'idea_scelta INTEGER']) await env.DB.prepare('ALTER TABLE avatar_piani ADD COLUMN ' + c).run().catch(() => {});
+  for (const c of ['idee TEXT', 'idea_scelta INTEGER', 'cartella TEXT']) await env.DB.prepare('ALTER TABLE avatar_piani ADD COLUMN ' + c).run().catch(() => {});
 }
 
 export async function nuovoPianoAvatar(env, argomento, numero = 1, note = '', riunione = null) {
@@ -249,10 +249,10 @@ async function faseMontaggio(env, cfg, A) {
       : 'Formato split_grafico (sopra le grafiche animate che seguono il discorso, al centro la pillola dei sottotitoli, sotto Johnny)'}, palette e font scelti in base all'argomento, effetti da super montatore, nessuna pausa.
 Argomento del piano (per la palette): ${A.argomento}
 Titolo: ${c.titolo}. Gancio: ${c.gancio}. Soluzione finale: ${c.soluzione}.
-Testo detto: ${c.testo}
+Testo detto: ${c.testo}${A.cartella ? '\nJohnny ha caricato su pCloud delle clip SUE da usare (b-roll, foto, schermate): usale nei punti giusti del discorso, il parlato resta quello dell\'avatar.' : ''}
 Idee per le grafiche (concetto → parola su cui entra): ${(c.cartelli || []).map((k) => `${k.testo} → ${k.sulla_parola}`).join('; ')}`;
     const r = await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,'[]','url',?,?,?) RETURNING id",
-      prompt, JSON.stringify([{ nome: `avatar_${A.id}_${v.n}.mp4`, url: v.url, durata: v.durata }]), JSON.stringify({ genere: formato === 'parole_dietro' ? 'dietro' : 'split', mood: [], avatar: true }), ora(), ora());
+      prompt, JSON.stringify([{ nome: `avatar_${A.id}_${v.n}.mp4`, url: v.url, durata: v.durata }, ...(A.cartella ? [{ cartella: A.cartella }] : [])]), JSON.stringify({ genere: formato === 'parole_dietro' ? 'dietro' : 'split', mood: [], avatar: true }), ora(), ora());
     lavori.push({ n: v.n, lavoro: r.id });
     await log(env, r.id, 'regia', `🎬 reel ${v.n} "${c.titolo}" (avatar): parte il montaggio`);
   }
@@ -322,6 +322,9 @@ export async function apiAvatar(req, env, p, m, json) {
   if (m === 'POST' && mm[2] === 'approva') { // {n: [numeri approvati], modifiche: {n: testo}}
     const d = await corpo();
     const ok = new Set((d.n || []).map(Number));
+    const cartella = String(d.cartella || '').trim();
+    if (cartella && !/code=/.test(cartella)) return json({ errore: 'il link pCloud deve essere il link pubblico della cartella (contiene "code=")' }, 400);
+    if (cartella) await run(env, 'UPDATE avatar_piani SET cartella=? WHERE id=?', cartella.slice(0, 400), A.id);
     const copioni = J(A.copioni, []).map((c) => c.stato !== 'da_approvare' ? c : ({ ...c, testo: d.modifiche?.[c.n] ? String(d.modifiche[c.n]).slice(0, 4000) : c.testo, stato: ok.has(c.n) ? 'approvato' : 'scartato' }));
     if (!copioni.some((c) => c.stato === 'approvato' && ok.has(c.n))) return json({ errore: 'approva almeno un copione' }, 400);
     await run(env, "UPDATE avatar_piani SET copioni=?, fase='avatar', stato='in_corso', blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(copioni), ora(), A.id);

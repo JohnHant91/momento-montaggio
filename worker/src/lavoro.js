@@ -185,9 +185,9 @@ async function fasePiano(env, cfg, L) {
   let stile = J(L.stile, null) || rilevaStile(L.prompt);
   // stile che non è nel catalogo (es. "wes anderson", "documentario anni 70"): Stella lo ricava solo dai riferimenti
   const sm = p.stile_montaggio;
-  if (sm?.descrizione && (!stile || (!stile.genere && !stile.mood?.length))) stile = { genere: null, mood: [], libero: String(sm.descrizione).slice(0, 120), ricerca: (sm.ricerca_en || []).slice(0, 2) };
+  if (sm?.descrizione && (!stile || (!stile.genere && !stile.mood?.length))) stile = { ...(stile?.solo_clip ? { solo_clip: true } : {}), genere: null, mood: [], libero: String(sm.descrizione).slice(0, 120), ricerca: (sm.ricerca_en || []).slice(0, 2) };
   else if (stile && sm?.ricerca_en?.length && !stile.ricerca) stile.ricerca = sm.ricerca_en.slice(0, 2);
-  if (stile?.avatar) await run(env, 'UPDATE lavori SET stile=? WHERE id=?', JSON.stringify(stile), L.id);
+  if (stile?.avatar || stile?.solo_clip) await run(env, 'UPDATE lavori SET stile=? WHERE id=?', JSON.stringify(stile), L.id);
   else if (stile) {
     const q = ricercaStile(stile, p.settore), R = ricetta(stile);
     p.youtube_query = [...q.yt, ...(p.youtube_query || [])].slice(0, 4);
@@ -204,15 +204,16 @@ async function faseRicerca(env, cfg, L) {
   const p = J(L.piano, {});
   const nomi = ['YouTube', 'TikTok', 'Instagram', 'Link tuoi'];
   const AG = ['scout_yt', 'scout_tt', 'scout_ig', 'direttore'];
-  await log(env, L.id, 'scout_yt', `${cfg.YOUTUBE_API_KEY ? 'cerco Shorts' : 'cerco Shorts sul web'}: ${(p.youtube_query || []).join(' · ')}`);
-  if (cfg.APIFY_TOKEN) {
+  if (!J(L.stile, null)?.solo_clip) await log(env, L.id, 'scout_yt', `${cfg.YOUTUBE_API_KEY ? 'cerco Shorts' : 'cerco Shorts sul web'}: ${(p.youtube_query || []).join(' · ')}`);
+  if (cfg.APIFY_TOKEN && !J(L.stile, null)?.solo_clip) {
     await log(env, L.id, 'scout_tt', `cerco su TikTok: ${[...(p.tiktok_query || []), ...(p.tiktok_hashtag || []).map((h) => '#' + h)].join(' · ')}`);
     await log(env, L.id, 'scout_ig', `cerco reel: ${(p.instagram_hashtag || []).map((h) => '#' + h).join(' · ')}`);
   }
+  const solo = !!J(L.stile, null)?.solo_clip; // Johnny ha chiesto solo le sue clip: si studiano solo i suoi reel modello
   const esiti = await Promise.allSettled([
-    S.youtube(cfg, p.youtube_query || []),
-    S.tiktok(cfg, p.tiktok_query || [], p.tiktok_hashtag || []),
-    S.instagram(cfg, p.instagram_hashtag || []),
+    solo ? [] : S.youtube(cfg, p.youtube_query || []),
+    solo ? [] : S.tiktok(cfg, p.tiktok_query || [], p.tiktok_hashtag || []),
+    solo ? [] : S.instagram(cfg, p.instagram_hashtag || []),
     S.linkDiretti(cfg, J(L.link_rif, [])),
   ]);
   const perFonte = {};
@@ -222,6 +223,7 @@ async function faseRicerca(env, cfg, L) {
     const lista = Array.isArray(e.value) ? e.value : e.value.video;
     perFonte[nomi[i]] = lista;
     if ((i === 1 || i === 2) && !cfg.APIFY_TOKEN) continue; // Tea e Ines a riposo senza Apify
+    if (i < 3 && J(L.stile, null)?.solo_clip) continue;
     if (e.value.nota) await log(env, L.id, AG[i], e.value.nota, 'warn');
     if (i < 3 || lista.length) await log(env, L.id, AG[i], i < 3 ? `trovati ${lista.length} video` : `i tuoi link: ${lista.length} video`);
   }
@@ -309,11 +311,13 @@ export const chiaveRif = (v) => `rif2:${v.piattaforma}:${v.id}`;
 export const FONTI = {
   pcloud: { nome: 'Cartella pCloud', pronta: (L) => !!L.pcloud, elenca: async (L) => (await S.pcloudClip(L.pcloud)).map((c) => ({ ...c, sorgente: { tipo: 'pcloud', fileid: c.fileid } })) },
   // video da link diretti (es. il video del tuo avatar HeyGen): in "pcloud" c'è l'elenco JSON [{nome, url, durata}]
-  url: { nome: 'Video da link', pronta: (L) => !!L.pcloud, elenca: async (L) => J(L.pcloud, []).filter((v) => /^https:\/\//.test(v?.url || '')).map((v, i) => {
+  url: { nome: 'Video da link', pronta: (L) => !!L.pcloud, elenca: async (L) => [...J(L.pcloud, []).filter((v) => /^https:\/\//.test(v?.url || '')).map((v, i) => {
     let h = 2166136261; for (const ch of v.url.split('?')[0]) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
     return { fileid: `url${i}_${(h >>> 0).toString(36)}`, nome: String(v.nome || `video_${i + 1}.mp4`), hash: (h >>> 0).toString(36), dimensione: 0, sorgente: { tipo: 'url', url: v.url },
       tecnico: { durata_sec: Number(v.durata) || null, orientamento: 'verticale' } };
-  }) },
+  }),
+  // in più, le clip della cartella pCloud che Johnny aggiunge (b-roll, foto): {cartella: link}
+  ...(await Promise.all(J(L.pcloud, []).filter((v) => /code=/.test(v?.cartella || '')).slice(0, 1).map((v) => S.pcloudClip(v.cartella)))).flat().map((c) => ({ ...c, sorgente: { tipo: 'pcloud', fileid: c.fileid } }))] },
 };
 
 async function faseClip(env, cfg, L) {
@@ -452,6 +456,37 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
   "musica_da_mettere": "che brano cercare su Instagram e da che secondo, a che volume rispetto al suono originale"
 }`;
 
+// Correttore: ogni testo che va in grafica viene riletto (modello leggero, pochi centesimi) contro quello che viene detto
+// davvero e contro il copione: italiano corretto (accenti, apostrofi, maiuscole, concordanze) e niente fatti, numeri,
+// nomi o siti inventati. Corregge sul posto; se un testo non si può salvare lo toglie.
+export async function correggiTesti(env, cfg, L, clip, T) {
+  const voci = [];
+  const testi = (o, via) => { if (!o || typeof o !== 'object') return; for (const [k, v] of Object.entries(o)) {
+    if (typeof v === 'string' && /[a-zà-ú]{2}/i.test(v) && !/^(https?:|#|rgba?\()/.test(v) && !['tipo', 'stile', 'colore', 'lato', 'tema', 'sulla_parola', 'url', 'icona', 'chip'].includes(k)) voci.push({ id: voci.length, testo: v, set: (x) => { o[k] = x; } });
+    else if (v && typeof v === 'object') testi(v, via); } };
+  (T.grafiche || []).forEach((g) => testi(g.dati));
+  (T.cartelli || []).forEach((c) => testi(c));
+  (T.schede || []).forEach((c) => testi(c));
+  testi(T.copertina); testi(T.pannello);
+  if (!voci.length) return;
+  const detto = clip.flatMap((c) => (c.trascrizione || []).map((x) => (typeof x === 'string' ? x : x.testo || x.t || ''))).join(' ').slice(0, 6000);
+  try {
+    const out = await S.claude({ ...cfg, CLAUDE_MODEL: cfg.CLAUDE_MODEL_LIGHT || cfg.CLAUDE_MODEL }, `Sei il correttore di bozze di AGENZIA MOMENTO AI. Rileggi i testi che compariranno nelle grafiche di un reel.
+Regole: 1) italiano corretto: ortografia, accenti (è/é, perché, più, già), apostrofi, concordanze, maiuscole; niente parole inventate o storpiate; i nomi di prodotti e marchi restano come si scrivono davvero (ChatGPT, Claude, Instagram).
+2) niente fatti inventati: un numero, una cifra, un nome, un sito o una promessa che NON compaiono in quello che viene detto o nel copione vanno tolti o resi generici.
+3) non riscrivere per gusto: cambia solo se è sbagliato; mantieni la lunghezza (sono testi brevi da grafica).`,
+    `COPIONE / RICHIESTA: ${String(L.prompt || '').slice(0, 5000)}
+QUELLO CHE VIENE DETTO NEL VIDEO: ${detto || '(nessuna trascrizione)'}
+TESTI DA RILEGGERE: ${JSON.stringify(voci.map((v) => ({ id: v.id, testo: v.testo })))}
+Rispondi SOLO JSON: {"correzioni": [{"id": n, "testo": "testo corretto, oppure \"\" se va tolto perché inventato", "motivo": "breve"}]} (solo i testi da cambiare; [] se è tutto giusto)`, { maxTokens: 3000 });
+    const fatte = [];
+    for (const c of out.correzioni || []) { const v = voci[Number(c.id)]; if (!v || typeof c.testo !== 'string' || c.testo === v.testo) continue; v.set(c.testo.slice(0, 300)); fatte.push(`"${v.testo}" → ${c.testo ? '"' + c.testo + '"' : 'tolto'}${c.motivo ? ' (' + c.motivo + ')' : ''}`); }
+    // una grafica rimasta senza testo non ha senso: via
+    if (T.grafiche) for (let i = T.grafiche.length - 1; i >= 0; i--) { const d = T.grafiche[i].dati || {}; if (!Object.values(d).some((x) => (typeof x === 'string' && x.trim()) || (Array.isArray(x) && x.length) || typeof x === 'number')) T.grafiche.splice(i, 1); }
+    await log(env, L.id, 'copy', fatte.length ? `✏️ correttore: ${fatte.length} testi sistemati: ${fatte.join(' · ')}`.slice(0, 900) : `✏️ correttore: ${voci.length} testi delle grafiche riletti, italiano e fatti ok`);
+  } catch (e) { await log(env, L.id, 'copy', `correttore non disponibile (${String(e.message).slice(0, 100)}): testi lasciati come sono`, 'warn'); }
+}
+
 async function faseRegia(env, cfg, L) {
   const scheda = J(L.scheda, {});
   const tutteC = J(L.clip, []) || [];
@@ -582,6 +617,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
   const tracker = formato === 'split_grafico' && p.tracker?.voci?.length ? { totale: Math.min(10, Math.max(1, Number(p.tracker.totale) || p.tracker.voci.length)), voci: p.tracker.voci.slice(0, 10).map((v) => ({ etichetta: String(v.etichetta || '').slice(0, 24), sulla_parola: String(v.sulla_parola || '').slice(0, 40) })).filter((v) => v.sulla_parola) } : null;
   const adesivi = formato === 'parole_dietro' ? (p.adesivi || []).filter((a) => a && a.sulla_parola && ADESIVI.includes(a.tipo)).slice(0, 8).map((a) => ({ sulla_parola: String(a.sulla_parola).slice(0, 40), tipo: a.tipo })) : [];
   const avatar = !!J(L.stile, null)?.avatar; // video HeyGen: niente tempi morti da tagliare, parlato intero
+  await correggiTesti(env, cfg, L, clip, { grafiche, cartelli, schede, copertina: cop, pannello });
   const piano = {
     ...p, formato, pannello, cartelli, schede, grafiche, palette, font_split, tracker, adesivi,
     ...(avatar ? { taglia_silenzi: false } : {}),
@@ -634,6 +670,7 @@ async function lavora(env, cfg, L, scadenza) {
     let prossima = FASI[FASI.indexOf(L.fase) + 1];
     if (finita === 'salta') prossima = 'fatto';
     // reel col mio avatar: lo studio dei virali l'ha già fatto Zoe nel piano del profilo, niente seconda ricerca (risparmia Apify, Claude e Gemini)
+    if (L.fase === 'piano' && J(L.stile, null)?.solo_clip && !J(L.link_rif, []).length) { prossima = 'clip'; await log(env, L.id, 'direttore', 'uso solo le tue clip: niente ricerca di reel sulle piattaforme'); }
     if (L.fase === 'piano' && J(L.stile, null)?.avatar) { prossima = 'clip'; await log(env, L.id, 'direttore', 'reel con il tuo avatar: i virali li ha già studiati Zoe, salto la ricerca dei riferimenti'); }
     await run(env, 'UPDATE lavori SET fase=?, stato=?, tentativi=0, aggiornato=? WHERE id=?',
       prossima, prossima === 'fatto' ? 'pronto' : 'in_corso', ora(), L.id);

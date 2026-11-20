@@ -29,7 +29,7 @@ async function identitaGitHub(auth) {
   return ok ? pl : null;
 }
 
-const codice = (link) => { try { return new URL(link).searchParams.get('code'); } catch { return null; } };
+const codice = (link) => { try { return new URL(link).searchParams.get('code'); } catch { return String(link || '').match(/code=([\w-]+)/)?.[1] || null; } }; // anche dentro l'elenco JSON dei video da link
 
 // aggiorna UN elemento dentro l'elenco (json_set è atomico: le risposte in parallelo non si pestano i piedi)
 async function aggiorna(env, id, colonna, indice, el) {

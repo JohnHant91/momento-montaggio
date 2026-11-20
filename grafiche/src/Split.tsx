@@ -3,7 +3,7 @@
 // sotto la persona che parla. Ogni tanto la grafica prende tutto lo schermo. Colori e font cambiano con l'argomento:
 // li sceglie il Regista nella "palette"; lo stile (impaginazione, movimenti, ritmo) resta sempre lo stesso.
 import React from "react";
-import { AbsoluteFill, Img, OffthreadVideo, Sequence, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Easing, Img, OffthreadVideo, Sequence, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { loadFont as serifInstrument } from "@remotion/google-fonts/InstrumentSerif";
 import { loadFont as serifPlayfair } from "@remotion/google-fonts/PlayfairDisplay";
 import { loadFont as serifFraunces } from "@remotion/google-fonts/Fraunces";
@@ -420,7 +420,7 @@ export const Split: React.FC<SplitProps> = (P) => {
   const t = f / fps;
   const ctx: Ctx = { pal: P.palette, fps, titoli: famiglia(FONT_TITOLI, P.font?.titoli, "Instrument Serif"), testo: famiglia(FONT_TESTO, P.font?.testo, "Inter"), mono: famiglia(FONT_MONO, P.font?.mono, "JetBrains Mono") };
   // quanto la grafica è "a tutto schermo" adesso (0-1), con passaggi morbidi
-  const pieno = P.scene.reduce((m, s) => (s.pieno ? Math.max(m, interpolate(t, [s.da - 0.2, s.da + 0.15, s.a - 0.15, s.a + 0.1], [0, 1, 1, 0], clamp)) : m), 0);
+  const pieno = P.scene.reduce((m, s) => (s.pieno ? Math.max(m, interpolate(t, [s.da - 0.35, s.da + 0.25, s.a - 0.25, s.a + 0.15], [0, 1, 1, 0], { ...clamp, easing: Easing.inOut(Easing.cubic) })) : m), 0);
   const zona = { top: 0, height: ALTO_GRAFICA + pieno * (1650 - ALTO_GRAFICA) };
   const cy = P.volto?.cy ?? 0.32;
   const scala = 1.05;
@@ -442,7 +442,7 @@ export const Split: React.FC<SplitProps> = (P) => {
         <Sfondo pal={P.palette} />
         {/* la persona, sotto (piccolo "punch" sulle frasi con parole chiave) */}
         <div style={{ position: "absolute", left: 0, top: Y_PERSONA, width: 1080, height: 1920 - Y_PERSONA, overflow: "hidden",
-          transform: `translateY(${pieno * (1920 - Y_PERSONA + 40)}px)`, borderTop: `2px solid ${P.palette.tenue}` }}>
+          opacity: 1 - pieno, transform: `translateY(${pieno * 160}px)`, borderTop: `2px solid ${P.palette.tenue}` }}>
           <div style={{ position: "absolute", inset: 0, transform: `scale(${punch})`, transformOrigin: "50% 35%" }}>
             <OffthreadVideo src={staticFile(P.video)} style={stileVideo} />
             {/* scritta gigante DIETRO la persona: la persona ritagliata ci passa davanti */}
@@ -483,7 +483,7 @@ export const Split: React.FC<SplitProps> = (P) => {
         {/* la persona che esce dal riquadro (la testa passa sopra le grafiche) oppure l'adesivo con contorno e cornice */}
         {P.ritaglio && scenaOra && (effOra.includes("esce") || effOra.includes("adesivo")) ? (
           <Sequence from={Math.round(scenaOra.da * fps)} durationInFrames={Math.max(6, Math.round((scenaOra.a - scenaOra.da) * fps))} layout="none">
-            <Fuori video={P.ritaglio} stile={stileVideo} adesivo={effOra.includes("adesivo")} pal={P.palette} mono={ctx.mono} yBox={Y_PERSONA + pieno * (1920 - Y_PERSONA + 40)} />
+            <Fuori video={P.ritaglio} stile={stileVideo} adesivo={effOra.includes("adesivo")} pal={P.palette} mono={ctx.mono} yBox={Y_PERSONA + pieno * 160} />
           </Sequence>) : null}
         {/* coriandoli: partono dalla grafica e attraversano tutto lo schermo, persona compresa */}
         {P.scene.map((s, i) => ((s.effetti || EFFETTI_BASE[s.tipo] || []).includes("coriandoli") ? (

@@ -3,7 +3,7 @@
 // la parola detta in piccolo davanti sul petto, adesivi che esplodono (cuore, fuoco, like, logo), schede di vetro che
 // fluttuano ai lati, capitoli a tutto schermo col numero enorme, lampi di luce e push-in sulla persona.
 import React from "react";
-import { AbsoluteFill, OffthreadVideo, Sequence, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Easing, OffthreadVideo, Sequence, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { loadFont as sansMontserrat } from "@remotion/google-fonts/Montserrat";
 import { loadFont as serifInstrument } from "@remotion/google-fonts/InstrumentSerif";
 import { loadFont as serifPlayfair } from "@remotion/google-fonts/PlayfairDisplay";
@@ -101,7 +101,7 @@ const Vetro: React.FC<{ d: any; lato: "sx" | "dx"; serif: string }> = ({ d, lato
   const f = useCurrentFrame();
   const { fps, durationInFrames: dur } = useVideoConfig();
   const s = spring({ frame: f, fps, config: molle.snappy });
-  const usc = interpolate(f, [dur - 6, dur], [0, 1], clamp);
+  const usc = interpolate(f, [dur - 10, dur], [0, 1], clamp);
   const ry = (lato === "sx" ? 22 : -22) + Math.sin(f / 30) * 3;
   return (
     <div style={{ position: "absolute", top: 380 + Math.sin(f / 18) * 10, [lato === "sx" ? "left" : "right"]: 50, width: 430, perspective: 900, opacity: s * (1 - usc) } as React.CSSProperties}>
@@ -121,10 +121,11 @@ const Capitolo: React.FC<{ d: any; pal: Palette; serif: string }> = ({ d, pal, s
   const { fps, durationInFrames: dur } = useVideoConfig();
   const s = spring({ frame: f, fps, config: molle.smooth });
   const t = spring({ frame: f - 5, fps, config: molle.snappy });
-  const usc = interpolate(f, [dur - 6, dur], [0, 1], clamp);
+  const usc = interpolate(f, [dur - 10, dur], [0, 1], clamp);
+  const ent = interpolate(f, [0, 10], [0, 1], { ...clamp, easing: Easing.inOut(Easing.cubic) }); // dissolvenza dalla persona, mai taglio secco
   const fondo = `color-mix(in srgb, ${pal.accento} 55%, #10140f)`;
   return (
-    <AbsoluteFill style={{ background: fondo, alignItems: "center", justifyContent: "center", opacity: 1 - usc }}>
+    <AbsoluteFill style={{ background: fondo, alignItems: "center", justifyContent: "center", opacity: Math.min(ent, 1 - usc) }}>
       <div style={{ fontFamily: serif, fontStyle: "italic", fontSize: 560, lineHeight: 0.8, color: "#F4EFE6", transform: `translateY(${(1 - s) * 80}px) scale(${0.8 + 0.2 * s})`, opacity: s }}>{d.valore ?? d.numero ?? ""}</div>
       <div style={{ fontFamily: serif, fontSize: 96, color: "#F4EFE6", marginTop: 10, textAlign: "center", padding: "0 80px", opacity: t, transform: `translateY(${(1 - t) * 40}px)` }}>{d.etichetta || d.titolo || ""}</div>
     </AbsoluteFill>

@@ -1,6 +1,8 @@
 // Prova completa del worker con D1 (sqlite), KV in memoria e Claude simulato.
 // Uso: node prove/integrazione.mjs   (dalla cartella worker, dopo la build in dist/)
 import { W, env, GEST, chiama, cron, sblocca, stato } from './finto.mjs';
+import { correggiTesti } from '../src/lavoro.js';
+import { configurazione } from '../src/db.js';
 const errori = [];
 const ok = (cond, cosa) => { if (cond) console.log('  ✓', cosa); else { console.log('  ✗', cosa); errori.push(cosa); } };
 console.log('\n1) pagina e accesso');
@@ -228,7 +230,12 @@ P = (await chiama('/api/post/' + r.j.post)).j; ok(P.numero === 2 && P.tipo === '
 console.log('\n11) pagina: lo script si compila');
 const html = await (await chiama('/', { grezzo: true })).text();
 const script = html.match(/<script>([\s\S]*?)<\/script>\s*<\/body>/);
+{ const r1 = await chiama('/api/lavori', { method: 'POST', body: { prompt: 'reel della pizzeria con le mie clip in cucina', pcloud: 'https://e.pcloud.link/publink/show?code=ABC', solo_clip: true } }); ok(r1.status === 200, 'nuovo reel con solo le mie clip');
+  sblocca('lavori'); await cron(); const Lx = env.DB._db.prepare('SELECT fase, stile FROM lavori WHERE id=?').get(r1.j.id); ok(JSON.parse(Lx.stile || '{}').solo_clip && !['ricerca', 'riferimenti', 'piano'].includes(Lx.fase), 'con solo le mie clip niente ricerca sulle piattaforme (fase ' + Lx.fase + ')'); }
 try { new Function(script[1]); ok(true, 'JavaScript della pagina valido'); } catch (e) { ok(false, 'JavaScript della pagina: ' + e.message); }
 
+{ const G = [{ tipo: 'titolo', dati: { testo: 'Perche nessuno lo sa' } }, { tipo: 'card', dati: { titolo: 'Ok', testo: 'giusto' } }];
+  await correggiTesti(env, await configurazione(env), { id: null, prompt: 'copione' }, [{ trascrizione: [{ testo: 'perché nessuno lo sa' }] }], { grafiche: G });
+  ok(G[0].dati.testo === 'Perche nessuno lo sa (corretto)' && G[1].dati.titolo === 'Ok', 'il correttore sistema i testi delle grafiche sbagliati e lascia quelli giusti'); }
 console.log('\n' + (errori.length ? '❌ ' + errori.length + ' problemi:\n - ' + errori.join('\n - ') : '✅ tutto ok') + '\n');
 process.exit(errori.length ? 1 : 0);

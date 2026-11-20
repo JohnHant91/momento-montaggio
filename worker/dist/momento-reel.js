@@ -2166,9 +2166,9 @@ async function fasePiano(env, cfg, L) {
   const p = await claude(cfg, SISTEMA_PIANO, piano(L.prompt), { maxTokens: 1500 });
   let stile = J(L.stile, null) || rilevaStile(L.prompt);
   const sm = p.stile_montaggio;
-  if (sm?.descrizione && (!stile || !stile.genere && !stile.mood?.length)) stile = { genere: null, mood: [], libero: String(sm.descrizione).slice(0, 120), ricerca: (sm.ricerca_en || []).slice(0, 2) };
+  if (sm?.descrizione && (!stile || !stile.genere && !stile.mood?.length)) stile = { ...stile?.solo_clip ? { solo_clip: true } : {}, genere: null, mood: [], libero: String(sm.descrizione).slice(0, 120), ricerca: (sm.ricerca_en || []).slice(0, 2) };
   else if (stile && sm?.ricerca_en?.length && !stile.ricerca) stile.ricerca = sm.ricerca_en.slice(0, 2);
-  if (stile?.avatar) await run(env, "UPDATE lavori SET stile=? WHERE id=?", JSON.stringify(stile), L.id);
+  if (stile?.avatar || stile?.solo_clip) await run(env, "UPDATE lavori SET stile=? WHERE id=?", JSON.stringify(stile), L.id);
   else if (stile) {
     const q = ricercaStile(stile, p.settore), R = ricetta(stile);
     p.youtube_query = [...q.yt, ...p.youtube_query || []].slice(0, 4);
@@ -2184,15 +2184,16 @@ async function faseRicerca(env, cfg, L) {
   const p = J(L.piano, {});
   const nomi = ["YouTube", "TikTok", "Instagram", "Link tuoi"];
   const AG = ["scout_yt", "scout_tt", "scout_ig", "direttore"];
-  await log(env, L.id, "scout_yt", `${cfg.YOUTUBE_API_KEY ? "cerco Shorts" : "cerco Shorts sul web"}: ${(p.youtube_query || []).join(" \xB7 ")}`);
-  if (cfg.APIFY_TOKEN) {
+  if (!J(L.stile, null)?.solo_clip) await log(env, L.id, "scout_yt", `${cfg.YOUTUBE_API_KEY ? "cerco Shorts" : "cerco Shorts sul web"}: ${(p.youtube_query || []).join(" \xB7 ")}`);
+  if (cfg.APIFY_TOKEN && !J(L.stile, null)?.solo_clip) {
     await log(env, L.id, "scout_tt", `cerco su TikTok: ${[...p.tiktok_query || [], ...(p.tiktok_hashtag || []).map((h) => "#" + h)].join(" \xB7 ")}`);
     await log(env, L.id, "scout_ig", `cerco reel: ${(p.instagram_hashtag || []).map((h) => "#" + h).join(" \xB7 ")}`);
   }
+  const solo = !!J(L.stile, null)?.solo_clip;
   const esiti = await Promise.allSettled([
-    youtube(cfg, p.youtube_query || []),
-    tiktok(cfg, p.tiktok_query || [], p.tiktok_hashtag || []),
-    instagram(cfg, p.instagram_hashtag || []),
+    solo ? [] : youtube(cfg, p.youtube_query || []),
+    solo ? [] : tiktok(cfg, p.tiktok_query || [], p.tiktok_hashtag || []),
+    solo ? [] : instagram(cfg, p.instagram_hashtag || []),
     linkDiretti(cfg, J(L.link_rif, []))
   ]);
   const perFonte = {};
@@ -2206,6 +2207,7 @@ async function faseRicerca(env, cfg, L) {
     const lista = Array.isArray(e.value) ? e.value : e.value.video;
     perFonte[nomi[i]] = lista;
     if ((i === 1 || i === 2) && !cfg.APIFY_TOKEN) continue;
+    if (i < 3 && J(L.stile, null)?.solo_clip) continue;
     if (e.value.nota) await log(env, L.id, AG[i], e.value.nota, "warn");
     if (i < 3 || lista.length) await log(env, L.id, AG[i], i < 3 ? `trovati ${lista.length} video` : `i tuoi link: ${lista.length} video`);
   }
@@ -2283,18 +2285,22 @@ var chiaveRif = (v) => `rif2:${v.piattaforma}:${v.id}`;
 var FONTI = {
   pcloud: { nome: "Cartella pCloud", pronta: (L) => !!L.pcloud, elenca: async (L) => (await pcloudClip(L.pcloud)).map((c) => ({ ...c, sorgente: { tipo: "pcloud", fileid: c.fileid } })) },
   // video da link diretti (es. il video del tuo avatar HeyGen): in "pcloud" c'è l'elenco JSON [{nome, url, durata}]
-  url: { nome: "Video da link", pronta: (L) => !!L.pcloud, elenca: async (L) => J(L.pcloud, []).filter((v) => /^https:\/\//.test(v?.url || "")).map((v, i) => {
-    let h = 2166136261;
-    for (const ch of v.url.split("?")[0]) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
-    return {
-      fileid: `url${i}_${(h >>> 0).toString(36)}`,
-      nome: String(v.nome || `video_${i + 1}.mp4`),
-      hash: (h >>> 0).toString(36),
-      dimensione: 0,
-      sorgente: { tipo: "url", url: v.url },
-      tecnico: { durata_sec: Number(v.durata) || null, orientamento: "verticale" }
-    };
-  }) }
+  url: { nome: "Video da link", pronta: (L) => !!L.pcloud, elenca: async (L) => [
+    ...J(L.pcloud, []).filter((v) => /^https:\/\//.test(v?.url || "")).map((v, i) => {
+      let h = 2166136261;
+      for (const ch of v.url.split("?")[0]) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+      return {
+        fileid: `url${i}_${(h >>> 0).toString(36)}`,
+        nome: String(v.nome || `video_${i + 1}.mp4`),
+        hash: (h >>> 0).toString(36),
+        dimensione: 0,
+        sorgente: { tipo: "url", url: v.url },
+        tecnico: { durata_sec: Number(v.durata) || null, orientamento: "verticale" }
+      };
+    }),
+    // in più, le clip della cartella pCloud che Johnny aggiunge (b-roll, foto): {cartella: link}
+    ...(await Promise.all(J(L.pcloud, []).filter((v) => /code=/.test(v?.cartella || "")).slice(0, 1).map((v) => pcloudClip(v.cartella)))).flat().map((c) => ({ ...c, sorgente: { tipo: "pcloud", fileid: c.fileid } }))
+  ] }
 };
 async function faseClip(env, cfg, L) {
   const fonte = FONTI[L.fonte || "pcloud"] || FONTI.pcloud;
@@ -2435,6 +2441,53 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
   "hashtag": ["3-5 etichette specifiche"],
   "musica_da_mettere": "che brano cercare su Instagram e da che secondo, a che volume rispetto al suono originale"
 }`;
+async function correggiTesti(env, cfg, L, clip, T) {
+  const voci = [];
+  const testi = (o, via) => {
+    if (!o || typeof o !== "object") return;
+    for (const [k, v] of Object.entries(o)) {
+      if (typeof v === "string" && /[a-zà-ú]{2}/i.test(v) && !/^(https?:|#|rgba?\()/.test(v) && !["tipo", "stile", "colore", "lato", "tema", "sulla_parola", "url", "icona", "chip"].includes(k)) voci.push({ id: voci.length, testo: v, set: (x) => {
+        o[k] = x;
+      } });
+      else if (v && typeof v === "object") testi(v, via);
+    }
+  };
+  (T.grafiche || []).forEach((g) => testi(g.dati));
+  (T.cartelli || []).forEach((c) => testi(c));
+  (T.schede || []).forEach((c) => testi(c));
+  testi(T.copertina);
+  testi(T.pannello);
+  if (!voci.length) return;
+  const detto = clip.flatMap((c) => (c.trascrizione || []).map((x) => typeof x === "string" ? x : x.testo || x.t || "")).join(" ").slice(0, 6e3);
+  try {
+    const out = await claude(
+      { ...cfg, CLAUDE_MODEL: cfg.CLAUDE_MODEL_LIGHT || cfg.CLAUDE_MODEL },
+      `Sei il correttore di bozze di AGENZIA MOMENTO AI. Rileggi i testi che compariranno nelle grafiche di un reel.
+Regole: 1) italiano corretto: ortografia, accenti (\xE8/\xE9, perch\xE9, pi\xF9, gi\xE0), apostrofi, concordanze, maiuscole; niente parole inventate o storpiate; i nomi di prodotti e marchi restano come si scrivono davvero (ChatGPT, Claude, Instagram).
+2) niente fatti inventati: un numero, una cifra, un nome, un sito o una promessa che NON compaiono in quello che viene detto o nel copione vanno tolti o resi generici.
+3) non riscrivere per gusto: cambia solo se \xE8 sbagliato; mantieni la lunghezza (sono testi brevi da grafica).`,
+      `COPIONE / RICHIESTA: ${String(L.prompt || "").slice(0, 5e3)}
+QUELLO CHE VIENE DETTO NEL VIDEO: ${detto || "(nessuna trascrizione)"}
+TESTI DA RILEGGERE: ${JSON.stringify(voci.map((v) => ({ id: v.id, testo: v.testo })))}
+Rispondi SOLO JSON: {"correzioni": [{"id": n, "testo": "testo corretto, oppure "" se va tolto perch\xE9 inventato", "motivo": "breve"}]} (solo i testi da cambiare; [] se \xE8 tutto giusto)`,
+      { maxTokens: 3e3 }
+    );
+    const fatte = [];
+    for (const c of out.correzioni || []) {
+      const v = voci[Number(c.id)];
+      if (!v || typeof c.testo !== "string" || c.testo === v.testo) continue;
+      v.set(c.testo.slice(0, 300));
+      fatte.push(`"${v.testo}" \u2192 ${c.testo ? '"' + c.testo + '"' : "tolto"}${c.motivo ? " (" + c.motivo + ")" : ""}`);
+    }
+    if (T.grafiche) for (let i = T.grafiche.length - 1; i >= 0; i--) {
+      const d = T.grafiche[i].dati || {};
+      if (!Object.values(d).some((x) => typeof x === "string" && x.trim() || Array.isArray(x) && x.length || typeof x === "number")) T.grafiche.splice(i, 1);
+    }
+    await log(env, L.id, "copy", fatte.length ? `\u270F\uFE0F correttore: ${fatte.length} testi sistemati: ${fatte.join(" \xB7 ")}`.slice(0, 900) : `\u270F\uFE0F correttore: ${voci.length} testi delle grafiche riletti, italiano e fatti ok`);
+  } catch (e) {
+    await log(env, L.id, "copy", `correttore non disponibile (${String(e.message).slice(0, 100)}): testi lasciati come sono`, "warn");
+  }
+}
 async function faseRegia(env, cfg, L) {
   const scheda2 = J(L.scheda, {});
   const tutteC = J(L.clip, []) || [];
@@ -2605,6 +2658,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
   const tracker = formato === "split_grafico" && p.tracker?.voci?.length ? { totale: Math.min(10, Math.max(1, Number(p.tracker.totale) || p.tracker.voci.length)), voci: p.tracker.voci.slice(0, 10).map((v) => ({ etichetta: String(v.etichetta || "").slice(0, 24), sulla_parola: String(v.sulla_parola || "").slice(0, 40) })).filter((v) => v.sulla_parola) } : null;
   const adesivi = formato === "parole_dietro" ? (p.adesivi || []).filter((a) => a && a.sulla_parola && ADESIVI.includes(a.tipo)).slice(0, 8).map((a) => ({ sulla_parola: String(a.sulla_parola).slice(0, 40), tipo: a.tipo })) : [];
   const avatar = !!J(L.stile, null)?.avatar;
+  await correggiTesti(env, cfg, L, clip, { grafiche, cartelli, schede, copertina: cop, pannello });
   const piano2 = {
     ...p,
     formato,
@@ -2667,6 +2721,10 @@ async function lavora(env, cfg, L, scadenza) {
     if (!finita) return "attesa";
     let prossima = FASI[FASI.indexOf(L.fase) + 1];
     if (finita === "salta") prossima = "fatto";
+    if (L.fase === "piano" && J(L.stile, null)?.solo_clip && !J(L.link_rif, []).length) {
+      prossima = "clip";
+      await log(env, L.id, "direttore", "uso solo le tue clip: niente ricerca di reel sulle piattaforme");
+    }
     if (L.fase === "piano" && J(L.stile, null)?.avatar) {
       prossima = "clip";
       await log(env, L.id, "direttore", "reel con il tuo avatar: i virali li ha gi\xE0 studiati Zoe, salto la ricerca dei riferimenti");
@@ -3094,7 +3152,7 @@ async function schemaAvatar(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS avatar_piani (id INTEGER PRIMARY KEY AUTOINCREMENT, argomento TEXT NOT NULL, numero INTEGER DEFAULT 5,
     note TEXT, fase TEXT NOT NULL DEFAULT 'ricerca', stato TEXT NOT NULL DEFAULT 'in_corso', ricerca TEXT, virali TEXT, copioni TEXT, video TEXT, lavori TEXT,
     errore TEXT, tentativi INTEGER DEFAULT 0, blocco_fino TEXT, riunione_id INTEGER, creato TEXT, aggiornato TEXT)`).run();
-  for (const c of ["idee TEXT", "idea_scelta INTEGER"]) await env.DB.prepare("ALTER TABLE avatar_piani ADD COLUMN " + c).run().catch(() => {
+  for (const c of ["idee TEXT", "idea_scelta INTEGER", "cartella TEXT"]) await env.DB.prepare("ALTER TABLE avatar_piani ADD COLUMN " + c).run().catch(() => {
   });
 }
 async function nuovoPianoAvatar(env, argomento, numero = 1, note = "", riunione = null) {
@@ -3314,13 +3372,13 @@ async function faseMontaggio2(env, cfg, A) {
     const prompt = `Cliente: Johnny \xB7 profilo Instagram. Reel con l'avatar di Johnny. ${formato === "parole_dietro" ? "Formato parole_dietro (come i reel di riferimento di Johnny: lui a tutto schermo, le frasi diventano parole GIGANTI e colorate dietro di lui, adesivi che esplodono, schede di vetro ai lati, capitoli col numero enorme)" : "Formato split_grafico (sopra le grafiche animate che seguono il discorso, al centro la pillola dei sottotitoli, sotto Johnny)"}, palette e font scelti in base all'argomento, effetti da super montatore, nessuna pausa.
 Argomento del piano (per la palette): ${A.argomento}
 Titolo: ${c.titolo}. Gancio: ${c.gancio}. Soluzione finale: ${c.soluzione}.
-Testo detto: ${c.testo}
+Testo detto: ${c.testo}${A.cartella ? "\nJohnny ha caricato su pCloud delle clip SUE da usare (b-roll, foto, schermate): usale nei punti giusti del discorso, il parlato resta quello dell'avatar." : ""}
 Idee per le grafiche (concetto \u2192 parola su cui entra): ${(c.cartelli || []).map((k) => `${k.testo} \u2192 ${k.sulla_parola}`).join("; ")}`;
     const r = await one(
       env,
       "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,'[]','url',?,?,?) RETURNING id",
       prompt,
-      JSON.stringify([{ nome: `avatar_${A.id}_${v.n}.mp4`, url: v.url, durata: v.durata }]),
+      JSON.stringify([{ nome: `avatar_${A.id}_${v.n}.mp4`, url: v.url, durata: v.durata }, ...A.cartella ? [{ cartella: A.cartella }] : []]),
       JSON.stringify({ genere: formato === "parole_dietro" ? "dietro" : "split", mood: [], avatar: true }),
       ora(),
       ora()
@@ -3415,6 +3473,9 @@ async function apiAvatar(req, env, p, m, json3) {
   if (m === "POST" && mm[2] === "approva") {
     const d = await corpo();
     const ok = new Set((d.n || []).map(Number));
+    const cartella = String(d.cartella || "").trim();
+    if (cartella && !/code=/.test(cartella)) return json3({ errore: 'il link pCloud deve essere il link pubblico della cartella (contiene "code=")' }, 400);
+    if (cartella) await run(env, "UPDATE avatar_piani SET cartella=? WHERE id=?", cartella.slice(0, 400), A.id);
     const copioni = J(A.copioni, []).map((c) => c.stato !== "da_approvare" ? c : { ...c, testo: d.modifiche?.[c.n] ? String(d.modifiche[c.n]).slice(0, 4e3) : c.testo, stato: ok.has(c.n) ? "approvato" : "scartato" });
     if (!copioni.some((c) => c.stato === "approvato" && ok.has(c.n))) return json3({ errore: "approva almeno un copione" }, 400);
     await run(env, "UPDATE avatar_piani SET copioni=?, fase='avatar', stato='in_corso', blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(copioni), ora(), A.id);
@@ -4869,7 +4930,7 @@ var codice = (link) => {
   try {
     return new URL(link).searchParams.get("code");
   } catch {
-    return null;
+    return String(link || "").match(/code=([\w-]+)/)?.[1] || null;
   }
 };
 async function aggiorna(env, id, colonna, indice, el) {
@@ -5392,6 +5453,7 @@ function nuovo() {
     '<div class="aiuto">Cliente, settore, obiettivo, durata, tono, a chi parla. Pi\xF9 sei preciso, migliore \xE8 la ricerca.</div>' +
     '<label>Fonte del girato</label><select id="fo"><option value="pcloud">Le mie clip (cartella pCloud)</option><option disabled>Video stock \u2014 in arrivo</option><option disabled>Generati con AI \u2014 in arrivo</option></select>' +
     '<label>Cartella delle clip su pCloud (facoltativo)</label><input id="pc" placeholder="https://e.pcloud.link/publink/show?code=\u2026">' +
+    '<label style="display:flex;gap:8px;align-items:center;font-weight:400;margin-top:8px"><input type="checkbox" id="solo" checked style="width:auto"> Usa solo le mie clip: niente ricerca di reel su YouTube/TikTok/Instagram (risparmi). Se metti dei reel modello, studia solo quelli.</label>' +
     '<div class="aiuto">Su pCloud: tasto destro sulla cartella \u2192 Condividi \u2192 Link di condivisione \u2192 copia. Senza clip ottieni scheda e lista delle riprese, e il girato lo aggiungi dopo.</div>' +
     '<label>Reel MODELLO: lo stile che vuoi (facoltativo, ma fa la differenza)</label><textarea id="lr" style="min-height:70px" placeholder="Un link per riga: Instagram, TikTok, Pinterest, YouTube, Vimeo\u2026 La squadra copia il suo linguaggio (look, ritmo, testi s\xEC/no, finale), non i contenuti."></textarea>' +
     '<label>Stile di montaggio</label><div class="riga" style="gap:10px"><select id="sg" style="flex:1"><option value="">Genere: lo capisce Stella</option>' + Object.entries(GENERI_UI).map(([k, v]) => '<option value="' + k + '">' + v + '</option>').join('') + '</select><select id="sm" style="flex:1"><option value="">Mood: lo capisce Stella</option>' + Object.entries(MOOD_UI).map(([k, v]) => '<option value="' + k + '">' + v + '</option>').join('') + '</select></div>' +
@@ -5400,7 +5462,7 @@ function nuovo() {
   if (PREFILL) { $('#pr').value = PREFILL; PREFILL = ''; }
   $('#go').onclick = async () => {
     $('#go').disabled = true;
-    try { const r = await chiama('/api/lavori', { method: 'POST', body: { prompt: $('#pr').value, pcloud: $('#pc').value, link_rif: $('#lr').value, stile: ($('#sg').value || '') + '+' + ($('#sm').value || '') } }); location.hash = '#/lavoro/' + r.id; }
+    try { const r = await chiama('/api/lavori', { method: 'POST', body: { prompt: $('#pr').value, pcloud: $('#pc').value, link_rif: $('#lr').value, solo_clip: $('#solo').checked, stile: ($('#sg').value || '') + '+' + ($('#sm').value || '') } }); location.hash = '#/lavoro/' + r.id; }
     catch (x) { $('#er').textContent = x.message; $('#go').disabled = false; }
   };
 }
@@ -6086,7 +6148,7 @@ async function profiloDettaglio(id) {
       A.idee.map((x, k) => '<div class="card"><div class="riga"><b style="flex:1">' + (k + 1) + '. ' + e(x.titolo || '') + '</b><span class="pill">voto ' + e(x.voto || '-') + '</span>' +
         (x.usata ? '<span class="pill pronto">copione #' + x.usata + '</span>' : '<button class="sec av_idea" data-i="' + k + '">\u270D\uFE0F Fai questo reel</button>') + '</div>' +
         '<p class="mut" style="margin:6px 0">' + e(x.angolo || '') + '</p><p style="margin:4px 0"><b>Gancio:</b> ' + e(x.gancio || '') + '</p><p class="mut" style="margin:0">' + e(x.perche || '') + '</p></div>').join('') : '') +
-    (A.copioni.length ? '<h2>Copioni</h2>' + copioni + (A.stato === 'da_approvare' ? '<div class="riga"><button id="av_ok">Approva i selezionati e genera</button></div><div id="av_er" class="err"></div>' : '') : '') +
+    (A.copioni.length ? '<h2>Copioni</h2>' + copioni + (A.stato === 'da_approvare' ? '<label>Clip tue da aggiungere, cartella pCloud (facoltativo)</label><input id="av_pc" placeholder="https://e.pcloud.link/publink/show?code=\u2026" value="' + e(A.cartella || '') + '"><div class="aiuto">Solo se le vuoi: il montatore usa queste clip (b-roll, foto, schermate) sopra il parlato, senza cercare nient\\'altro.</div><div class="riga"><button id="av_ok">Approva i selezionati e genera</button></div><div id="av_er" class="err"></div>' : '') : '') +
     (daPubblicare ? '<div class="card"><b>\u{1F4F2} Pubblicazione su Instagram</b><p class="mut">I reel montati vanno sul tuo profilo solo quando premi qui. Orari proposti: uno al giorno alle 19:00 e alle 13:00 alternati; cambiali se vuoi.</p><div class="riga"><button id="ig_go">Programma su Instagram</button></div><div id="ig_er" class="err"></div></div>' : '') +
     (R ? '<h2>Ricerca di Sofia</h2><div class="card"><p>' + e(R.sintesi || '') + '</p><b>Fatti verificati</b><ul>' + lista(R.fatti) + '</ul><b>Numeri</b><ul>' + lista(R.numeri) + '</ul><b>Errori comuni</b><ul>' + lista(R.errori_comuni) + '</ul><b>Domande della gente</b><ul>' + lista(R.domande_della_gente) + '</ul></div>' : '') +
     (V ? '<h2>Video virali studiati da Zoe</h2><div class="card"><b>Ganci che funzionano</b><ul>' + lista(V.ganci_che_funzionano) + '</ul><b>Angoli scoperti</b><ul>' + lista(V.angoli_scoperti) + '</ul><b>Da evitare</b><ul>' + lista(V.da_evitare) + '</ul><b>I video</b><ul>' + (V.video || []).map((v) => '<li><a href="' + e(v.url) + '" target="_blank" rel="noopener">' + e((v.titolo || v.url).slice(0, 90)) + '</a> <span class="mut">' + e(v.piattaforma || '') + (v.views ? ' \xB7 ' + Number(v.views).toLocaleString('it-IT') + ' views' : '') + '</span></li>').join('') + '</ul></div>' : '') +
@@ -6094,7 +6156,7 @@ async function profiloDettaglio(id) {
   if ($('#av_ok')) $('#av_ok').onclick = async () => {
     const n = [...document.querySelectorAll('.av_ok')].filter((x) => x.checked).map((x) => Number(x.dataset.n));
     const modifiche = {}; document.querySelectorAll('.av_t').forEach((x) => { const c = A.copioni.find((k) => k.n === Number(x.dataset.n)); if (c && x.value !== c.testo) modifiche[c.n] = x.value; });
-    try { await chiama('/api/avatar/' + id + '/approva', { method: 'POST', body: { n, modifiche } }); rotta(); } catch (x) { $('#av_er').textContent = x.message; }
+    try { await chiama('/api/avatar/' + id + '/approva', { method: 'POST', body: { n, modifiche, cartella: ($('#av_pc') || {}).value || '' } }); rotta(); } catch (x) { $('#av_er').textContent = x.message; }
   };
   const libere = (A.lavori || []).filter((l) => l.stato === 'pronto' && !l.ig_id);
   document.querySelectorAll('.ig_q').forEach((x) => { const k = libere.findIndex((l) => l.n === Number(x.dataset.n)); const d = new Date((A.orari || [])[k] || Date.now() + 864e5); x.value = new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16); });
@@ -7338,7 +7400,8 @@ async function api(req, env, url) {
     const pcloud = String(d.pcloud || "").trim() || null;
     if (pcloud && !/code=/.test(pcloud)) return json2({ errore: 'il link pCloud deve essere il link pubblico della cartella (contiene "code=")' }, 400);
     const link = String(d.link_rif || "").split(/\s+/).filter((l) => /^https?:\/\//.test(l)).slice(0, 10);
-    const stile = rilevaStile(prompt, d.stile);
+    let stile = rilevaStile(prompt, d.stile);
+    if (d.solo_clip && (pcloud || Array.isArray(d.video) && d.video.length)) stile = { ...stile || { genere: null, mood: [] }, solo_clip: true };
     const video = (Array.isArray(d.video) ? d.video : []).filter((v) => /^https:\/\//.test(v?.url || "")).slice(0, 20).map((v) => ({ nome: String(v.nome || "").slice(0, 80), url: v.url, durata: Number(v.durata) || null }));
     const r = video.length ? await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,?,'url',?,?,?) RETURNING id", prompt, JSON.stringify(video), JSON.stringify(link), stile ? JSON.stringify(stile) : null, ora(), ora()) : await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,?,'pcloud',?,?,?) RETURNING id", prompt, pcloud, JSON.stringify(link), stile ? JSON.stringify(stile) : null, ora(), ora());
     await log(env, r.id, "regia", "\u{1F3AC} nuovo lavoro in coda: il Direttore creativo parte entro un minuto");

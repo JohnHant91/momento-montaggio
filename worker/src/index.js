@@ -195,7 +195,9 @@ async function api(req, env, url) {
     const pcloud = String(d.pcloud || '').trim() || null;
     if (pcloud && !/code=/.test(pcloud)) return json({ errore: 'il link pCloud deve essere il link pubblico della cartella (contiene "code=")' }, 400);
     const link = String(d.link_rif || '').split(/\s+/).filter((l) => /^https?:\/\//.test(l)).slice(0, 10);
-    const stile = rilevaStile(prompt, d.stile);
+    let stile = rilevaStile(prompt, d.stile);
+    // con le clip di Johnny e la spunta "solo le mie clip": niente ricerca di reel sulle piattaforme (si studiano solo i suoi modelli)
+    if (d.solo_clip && (pcloud || (Array.isArray(d.video) && d.video.length))) stile = { ...(stile || { genere: null, mood: [] }), solo_clip: true };
     // in alternativa a pCloud: video da link diretti (es. il video dell'avatar HeyGen)
     const video = (Array.isArray(d.video) ? d.video : []).filter((v) => /^https:\/\//.test(v?.url || '')).slice(0, 20).map((v) => ({ nome: String(v.nome || '').slice(0, 80), url: v.url, durata: Number(v.durata) || null }));
     const r = video.length
