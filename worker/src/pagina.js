@@ -1010,10 +1010,10 @@ async function profiloPagina() {
   const L = await chiama('/api/avatar');
   const fase = (x) => (FASI_AV.find((f) => f[0] === x.fase) || [0, x.fase])[1];
   $('#app').innerHTML = '<h1>Profilo Instagram · reel con il tuo avatar</h1><p class="mut">Dai l’argomento ad Alba: Sofia si documenta sul web, Zoe guarda i video simili e quelli virali, Nora scrive i copioni gancio → problema → tensione → soluzione. Tu li approvi, poi Ava li genera con il tuo avatar HeyGen e il comparto Reel li monta con le grafiche del talking head educativo.</p>' +
-    '<div class="card"><label>Argomento</label><input id="av_a" placeholder="Es. perché i reel dei ristoranti non funzionano"><div class="riga" style="gap:12px;align-items:end"><div><label>Quanti reel</label><input id="av_n" type="number" min="1" max="10" value="5" style="width:90px"></div><div style="flex:1"><label>Indicazioni (facoltative)</label><input id="av_note" placeholder="Es. tono ironico, parla ai titolari di B&B"></div></div><div style="margin-top:12px"><button id="av_go">Manda ad Alba</button></div><div id="av_er" class="err"></div></div>' +
+    '<div class="card"><label>Argomento</label><input id="av_a" placeholder="Es. perché i reel dei ristoranti non funzionano"><div class="riga" style="gap:12px;align-items:end"><div><label>Reel da scrivere subito</label><input id="av_n" type="number" min="1" max="10" value="1" style="width:90px"></div><div style="flex:1"><label>Indicazioni (facoltative)</label><input id="av_note" placeholder="Es. tono ironico, parla ai titolari di B&B"></div></div><div style="margin-top:12px"><button id="av_go">Manda ad Alba</button></div><div id="av_er" class="err"></div></div>' +
     '<h2>Argomenti</h2>' + (L.map((x) => '<a class="card lav" href="#/profilo/' + x.id + '"><div class="riga"><b style="flex:1">' + e(x.argomento) + '</b><span class="pill ' + (x.stato === 'da_approvare' ? 'errore' : x.stato === 'fatto' ? 'pronto' : x.stato === 'errore' ? 'errore' : 'corso') + '">' + (x.stato === 'da_approvare' ? 'da approvare' : x.stato === 'attende_avatar' ? 'aspetta l’avatar' : x.stato === 'errore' ? 'errore' : fase(x)) + '</span></div><div class="mut">#' + x.id + ' · ' + x.numero + ' reel · ' + fa(x.aggiornato) + (x.errore ? ' · ' + e(x.errore.slice(0, 90)) : '') + '</div></a>').join('') || '<p class="mut">Ancora nessuno.</p>');
   $('#av_go').onclick = async () => {
-    try { const r = await chiama('/api/avatar', { method: 'POST', body: { argomento: $('#av_a').value, numero: Number($('#av_n').value) || 5, note: $('#av_note').value } }); location.hash = '#/profilo/' + r.id; }
+    try { const r = await chiama('/api/avatar', { method: 'POST', body: { argomento: $('#av_a').value, numero: Number($("#av_n").value) || 1, note: $('#av_note').value } }); location.hash = '#/profilo/' + r.id; }
     catch (x) { $('#av_er').textContent = x.message; }
   };
   if (L.some((x) => x.stato === 'in_corso')) timer = setTimeout(rotta, 8000);
@@ -1027,9 +1027,9 @@ async function profiloDettaglio(id) {
   const lista = (a) => (a || []).map((x) => '<li>' + e(typeof x === 'string' ? x : x.fatto || x.dato || '') + (x.fonte ? ' <a href="' + e(x.fonte) + '" target="_blank" rel="noopener" class="mut">fonte</a>' : '') + '</li>').join('');
   const vid = (n) => (A.video || []).find((v) => v.n === n), lav = (n) => (A.lavori || []).find((v) => v.n === n);
   const copioni = A.copioni.map((c) => '<div class="card"><div class="riga"><b style="flex:1">' + c.n + '. ' + e(c.titolo || '') + '</b><span class="pill">' + (c.parole || 0) + ' parole</span>' +
-    (A.stato === 'da_approvare' ? '<label style="display:flex;gap:6px;font-weight:400"><input type="checkbox" class="av_ok" data-n="' + c.n + '" checked style="width:auto"> approva</label>' : '<span class="pill ' + (c.stato === 'approvato' ? 'pronto' : '') + '">' + e(c.stato) + '</span>') + '</div>' +
+    (A.stato === 'da_approvare' && c.stato === 'da_approvare' ? '<label style="display:flex;gap:6px;font-weight:400"><input type="checkbox" class="av_ok" data-n="' + c.n + '" checked style="width:auto"> approva</label>' : '<span class="pill ' + (c.stato === 'approvato' ? 'pronto' : '') + '">' + e(c.stato) + '</span>') + '</div>' +
     '<p class="mut" style="margin:6px 0">' + e(c.angolo || '') + '</p>' +
-    (A.stato === 'da_approvare' ? '<textarea class="av_t" data-n="' + c.n + '" style="min-height:160px">' + e(c.testo || '') + '</textarea>' : '<div style="white-space:pre-wrap">' + e(c.testo || '') + '</div>') +
+    (A.stato === 'da_approvare' && c.stato === 'da_approvare' ? '<textarea class="av_t" data-n="' + c.n + '" style="min-height:160px">' + e(c.testo || '') + '</textarea>' : '<div style="white-space:pre-wrap">' + e(c.testo || '') + '</div>') +
     '<p class="mut"><b>Cartelli:</b> ' + (c.cartelli || []).map((k) => e(k.testo) + (k.stile === 'barrato' ? ' (barrato)' : '')).join(' · ') + '</p>' +
     '<p class="mut"><b>Caption:</b> ' + e(c.caption || '') + ' ' + e((c.hashtag || []).join(' ')) + '</p>' +
     (vid(c.n) ? '<p>🎭 Avatar: ' + e(vid(c.n).stato) + (vid(c.n).url ? ' · <a href="' + e(vid(c.n).url) + '" target="_blank" rel="noopener">video grezzo</a>' : '') + '</p>' : '') +
@@ -1040,6 +1040,10 @@ async function profiloDettaglio(id) {
   $('#app').innerHTML = '<a class="mut" href="#/profilo">← Profilo IG</a><h1>' + e(A.argomento) + '</h1><div class="mut">#' + A.id + ' · ' + A.numero + ' reel' + (A.note ? ' · ' + e(A.note) : '') + '</div>' + passi +
     (A.errore ? '<div class="card err">' + e(A.errore) + ' <button class="sec" id="av_rp">Riprova</button></div>' : '') +
     (A.stato === 'attende_avatar' ? '<div class="card">🎭 I copioni sono approvati. Ava li genera da sola appena inserisci la chiave HeyGen in ⚙︎ Impostazioni; intanto puoi chiedere a Claude in chat di generarli con il tuo avatar.</div>' : '') +
+    ((A.idee || []).length ? '<h2>💡 Le 10 idee di Nora</h2><p class="mut">Una sola ricerca per 10 reel: Nora ha scritto il copione delle migliori, le altre sono in riserva. Scegline una e scrive il copione senza rifare la ricerca.</p>' +
+      A.idee.map((x, k) => '<div class="card"><div class="riga"><b style="flex:1">' + (k + 1) + '. ' + e(x.titolo || '') + '</b><span class="pill">voto ' + e(x.voto || '-') + '</span>' +
+        (x.usata ? '<span class="pill pronto">copione #' + x.usata + '</span>' : '<button class="sec av_idea" data-i="' + k + '">✍️ Fai questo reel</button>') + '</div>' +
+        '<p class="mut" style="margin:6px 0">' + e(x.angolo || '') + '</p><p style="margin:4px 0"><b>Gancio:</b> ' + e(x.gancio || '') + '</p><p class="mut" style="margin:0">' + e(x.perche || '') + '</p></div>').join('') : '') +
     (A.copioni.length ? '<h2>Copioni</h2>' + copioni + (A.stato === 'da_approvare' ? '<div class="riga"><button id="av_ok">Approva i selezionati e genera</button></div><div id="av_er" class="err"></div>' : '') : '') +
     (daPubblicare ? '<div class="card"><b>📲 Pubblicazione su Instagram</b><p class="mut">I reel montati vanno sul tuo profilo solo quando premi qui. Orari proposti: uno al giorno alle 19:00 e alle 13:00 alternati; cambiali se vuoi.</p><div class="riga"><button id="ig_go">Programma su Instagram</button></div><div id="ig_er" class="err"></div></div>' : '') +
     (R ? '<h2>Ricerca di Sofia</h2><div class="card"><p>' + e(R.sintesi || '') + '</p><b>Fatti verificati</b><ul>' + lista(R.fatti) + '</ul><b>Numeri</b><ul>' + lista(R.numeri) + '</ul><b>Errori comuni</b><ul>' + lista(R.errori_comuni) + '</ul><b>Domande della gente</b><ul>' + lista(R.domande_della_gente) + '</ul></div>' : '') +
@@ -1059,6 +1063,7 @@ async function profiloDettaglio(id) {
     if (!confirm('Programmare ' + n.length + ' reel sul tuo profilo Instagram? Verranno pubblicati da soli agli orari scelti.')) return;
     try { const r = await chiama('/api/avatar/' + id + '/pubblica', { method: 'POST', body: { n, quando } }); const ko = r.fatti.filter((f) => f.errore); if (ko.length) alert(ko.map((f) => '#' + f.n + ': ' + f.errore).join('\\n')); rotta(); } catch (x) { $('#ig_er').textContent = x.message; }
   };
+  document.querySelectorAll('.av_idea').forEach((b) => b.onclick = async () => { b.disabled = true; try { await chiama('/api/avatar/' + id + '/idea', { method: 'POST', body: { i: Number(b.dataset.i) } }); rotta(); } catch (x) { alert(x.message); b.disabled = false; } });
   if ($('#av_rp')) $('#av_rp').onclick = async () => { await chiama('/api/avatar/' + id + '/riprova', { method: 'POST' }); rotta(); };
   $('#av_del').onclick = async () => { if (!confirm('Eliminare questo argomento?')) return; await chiama('/api/avatar/' + id, { method: 'DELETE' }); location.hash = '#/profilo'; };
   if (['in_corso'].includes(A.stato)) timer = setTimeout(rotta, 8000);

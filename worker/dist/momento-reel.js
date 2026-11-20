@@ -2078,7 +2078,7 @@ Rispondi SOLO con JSON:
   "da_copiare": ["tecniche replicabili"],
   "da_evitare": ["cosa non funziona o \xE8 gi\xE0 visto"]
 }`;
-var analisiClip = (contesto) => `Sei l'assistente al montaggio di un'agenzia video. Descrivi questa clip GREZZA
+var analisiClip = (contesto2) => `Sei l'assistente al montaggio di un'agenzia video. Descrivi questa clip GREZZA
 per chi dovr\xE0 montare un reel verticale 9:16. Non vedi il video in movimento: ti do i fotogrammi in ordine di tempo
 (tempo in giallo) e MISURE ESATTE: fps, risoluzione, durata; per ogni fotogramma nitidezza (varianza del laplaciano
 su 480 px: sotto ~40 tende a mosso/sfocato, sopra ~150 \xE8 nitido), luminosit\xE0 0-255, % bruciato e % chiuso;
@@ -2088,7 +2088,7 @@ Sii sintetico: al massimo 8 momenti e 5 problemi, frasi brevi.
 Se \xE8 una FOTO o una SLIDE (tecnico.tipo = immagine): niente momenti n\xE9 problemi di tempo; descrivi cosa mostra e trascrivi
 il testo che contiene (se \xE8 una slide di carosello) in "testo_nell_immagine".
 
-Contesto del lavoro: ${contesto}
+Contesto del lavoro: ${contesto2}
 
 Rispondi SOLO con JSON:
 {
@@ -3094,8 +3094,10 @@ async function schemaAvatar(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS avatar_piani (id INTEGER PRIMARY KEY AUTOINCREMENT, argomento TEXT NOT NULL, numero INTEGER DEFAULT 5,
     note TEXT, fase TEXT NOT NULL DEFAULT 'ricerca', stato TEXT NOT NULL DEFAULT 'in_corso', ricerca TEXT, virali TEXT, copioni TEXT, video TEXT, lavori TEXT,
     errore TEXT, tentativi INTEGER DEFAULT 0, blocco_fino TEXT, riunione_id INTEGER, creato TEXT, aggiornato TEXT)`).run();
+  for (const c of ["idee TEXT", "idea_scelta INTEGER"]) await env.DB.prepare("ALTER TABLE avatar_piani ADD COLUMN " + c).run().catch(() => {
+  });
 }
-async function nuovoPianoAvatar(env, argomento, numero = 5, note = "", riunione = null) {
+async function nuovoPianoAvatar(env, argomento, numero = 1, note = "", riunione = null) {
   await schemaAvatar(env);
   const r = await one(
     env,
@@ -3192,27 +3194,52 @@ Rispondi SOLO JSON: {"ganci_che_funzionano": ["schemi di gancio (non copiati)"],
   await run(env, "UPDATE avatar_piani SET virali=?, fase='copioni', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(virali), ora(), A.id);
   await log(env, null, "trend", `\u{1F9E0} "${A.argomento.slice(0, 60)}": ${(sintesi.ganci_che_funzionano || []).length} schemi di gancio, ${(sintesi.angoli_scoperti || []).length} angoli scoperti. Tocca a Nora`);
 }
-async function faseCopioni2(env, cfg, A) {
-  const out = await claude(
-    cfg,
-    `Sei Nora, Idee e copioni di AGENZIA MOMENTO AI. Scrivi i testi che dir\xE0 l'AVATAR di Johnny nei reel del suo profilo Instagram.
-${MANUALE_COPIONI}`,
-    `ARGOMENTO: ${A.argomento}${A.note ? "\nINDICAZIONI DI JOHNNY: " + A.note : ""}
-RICERCA DI SOFIA (usa SOLO questi fatti e numeri): ${JSON.stringify(J(A.ricerca, {})).slice(0, 12e3)}
-COSA FUNZIONA NEI VIRALI (Zoe): ${JSON.stringify({ ...J(A.virali, {}), video: void 0, guardati: void 0 }).slice(0, 6e3)}
-
-Scrivi ${A.numero} copioni DIVERSI (angoli diversi), formato AVATAR: GANCIO \u2192 PROBLEMA \u2192 TENSIONE (2-3 anelli aperti) \u2192 SOLUZIONE solo alla fine \u2192 CTA.
-Rispondi SOLO JSON:
-{"copioni": [{"titolo": "...", "angolo": "...", "testo": "tutto il testo detto dall'avatar, 120-180 parole",
+var FORMATO_COPIONE = `{"titolo": "...", "angolo": "...", "testo": "tutto il testo detto dall'avatar, 120-180 parole",
   "gancio": "la prima frase", "soluzione": "la rivelazione finale in una frase",
   "cartelli": [{"testo": "1-4 parole", "sulla_parola": "parola detta su cui entra", "stile": "fascia|barrato", "colore": "blu|rosa"}],
-  "caption": "caption Instagram con gancio e CTA", "hashtag": ["5 hashtag"], "fonti": ["url usati"]}]}`,
-    { maxTokens: 16e3 }
-  );
-  const copioni = (out.copioni || []).slice(0, A.numero).map((c, i) => ({ n: i + 1, ...c, parole: String(c.testo || "").split(/\s+/).filter(Boolean).length, stato: "da_approvare" }));
-  if (!copioni.length) throw new Error("Nora non ha prodotto copioni");
-  await run(env, "UPDATE avatar_piani SET copioni=?, fase='approvazione', stato='da_approvare', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(copioni), ora(), A.id);
-  await log(env, null, "idee", `\u270D\uFE0F ${copioni.length} copioni pronti su "${A.argomento.slice(0, 60)}": aspettano la tua approvazione`);
+  "caption": "caption Instagram con gancio e CTA", "hashtag": ["5 hashtag"], "fonti": ["url usati"]}`;
+var contesto = (A) => `ARGOMENTO: ${A.argomento}${A.note ? "\nINDICAZIONI DI JOHNNY: " + A.note : ""}
+RICERCA DI SOFIA (usa SOLO questi fatti e numeri): ${JSON.stringify(J(A.ricerca, {})).slice(0, 12e3)}
+COSA FUNZIONA NEI VIRALI (Zoe): ${JSON.stringify({ ...J(A.virali, {}), video: void 0, guardati: void 0 }).slice(0, 6e3)}`;
+async function faseCopioni2(env, cfg, A) {
+  const sistema = `Sei Nora, Idee e copioni di AGENZIA MOMENTO AI. Scrivi i testi che dir\xE0 l'AVATAR di Johnny nei reel del suo profilo Instagram.
+${MANUALE_COPIONI}`;
+  const idee = J(A.idee, null);
+  const copioni = J(A.copioni, []) || [];
+  if (idee && A.idea_scelta != null) {
+    const I = idee[A.idea_scelta];
+    if (!I) throw new Error("idea non trovata");
+    const out2 = await claude(cfg, sistema, `${contesto(A)}
+
+IDEA SCELTA DA JOHNNY: ${JSON.stringify(I)}
+GI\xC0 FATTI (non ripeterli): ${copioni.map((c) => c.titolo).join(" \xB7 ")}
+Scrivi il copione di QUESTA idea, formato AVATAR: GANCIO \u2192 PROBLEMA \u2192 TENSIONE (2-3 anelli aperti) \u2192 SOLUZIONE solo alla fine \u2192 CTA.
+Rispondi SOLO JSON: ${FORMATO_COPIONE}`, { maxTokens: 4e3 });
+    const n = Math.max(0, ...copioni.map((c) => c.n)) + 1;
+    copioni.push({ n, ...out2, idea: A.idea_scelta, parole: String(out2.testo || "").split(/\s+/).filter(Boolean).length, stato: "da_approvare" });
+    idee[A.idea_scelta].usata = n;
+    await run(env, "UPDATE avatar_piani SET copioni=?, idee=?, idea_scelta=NULL, fase='approvazione', stato='da_approvare', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(copioni), JSON.stringify(idee), ora(), A.id);
+    await log(env, null, "idee", `\u270D\uFE0F copione "${out2.titolo}" scritto dall'idea in riserva (senza nuova ricerca): aspetta la tua approvazione`);
+    return;
+  }
+  const quanti = Math.min(A.numero || 1, 10);
+  const out = await claude(cfg, sistema, `${contesto(A)}
+
+1) Proponi 10 IDEE di reel DIVERSE (angoli diversi) su questo argomento, dalla migliore alla peggiore, con un voto 1-10 su quanto pu\xF2 diventare virale per il profilo di Johnny.
+2) Scegli le ${quanti} migliori e scrivi SOLO per quelle il copione completo, formato AVATAR: GANCIO \u2192 PROBLEMA \u2192 TENSIONE (2-3 anelli aperti) \u2192 SOLUZIONE solo alla fine \u2192 CTA.
+Rispondi SOLO JSON:
+{"idee": [{"titolo": "...", "angolo": "...", "gancio": "la prima frase", "soluzione": "...", "voto": n, "perche": "1 frase"}],
+ "scelte": [indici (da 0) delle idee scritte],
+ "copioni": [${FORMATO_COPIONE}]}`, { maxTokens: 6e3 + quanti * 2200 });
+  const lista = (out.idee || []).slice(0, 10);
+  const scelte = (out.scelte || []).map(Number);
+  const nuovi = (out.copioni || []).slice(0, quanti).map((c, k) => ({ n: k + 1, ...c, idea: scelte[k] ?? null, parole: String(c.testo || "").split(/\s+/).filter(Boolean).length, stato: "da_approvare" }));
+  if (!nuovi.length) throw new Error("Nora non ha prodotto copioni");
+  nuovi.forEach((c) => {
+    if (c.idea != null && lista[c.idea]) lista[c.idea].usata = c.n;
+  });
+  await run(env, "UPDATE avatar_piani SET copioni=?, idee=?, fase='approvazione', stato='da_approvare', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(nuovi), JSON.stringify(lista), ora(), A.id);
+  await log(env, null, "idee", `\u{1F4A1} 10 idee su "${A.argomento.slice(0, 60)}": Nora ha scelto le ${nuovi.length} migliori e ne ha scritto il copione, le altre ${lista.length - nuovi.length} restano in riserva`);
 }
 async function heygen(cfg, metodo, percorso, corpo) {
   const r = await richiesta("https://api.heygen.com" + percorso, { method: metodo, headers: { "x-api-key": cfg.HEYGEN_API_KEY, "content-type": "application/json", accept: "application/json" }, body: corpo ? JSON.stringify(corpo) : void 0 }, 2);
@@ -3359,7 +3386,7 @@ async function apiAvatar(req, env, p, m, json3) {
   if (p === "/api/avatar" && m === "POST") {
     const d = await corpo();
     if (String(d.argomento || "").trim().length < 3) return json3({ errore: "scrivi l'argomento" }, 400);
-    return json3({ id: await nuovoPianoAvatar(env, String(d.argomento).trim(), Number(d.numero) || 5, d.note) });
+    return json3({ id: await nuovoPianoAvatar(env, String(d.argomento).trim(), Number(d.numero) || 1, d.note) });
   }
   if (p === "/api/avatar/instagram" && m === "GET") {
     try {
@@ -3368,7 +3395,7 @@ async function apiAvatar(req, env, p, m, json3) {
       return json3({ collegato: false, errore: String(e.message || e) });
     }
   }
-  const mm = p.match(/^\/api\/avatar\/(\d+)(?:\/(approva|video|riprova|pubblica))?$/);
+  const mm = p.match(/^\/api\/avatar\/(\d+)(?:\/(approva|video|riprova|pubblica|idea))?$/);
   if (!mm) return null;
   const A = await one(env, "SELECT * FROM avatar_piani WHERE id=?", mm[1]);
   if (!A) return json3({ errore: "non trovato" }, 404);
@@ -3383,13 +3410,13 @@ async function apiAvatar(req, env, p, m, json3) {
       }
     } catch (_) {
     }
-    return json3({ ...A, ricerca: J(A.ricerca), virali: J(A.virali), copioni: J(A.copioni, []), video: J(A.video, []), lavori, orari: orariPubblicazione(lavori.filter((l) => !l.ig_id).length) });
+    return json3({ ...A, ricerca: J(A.ricerca), virali: J(A.virali), idee: J(A.idee, []), copioni: J(A.copioni, []), video: J(A.video, []), lavori, orari: orariPubblicazione(lavori.filter((l) => !l.ig_id).length) });
   }
   if (m === "POST" && mm[2] === "approva") {
     const d = await corpo();
     const ok = new Set((d.n || []).map(Number));
-    const copioni = J(A.copioni, []).map((c) => ({ ...c, testo: d.modifiche?.[c.n] ? String(d.modifiche[c.n]).slice(0, 4e3) : c.testo, stato: ok.has(c.n) ? "approvato" : "scartato" }));
-    if (!copioni.some((c) => c.stato === "approvato")) return json3({ errore: "approva almeno un copione" }, 400);
+    const copioni = J(A.copioni, []).map((c) => c.stato !== "da_approvare" ? c : { ...c, testo: d.modifiche?.[c.n] ? String(d.modifiche[c.n]).slice(0, 4e3) : c.testo, stato: ok.has(c.n) ? "approvato" : "scartato" });
+    if (!copioni.some((c) => c.stato === "approvato" && ok.has(c.n))) return json3({ errore: "approva almeno un copione" }, 400);
     await run(env, "UPDATE avatar_piani SET copioni=?, fase='avatar', stato='in_corso', blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(copioni), ora(), A.id);
     await log(env, null, "avatar", `\u{1F3AD} ${ok.size} copioni approvati da Johnny su "${A.argomento.slice(0, 60)}"`);
     return json3({ ok: true });
@@ -3433,6 +3460,15 @@ async function apiAvatar(req, env, p, m, json3) {
     const ok = fatti.filter((f) => f.quando);
     if (ok.length) await log(env, null, "social", `\u{1F4F2} ${ok.length} reel del profilo programmati su Instagram: ${ok.map((f) => `#${f.n} ${f.quando.slice(0, 16).replace("T", " ")}`).join(", ")}`);
     return json3({ ok: ok.length > 0, fatti });
+  }
+  if (m === "POST" && mm[2] === "idea") {
+    const d = await corpo(), idee = J(A.idee, []) || [], i = Number(d.i);
+    if (!idee[i]) return json3({ errore: "idea non trovata" }, 400);
+    if (idee[i].usata) return json3({ errore: "questa idea ha gi\xE0 il suo copione" }, 400);
+    if (A.stato === "in_corso" && A.fase !== "fatto") return json3({ errore: "aspetta che finisca il lavoro in corso su questo argomento" }, 409);
+    await run(env, "UPDATE avatar_piani SET idea_scelta=?, fase='copioni', stato='in_corso', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", i, ora(), A.id);
+    await log(env, null, "idee", `\u{1F4A1} Johnny sceglie l'idea in riserva "${String(idee[i].titolo).slice(0, 70)}": Nora scrive il copione`);
+    return json3({ ok: true });
   }
   if (m === "POST" && mm[2] === "riprova") {
     await run(env, "UPDATE avatar_piani SET stato='in_corso', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", ora(), A.id);
@@ -3947,7 +3983,7 @@ async function eseguiIncarico(env, cfg, I) {
   if (!A || A.chat) throw new Error("agente sconosciuto: " + I.agente);
   const C = await cliente(env, I.cliente_id);
   const prima = await all(env, "SELECT id, agente, titolo, esito FROM incarichi WHERE id IN (?, ?)", I.dipende_da || 0, I.padre_id || 0);
-  const contesto = prima.map((p) => {
+  const contesto2 = prima.map((p) => {
     const e = J(p.esito, {});
     return `--- dal collega ${SQUADRA[p.agente]?.n || p.agente} (${SQUADRA[p.agente]?.r || ""}), incarico #${p.id} "${p.titolo}":
 ${String(e.documento || e.sintesi || "").slice(0, 12e3)}`;
@@ -3960,7 +3996,7 @@ ${testoScheda(C)}
 
 INCARICO #${I.id}: ${I.titolo}
 ${I.brief || ""}
-${contesto ? "\nLAVORO GI\xC0 FATTO DAI COLLEGHI (usalo, non rifarlo):\n" + contesto : ""}
+${contesto2 ? "\nLAVORO GI\xC0 FATTO DAI COLLEGHI (usalo, non rifarlo):\n" + contesto2 : ""}
 
 ${I.agente === "brand" ? 'Il "documento" \xE8 la SCHEDA CLIENTE completa e definitiva che leggeranno tutti gli altri agenti: chi \xE8, offerta, pubblico, voce (con esempi di frasi s\xEC/no), punto di vista, prove, regole e cose da non dire mai.\n\n' : ""}${FORMATO}`, { maxTokens: 16e3 });
   const contenuti = Array.isArray(out.contenuti) ? out.contenuti.slice(0, 40) : [];
@@ -6016,10 +6052,10 @@ async function profiloPagina() {
   const L = await chiama('/api/avatar');
   const fase = (x) => (FASI_AV.find((f) => f[0] === x.fase) || [0, x.fase])[1];
   $('#app').innerHTML = '<h1>Profilo Instagram \xB7 reel con il tuo avatar</h1><p class="mut">Dai l\u2019argomento ad Alba: Sofia si documenta sul web, Zoe guarda i video simili e quelli virali, Nora scrive i copioni gancio \u2192 problema \u2192 tensione \u2192 soluzione. Tu li approvi, poi Ava li genera con il tuo avatar HeyGen e il comparto Reel li monta con le grafiche del talking head educativo.</p>' +
-    '<div class="card"><label>Argomento</label><input id="av_a" placeholder="Es. perch\xE9 i reel dei ristoranti non funzionano"><div class="riga" style="gap:12px;align-items:end"><div><label>Quanti reel</label><input id="av_n" type="number" min="1" max="10" value="5" style="width:90px"></div><div style="flex:1"><label>Indicazioni (facoltative)</label><input id="av_note" placeholder="Es. tono ironico, parla ai titolari di B&B"></div></div><div style="margin-top:12px"><button id="av_go">Manda ad Alba</button></div><div id="av_er" class="err"></div></div>' +
+    '<div class="card"><label>Argomento</label><input id="av_a" placeholder="Es. perch\xE9 i reel dei ristoranti non funzionano"><div class="riga" style="gap:12px;align-items:end"><div><label>Reel da scrivere subito</label><input id="av_n" type="number" min="1" max="10" value="1" style="width:90px"></div><div style="flex:1"><label>Indicazioni (facoltative)</label><input id="av_note" placeholder="Es. tono ironico, parla ai titolari di B&B"></div></div><div style="margin-top:12px"><button id="av_go">Manda ad Alba</button></div><div id="av_er" class="err"></div></div>' +
     '<h2>Argomenti</h2>' + (L.map((x) => '<a class="card lav" href="#/profilo/' + x.id + '"><div class="riga"><b style="flex:1">' + e(x.argomento) + '</b><span class="pill ' + (x.stato === 'da_approvare' ? 'errore' : x.stato === 'fatto' ? 'pronto' : x.stato === 'errore' ? 'errore' : 'corso') + '">' + (x.stato === 'da_approvare' ? 'da approvare' : x.stato === 'attende_avatar' ? 'aspetta l\u2019avatar' : x.stato === 'errore' ? 'errore' : fase(x)) + '</span></div><div class="mut">#' + x.id + ' \xB7 ' + x.numero + ' reel \xB7 ' + fa(x.aggiornato) + (x.errore ? ' \xB7 ' + e(x.errore.slice(0, 90)) : '') + '</div></a>').join('') || '<p class="mut">Ancora nessuno.</p>');
   $('#av_go').onclick = async () => {
-    try { const r = await chiama('/api/avatar', { method: 'POST', body: { argomento: $('#av_a').value, numero: Number($('#av_n').value) || 5, note: $('#av_note').value } }); location.hash = '#/profilo/' + r.id; }
+    try { const r = await chiama('/api/avatar', { method: 'POST', body: { argomento: $('#av_a').value, numero: Number($("#av_n").value) || 1, note: $('#av_note').value } }); location.hash = '#/profilo/' + r.id; }
     catch (x) { $('#av_er').textContent = x.message; }
   };
   if (L.some((x) => x.stato === 'in_corso')) timer = setTimeout(rotta, 8000);
@@ -6033,9 +6069,9 @@ async function profiloDettaglio(id) {
   const lista = (a) => (a || []).map((x) => '<li>' + e(typeof x === 'string' ? x : x.fatto || x.dato || '') + (x.fonte ? ' <a href="' + e(x.fonte) + '" target="_blank" rel="noopener" class="mut">fonte</a>' : '') + '</li>').join('');
   const vid = (n) => (A.video || []).find((v) => v.n === n), lav = (n) => (A.lavori || []).find((v) => v.n === n);
   const copioni = A.copioni.map((c) => '<div class="card"><div class="riga"><b style="flex:1">' + c.n + '. ' + e(c.titolo || '') + '</b><span class="pill">' + (c.parole || 0) + ' parole</span>' +
-    (A.stato === 'da_approvare' ? '<label style="display:flex;gap:6px;font-weight:400"><input type="checkbox" class="av_ok" data-n="' + c.n + '" checked style="width:auto"> approva</label>' : '<span class="pill ' + (c.stato === 'approvato' ? 'pronto' : '') + '">' + e(c.stato) + '</span>') + '</div>' +
+    (A.stato === 'da_approvare' && c.stato === 'da_approvare' ? '<label style="display:flex;gap:6px;font-weight:400"><input type="checkbox" class="av_ok" data-n="' + c.n + '" checked style="width:auto"> approva</label>' : '<span class="pill ' + (c.stato === 'approvato' ? 'pronto' : '') + '">' + e(c.stato) + '</span>') + '</div>' +
     '<p class="mut" style="margin:6px 0">' + e(c.angolo || '') + '</p>' +
-    (A.stato === 'da_approvare' ? '<textarea class="av_t" data-n="' + c.n + '" style="min-height:160px">' + e(c.testo || '') + '</textarea>' : '<div style="white-space:pre-wrap">' + e(c.testo || '') + '</div>') +
+    (A.stato === 'da_approvare' && c.stato === 'da_approvare' ? '<textarea class="av_t" data-n="' + c.n + '" style="min-height:160px">' + e(c.testo || '') + '</textarea>' : '<div style="white-space:pre-wrap">' + e(c.testo || '') + '</div>') +
     '<p class="mut"><b>Cartelli:</b> ' + (c.cartelli || []).map((k) => e(k.testo) + (k.stile === 'barrato' ? ' (barrato)' : '')).join(' \xB7 ') + '</p>' +
     '<p class="mut"><b>Caption:</b> ' + e(c.caption || '') + ' ' + e((c.hashtag || []).join(' ')) + '</p>' +
     (vid(c.n) ? '<p>\u{1F3AD} Avatar: ' + e(vid(c.n).stato) + (vid(c.n).url ? ' \xB7 <a href="' + e(vid(c.n).url) + '" target="_blank" rel="noopener">video grezzo</a>' : '') + '</p>' : '') +
@@ -6046,6 +6082,10 @@ async function profiloDettaglio(id) {
   $('#app').innerHTML = '<a class="mut" href="#/profilo">\u2190 Profilo IG</a><h1>' + e(A.argomento) + '</h1><div class="mut">#' + A.id + ' \xB7 ' + A.numero + ' reel' + (A.note ? ' \xB7 ' + e(A.note) : '') + '</div>' + passi +
     (A.errore ? '<div class="card err">' + e(A.errore) + ' <button class="sec" id="av_rp">Riprova</button></div>' : '') +
     (A.stato === 'attende_avatar' ? '<div class="card">\u{1F3AD} I copioni sono approvati. Ava li genera da sola appena inserisci la chiave HeyGen in \u2699\uFE0E Impostazioni; intanto puoi chiedere a Claude in chat di generarli con il tuo avatar.</div>' : '') +
+    ((A.idee || []).length ? '<h2>\u{1F4A1} Le 10 idee di Nora</h2><p class="mut">Una sola ricerca per 10 reel: Nora ha scritto il copione delle migliori, le altre sono in riserva. Scegline una e scrive il copione senza rifare la ricerca.</p>' +
+      A.idee.map((x, k) => '<div class="card"><div class="riga"><b style="flex:1">' + (k + 1) + '. ' + e(x.titolo || '') + '</b><span class="pill">voto ' + e(x.voto || '-') + '</span>' +
+        (x.usata ? '<span class="pill pronto">copione #' + x.usata + '</span>' : '<button class="sec av_idea" data-i="' + k + '">\u270D\uFE0F Fai questo reel</button>') + '</div>' +
+        '<p class="mut" style="margin:6px 0">' + e(x.angolo || '') + '</p><p style="margin:4px 0"><b>Gancio:</b> ' + e(x.gancio || '') + '</p><p class="mut" style="margin:0">' + e(x.perche || '') + '</p></div>').join('') : '') +
     (A.copioni.length ? '<h2>Copioni</h2>' + copioni + (A.stato === 'da_approvare' ? '<div class="riga"><button id="av_ok">Approva i selezionati e genera</button></div><div id="av_er" class="err"></div>' : '') : '') +
     (daPubblicare ? '<div class="card"><b>\u{1F4F2} Pubblicazione su Instagram</b><p class="mut">I reel montati vanno sul tuo profilo solo quando premi qui. Orari proposti: uno al giorno alle 19:00 e alle 13:00 alternati; cambiali se vuoi.</p><div class="riga"><button id="ig_go">Programma su Instagram</button></div><div id="ig_er" class="err"></div></div>' : '') +
     (R ? '<h2>Ricerca di Sofia</h2><div class="card"><p>' + e(R.sintesi || '') + '</p><b>Fatti verificati</b><ul>' + lista(R.fatti) + '</ul><b>Numeri</b><ul>' + lista(R.numeri) + '</ul><b>Errori comuni</b><ul>' + lista(R.errori_comuni) + '</ul><b>Domande della gente</b><ul>' + lista(R.domande_della_gente) + '</ul></div>' : '') +
@@ -6065,6 +6105,7 @@ async function profiloDettaglio(id) {
     if (!confirm('Programmare ' + n.length + ' reel sul tuo profilo Instagram? Verranno pubblicati da soli agli orari scelti.')) return;
     try { const r = await chiama('/api/avatar/' + id + '/pubblica', { method: 'POST', body: { n, quando } }); const ko = r.fatti.filter((f) => f.errore); if (ko.length) alert(ko.map((f) => '#' + f.n + ': ' + f.errore).join('\\n')); rotta(); } catch (x) { $('#ig_er').textContent = x.message; }
   };
+  document.querySelectorAll('.av_idea').forEach((b) => b.onclick = async () => { b.disabled = true; try { await chiama('/api/avatar/' + id + '/idea', { method: 'POST', body: { i: Number(b.dataset.i) } }); rotta(); } catch (x) { alert(x.message); b.disabled = false; } });
   if ($('#av_rp')) $('#av_rp').onclick = async () => { await chiama('/api/avatar/' + id + '/riprova', { method: 'POST' }); rotta(); };
   $('#av_del').onclick = async () => { if (!confirm('Eliminare questo argomento?')) return; await chiama('/api/avatar/' + id, { method: 'DELETE' }); location.hash = '#/profilo'; };
   if (['in_corso'].includes(A.stato)) timer = setTimeout(rotta, 8000);

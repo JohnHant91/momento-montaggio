@@ -58,9 +58,10 @@ export async function schemaAvatar(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS avatar_piani (id INTEGER PRIMARY KEY AUTOINCREMENT, argomento TEXT NOT NULL, numero INTEGER DEFAULT 5,
     note TEXT, fase TEXT NOT NULL DEFAULT 'ricerca', stato TEXT NOT NULL DEFAULT 'in_corso', ricerca TEXT, virali TEXT, copioni TEXT, video TEXT, lavori TEXT,
     errore TEXT, tentativi INTEGER DEFAULT 0, blocco_fino TEXT, riunione_id INTEGER, creato TEXT, aggiornato TEXT)`).run();
+  for (const c of ['idee TEXT', 'idea_scelta INTEGER']) await env.DB.prepare('ALTER TABLE avatar_piani ADD COLUMN ' + c).run().catch(() => {});
 }
 
-export async function nuovoPianoAvatar(env, argomento, numero = 5, note = '', riunione = null) {
+export async function nuovoPianoAvatar(env, argomento, numero = 1, note = '', riunione = null) {
   await schemaAvatar(env);
   const r = await one(env, 'INSERT INTO avatar_piani (argomento, numero, note, riunione_id, creato, aggiornato) VALUES (?,?,?,?,?,?) RETURNING id',
     String(argomento).slice(0, 300), Math.min(10, Math.max(1, Number(numero) || 5)), String(note || '').slice(0, 2000), riunione, ora(), ora());
@@ -143,23 +144,53 @@ Rispondi SOLO JSON: {"ganci_che_funzionano": ["schemi di gancio (non copiati)"],
 }
 
 // ------------------------------------------------------------------ 3. copioni
-async function faseCopioni(env, cfg, A) {
-  const out = await S.claude(cfg, `Sei Nora, Idee e copioni di AGENZIA MOMENTO AI. Scrivi i testi che dirà l'AVATAR di Johnny nei reel del suo profilo Instagram.
-${MANUALE_COPIONI}`,
-  `ARGOMENTO: ${A.argomento}${A.note ? '\nINDICAZIONI DI JOHNNY: ' + A.note : ''}
-RICERCA DI SOFIA (usa SOLO questi fatti e numeri): ${JSON.stringify(J(A.ricerca, {})).slice(0, 12000)}
-COSA FUNZIONA NEI VIRALI (Zoe): ${JSON.stringify({ ...J(A.virali, {}), video: undefined, guardati: undefined }).slice(0, 6000)}
-
-Scrivi ${A.numero} copioni DIVERSI (angoli diversi), formato AVATAR: GANCIO → PROBLEMA → TENSIONE (2-3 anelli aperti) → SOLUZIONE solo alla fine → CTA.
-Rispondi SOLO JSON:
-{"copioni": [{"titolo": "...", "angolo": "...", "testo": "tutto il testo detto dall'avatar, 120-180 parole",
+const FORMATO_COPIONE = `{"titolo": "...", "angolo": "...", "testo": "tutto il testo detto dall'avatar, 120-180 parole",
   "gancio": "la prima frase", "soluzione": "la rivelazione finale in una frase",
   "cartelli": [{"testo": "1-4 parole", "sulla_parola": "parola detta su cui entra", "stile": "fascia|barrato", "colore": "blu|rosa"}],
-  "caption": "caption Instagram con gancio e CTA", "hashtag": ["5 hashtag"], "fonti": ["url usati"]}]}`, { maxTokens: 16000 });
-  const copioni = (out.copioni || []).slice(0, A.numero).map((c, i) => ({ n: i + 1, ...c, parole: String(c.testo || '').split(/\s+/).filter(Boolean).length, stato: 'da_approvare' }));
-  if (!copioni.length) throw new Error('Nora non ha prodotto copioni');
-  await run(env, "UPDATE avatar_piani SET copioni=?, fase='approvazione', stato='da_approvare', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(copioni), ora(), A.id);
-  await log(env, null, 'idee', `✍️ ${copioni.length} copioni pronti su "${A.argomento.slice(0, 60)}": aspettano la tua approvazione`);
+  "caption": "caption Instagram con gancio e CTA", "hashtag": ["5 hashtag"], "fonti": ["url usati"]}`;
+const contesto = (A) => `ARGOMENTO: ${A.argomento}${A.note ? '\nINDICAZIONI DI JOHNNY: ' + A.note : ''}
+RICERCA DI SOFIA (usa SOLO questi fatti e numeri): ${JSON.stringify(J(A.ricerca, {})).slice(0, 12000)}
+COSA FUNZIONA NEI VIRALI (Zoe): ${JSON.stringify({ ...J(A.virali, {}), video: undefined, guardati: undefined }).slice(0, 6000)}`;
+
+// Una sola ricerca (Sofia + Zoe) vale per 10 reel: Nora propone 10 idee, sceglie le migliori e scrive il copione solo di
+// quelle; le altre restano in riserva e diventano copioni quando Johnny le sceglie, senza rifare la ricerca.
+async function faseCopioni(env, cfg, A) {
+  const sistema = `Sei Nora, Idee e copioni di AGENZIA MOMENTO AI. Scrivi i testi che dirà l'AVATAR di Johnny nei reel del suo profilo Instagram.
+${MANUALE_COPIONI}`;
+  const idee = J(A.idee, null);
+  const copioni = J(A.copioni, []) || [];
+  if (idee && A.idea_scelta != null) { // copione da un'idea in riserva
+    const I = idee[A.idea_scelta];
+    if (!I) throw new Error('idea non trovata');
+    const out = await S.claude(cfg, sistema, `${contesto(A)}
+
+IDEA SCELTA DA JOHNNY: ${JSON.stringify(I)}
+GIÀ FATTI (non ripeterli): ${copioni.map((c) => c.titolo).join(' · ')}
+Scrivi il copione di QUESTA idea, formato AVATAR: GANCIO → PROBLEMA → TENSIONE (2-3 anelli aperti) → SOLUZIONE solo alla fine → CTA.
+Rispondi SOLO JSON: ${FORMATO_COPIONE}`, { maxTokens: 4000 });
+    const n = Math.max(0, ...copioni.map((c) => c.n)) + 1;
+    copioni.push({ n, ...out, idea: A.idea_scelta, parole: String(out.testo || '').split(/\s+/).filter(Boolean).length, stato: 'da_approvare' });
+    idee[A.idea_scelta].usata = n;
+    await run(env, "UPDATE avatar_piani SET copioni=?, idee=?, idea_scelta=NULL, fase='approvazione', stato='da_approvare', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(copioni), JSON.stringify(idee), ora(), A.id);
+    await log(env, null, 'idee', `✍️ copione "${out.titolo}" scritto dall'idea in riserva (senza nuova ricerca): aspetta la tua approvazione`);
+    return;
+  }
+  const quanti = Math.min(A.numero || 1, 10);
+  const out = await S.claude(cfg, sistema, `${contesto(A)}
+
+1) Proponi 10 IDEE di reel DIVERSE (angoli diversi) su questo argomento, dalla migliore alla peggiore, con un voto 1-10 su quanto può diventare virale per il profilo di Johnny.
+2) Scegli le ${quanti} migliori e scrivi SOLO per quelle il copione completo, formato AVATAR: GANCIO → PROBLEMA → TENSIONE (2-3 anelli aperti) → SOLUZIONE solo alla fine → CTA.
+Rispondi SOLO JSON:
+{"idee": [{"titolo": "...", "angolo": "...", "gancio": "la prima frase", "soluzione": "...", "voto": n, "perche": "1 frase"}],
+ "scelte": [indici (da 0) delle idee scritte],
+ "copioni": [${FORMATO_COPIONE}]}`, { maxTokens: 6000 + quanti * 2200 });
+  const lista = (out.idee || []).slice(0, 10);
+  const scelte = (out.scelte || []).map(Number);
+  const nuovi = (out.copioni || []).slice(0, quanti).map((c, k) => ({ n: k + 1, ...c, idea: scelte[k] ?? null, parole: String(c.testo || '').split(/\s+/).filter(Boolean).length, stato: 'da_approvare' }));
+  if (!nuovi.length) throw new Error('Nora non ha prodotto copioni');
+  nuovi.forEach((c) => { if (c.idea != null && lista[c.idea]) lista[c.idea].usata = c.n; });
+  await run(env, "UPDATE avatar_piani SET copioni=?, idee=?, fase='approvazione', stato='da_approvare', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(nuovi), JSON.stringify(lista), ora(), A.id);
+  await log(env, null, 'idee', `💡 10 idee su "${A.argomento.slice(0, 60)}": Nora ha scelto le ${nuovi.length} migliori e ne ha scritto il copione, le altre ${lista.length - nuovi.length} restano in riserva`);
 }
 
 // ------------------------------------------------------------------ 4. avatar HeyGen
@@ -272,13 +303,13 @@ export async function apiAvatar(req, env, p, m, json) {
   if (p === '/api/avatar' && m === 'POST') {
     const d = await corpo();
     if (String(d.argomento || '').trim().length < 3) return json({ errore: "scrivi l'argomento" }, 400);
-    return json({ id: await nuovoPianoAvatar(env, String(d.argomento).trim(), Number(d.numero) || 5, d.note) });
+    return json({ id: await nuovoPianoAvatar(env, String(d.argomento).trim(), Number(d.numero) || 1, d.note) });
   }
   if (p === '/api/avatar/instagram' && m === 'GET') { // stato del profilo e coda di pubblicazione
     try { return json({ collegato: true, stato: await instagram(env, 'GET', '/stato'), coda: await instagram(env, 'GET', '/coda') }); }
     catch (e) { return json({ collegato: false, errore: String(e.message || e) }); }
   }
-  const mm = p.match(/^\/api\/avatar\/(\d+)(?:\/(approva|video|riprova|pubblica))?$/);
+  const mm = p.match(/^\/api\/avatar\/(\d+)(?:\/(approva|video|riprova|pubblica|idea))?$/);
   if (!mm) return null;
   const A = await one(env, 'SELECT * FROM avatar_piani WHERE id=?', mm[1]);
   if (!A) return json({ errore: 'non trovato' }, 404);
@@ -286,13 +317,13 @@ export async function apiAvatar(req, env, p, m, json) {
     const lavori = J(A.lavori, []) || [];
     for (const l of lavori) l.stato = (await one(env, 'SELECT stato FROM lavori WHERE id=?', l.lavoro))?.stato || 'sparito';
     if (lavori.some((l) => l.ig_id)) try { const coda = await instagram(env, 'GET', '/coda'); for (const l of lavori) { const q = coda.find((x) => x.id === l.ig_id); if (q) Object.assign(l, { ig_stato: q.stato, ig_link: q.permalink || null, ig_errore: q.errore || null }); } } catch (_) {}
-    return json({ ...A, ricerca: J(A.ricerca), virali: J(A.virali), copioni: J(A.copioni, []), video: J(A.video, []), lavori, orari: orariPubblicazione(lavori.filter((l) => !l.ig_id).length) });
+    return json({ ...A, ricerca: J(A.ricerca), virali: J(A.virali), idee: J(A.idee, []), copioni: J(A.copioni, []), video: J(A.video, []), lavori, orari: orariPubblicazione(lavori.filter((l) => !l.ig_id).length) });
   }
   if (m === 'POST' && mm[2] === 'approva') { // {n: [numeri approvati], modifiche: {n: testo}}
     const d = await corpo();
     const ok = new Set((d.n || []).map(Number));
-    const copioni = J(A.copioni, []).map((c) => ({ ...c, testo: d.modifiche?.[c.n] ? String(d.modifiche[c.n]).slice(0, 4000) : c.testo, stato: ok.has(c.n) ? 'approvato' : 'scartato' }));
-    if (!copioni.some((c) => c.stato === 'approvato')) return json({ errore: 'approva almeno un copione' }, 400);
+    const copioni = J(A.copioni, []).map((c) => c.stato !== 'da_approvare' ? c : ({ ...c, testo: d.modifiche?.[c.n] ? String(d.modifiche[c.n]).slice(0, 4000) : c.testo, stato: ok.has(c.n) ? 'approvato' : 'scartato' }));
+    if (!copioni.some((c) => c.stato === 'approvato' && ok.has(c.n))) return json({ errore: 'approva almeno un copione' }, 400);
     await run(env, "UPDATE avatar_piani SET copioni=?, fase='avatar', stato='in_corso', blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(copioni), ora(), A.id);
     await log(env, null, 'avatar', `🎭 ${ok.size} copioni approvati da Johnny su "${A.argomento.slice(0, 60)}"`);
     return json({ ok: true });
@@ -326,6 +357,15 @@ export async function apiAvatar(req, env, p, m, json) {
     const ok = fatti.filter((f) => f.quando);
     if (ok.length) await log(env, null, 'social', `📲 ${ok.length} reel del profilo programmati su Instagram: ${ok.map((f) => `#${f.n} ${f.quando.slice(0, 16).replace('T', ' ')}`).join(', ')}`);
     return json({ ok: ok.length > 0, fatti });
+  }
+  if (m === 'POST' && mm[2] === 'idea') { // {i}: copione da un'idea in riserva, senza rifare la ricerca
+    const d = await corpo(), idee = J(A.idee, []) || [], i = Number(d.i);
+    if (!idee[i]) return json({ errore: 'idea non trovata' }, 400);
+    if (idee[i].usata) return json({ errore: 'questa idea ha già il suo copione' }, 400);
+    if (A.stato === 'in_corso' && A.fase !== 'fatto') return json({ errore: 'aspetta che finisca il lavoro in corso su questo argomento' }, 409);
+    await run(env, "UPDATE avatar_piani SET idea_scelta=?, fase='copioni', stato='in_corso', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", i, ora(), A.id);
+    await log(env, null, 'idee', `💡 Johnny sceglie l'idea in riserva "${String(idee[i].titolo).slice(0, 70)}": Nora scrive il copione`);
+    return json({ ok: true });
   }
   if (m === 'POST' && mm[2] === 'riprova') { await run(env, "UPDATE avatar_piani SET stato='in_corso', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", ora(), A.id); return json({ ok: true }); }
   if (m === 'DELETE') { await run(env, 'DELETE FROM avatar_piani WHERE id=?', A.id); return json({ ok: true }); }

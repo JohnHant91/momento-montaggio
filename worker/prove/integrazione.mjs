@@ -126,6 +126,15 @@ sblocca('avatar_piani'); await cron();
 r = await chiama('/api/avatar/' + aid); ok(r.j.stato === 'fatto' && r.j.lavori.length === 2, 'partono 2 montaggi nel comparto Reel');
 const lav = env.DB._db.prepare("SELECT fonte, stile, pcloud FROM lavori WHERE fonte='url'").all();
 ok(lav.length >= 2 && lav.slice(-2).map((x) => JSON.parse(x.stile).genere).sort().join() === 'dietro,split' && JSON.parse(lav.at(-1).pcloud)[0].url.startsWith('https://heygen.example/'), 'i due reel alternano split e parole dietro, video da link');
+r = await chiama('/api/avatar/' + aid); ok(r.j.idee.length === 10 && r.j.idee.filter((x) => x.usata).length === 3, 'una ricerca, 10 idee: 3 scritte, 7 in riserva');
+r = await chiama('/api/avatar/' + aid + '/idea', { method: 'POST', body: { i: 5 } }); ok(r.status === 200, 'scelgo un\'idea in riserva');
+r = await chiama('/api/avatar/' + aid + '/idea', { method: 'POST', body: { i: 0 } }); ok(r.status === 400 || r.status === 409, 'idea già usata o lavoro in corso: rifiutata');
+sblocca('avatar_piani'); await cron();
+r = await chiama('/api/avatar/' + aid); ok(r.j.stato === 'da_approvare' && r.j.copioni.length === 4 && r.j.copioni.at(-1).titolo === 'Reel dalla riserva' && r.j.idee[5].usata === 4, 'Nora scrive il copione dalla riserva senza rifare la ricerca');
+r = await chiama('/api/avatar/' + aid + '/approva', { method: 'POST', body: { n: [4] } }); ok(r.status === 200, 'approvo il nuovo');
+r = await chiama('/api/avatar/' + aid); ok(r.j.copioni.filter((c) => c.stato === 'approvato').length === 3, 'i copioni già fatti restano approvati');
+sblocca('avatar_piani'); await cron();
+ok(stato.heygen.length === 3, 'HeyGen genera solo il nuovo');
 r = await chiama('/api/avatar/' + aid + '/video', { method: 'POST', body: { video: [{ n: 1, url: 'https://altro.example/x.mp4' }] } }); ok(r.status === 200, 'si possono anche passare video generati fuori (Claude in chat)');
 
 console.log('\n13) "per il mio profilo personale" → parte tutto, poi Instagram');
