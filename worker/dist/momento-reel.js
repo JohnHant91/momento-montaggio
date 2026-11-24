@@ -5528,28 +5528,19 @@ let timer = null;
 
 const AGENTI = {
   idee: { n: 'Nora', r: 'Idee e copioni', i: '\u{1F4A1}', c: '#f0b44c', s: 'direzione', d: 'Riceve i tuoi argomenti e il numero di reel del contratto, costruisce strategia, calendario e giornate di ripresa, e scrive per ogni reel il copione da girare: scene, inquadrature, camera, durata, testi e caption.' },
-  direttore: { n: 'Leo', r: 'Direttore creativo', i: '\u{1F3AC}', c: '#12a3a4', s: 'direzione', d: 'Legge il tuo prompt, capisce settore, obiettivo e pubblico, decide cosa cercare. Alla fine incrocia riferimenti e clip e scrive la scheda tecnica per tutta la squadra.' },
-  stella: { n: 'Stella', r: 'Ricercatrice di stile', i: '\u{1F3A8}', c: '#ff8fab', s: 'scouting', d: 'Capisce lo stile che chiedi (street, emozionale, romantico, natalizio\u2026), manda gli scout a cercare reel montati cos\xEC anche fuori settore e passa a Iris e Rocco la ricetta da applicare alle tue clip: ritmo, transizioni, color, camera, testi, musica.' },
-  scout_yt: { n: 'Yuri', r: 'Scout YouTube Shorts', i: '\u25B6\uFE0F', c: '#e5483f', s: 'scouting', d: 'Cerca gli Shorts del settore pubblicati negli ultimi 18 mesi e li ordina per visualizzazioni e coinvolgimento (like, commenti).' },
-  scout_tt: { n: 'Tea', r: 'Scout TikTok', i: '\u{1F3B5}', c: '#25d6ee', s: 'scouting', d: 'Cerca su TikTok per parole chiave e hashtag del settore (via Apify) e recupera il video per Max e Iris.' },
-  scout_ig: { n: 'Ines', r: 'Scout Instagram', i: '\u{1F4F8}', c: '#d6409f', s: 'scouting', d: 'Cerca i reel pi\xF9 visti sugli hashtag del settore (via Apify) e recupera il video per Max e Iris.' },
-  occhi: { n: 'Iris', r: 'Occhi \xB7 studia i reel', i: '\u{1F441}\uFE0F', c: '#8b7cf6', s: 'visione', d: 'Claude: guarda i fotogrammi chiave dei reel scelti (gancio + uno per inquadratura) insieme alle misure esatte di Max e li smonta: gancio, ritmo, testi, colore, effetti, musica, chiusura, perch\xE9 funzionano.' },
-  analista: { n: 'Ada', r: 'Analista delle tue clip', i: '\u{1F50E}', c: '#f0b44c', s: 'visione', d: 'Claude: guarda i fotogrammi delle tue clip e le misure di Max e segna i momenti utili con i tempi, la qualit\xE0, i problemi (mosso, fuori fuoco, esposizione) e il parlato.' },
-  motore: { n: 'Max', r: 'Motore GitHub \xB7 scarica e misura', i: '\u2699\uFE0F', c: '#9aa7ab', s: 'visione', d: 'Gira su GitHub Actions: scarica reel e clip, misura con ffmpeg i tagli esatti, la durata delle inquadrature, nitidezza, esposizione e movimento, stima i BPM, trascrive il parlato con Whisper ed estrae i fotogrammi chiave per Iris e Ada.' },
-  regista: { n: 'Rocco', r: 'Regista \xB7 piano di montaggio', i: '\u{1F3A5}', c: '#e07a5f', s: 'post', d: 'Claude: dalla scheda tecnica e dalle analisi delle clip sceglie i pezzi migliori (tempi esatti), l\u2019ordine, i rallenty, gli effetti e le transizioni: scrive il piano che il montatore esegue alla lettera.' },
-  copy: { n: 'Carla', r: 'Copy \xB7 testi e caption', i: '\u270D\uFE0F', c: '#f2cc8f', s: 'post', d: 'Claude: scrive il gancio, i testi a schermo, la chiusura con la CTA e la caption del post.' },
-  editor: { n: 'Edo', r: 'Editor \xB7 tagli e reframe', i: '\u2702\uFE0F', c: '#81b29a', s: 'post', d: 'Motore: reframe 9:16 che segue il soggetto (volti, movimento), stabilizzazione delle clip mosse, rallenty veri, durate esatte.' },
-  vfx: { n: 'Vale', r: 'VFX \xB7 effetti e transizioni', i: '\u2728', c: '#c77dff', s: 'post', d: 'Motore: punch-in, zoom, shake, transizioni (flash, whip, zoom, glitch, dissolvenza), light leak, grana, bande cinema.' },
-  color: { n: 'Cleo', r: 'Colorist \xB7 look', i: '\u{1F3A8}', c: '#ff9f1c', s: 'post', d: 'Motore: uniforma bianco ed esposizione di ogni clip (misurati) e applica il look della scheda con una LUT 3D.' },
-  audio: { n: 'Aldo', r: 'Audio \xB7 mix e sound design', i: '\u{1F3A7}', c: '#4cc9f0', s: 'post', d: 'Motore: suono originale delle clip, sound design generato (whoosh, impatti, riser), volume finale a \u221214 LUFS.' },
-  sottotitoli: { n: 'Sara', r: 'Testi animati e sottotitoli', i: '\u{1F4AC}', c: '#ffd166', s: 'post', d: 'Motore: testi animati con font Google, sottotitoli parola per parola o karaoke dal parlato (Whisper).' },
-  revisore: { n: 'Remo', r: 'Revisore \xB7 controllo qualit\xE0', i: '\u2705', c: '#4fd18b', s: 'post', d: 'Motore: controlla fotogrammi neri, durata, volume e peso del file prima della consegna.' },
+  direttore: { n: 'Leo', r: 'Direttore creativo e di stile', i: '\u{1F3AC}', c: '#12a3a4', s: 'direzione', d: 'Legge il tuo prompt, capisce settore, obiettivo, pubblico e lo stile che chiedi (natalizio, brasiliano, street\u2026), decide cosa cercare e alla fine scrive la scheda tecnica del reel.' },
+  scout: { n: 'Ines', r: 'Scout social', i: '\u{1F52D}', c: '#d6409f', s: 'scouting', d: 'Cerca i reel che funzionano su Instagram, TikTok e YouTube Shorts (settore e stile), li ordina per visualizzazioni e coinvolgimento e li recupera per Iris.' },
+  occhi: { n: 'Iris', r: 'Occhi \xB7 reel di riferimento e tue clip', i: '\u{1F441}\uFE0F', c: '#8b7cf6', s: 'visione', d: 'Claude: smonta i reel di riferimento (gancio, ritmo, inquadrature) e guarda le tue clip: momenti utili con i tempi, qualit\xE0, problemi (mosso, fuori fuoco).' },
+  regista: { n: 'Rocco', r: 'Regista e testi', i: '\u{1F3A5}', c: '#e07a5f', s: 'post', d: 'Claude: sceglie i pezzi migliori con i tempi esatti, l\u2019ordine, le transizioni e la musica, e scrive gancio, testi a schermo, chiusura e caption (corretti in italiano, mai inventati).' },
+  motore: { n: 'Max', r: 'Montatore (GitHub)', i: '\u2699\uFE0F', c: '#81b29a', s: 'post', d: 'Gira gratis su GitHub: scarica e misura le clip, scarta i tratti mossi, taglia a tempo, verticale 9:16, transizioni ed effetti, colore, titoli animati, sottotitoli, mix audio a \u221214 LUFS e controllo qualit\xE0 finale.' },
   regia: { n: 'Regia', r: 'sistema', i: '\u{1F6F0}\uFE0F', c: '#5d7378' },
 };
-const VECCHI = { 'Direttore creativo': 'direttore', 'Occhi (Gemini)': 'occhi', 'Analista': 'analista', 'Regia': 'regia', 'Ricerca': 'scout_yt' };
-const AGID = (a) => AGENTI[a] ? a : VECCHI[a] || 'regia';
+const VECCHI = { 'Direttore creativo': 'direttore', 'Occhi (Gemini)': 'occhi', 'Analista': 'occhi', 'Regia': 'regia', 'Ricerca': 'scout' };
+// squadra video dimezzata: i vecchi reparti confluiscono in 5 agenti (i registri storici restano leggibili)
+const ACCORPATI_VIDEO = { stella: 'direttore', scout_yt: 'scout', scout_tt: 'scout', scout_ig: 'scout', analista: 'occhi', copy: 'regista', editor: 'motore', vfx: 'motore', color: 'motore', audio: 'motore', sottotitoli: 'motore', revisore: 'motore' };
+const AGID = (a) => ACCORPATI_VIDEO[a] || (AGENTI[a] ? a : VECCHI[a] || 'regia');
 const STANZE = [['direzione', 'Direzione creativa'], ['scouting', 'Scouting \xB7 ricerca di settore'], ['visione', 'Sala visione'], ['post', 'Post-produzione']];
-const FASE_AGENTI = { piano: ['direttore', 'stella'], ricerca: ['scout_yt', 'scout_tt', 'scout_ig'], riferimenti: ['motore', 'occhi'], clip: ['motore', 'analista'], scheda: ['direttore'], regia: ['regista', 'copy'], montaggio: ['motore', 'editor', 'color', 'vfx', 'sottotitoli', 'audio', 'revisore'] };
+const FASE_AGENTI = { piano: ['direttore'], ricerca: ['scout'], riferimenti: ['motore', 'occhi'], clip: ['motore', 'occhi'], scheda: ['direttore'], regia: ['regista'], montaggio: ['motore'] };
 const fa = (q) => { const s = (Date.now() - new Date(q)) / 1000; return s < 60 ? 'ora' : s < 3600 ? Math.round(s / 60) + ' min fa' : s < 86400 ? Math.round(s / 3600) + ' h fa' : new Date(q).toLocaleDateString('it-IT'); };
 
 async function chiama(path, opts = {}) {
@@ -6104,8 +6095,8 @@ const PIANTA = [
   ['meeting', 'Sala meeting', 1440, 740, 300, 260, '#eef2f7'],
 ];
 const FASE_PROFILO = { ricerca: ['ricerca'], virali: ['trend'], copioni: ['idee'], avatar: ['avatar'], montaggio: ['avatar'] };
-const FASE_POST_AG = { ricerca: ['scout_ig'], studio: ['occhi'], foto: ['analista'], contenuti: ['caroselli'], scarica: ['caroselli'] };
-const VIDEO_TEAM = ['direttore', 'avatar', 'stella', 'scout_yt', 'scout_tt', 'scout_ig', 'occhi', 'analista', 'motore', 'regista', 'copy', 'editor', 'vfx', 'color', 'audio', 'sottotitoli', 'revisore'];
+const FASE_POST_AG = { ricerca: ['scout'], studio: ['occhi'], foto: ['occhi'], contenuti: ['caroselli'], scarica: ['caroselli'] };
+const VIDEO_TEAM = ['direttore', 'scout', 'occhi', 'regista', 'motore', 'avatar'];
 let SALA = { s: 1, x: 0, y: 0, dati: null, sel: null, ufficio: null };
 
 function statiAgenti(R) {
