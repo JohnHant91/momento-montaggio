@@ -312,7 +312,7 @@ async function api(req, env, url) {
     const r = await apiRiunioni(req, env, p, m, json);
     if (r) return r;
   }
-  if (/^\/api\/(azienda|capo|chat|incarichi|contenuti|clienti|gestionale)/.test(p)) {
+  if (/^\/api\/(azienda|capo|chat|incarichi|contenuti|clienti|gestionale|approvazioni)/.test(p)) {
     const r = await apiAgenzia(req, env, p, m, json);
     if (r) return r;
   }

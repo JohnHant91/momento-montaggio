@@ -47,6 +47,7 @@ export async function schemaAgenzia(env) {
       gest_id TEXT, creato TEXT, aggiornato TEXT)`),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS chat (id INTEGER PRIMARY KEY AUTOINCREMENT, canale TEXT, ruolo TEXT, testo TEXT, quando TEXT)'),
   ]);
+  await env.DB.prepare('ALTER TABLE incarichi ADD COLUMN visto TEXT').run().catch(() => {}); // documenti degli agenti già letti da Johnny
 }
 
 // ------------------------------------------------------------------ scheda cliente
@@ -369,7 +370,8 @@ export async function apiAgenzia(req, env, p, m, json) {
     // tutto quello che aspetta Johnny (sezione Approvazioni unica)
     const n = async (sql) => (await one(env, sql).catch(() => null))?.n || 0;
     approvare.n += await n("SELECT COUNT(*) AS n FROM lavori WHERE stato='pronto' AND approvato IS NULL") + await n("SELECT COUNT(*) AS n FROM avatar_piani WHERE stato='da_approvare'") +
-      await n("SELECT COUNT(*) AS n FROM post_lavori WHERE stato IN ('da_approvare','attende_canva')") + await n("SELECT COUNT(*) AS n FROM piani WHERE stato='pronto' AND approvato IS NULL");
+      await n("SELECT COUNT(*) AS n FROM post_lavori WHERE stato IN ('da_approvare','attende_canva')") + await n("SELECT COUNT(*) AS n FROM piani WHERE stato='pronto' AND approvato IS NULL") +
+      await n("SELECT COUNT(*) AS n FROM riunioni WHERE stato='proposte'") + await n("SELECT COUNT(*) AS n FROM incarichi WHERE stato IN ('fatto','da_approvare') AND visto IS NULL AND esito LIKE '%documento%'");
     return json({ adesso, uffici: UFFICI, squadra: SQUADRA, attivi, recenti, da_approvare: approvare.n, conti, clienti: clienti.n, reel: reelAttivi, piani: pianiAttivi, profilo, postl, feed, gestionale: !!env.GEST });
   }
   const ch = p.match(/^\/api\/chat\/(capo|gestionale|contabile)$/);
@@ -399,6 +401,13 @@ export async function apiAgenzia(req, env, p, m, json) {
     await log(env, null, d.agente, `📥 nuovo incarico #${r.id}: ${String(d.titolo).slice(0, 100)}`);
     return json({ id: r.id });
   }
+  // documenti scritti dagli agenti (schede cliente, strategie, report…) che Johnny non ha ancora letto: vanno in Approvazioni
+  if (p === '/api/approvazioni/documenti' && m === 'GET') {
+    const L = await all(env, "SELECT i.id, i.agente, i.titolo, i.esito, i.aggiornato, k.nome AS cliente FROM incarichi i LEFT JOIN clienti k ON k.id=i.cliente_id WHERE i.stato IN ('fatto','da_approvare') AND i.visto IS NULL AND i.esito IS NOT NULL ORDER BY i.id DESC LIMIT 30");
+    return json(L.map((x) => { const e = J(x.esito, {}); return { id: x.id, agente: x.agente, titolo: x.titolo, cliente: x.cliente, aggiornato: x.aggiornato, sintesi: String(e.sintesi || '').slice(0, 600), documento: String(e.documento || '').slice(0, 6000) }; }).filter((x) => x.documento || x.sintesi));
+  }
+  const vv = p.match(/^\/api\/incarichi\/(\d+)\/visto$/);
+  if (vv && m === 'POST') { await run(env, 'UPDATE incarichi SET visto=? WHERE id=?', ora(), vv[1]); return json({ ok: true }); }
   const ii = p.match(/^\/api\/incarichi\/(\d+)(?:\/(riprova|rifai))?$/);
   if (ii && m === 'GET' && !ii[2]) {
     const I = await one(env, 'SELECT i.*, k.nome AS cliente FROM incarichi i LEFT JOIN clienti k ON k.id=i.cliente_id WHERE i.id=?', ii[1]);

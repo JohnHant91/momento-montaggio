@@ -49,15 +49,18 @@ export async function inviaPush(env, titolo, testo, link = '#/approvazioni') {
 export async function controllaApprovazioni(env) {
   if (!env.VAPID_PRIVATA) return;
   const q = (sql) => all(env, sql).catch(() => []);
-  const [reel, avatar, post, piani, cont] = await Promise.all([
+  const [reel, avatar, post, piani, cont, riun, doc] = await Promise.all([
     q("SELECT id, COALESCE(json_extract(scheda, '$.titolo_lavoro'), substr(prompt, 1, 60)) AS t FROM lavori WHERE stato='pronto' AND approvato IS NULL"),
     q("SELECT id, argomento AS t FROM avatar_piani WHERE stato='da_approvare'"),
     q("SELECT id, COALESCE(cliente, 'caroselli') AS t FROM post_lavori WHERE stato IN ('da_approvare','attende_canva')"),
     q("SELECT id, cliente AS t FROM piani WHERE stato='pronto' AND approvato IS NULL"),
     q("SELECT id, titolo AS t FROM contenuti WHERE stato IN ('da_approvare','da_pubblicare')"),
+    q("SELECT id, COALESCE(titolo, substr(richiesta, 1, 60)) AS t FROM riunioni WHERE stato='proposte'"),
+    q("SELECT id, titolo AS t FROM incarichi WHERE stato IN ('fatto','da_approvare') AND visto IS NULL AND esito LIKE '%documento%'"),
   ]);
   const voci = [...reel.map((x) => ['r' + x.id, '🎬 Reel pronto', x.t]), ...avatar.map((x) => ['a' + x.id, '🎭 Copioni del profilo', x.t]),
-    ...post.map((x) => ['p' + x.id, '🗂️ Caroselli da approvare', x.t]), ...piani.map((x) => ['c' + x.id, '📝 Copioni clienti', x.t]), ...cont.map((x) => ['k' + x.id, '✅ Contenuto da approvare', x.t])];
+    ...post.map((x) => ['p' + x.id, '🗂️ Caroselli da approvare', x.t]), ...piani.map((x) => ['c' + x.id, '📝 Copioni clienti', x.t]), ...cont.map((x) => ['k' + x.id, '✅ Contenuto da approvare', x.t]),
+    ...riun.map((x) => ['m' + x.id, '🤝 Proposte da scegliere', x.t]), ...doc.map((x) => ['d' + x.id, '📄 Documento da leggere', x.t])];
   const gia = new Set(J((await one(env, "SELECT valore FROM impostazioni WHERE chiave='NOTIFICATI'"))?.valore, []));
   const nuove = voci.filter(([k]) => !gia.has(k));
   // la lista si tiene corta: solo quello che aspetta ancora

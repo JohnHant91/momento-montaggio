@@ -4081,6 +4081,8 @@ async function schemaAgenzia(env) {
       gest_id TEXT, creato TEXT, aggiornato TEXT)`),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS chat (id INTEGER PRIMARY KEY AUTOINCREMENT, canale TEXT, ruolo TEXT, testo TEXT, quando TEXT)")
   ]);
+  await env.DB.prepare("ALTER TABLE incarichi ADD COLUMN visto TEXT").run().catch(() => {
+  });
 }
 async function cliente(env, id) {
   return id ? one(env, "SELECT * FROM clienti WHERE id=?", id) : null;
@@ -4477,7 +4479,7 @@ async function apiAgenzia(req, env, p, m, json3) {
     ]);
     const feed = await all(env, "SELECT agente, messaggio, livello, quando, lavoro_id FROM registro ORDER BY id DESC LIMIT 40");
     const n = async (sql) => (await one(env, sql).catch(() => null))?.n || 0;
-    approvare.n += await n("SELECT COUNT(*) AS n FROM lavori WHERE stato='pronto' AND approvato IS NULL") + await n("SELECT COUNT(*) AS n FROM avatar_piani WHERE stato='da_approvare'") + await n("SELECT COUNT(*) AS n FROM post_lavori WHERE stato IN ('da_approvare','attende_canva')") + await n("SELECT COUNT(*) AS n FROM piani WHERE stato='pronto' AND approvato IS NULL");
+    approvare.n += await n("SELECT COUNT(*) AS n FROM lavori WHERE stato='pronto' AND approvato IS NULL") + await n("SELECT COUNT(*) AS n FROM avatar_piani WHERE stato='da_approvare'") + await n("SELECT COUNT(*) AS n FROM post_lavori WHERE stato IN ('da_approvare','attende_canva')") + await n("SELECT COUNT(*) AS n FROM piani WHERE stato='pronto' AND approvato IS NULL") + await n("SELECT COUNT(*) AS n FROM riunioni WHERE stato='proposte'") + await n("SELECT COUNT(*) AS n FROM incarichi WHERE stato IN ('fatto','da_approvare') AND visto IS NULL AND esito LIKE '%documento%'");
     return json3({ adesso, uffici: UFFICI, squadra: SQUADRA, attivi, recenti, da_approvare: approvare.n, conti, clienti: clienti.n, reel: reelAttivi, piani: pianiAttivi, profilo, postl, feed, gestionale: !!env.GEST });
   }
   const ch = p.match(/^\/api\/chat\/(capo|gestionale|contabile)$/);
@@ -4515,6 +4517,18 @@ async function apiAgenzia(req, env, p, m, json3) {
     );
     await log(env, null, d.agente, `\u{1F4E5} nuovo incarico #${r.id}: ${String(d.titolo).slice(0, 100)}`);
     return json3({ id: r.id });
+  }
+  if (p === "/api/approvazioni/documenti" && m === "GET") {
+    const L = await all(env, "SELECT i.id, i.agente, i.titolo, i.esito, i.aggiornato, k.nome AS cliente FROM incarichi i LEFT JOIN clienti k ON k.id=i.cliente_id WHERE i.stato IN ('fatto','da_approvare') AND i.visto IS NULL AND i.esito IS NOT NULL ORDER BY i.id DESC LIMIT 30");
+    return json3(L.map((x) => {
+      const e = J(x.esito, {});
+      return { id: x.id, agente: x.agente, titolo: x.titolo, cliente: x.cliente, aggiornato: x.aggiornato, sintesi: String(e.sintesi || "").slice(0, 600), documento: String(e.documento || "").slice(0, 6e3) };
+    }).filter((x) => x.documento || x.sintesi));
+  }
+  const vv = p.match(/^\/api\/incarichi\/(\d+)\/visto$/);
+  if (vv && m === "POST") {
+    await run(env, "UPDATE incarichi SET visto=? WHERE id=?", ora(), vv[1]);
+    return json3({ ok: true });
   }
   const ii = p.match(/^\/api\/incarichi\/(\d+)(?:\/(riprova|rifai))?$/);
   if (ii && m === "GET" && !ii[2]) {
@@ -5269,19 +5283,23 @@ async function inviaPush(env, titolo, testo, link = "#/approvazioni") {
 async function controllaApprovazioni(env) {
   if (!env.VAPID_PRIVATA) return;
   const q = (sql) => all(env, sql).catch(() => []);
-  const [reel, avatar, post, piani, cont] = await Promise.all([
+  const [reel, avatar, post, piani, cont, riun, doc] = await Promise.all([
     q("SELECT id, COALESCE(json_extract(scheda, '$.titolo_lavoro'), substr(prompt, 1, 60)) AS t FROM lavori WHERE stato='pronto' AND approvato IS NULL"),
     q("SELECT id, argomento AS t FROM avatar_piani WHERE stato='da_approvare'"),
     q("SELECT id, COALESCE(cliente, 'caroselli') AS t FROM post_lavori WHERE stato IN ('da_approvare','attende_canva')"),
     q("SELECT id, cliente AS t FROM piani WHERE stato='pronto' AND approvato IS NULL"),
-    q("SELECT id, titolo AS t FROM contenuti WHERE stato IN ('da_approvare','da_pubblicare')")
+    q("SELECT id, titolo AS t FROM contenuti WHERE stato IN ('da_approvare','da_pubblicare')"),
+    q("SELECT id, COALESCE(titolo, substr(richiesta, 1, 60)) AS t FROM riunioni WHERE stato='proposte'"),
+    q("SELECT id, titolo AS t FROM incarichi WHERE stato IN ('fatto','da_approvare') AND visto IS NULL AND esito LIKE '%documento%'")
   ]);
   const voci = [
     ...reel.map((x) => ["r" + x.id, "\u{1F3AC} Reel pronto", x.t]),
     ...avatar.map((x) => ["a" + x.id, "\u{1F3AD} Copioni del profilo", x.t]),
     ...post.map((x) => ["p" + x.id, "\u{1F5C2}\uFE0F Caroselli da approvare", x.t]),
     ...piani.map((x) => ["c" + x.id, "\u{1F4DD} Copioni clienti", x.t]),
-    ...cont.map((x) => ["k" + x.id, "\u2705 Contenuto da approvare", x.t])
+    ...cont.map((x) => ["k" + x.id, "\u2705 Contenuto da approvare", x.t]),
+    ...riun.map((x) => ["m" + x.id, "\u{1F91D} Proposte da scegliere", x.t]),
+    ...doc.map((x) => ["d" + x.id, "\u{1F4C4} Documento da leggere", x.t])
   ];
   const gia = new Set(J((await one(env, "SELECT valore FROM impostazioni WHERE chiave='NOTIFICATI'"))?.valore, []));
   const nuove = voci.filter(([k]) => !gia.has(k));
@@ -5426,6 +5444,7 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 .et-ag.carta.coda i{background:#f3efe7;color:#8a6a1f}.et-ag.carta.scelto{box-shadow:0 0 0 2px var(--teal),0 12px 30px -12px rgba(0,0,0,.35)}
 .etichette:not(.vicino) .et-ag.pillola{display:none}
 .reelc{display:flex;gap:14px;align-items:flex-start}.reelc .reel-cop{flex:0 0 72px;height:128px;border-radius:10px;background:#f1efe9;display:grid;place-items:center;font-size:26px;overflow:hidden}.reelc .reel-cop img{width:100%;height:100%;object-fit:cover}.reelc .reel-tit{color:inherit;text-decoration:none}.reelc.pausa{opacity:.75}.reelc.errore{border-color:var(--err)}.reelc .r_az{padding:6px 10px;font-size:13px;width:auto}
+.ap-h{display:flex;align-items:center;gap:8px;margin-top:26px}.ap{margin-bottom:12px}.ap-voce{border-top:1px solid var(--line);padding:10px 0}.ap-voce:first-of-type{border-top:0}.ap-voce.consigliata{background:#fffbea;border-radius:10px;padding:10px}.ap summary{cursor:pointer}
 .lavorazioni{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin:12px 0}.lz{display:flex;gap:10px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 12px;color:inherit;text-decoration:none}.lz .ic{font-size:22px}.lz .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}.lz b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lz small{font-size:12px;color:var(--mut)}
 .avanz{height:6px;border-radius:9px;background:#ece9e1;overflow:hidden}.avanz i{display:block;height:100%;background:linear-gradient(90deg,#12a3a4,#3fd0c9);border-radius:9px;transition:width .6s}
 .filtri{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 0 0}.filtri button{background:#fff;color:#4d4b46;border:1px solid var(--line);padding:6px 12px;font-size:13px;font-weight:500;white-space:nowrap}.filtri button.on{background:var(--nero);color:#fff;border-color:var(--nero)}
@@ -6460,26 +6479,79 @@ async function riunionePagina(id) {
   if ($('#r_rifai')) $('#r_rifai').onclick = async () => { const r = await chiama('/api/riunioni/' + id + '/rifai', { method: 'POST', body: { nota: $('#r_nota').value } }); location.hash = '#/riunione/' + r.id; };
 }
 
+// APPROVAZIONI: un'unica casella con tutto quello che aspetta Johnny, e si approva da qui senza andare a cercare:
+// reel finiti, copioni (profilo e clienti), caroselli, post del calendario, proposte delle riunioni, documenti degli agenti
 async function approvazioni() {
   if (!AGENTI.capo) { const R = await chiama('/api/azienda'); Object.assign(AGENTI, R.squadra); }
-  const [L, Av, Po, Re, Pi] = await Promise.all([chiama('/api/contenuti'), chiama('/api/avatar').catch(() => []), chiama('/api/post').catch(() => []), chiama('/api/lavori').catch(() => []), chiama('/api/piani').catch(() => [])]);
-  // reel finiti da guardare: si approvano qui o si rimontano nella loro pagina
+  const nulla = () => [];
+  const [L, Av, Po, Re, Pi, Ri, Doc] = await Promise.all([chiama('/api/contenuti'), chiama('/api/avatar').catch(nulla), chiama('/api/post').catch(nulla), chiama('/api/lavori').catch(nulla),
+    chiama('/api/piani').catch(nulla), chiama('/api/riunioni').catch(nulla), chiama('/api/approvazioni/documenti').catch(nulla)]);
   const reel = Re.filter((l) => l.stato === 'pronto' && !l.approvato);
-  const bloccoReel = reel.length ? '<h2>\u{1F3AC} Reel da guardare e approvare (' + reel.length + ')</h2>' + reel.map((l) => '<div class="card lav reelc">' +
-    '<a class="reel-cop" href="#/lavoro/' + l.id + '">' + (l.copertina ? '<img src="/api/lavori/' + l.id + '/copertina.jpg">' : '<span>\u{1F3AC}</span>') + '</a>' +
-    '<div style="flex:1"><b>#' + l.id + ' \xB7 ' + e(l.titolo || l.prompt.slice(0, 80)) + '</b><div class="mut" style="margin:4px 0">' + (l.avatar ? '\u{1F3AD} profilo \xB7 ' : '') + 'pronto ' + fa(l.aggiornato) + '</div>' +
-    '<div class="riga" style="gap:6px"><a class="btn" style="padding:6px 12px" href="#/lavoro/' + l.id + '">\u25B6 Guarda</a><button class="ap_reel" data-id="' + l.id + '" style="width:auto;padding:6px 12px">\u2705 Approva</button><a class="btn sec" style="padding:6px 12px" href="#/lavoro/' + l.id + '">\u270F\uFE0F Modifiche</a></div></div></div>').join('') : '';
-  // copioni del profilo, copioni dei clienti e caroselli che aspettano te: si approvano nella loro pagina
-  const attesa = [...Pi.filter((x) => x.stato === 'pronto' && !x.approvato).map((x) => ({ t: '\u{1F4DD} Copioni per i clienti', b: (x.titolo || x.cliente) + ' \xB7 ' + (x.scritti || 0) + ' copioni', link: '#/copioni/' + x.id })),...Av.filter((x) => x.stato === 'da_approvare').map((x) => ({ t: '\u{1F3AD} Copioni per il tuo profilo IG', b: x.argomento + ' \xB7 ' + x.numero + ' reel', link: '#/profilo/' + x.id })),
-    ...Po.filter((x) => ['da_approvare', 'attende_canva'].includes(x.stato)).map((x) => ({ t: x.stato === 'da_approvare' ? '\u{1F5C2}\uFE0F Caroselli da approvare' : '\u{1F3A8} Caroselli da fare su Canva', b: (x.cliente || '') + (x.titolo ? ' \xB7 ' + x.titolo : ''), link: '#/post/' + x.id }))];
-  const blocco = attesa.length ? '<h2>\u270D\uFE0F Copioni e caroselli da approvare (' + attesa.length + ')</h2>' + attesa.map((x) => '<a class="card lav" href="' + x.link + '"><div class="riga"><b style="flex:1">' + e(x.b) + '</b><span class="btn" style="padding:5px 12px;font-size:12px">Apri e approva \u25B8</span></div><div class="mut">' + e(x.t) + '</div></a>').join('') : '';
-  const gruppi = [['da_pubblicare', '\u23F0 Da pubblicare adesso'], ['da_approvare', '\u2705 Da approvare'], ['programmato', '\u{1F5D3}\uFE0F In programmazione'], ['approvato', 'Approvati senza data'], ['pubblicato', 'Pubblicati']];
-  $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Approvazioni</h1><button class="sec" id="notif" style="width:auto">\u{1F514} Notifiche su questo telefono</button></div><p class="mut">Tutto quello che aspetta te: reel, copioni, caroselli e post. Quando qualcosa \xE8 pronto ti arriva la notifica sul telefono.</p>' + bloccoReel + '<p class="mut" style="display:none">Approvi tu, poi Rita li mette in calendario (anche nel gestionale, sezione contenuti). All\u2019ora di uscita ti avvisa: la pubblicazione automatica arriva quando colleghiamo un canale.</p>' +
-    ((blocco + gruppi.map(([s, t]) => { const g = L.filter((c) => c.stato === s); return g.length ? '<h2>' + t + ' (' + g.length + ')</h2>' + (s === 'pubblicato' ? g.slice(0, 10) : g).map(vistaContenuto).join('') : ''; }).join('')) || '');
+  const [avD, piD, poD, riD] = await Promise.all([
+    Promise.all(Av.filter((x) => x.stato === 'da_approvare').map((x) => chiama('/api/avatar/' + x.id).catch(() => null))),
+    Promise.all(Pi.filter((x) => x.stato === 'pronto' && !x.approvato).map((x) => chiama('/api/piani/' + x.id).catch(() => null))),
+    Promise.all(Po.filter((x) => ['da_approvare', 'attende_canva'].includes(x.stato)).map((x) => chiama('/api/post/' + x.id).catch(() => null))),
+    Promise.all(Ri.filter((x) => x.stato === 'proposte').map((x) => chiama('/api/riunioni/' + x.id).catch(() => null))),
+  ]);
+  const sez = (ic, t, n, corpo) => n ? '<h2 class="ap-h">' + ic + ' ' + t + ' <span class="pill">' + n + '</span></h2>' + corpo : '';
+  // 1. reel
+  const bReel = reel.map((l) => '<div class="card ap" id="apr' + l.id + '"><div class="riga" style="align-items:flex-start;gap:14px">' +
+    '<video src="/api/lavori/' + l.id + '/reel.mp4" controls playsinline preload="none" poster="' + (l.copertina ? '/api/lavori/' + l.id + '/copertina.jpg' : '') + '" style="width:170px;aspect-ratio:9/16;border-radius:12px;background:#000;flex:0 0 170px"></video>' +
+    '<div style="flex:1;min-width:0"><b>#' + l.id + ' \xB7 ' + e(l.titolo || l.prompt.slice(0, 90)) + '</b><div class="mut" style="margin:4px 0 10px">' + (l.avatar ? '\u{1F3AD} profilo \xB7 ' : '') + 'pronto ' + fa(l.aggiornato) + ' \xB7 <a href="#/lavoro/' + l.id + '">dettagli</a></div>' +
+    '<div class="riga" style="gap:6px;flex-wrap:wrap"><button class="ap_reel" data-id="' + l.id + '" style="width:auto">\u2705 Approva</button><a class="btn sec" href="/api/lavori/' + l.id + '/reel.mp4?scarica=1">\u2B07\uFE0E Scarica</a></div>' +
+    '<textarea class="ap_rim" data-id="' + l.id + '" placeholder="Cosa cambio? (es. musica pi\xF9 lenta, togli la clip del forno, finale pi\xF9 lungo\u2026)" style="margin-top:10px;min-height:60px"></textarea>' +
+    '<button class="sec ap_rimb" data-id="' + l.id + '" style="width:auto;margin-top:6px">\u270F\uFE0F Rimonta con queste modifiche</button></div></div></div>').join('');
+  // 2. copioni del profilo
+  const bAv = avD.filter(Boolean).map((A) => A.copioni.filter((c) => c.stato === 'da_approvare').length ? '<div class="card ap"><b>\u{1F3AD} ' + e(A.argomento) + '</b><div class="mut" style="margin-bottom:8px">copioni per il tuo profilo \xB7 <a href="#/profilo/' + A.id + '">apri</a></div>' +
+    A.copioni.filter((c) => c.stato === 'da_approvare').map((c) => '<div class="ap-voce"><label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" class="av_ap" data-a="' + A.id + '" data-n="' + c.n + '" checked style="width:auto">' + e(c.titolo || 'Copione ' + c.n) + '</label>' +
+      '<textarea class="av_tx" data-a="' + A.id + '" data-n="' + c.n + '" style="min-height:120px">' + e(c.testo || '') + '</textarea></div>').join('') +
+    '<label>Clip tue da aggiungere, cartella pCloud (facoltativo)</label><input class="av_pc" data-a="' + A.id + '" placeholder="https://e.pcloud.link/publink/show?code=\u2026">' +
+    '<button class="av_go" data-a="' + A.id + '" style="width:auto;margin-top:8px">\u2705 Approva i selezionati e genera</button></div>' : '').join('');
+  // 3. copioni dei clienti
+  const bPi = piD.filter(Boolean).map((P) => '<div class="card ap"><b>\u{1F4DD} ' + e((P.strategia || {}).titolo_piano || P.cliente) + '</b><div class="mut" style="margin-bottom:8px">' + e(P.cliente) + ' \xB7 ' + P.reel.length + ' copioni \xB7 <a href="#/copioni/' + P.id + '">apri e modifica</a></div>' +
+    P.reel.slice(0, 30).map((r) => '<details class="ap-voce"><summary><b>' + r.numero + '.</b> ' + e((r.copione || r).titolo || r.argomento || '') + '</summary><div style="white-space:pre-wrap;font-size:14px;margin-top:6px">' + e(JSON.stringify(r.copione || r, null, 1).replace(/[{}"[]]/g, '').slice(0, 1500)) + '</div></details>').join('') +
+    '<button class="ap_piano" data-id="' + P.id + '" style="width:auto;margin-top:8px">\u2705 Approva i copioni</button></div>').join('');
+  // 4. caroselli
+  const bPo = poD.filter(Boolean).map((P) => { const Ct = P.contenuti || {}; const da = P.stato === 'da_approvare';
+    if (!da) return '<div class="card ap"><b>\u{1F3A8} Caroselli da fare su Canva</b> \xB7 ' + e(P.cliente || '') + '<div class="mut">approvati: ora vanno impaginati su Canva \xB7 <a href="#/post/' + P.id + '">apri</a></div></div>';
+    return '<div class="card ap"><b>\u{1F5C2}\uFE0F Caroselli ' + e(P.cliente || '') + '</b><div class="mut" style="margin-bottom:8px"><a href="#/post/' + P.id + '">apri per modificare le slide</a></div>' +
+      (Ct.post || []).filter((x) => x.stato === 'da_approvare' || !x.stato).map((x) => '<div class="ap-voce"><label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" class="po_ap" data-p="' + P.id + '" data-n="' + x.n + '" checked style="width:auto">' + x.n + '. ' + e(x.titolo || '') + '</label>' +
+        '<ol style="padding-left:18px;margin:6px 0">' + (x.slide || []).map((sl) => '<li><b>' + e(sl.titolo || '') + '</b>' + (sl.testo ? ' \u2014 ' + e(sl.testo) : '') + '</li>').join('') + '</ol>' +
+        '<textarea class="po_cap" data-p="' + P.id + '" data-n="' + x.n + '" style="min-height:70px">' + e(x.caption || '') + '</textarea></div>').join('') +
+      '<button class="po_go" data-p="' + P.id + '" style="width:auto;margin-top:8px">\u2705 Approva i selezionati</button></div>'; }).join('');
+  // 5. proposte delle riunioni
+  const bRi = riD.filter(Boolean).map((R) => '<div class="card ap"><b>\u{1F91D} ' + e(R.titolo || R.richiesta || 'Riunione') + '</b><div class="mut" style="margin-bottom:8px">' + e(R.cliente || '') + ' \xB7 <a href="#/riunione/' + R.id + '">verbale completo</a></div>' +
+    (R.proposte || []).map((pr, k) => '<div class="ap-voce' + (k === R.consigliata ? ' consigliata' : '') + '"><b>' + (k === R.consigliata ? '\u2B50 ' : '') + e(pr.titolo) + '</b><div style="font-size:14px;margin:4px 0">' + e(pr.sintesi || '') + '</div>' +
+      '<div class="mut">' + e(pr.tempi || '') + (pr.costo ? ' \xB7 ' + e(pr.costo) : '') + '</div><button class="ri_go" data-r="' + R.id + '" data-i="' + k + '" style="width:auto;margin-top:6px">Scegli questa</button></div>').join('') + '</div>').join('');
+  // 6. documenti degli agenti
+  const bDoc = Doc.map((d) => '<details class="card ap"><summary><b>\u{1F4C4} ' + e(d.titolo || 'Documento') + '</b> <span class="mut">' + e((AGENTI[d.agente] || {}).n || d.agente) + (d.cliente ? ' \xB7 ' + e(d.cliente) : '') + ' \xB7 ' + fa(d.aggiornato) + '</span></summary>' +
+    (d.sintesi ? '<p>' + e(d.sintesi) + '</p>' : '') + (d.documento ? '<div class="md" style="max-height:420px;overflow:auto">' + md(d.documento) + '</div>' : '') +
+    '<div class="riga" style="gap:6px;margin-top:8px"><button class="doc_ok" data-id="' + d.id + '" style="width:auto">\u{1F44D} Letto, va bene</button><a class="btn sec" href="#/incarico/' + d.id + '">Apri e chiedi modifiche</a></div></details>').join('');
+  // 7. post del calendario (contenuti)
+  const gruppi = [['da_pubblicare', '\u23F0 Da pubblicare adesso'], ['da_approvare', '\u2705 Post da approvare']];
+  const bCont = gruppi.map(([st, t]) => { const g = L.filter((c) => c.stato === st); return g.length ? '<h2 class="ap-h">' + t + ' <span class="pill">' + g.length + '</span></h2>' + g.map(vistaContenuto).join('') : ''; }).join('');
+  const totale = reel.length + bAv.split('class="ap-voce"').length - 1 + piD.filter(Boolean).length + poD.filter(Boolean).length + riD.filter(Boolean).length + Doc.length + L.filter((c) => ['da_approvare', 'da_pubblicare'].includes(c.stato)).length;
+  const prog = L.filter((c) => ['programmato', 'approvato'].includes(c.stato));
+  $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Approvazioni' + (totale ? ' <span class="pill" style="background:var(--warn);color:#fff">' + totale + '</span>' : '') + '</h1><button class="sec" id="notif" style="width:auto">\u{1F514} Notifiche su questo telefono</button></div>' +
+    '<p class="mut">Tutto quello che aspetta te, da approvare qui senza cercare: reel, copioni, caroselli, post, proposte e documenti degli agenti.</p>' +
+    (totale ? '' : '<div class="vuoto">Niente da approvare: quando qualcosa \xE8 pronto ti arriva la notifica sul telefono.</div>') +
+    sez('\u{1F3AC}', 'Reel da guardare', reel.length, bReel) + sez('\u270D\uFE0F', 'Copioni del tuo profilo', avD.filter(Boolean).length, bAv) + sez('\u{1F4DD}', 'Copioni per i clienti', piD.filter(Boolean).length, bPi) +
+    sez('\u{1F5C2}\uFE0F', 'Caroselli', poD.filter(Boolean).length, bPo) + bCont + sez('\u{1F91D}', 'Proposte delle riunioni da scegliere', riD.filter(Boolean).length, bRi) + sez('\u{1F4C4}', 'Documenti degli agenti da leggere', Doc.length, bDoc) +
+    (prog.length ? '<h2 class="ap-h">\u{1F5D3}\uFE0F In programmazione <span class="pill">' + prog.length + '</span></h2>' + prog.slice(0, 15).map(vistaContenuto).join('') : '');
   agganciaContenuti(L, rotta);
+  const azione = async (b, fn) => { b.disabled = true; const t = b.textContent; b.textContent = '\u2026'; try { await fn(); rotta(); } catch (x) { alert(x.message); b.disabled = false; b.textContent = t; } };
   if ($('#notif')) $('#notif').onclick = attivaNotifiche;
-  document.querySelectorAll('.ap_reel').forEach((b) => b.onclick = async () => { b.disabled = true; await chiama('/api/lavori/' + b.dataset.id + '/approva', { method: 'POST', body: {} }); rotta(); });
-  if (!(L.length || reel.length || attesa.length)) { $('#app').insertAdjacentHTML('beforeend', '<div class="vuoto">Niente da approvare: quando qualcosa \xE8 pronto ti arriva la notifica sul telefono.</div>'); }
+  document.querySelectorAll('.ap_reel').forEach((b) => b.onclick = () => azione(b, () => chiama('/api/lavori/' + b.dataset.id + '/approva', { method: 'POST', body: {} })));
+  document.querySelectorAll('.ap_rimb').forEach((b) => b.onclick = () => { const t = document.querySelector('.ap_rim[data-id="' + b.dataset.id + '"]').value.trim(); if (!t) return alert('Scrivi cosa vuoi cambiare'); azione(b, () => chiama('/api/lavori/' + b.dataset.id + '/rimonta', { method: 'POST', body: { testo: t } })); });
+  document.querySelectorAll('.av_go').forEach((b) => b.onclick = () => { const a = b.dataset.a; const n = [...document.querySelectorAll('.av_ap[data-a="' + a + '"]:checked')].map((x) => Number(x.dataset.n));
+    const modifiche = {}; document.querySelectorAll('.av_tx[data-a="' + a + '"]').forEach((x) => { modifiche[x.dataset.n] = x.value; });
+    if (!n.length) return alert('Seleziona almeno un copione'); azione(b, () => chiama('/api/avatar/' + a + '/approva', { method: 'POST', body: { n, modifiche, cartella: document.querySelector('.av_pc[data-a="' + a + '"]').value || '' } })); });
+  document.querySelectorAll('.ap_piano').forEach((b) => b.onclick = () => azione(b, () => chiama('/api/piani/' + b.dataset.id + '/approva', { method: 'POST', body: {} })));
+  document.querySelectorAll('.po_go').forEach((b) => b.onclick = () => { const pid = b.dataset.p; const n = [...document.querySelectorAll('.po_ap[data-p="' + pid + '"]:checked')].map((x) => Number(x.dataset.n));
+    const modifiche = {}; document.querySelectorAll('.po_cap[data-p="' + pid + '"]').forEach((x) => { modifiche[x.dataset.n] = { caption: x.value }; });
+    if (!n.length) return alert('Seleziona almeno un carosello'); azione(b, () => chiama('/api/post/' + pid + '/approva', { method: 'POST', body: { n, modifiche } })); });
+  document.querySelectorAll('.ri_go').forEach((b) => b.onclick = () => azione(b, () => chiama('/api/riunioni/' + b.dataset.r + '/scegli', { method: 'POST', body: { indice: Number(b.dataset.i) } })));
+  document.querySelectorAll('.doc_ok').forEach((b) => b.onclick = () => azione(b, () => chiama('/api/incarichi/' + b.dataset.id + '/visto', { method: 'POST', body: {} })));
 }
 
 async function clientiPagina() {
@@ -7780,7 +7852,7 @@ async function api(req, env, url) {
     const r = await apiRiunioni(req, env, p, m, json2);
     if (r) return r;
   }
-  if (/^\/api\/(azienda|capo|chat|incarichi|contenuti|clienti|gestionale)/.test(p)) {
+  if (/^\/api\/(azienda|capo|chat|incarichi|contenuti|clienti|gestionale|approvazioni)/.test(p)) {
     const r = await apiAgenzia(req, env, p, m, json2);
     if (r) return r;
   }

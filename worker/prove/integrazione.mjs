@@ -57,6 +57,7 @@ await cron();
 st = env.DB._db.prepare('SELECT agente, stato, errore, blocco_fino FROM incarichi ORDER BY id').all();
 ok(st[1].stato === 'da_approvare' && st[2].stato === 'da_approvare', 'poi copy e caroselli insieme: contenuti da approvare');
 const scheda = env.DB._db.prepare('SELECT scheda FROM clienti').get(); ok(scheda?.scheda?.includes('B&B'), 'la scheda cliente è stata salvata');
+{ const d1 = (await chiama('/api/approvazioni/documenti')).j; ok(Array.isArray(d1) && d1.length >= 1, 'i documenti degli agenti arrivano in Approvazioni (' + d1.length + ')'); await chiama('/api/incarichi/' + d1[0].id + '/visto', { method: 'POST', body: {} }); const d2 = (await chiama('/api/approvazioni/documenti')).j; ok(d2.length === d1.length - 1, 'letto: esce dalle Approvazioni'); }
 r = await chiama('/api/contenuti'); ok(r.j.length === 2, 'contenuti in approvazione');
 const c1 = r.j[0];
 r = await chiama('/api/contenuti/' + c1.id, { method: 'POST', body: { azione: 'approva' } }); ok(r.status === 200, 'approvo un contenuto');
