@@ -418,19 +418,19 @@ function arredaMeeting(R) {
   const cx = R.x + R.w / 2, cz = R.z + R.d * 0.58;
   const tappeto = new THREE.Mesh(new RoundedBoxGeometry(6.4, 0.012, 3.4, 2, 0.006), new THREE.MeshStandardMaterial(HQ ? { color: 0x0e2a33, emissive: 0x0b4f5e, emissiveIntensity: 0.7, roughness: 0.4 } : { color: 0xd3dbe6, roughness: 0.95 }));
   tappeto.position.set(cx, 0.05, cz); tappeto.receiveShadow = true; scena.add(tappeto);
-  const piano = ombra(new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.06, 48), mat.legno)); piano.scale.set(1.75, 1, 0.68); piano.position.set(cx, 0.75, cz); scena.add(piano);
+  const piano = ombra(new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.06, 48), mat.legno)); piano.scale.set(1.75, 1, 0.68); piano.position.set(cx, 0.75, cz); scena.add(piano); blocca(cx - 1.75, cz - 0.68, cx + 1.75, cz + 0.68, 0.1);
   for (const dx of [-1.0, 1.0]) { const g = box(0.08, 0.72, 0.5, mat.bianco, 0.02); g.position.set(cx + dx, 0.37, cz); scena.add(g); }
   giroDiSedie(cx, cz, 2.35, 1.15, 10, 'meeting');
   for (const [dx, dz] of [[-0.9, 0.1], [0.4, -0.15], [1.1, 0.2]]) { const bl = box(0.3, 0.015, 0.22, mat.bianco, 0.005); bl.position.set(cx + dx, 0.79, cz + dz); scena.add(bl); }
   for (const x of [R.x + 0.7, R.x + R.w - 0.7]) { const a = agave(mat, 0.85); a.position.set(x, 0.05, R.z + R.d - 0.8); scena.add(a); }
   // lavagna bianca a sinistra della porta
-  const lav = box(2.2, 1.1, 0.05, mat.bianco, 0.02); lav.position.set(R.x + 1.8, 1.35, R.z + 0.6); scena.add(lav);
+  const lav = box(2.2, 1.1, 0.05, mat.bianco, 0.02); lav.position.set(R.x + 1.8, 1.35, R.z + 0.6); scena.add(lav); blocca(R.x + 1.7, R.z + 0.5, R.x + 1.9, R.z + 0.7);
   const lp = box(0.06, 0.8, 0.06, mat.metallo, 0.01); lp.position.set(R.x + 1.8, 0.4, R.z + 0.6); scena.add(lp);
   // schermo con l'argomento della riunione, su un supporto a destra della porta, rivolto verso il tavolo e chi guarda
   const cv = document.createElement('canvas'); cv.width = 512; cv.height = 288;
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
   const xt = R.x + R.w - 2.2, zt = R.z + 0.7;
-  const tv = box(2.4, 1.38, 0.06, mat.nero, 0.02); tv.position.set(xt, 1.45, zt); scena.add(tv);
+  const tv = box(2.4, 1.38, 0.06, mat.nero, 0.02); tv.position.set(xt, 1.45, zt); scena.add(tv); blocca(xt - 0.4, zt - 0.25, xt + 0.4, zt + 0.25);
   const piede = box(0.08, 0.85, 0.08, mat.metallo, 0.01); piede.position.set(xt, 0.42, zt); scena.add(piede);
   const base = box(0.8, 0.04, 0.45, mat.metallo, 0.01); base.position.set(xt, 0.02, zt); scena.add(base);
   const sc = new THREE.Mesh(new THREE.PlaneGeometry(2.28, 1.28), new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.6, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
@@ -475,7 +475,7 @@ function arredaUfficio(R) {
   // libreria bassa contro la parete laterale sinistra con libri colorati
   if (R.w >= 5.4) {
     const lx = R.x + 0.35, lz = nord ? 1.6 : R.z + R.d - 1.4;
-    const mob = box(0.36, 1.1, 1.5, mat.bianco, 0.02); mob.position.set(lx, 0.55, lz); scena.add(mob);
+    const mob = box(0.36, 1.1, 1.5, mat.bianco, 0.02); mob.position.set(lx, 0.55, lz); scena.add(mob); blocca(lx - 0.18, lz - 0.75, lx + 0.18, lz + 0.75, 0.12);
     const colori = [0xe76f51, 0x2a9d8f, 0xe9c46a, 0x264653, 0xf4a261, 0x8ecae6, 0xd62828];
     for (let ripiano = 0; ripiano < 2; ripiano++) for (let i = 0; i < 9; i++) {
       if ((i + ripiano + idx) % 5 === 0) continue;
@@ -511,7 +511,7 @@ function arredaDirezione(R) {
   const tappeto = new THREE.Mesh(new RoundedBoxGeometry(6.2, 0.012, 4.4, 2, 0.006), new THREE.MeshStandardMaterial(HQ ? { color: 0x0e2a33, emissive: 0x0b4f5e, emissiveIntensity: 0.7, roughness: 0.4 } : { color: 0xcfd6e6, roughness: 0.95 }));
   tappeto.position.set(cx, 0.055, cz + 0.4); tappeto.receiveShadow = true; scena.add(tappeto);
   // scrivania grandissima (4 m) con il fianco luminoso
-  const piano = box(4.0, 0.08, 1.5, mat.legno, 0.03); piano.position.set(cx, 0.78, cz); scena.add(piano);
+  const piano = box(4.0, 0.08, 1.5, mat.legno, 0.03); piano.position.set(cx, 0.78, cz); scena.add(piano); blocca(cx - 2, cz - 0.75, cx + 2, cz + 0.75);
   const fronte = box(4.0, 0.7, 0.06, mat.bianco, 0.02); fronte.position.set(cx, 0.4, cz + 0.72); scena.add(fronte);
   for (const dx of [-1.95, 1.95]) { const f = box(0.08, 0.74, 1.4, mat.bianco, 0.02); f.position.set(cx + dx, 0.37, cz); scena.add(f); }
   if (HQ) { const l = new THREE.Mesh(new THREE.BoxGeometry(3.9, 0.015, 0.015), mat.luce); l.position.set(cx, 0.74, cz + 0.76); scena.add(l); }
@@ -520,7 +520,7 @@ function arredaDirezione(R) {
   // dall'altra parte, verso la porta: tre sedie per gli ospiti rivolte al direttore
   for (const dx of [-1.1, 0, 1.1]) { const se = sedia(mat); se.position.set(cx + dx, 0, cz + 1.45); se.rotation.y = Math.PI; scena.add(se); }
   // libreria alle spalle del direttore
-  const libreria = box(2.4, 1.6, 0.35, mat.bianco, 0.03); libreria.position.set(cx, 0.8, R.z + 0.3); scena.add(libreria);
+  const libreria = box(2.4, 1.6, 0.35, mat.bianco, 0.03); libreria.position.set(cx, 0.8, R.z + 0.3); scena.add(libreria); blocca(cx - 1.2, R.z + 0.12, cx + 1.2, R.z + 0.48);
   for (let i = 0; i < 12; i++) { const l = box(0.08, 0.3, 0.24, matC([0xd97757, 0x5a74d6, 0x5f9a5c, 0xf0b44c, 0x2f3e56][i % 5], 0.7), 0.01); l.position.set(cx - 1.0 + i * 0.17, 1.2, R.z + 0.32); scena.add(l); }
   S.direzioneDesk = { cx, cz };
 }
@@ -543,7 +543,7 @@ function arredaGiochi(R) {
   const cx = R.x + R.w / 2;
   const posti = [];
   // ping pong (blu, rete al centro)
-  const pp = box(1.5, 0.05, 2.7, new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.5 }), 0.01); pp.position.set(cx, 0.76, 2.6); scena.add(pp);
+  const pp = box(1.5, 0.05, 2.7, new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.5 }), 0.01); pp.position.set(cx, 0.76, 2.6); scena.add(pp); blocca(cx - 0.8, 1.2, cx + 0.8, 4.0, 0.12);
   const linea = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.002, 2.7), new THREE.MeshStandardMaterial({ color: 0xffffff })); linea.position.set(cx, 0.79, 2.6); scena.add(linea);
   const rete = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.15, 0.01), new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 })); rete.position.set(cx, 0.86, 2.6); scena.add(rete);
   for (const [dx, dz] of [[-0.6, -1.1], [0.6, -1.1], [-0.6, 1.1], [0.6, 1.1]]) { const g = box(0.05, 0.74, 0.05, mat.metallo, 0); g.position.set(cx + dx, 0.37, 2.6 + dz); scena.add(g); }
@@ -551,19 +551,19 @@ function arredaGiochi(R) {
   // biliardo (panno verde, sponde in legno)
   const tz = 5.9;
   const panno = box(1.2, 0.06, 2.2, new THREE.MeshStandardMaterial({ color: 0x0f7a4a, roughness: 0.9 }), 0.01); panno.position.set(cx, 0.8, tz); scena.add(panno);
-  const sponde = box(1.4, 0.12, 2.4, new THREE.MeshStandardMaterial({ color: 0x5a3a22, roughness: 0.5 }), 0.03); sponde.position.set(cx, 0.74, tz); scena.add(sponde);
+  const sponde = box(1.4, 0.12, 2.4, new THREE.MeshStandardMaterial({ color: 0x5a3a22, roughness: 0.5 }), 0.03); sponde.position.set(cx, 0.74, tz); scena.add(sponde); blocca(cx - 0.7, tz - 1.2, cx + 0.7, tz + 1.2, 0.12);
   const fusto = box(1.0, 0.68, 1.9, new THREE.MeshStandardMaterial({ color: 0x3e2716, roughness: 0.6 }), 0.03); fusto.position.set(cx, 0.36, tz); scena.add(fusto);
   [0xffffff, 0xf0b400, 0xd62828, 0x1d4ed8, 0x111111].forEach((c, i) => { const b = new THREE.Mesh(new THREE.SphereGeometry(0.04, 12, 8), new THREE.MeshStandardMaterial({ color: c, roughness: 0.2 })); b.position.set(cx - 0.25 + (i % 3) * 0.2, 0.87, tz - 0.4 + Math.floor(i / 3) * 0.5); scena.add(b); });
   posti.push({ pos: new THREE.Vector3(cx + 0.95, 0, tz - 0.4), rot: Math.PI / 2 }, { pos: new THREE.Vector3(cx - 0.95, 0, tz + 0.5), rot: -Math.PI / 2 });
   // biliardino
   const bx = R.x + 0.75, bz = 8.0;
-  const cassa = box(0.75, 0.3, 1.3, new THREE.MeshStandardMaterial({ color: 0x14532d, roughness: 0.6 }), 0.03); cassa.position.set(bx, 0.82, bz); scena.add(cassa);
+  const cassa = box(0.75, 0.3, 1.3, new THREE.MeshStandardMaterial({ color: 0x14532d, roughness: 0.6 }), 0.03); cassa.position.set(bx, 0.82, bz); scena.add(cassa); blocca(bx - 0.4, bz - 0.65, bx + 0.4, bz + 0.65, 0.12);
   for (const dx of [-0.3, 0.3]) for (const dz of [-0.55, 0.55]) { const g = box(0.06, 0.68, 0.06, mat.nero, 0); g.position.set(bx + dx, 0.34, bz + dz); scena.add(g); }
   for (let i = 0; i < 6; i++) { const asta = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.1, 6), mat.metallo); asta.rotation.z = Math.PI / 2; asta.position.set(bx, 0.95, bz - 0.5 + i * 0.2); scena.add(asta); }
   posti.push({ pos: new THREE.Vector3(bx + 0.7, 0, bz), rot: Math.PI / 2 });
   // flipper contro la parete di fondo, con la testata luminosa
   const fx = R.x + R.w - 0.75, fz = 0.95;
-  const corpo = box(0.7, 0.35, 1.3, new THREE.MeshStandardMaterial({ color: 0x7c3aed, roughness: 0.4 }), 0.03); corpo.position.set(fx, 0.85, fz); corpo.rotation.x = -0.12; scena.add(corpo);
+  const corpo = box(0.7, 0.35, 1.3, new THREE.MeshStandardMaterial({ color: 0x7c3aed, roughness: 0.4 }), 0.03); corpo.position.set(fx, 0.85, fz); corpo.rotation.x = -0.12; scena.add(corpo); blocca(fx - 0.35, fz - 0.7, fx + 0.35, fz + 0.65, 0.12);
   const vetro = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 1.2), new THREE.MeshStandardMaterial({ color: 0x22d3ee, emissive: 0x7c3aed, emissiveIntensity: 1.2 })); vetro.rotation.x = -Math.PI / 2 - 0.12; vetro.position.set(fx, 1.03, fz); scena.add(vetro);
   const testata = box(0.7, 0.6, 0.12, new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xff2d95, emissiveIntensity: 1.4 }), 0.02); testata.position.set(fx, 1.45, fz - 0.6); scena.add(testata);
   for (const dx of [-0.3, 0.3]) for (const dz of [-0.55, 0.55]) { const g = box(0.05, 0.7, 0.05, mat.nero, 0); g.position.set(fx + dx, 0.35, fz + dz); scena.add(g); }
@@ -576,18 +576,18 @@ function arredaRelax(R) {
   const { scena, mat } = S;
   const stoffa = new THREE.MeshStandardMaterial({ color: 0x8d9aa6, roughness: 0.9 });
   const cx = R.x + R.w / 2, cz = R.z + R.d / 2 + 0.3;
-  const seduta = box(2.4, 0.42, 0.9, stoffa, 0.12); seduta.position.set(cx, 0.25, cz + 0.6); scena.add(seduta);
+  const seduta = box(2.4, 0.42, 0.9, stoffa, 0.12); seduta.position.set(cx, 0.25, cz + 0.6); scena.add(seduta); blocca(cx - 1.35, cz + 0.15, cx + 1.35, cz + 1.15);
   const schienale = box(2.4, 0.5, 0.25, stoffa, 0.1); schienale.position.set(cx, 0.65, cz + 1.0); scena.add(schienale);
   for (const d of [-1.25, 1.25]) { const br = box(0.22, 0.6, 0.9, stoffa, 0.08); br.position.set(cx + d, 0.32, cz + 0.6); scena.add(br); }
-  const tav = ombra(new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.05, 32), mat.legno)); tav.position.set(cx, 0.42, cz - 0.4); scena.add(tav);
+  const tav = ombra(new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.05, 32), mat.legno)); tav.position.set(cx, 0.42, cz - 0.4); scena.add(tav); blocca(cx - 0.5, cz - 0.9, cx + 0.5, cz + 0.1, 0.1);
   const gamba = ombra(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.4, 12), mat.metallo)); gamba.position.set(cx, 0.21, cz - 0.4); scena.add(gamba);
   // angolo caffè sulla parete destra (la porta è a sinistra, sul corridoio: resta libera)
-  const mobile = box(0.55, 0.9, 1.6, mat.bianco, 0.03); mobile.position.set(R.x + R.w - 0.32, 0.45, R.z + 1.5); scena.add(mobile);
+  const mobile = box(0.55, 0.9, 1.6, mat.bianco, 0.03); mobile.position.set(R.x + R.w - 0.32, 0.45, R.z + 1.5); scena.add(mobile); blocca(R.x + R.w - 0.6, R.z + 0.7, R.x + R.w, R.z + 2.3, 0.1);
   const caffe = box(0.45, 0.55, 0.45, mat.nero, 0.04); caffe.position.set(R.x + R.w - 0.32, 1.18, R.z + 1.1); scena.add(caffe);
   const spia = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.08, 0.2), mat.luce || mat.metallo); spia.position.set(R.x + R.w - 0.55, 1.25, R.z + 1.1); scena.add(spia);
   [0, 1].forEach((i) => { const t = ombra(new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.035, 0.09, 12), mat.vaso)); t.position.set(R.x + R.w - 0.35, 0.95, R.z + 1.7 + i * 0.25); scena.add(t); });
   // frigo e bancone con snack sulla parete in fondo a sinistra
-  const frigo = box(0.6, 1.7, 0.6, mat.metallo, 0.04); frigo.position.set(R.x + 0.4, 0.85, R.z + R.d - 0.45); scena.add(frigo);
+  const frigo = box(0.6, 1.7, 0.6, mat.metallo, 0.04); frigo.position.set(R.x + 0.4, 0.85, R.z + R.d - 0.45); scena.add(frigo); blocca(R.x + 0.1, R.z + R.d - 0.75, R.x + 2.25, R.z + R.d, 0.1);
   const banco = box(1.4, 0.95, 0.5, mat.bianco, 0.03); banco.position.set(R.x + 1.55, 0.47, R.z + R.d - 0.35); scena.add(banco);
   [0xf4a261, 0xe76f51, 0x2a9d8f].forEach((c, i) => { const f = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), new THREE.MeshStandardMaterial({ color: c })); f.position.set(R.x + 1.25 + i * 0.25, 1.0, R.z + R.d - 0.35); scena.add(f); });
   const pi = agave(mat, 1.1); pi.position.set(R.x + R.w - 0.5, 0.05, R.z + R.d - 0.5); scena.add(pi);
@@ -617,6 +617,7 @@ function costruisci(dati) {
     const pezzi = porta ? [[0, porta - 0.55], [porta + 0.55, lungo]] : [[0, lungo]];
     for (const [s0, s1] of pezzi) {
       if (s1 - s0 < 0.05) continue;
+      blocca(orizz ? x0 + s0 : x0 - 0.06, orizz ? z0 - 0.06 : z0 + s0, orizz ? x0 + s1 : x0 + 0.06, orizz ? z0 + 0.06 : z0 + s1, 0.12);
       const m = box(orizz ? s1 - s0 : 0.12, h, orizz ? 0.12 : s1 - s0, mat.bianco, 0.02);
       const c = (s0 + s1) / 2; m.position.set(orizz ? x0 + c : x0, h / 2, orizz ? z0 : z0 + c); scena.add(m);
     }
@@ -636,6 +637,7 @@ function costruisci(dati) {
     const at = (c, y, sx, sy, sz, m) => { const b = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), m); b.position.set(orizz ? x0 + c : x0, y, orizz ? z0 : z0 + c); scena.add(b); return b; };
     for (const [s0, s1] of pezzi) {
       const L = s1 - s0; if (L < 0.05) continue;
+      blocca(orizz ? x0 + s0 : x0 - 0.04, orizz ? z0 - 0.04 : z0 + s0, orizz ? x0 + s1 : x0 + 0.04, orizz ? z0 + 0.04 : z0 + s1, 0.12);
       const v = at((s0 + s1) / 2, h / 2, orizz ? L : 0.03, h, orizz ? 0.03 : L, vetroMat); v.renderOrder = 2;
       at((s0 + s1) / 2, h - 0.02, orizz ? L : 0.06, 0.04, orizz ? 0.06 : L, HQ ? lineaMat : allumMat); // traverso alto (luminoso nella base)
       if (HQ) at((s0 + s1) / 2, 0.12, orizz ? L : 0.035, 0.012, orizz ? 0.035 : L, lineaMat); // filo di luce a terra
@@ -687,6 +689,7 @@ function costruisci(dati) {
       if (nRiga <= 0) continue;
       const xr = x0 + (largo - nRiga * POSTO) / 2;
       const piano = box(nRiga * POSTO, 0.05, 0.78, mat.legno, 0.015); piano.position.set(xr + (nRiga * POSTO) / 2, 0.76, zDesk); piano.userData.uff = R.id; scena.add(piano);
+      blocca(xr, zDesk - 0.39, xr + nRiga * POSTO, zDesk + 0.39);
       if (HQ) { const fl = new THREE.Mesh(new THREE.BoxGeometry(nRiga * POSTO - 0.04, 0.012, 0.012), mat.luce); fl.position.set(xr + (nRiga * POSTO) / 2, 0.735, zDesk + 0.39); scena.add(fl); }
       for (const [dx, dz] of [[0.04, -0.34], [nRiga * POSTO - 0.04, -0.34], [0.04, 0.34], [nRiga * POSTO - 0.04, 0.34]]) { const g = box(0.04, 0.74, 0.04, mat.bianco, 0); g.position.set(xr + dx, 0.37, zDesk + dz); scena.add(g); }
       for (let c = 0; c < nRiga; c++) {
@@ -715,6 +718,7 @@ function costruisci(dati) {
     const q = box(0.6, 0.76, 0.04, mat.nero, 0.01); q.position.set(x, 1.4, 0.08); scena.add(q);
     const im = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.68), new THREE.MeshStandardMaterial({ map: texQuadro(a, b) })); im.position.set(x, 1.4, 0.105); scena.add(im);
   });
+  blocca(ST('direzione').x + 1.2, ST('direzione').d * 0.66 - 0.42, ST('direzione').x + 2.0, ST('direzione').d * 0.66 + 0.42, 0.1);
   const ped = ombra(new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.42, 0.7, 32), mat.bianco)); ped.position.set(ST('direzione').x + 1.6, 0.36, ST('direzione').d * 0.66); ped.userData.cervello = true; scena.add(ped);
   const nucleo = new THREE.Mesh(new THREE.SphereGeometry(0.22, 24, 16), new THREE.MeshStandardMaterial({ color: 0x6f8dff, emissive: 0x2b59ff, emissiveIntensity: 0.8, transparent: true, opacity: 0.85 }));
   nucleo.position.set(ST('direzione').x + 1.6, 1.15, ST('direzione').d * 0.66); nucleo.userData.cervello = true; scena.add(nucleo);
@@ -845,6 +849,66 @@ export function vaiAgente(a) {
   S.cb.agente && S.cb.agente(a);
 }
 
+// ---------------------------------------------------------------- ostacoli e percorsi: chi cammina gira attorno a scrivanie, tavoli e pareti
+const CELLA = 0.2, GX = Math.ceil(LARGO / CELLA), GZ = Math.ceil(FONDO / CELLA);
+function blocca(x0, z0, x1, z1, m = 0.2) { (S.ostacoli ||= []).push([Math.min(x0, x1) - m, Math.min(z0, z1) - m, Math.max(x0, x1) + m, Math.max(z0, z1) + m]); S.griglia = null; }
+function griglia() {
+  if (S.griglia) return S.griglia;
+  const g = new Uint8Array(GX * GZ);
+  for (const [x0, z0, x1, z1] of S.ostacoli || []) {
+    for (let i = Math.max(0, Math.floor(x0 / CELLA)); i <= Math.min(GX - 1, Math.floor(x1 / CELLA)); i++)
+      for (let k = Math.max(0, Math.floor(z0 / CELLA)); k <= Math.min(GZ - 1, Math.floor(z1 / CELLA)); k++) g[k * GX + i] = 1;
+  }
+  return (S.griglia = g);
+}
+function liberaVicina(g, i, k) {
+  if (!g[k * GX + i]) return [i, k];
+  for (let r = 1; r < 12; r++) for (let di = -r; di <= r; di++) for (const dk of [-r, r]) {
+    for (const [a, b] of [[i + di, k + dk], [i + dk, k + di]]) if (a >= 0 && b >= 0 && a < GX && b < GZ && !g[b * GX + a]) return [a, b];
+  }
+  return [i, k];
+}
+function visibile(g, a, b) { // linea libera tra due punti (per accorciare il percorso)
+  const n = Math.ceil(a.distanceTo(b) / (CELLA * 0.5));
+  for (let t = 1; t < n; t++) { const x = a.x + (b.x - a.x) * t / n, z = a.z + (b.z - a.z) * t / n; if (g[Math.floor(z / CELLA) * GX + Math.floor(x / CELLA)]) return false; }
+  return true;
+}
+function strada(da, a) {
+  const g = griglia();
+  const [si, sk] = liberaVicina(g, Math.floor(da.x / CELLA), Math.floor(da.z / CELLA));
+  const [ei, ek] = liberaVicina(g, Math.floor(a.x / CELLA), Math.floor(a.z / CELLA));
+  const N = GX * GZ, costo = new Float32Array(N).fill(Infinity), da_ = new Int32Array(N).fill(-1), chiuso = new Uint8Array(N);
+  const start = sk * GX + si, fine = ek * GX + ei;
+  const aperti = [start]; costo[start] = 0;
+  const h = (c) => { const dx = Math.abs(c % GX - ei), dz = Math.abs(Math.floor(c / GX) - ek); return Math.max(dx, dz) + 0.41 * Math.min(dx, dz); };
+  const stima = new Float32Array(N).fill(Infinity); stima[start] = h(start);
+  let giri = 0;
+  while (aperti.length && giri++ < 40000) {
+    let bi = 0; for (let q = 1; q < aperti.length; q++) if (stima[aperti[q]] < stima[aperti[bi]]) bi = q;
+    const c = aperti[bi]; aperti[bi] = aperti[aperti.length - 1]; aperti.pop();
+    if (c === fine) break;
+    if (chiuso[c]) continue; chiuso[c] = 1;
+    const ci = c % GX, ck = Math.floor(c / GX);
+    for (let di = -1; di <= 1; di++) for (let dk = -1; dk <= 1; dk++) {
+      if (!di && !dk) continue;
+      const ni = ci + di, nk = ck + dk; if (ni < 0 || nk < 0 || ni >= GX || nk >= GZ) continue;
+      const n = nk * GX + ni; if (g[n] || chiuso[n]) continue;
+      if (di && dk && (g[ck * GX + ni] || g[nk * GX + ci])) continue; // niente scorciatoie sugli spigoli
+      const nc = costo[c] + (di && dk ? 1.414 : 1);
+      if (nc < costo[n]) { costo[n] = nc; da_[n] = c; stima[n] = nc + h(n); aperti.push(n); }
+    }
+  }
+  if (da_[fine] < 0 && fine !== start) return [a.clone()]; // nessuna strada: vado dritto (non dovrebbe succedere)
+  const celle = []; for (let c = fine; c >= 0 && c !== start; c = da_[c]) celle.push(c); celle.reverse();
+  const pts = celle.map((c) => new THREE.Vector3((c % GX + 0.5) * CELLA, 0, (Math.floor(c / GX) + 0.5) * CELLA));
+  // accorcio: tengo solo i punti dove serve girare
+  const out = []; let base = da.clone();
+  for (let q = 0; q < pts.length; q++) { const nx = pts[q + 1] || a; if (!visibile(g, base, nx)) { out.push(pts[q]); base = pts[q]; } }
+  out.push(a.clone());
+  return out;
+}
+const dietro = (P) => new THREE.Vector3(P.casa.x, 0, P.casa.z + ((P.rotCasa || 0) ? -0.55 : 0.55)); // in piedi dietro la sedia
+
 // ---------------------------------------------------------------- gente che cammina
 // chi è libero ogni tanto si alza: esce dalla porta, percorre il corridoio, va alla macchinetta o in un'altra stanza, torna
 function porta(R) {
@@ -857,26 +921,20 @@ function percorso(P) {
   const k = Math.random();
   const meta = k < 0.45 ? STANZE.find((r) => r.id === 'relax') : k < 0.85 ? STANZE.find((r) => r.id === 'giochi') : stanze[Math.floor(Math.random() * stanze.length)];
   const a = porta(meta);
-  const alzati = new THREE.Vector3(P.casa.x + 0.55, 0, P.casa.z + 0.35);
   const libero = (S.posti?.[meta.id] || []).filter((p) => !Object.values(S.agenti).some((Q) => Q !== P && Q.svago === p));
   const posto = libero.length ? libero[Math.floor(Math.random() * libero.length)] : null;
   P.svago = posto;
   const fondo = posto ? posto.pos.clone() : a.dentro.clone().add(new THREE.Vector3(0, 0, meta.lato === 'n' ? -0.6 : 0.6));
-  const andata = [alzati, new THREE.Vector3(alzati.x, 0, da.dentro.z), da.dentro, da.fuori, a.fuori, a.dentro, fondo];
-  return { punti: [...andata, 'sosta', ...andata.slice(0, -1).reverse(), P.casa.clone()], i: 0, sosta: 0 };
+  const su = dietro(P);
+  const andata = [su, ...strada(su, fondo)], ritorno = [...strada(fondo, su), P.casa.clone()];
+  return { punti: [...andata, 'sosta', ...ritorno], i: 0, sosta: 0 };
 }
 function stanzaDi(pos) { return STANZE.find((r) => pos.x > r.x && pos.x < r.x + r.w && pos.z > r.z && pos.z < r.z + r.d) || null; }
-function viaggio(da, aStanza, fine) {
-  const pts = [], dS = stanzaDi(da);
-  if (dS && dS !== aStanza) { const d = porta(dS); pts.push(new THREE.Vector3(da.x, 0, d.dentro.z), d.dentro, d.fuori); }
-  if (aStanza && dS !== aStanza) { const a = porta(aStanza); pts.push(a.fuori, a.dentro); }
-  pts.push(fine);
-  return pts;
-}
+function viaggio(da, aStanza, fine) { return strada(da, fine); }
 function vaiInRiunione(P, Q, i) {
   const posti = S.posti?.[Q.stanza] || S.posti?.meeting; if (!posti) return;
   const seat = posti[i % posti.length], o = P.U.o;
-  const parti = P.cammino ? o.position.clone() : new THREE.Vector3(P.casa.x + 0.55, 0, P.casa.z + 0.35);
+  const parti = P.cammino ? o.position.clone() : dietro(P);
   const R = S.posti?.[Q.stanza] ? STANZE.find((r) => r.id === Q.stanza) : STANZE.find((r) => r.id === 'meeting');
   P.riunione = Q.id;
   P.cammino = { punti: [parti, ...viaggio(parti, R, seat.pos)], i: 0, sosta: 0, fine: { tipo: 'riunione', seat } };
@@ -884,7 +942,7 @@ function vaiInRiunione(P, Q, i) {
 }
 function tornaDaRiunione(P) {
   P.riunione = null;
-  const o = P.U.o, alzati = new THREE.Vector3(P.casa.x + 0.55, 0, P.casa.z + 0.35);
+  const o = P.U.o, alzati = dietro(P);
   P.cammino = { punti: [...viaggio(o.position.clone(), P.stanza, alzati), P.casa.clone()], i: 0, sosta: 0 };
   P.seduto = false; P.fase = 0;
 }
@@ -940,6 +998,14 @@ function muovi(P, s, dt) {
 export function prova(cosa, a) {
   if (!S) return;
   if (cosa === 'vista') { S.volo = null; S.controls.target.set(a[3], a[4], a[5]); S.camera.position.set(a[0], a[1], a[2]); S.camera.lookAt(S.controls.target); }
+  if (cosa === 'verifica') { // ogni agente: quanti tratti del percorso attraversano un ostacolo
+    const g = griglia(); let tratti = 0, male = 0;
+    for (const P of Object.values(S.agenti)) for (let n = 0; n < 6; n++) {
+      const pts = percorso(P).punti.filter((x) => x !== 'sosta'); P.svago = null;
+      for (let q = 1; q < pts.length - 1; q++) { tratti++; if (!visibile(g, pts[q - 1], pts[q])) { male++; (S.male ||= []).push([P.A.id, q, pts[q - 1].x.toFixed(2), pts[q - 1].z.toFixed(2), pts[q].x.toFixed(2), pts[q].z.toFixed(2)]); } }
+    }
+    return { tratti, male, es: (S.male || []).slice(0, 6) };
+  }
   if (cosa === 'cammina') { const P = S.agenti[a]; P.cammino = percorso(P); P.seduto = false; P.fase = 0; }
   if (cosa === 'persone') return Object.values(S.agenti).filter((P) => P.G).length;
   if (cosa === 'prestazioni') return { fps: S.fpsVisto, pr: S.renderer.getPixelRatio(), info: { ...S.renderer.info.render } };
