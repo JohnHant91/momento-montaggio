@@ -5444,6 +5444,7 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 .et-ag.carta.coda i{background:#f3efe7;color:#8a6a1f}.et-ag.carta.scelto{box-shadow:0 0 0 2px var(--teal),0 12px 30px -12px rgba(0,0,0,.35)}
 .etichette:not(.vicino) .et-ag.pillola{display:none}
 .reelc{display:flex;gap:14px;align-items:flex-start}.reelc .reel-cop{flex:0 0 72px;height:128px;border-radius:10px;background:#f1efe9;display:grid;place-items:center;font-size:26px;overflow:hidden}.reelc .reel-cop img{width:100%;height:100%;object-fit:cover}.reelc .reel-tit{color:inherit;text-decoration:none}.reelc.pausa{opacity:.75}.reelc.errore{border-color:var(--err)}.reelc .r_az{padding:6px 10px;font-size:13px;width:auto}
+.chip{width:auto;padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:#fff;color:inherit;font-size:13px;font-weight:600;text-decoration:none;cursor:pointer}.chip.att{background:var(--ink,#16302f);color:#fff;border-color:transparent}
 .ap-h{display:flex;align-items:center;gap:8px;margin-top:26px}.ap{margin-bottom:12px}.ap-voce{border-top:1px solid var(--line);padding:10px 0}.ap-voce:first-of-type{border-top:0}.ap-voce.consigliata{background:#fffbea;border-radius:10px;padding:10px}.ap summary{cursor:pointer}
 .lavorazioni{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin:12px 0}.lz{display:flex;gap:10px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 12px;color:inherit;text-decoration:none}.lz .ic{font-size:22px}.lz .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}.lz b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lz small{font-size:12px;color:var(--mut)}
 .avanz{height:6px;border-radius:9px;background:#ece9e1;overflow:hidden}.avanz i{display:block;height:100%;background:linear-gradient(90deg,#12a3a4,#3fd0c9);border-radius:9px;transition:width .6s}
@@ -5565,7 +5566,7 @@ const ICO = {
   impostazioni: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'
 };
 const VOCI = [['agenzia', 'Agenzia', '#/'], ['riunioni', 'Riunioni', '#/riunioni'], ['approvazioni', 'Approvazioni', '#/approvazioni'], ['profilo', 'Profilo IG', '#/profilo'], ['clienti', 'Clienti', '#/clienti']];
-const STRUMENTI = [['reel', 'Reel', '#/reel'], ['post', 'Post e caroselli', '#/post'], ['copioni', 'Copioni', '#/copioni'], ['gestionale', 'Gestionale', '#/gestionale'], ['costi', 'Costi', '#/costi']];
+const STRUMENTI = [['copioni', 'Copioni', '#/copioni'], ['gestionale', 'Gestionale', '#/gestionale'], ['costi', 'Costi', '#/costi']];
 const voce = (v) => '<a class="vm" href="' + v[2] + '" data-k="' + v[0] + '"><svg viewBox="0 0 24 24">' + ICO[v[0]] + '</svg><span class="tx">' + v[1] + '</span>' + (v[0] === 'costi' ? '<span class="num" id="num_costi"></span>' : '') + '</a>';
 function menu(on) {
   document.body.classList.toggle('dentro', !!on);
@@ -5585,7 +5586,7 @@ const soldi = (usd, cambio) => '\u20AC ' + (usd * (cambio || 0.86)).toLocaleStri
 function evidenzia() {
   const h = location.hash || '#/';
   const k = h === '#/' || h.startsWith('#/agente') || h.startsWith('#/ufficio') || h.startsWith('#/incarico') || h === '#/chat/capo' ? 'agenzia' : h.startsWith('#/riunion') ? 'riunioni' : h.startsWith('#/profilo') ? 'profilo' : h.startsWith('#/approvazion') ? 'approvazioni' : h.startsWith('#/client') ? 'clienti' :
-    h.startsWith('#/reel') || h.startsWith('#/lavoro') ? 'reel' : h.startsWith('#/post') ? 'post' : h.startsWith('#/copion') || h.startsWith('#/piano') ? 'copioni' : h.startsWith('#/chat/gestionale') || h.startsWith('#/chat/contabile') || h === '#/gestionale' ? 'gestionale' : h.startsWith('#/costi') ? 'costi' : h.startsWith('#/impostazioni') ? 'impostazioni' : '';
+    h.startsWith('#/reel') || h.startsWith('#/lavoro') || h.startsWith('#/nuovo') || h.startsWith('#/post') ? 'approvazioni' : h.startsWith('#/copion') || h.startsWith('#/piano') ? 'copioni' : h.startsWith('#/chat/gestionale') || h.startsWith('#/chat/contabile') || h === '#/gestionale' ? 'gestionale' : h.startsWith('#/costi') ? 'costi' : h.startsWith('#/impostazioni') ? 'impostazioni' : '';
   document.querySelectorAll('#nav .vm[data-k]').forEach((a) => a.classList.toggle('att', a.dataset.k === k));
   const tutte = VOCI.concat(STRUMENTI, [['impostazioni', 'Impostazioni']]).find((v) => v[0] === k);
   $('#sez').textContent = tutte ? tutte[1] : '';
@@ -5655,7 +5656,7 @@ async function lista() {
       (g === 'in_corso' || g === 'pausa' ? '<div class="avanz"><i style="width:' + p + '%"></i></div>' : '') +
       '<div class="riga" style="margin-top:8px;gap:6px">' + (g === 'da_vedere' ? '<a class="btn" style="padding:6px 12px" href="#/lavoro/' + l.id + '">\u25B6 Guarda e approva</a>' : '') + azioni + '</div></div></div>';
   };
-  $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Reel</h1><a class="btn" href="#/nuovo">+ Nuovo reel</a></div>' +
+  $('#app').innerHTML = '<a class="mut" href="#/approvazioni">\u2190 Approvazioni</a><div class="riga"><h1 style="flex:1">Reel in lavorazione</h1><a class="btn sec" href="#/post">Post e caroselli in lavorazione</a><a class="btn" href="#/nuovo">+ Nuovo reel</a></div>' +
     '<div class="filtri">' + Object.keys(nomi).map((g) => '<button class="' + (FILTRO_REEL === g ? 'on' : '') + ' r_f" data-f="' + g + '">' + nomi[g] + ' <span class="mut">' + conta(g) + '</span></button>').join('') + '</div>' +
     (vis.length ? vis.map(carta).join('') : '<div class="vuoto">' + (L.length ? 'Nessun reel in questa lista.' : 'Nessun reel. Scrivi il primo con \u201C+ Nuovo reel\u201D.') + '</div>');
   document.querySelectorAll('.r_f').forEach((b) => b.onclick = () => { FILTRO_REEL = b.dataset.f; lista(); });
@@ -5834,7 +5835,7 @@ const PILL_POST = { in_corso: 'corso', da_approvare: 'errore', attende_canva: 'e
 const imgEst = (u) => '/api/post/img?u=' + encodeURIComponent(u);
 async function postLista() {
   const L = await chiama('/api/post');
-  $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Post e caroselli</h1><a class="btn" href="#/post/nuovo">+ Nuovo lavoro</a></div>' +
+  $('#app').innerHTML = '<a class="mut" href="#/approvazioni">\u2190 Approvazioni</a><div class="riga"><h1 style="flex:1">Post e caroselli in lavorazione</h1><a class="btn" href="#/post/nuovo">+ Nuovo lavoro</a></div>' +
     '<p class="mut">Ines e Tea cercano su Instagram e TikTok i post e i caroselli pi\xF9 virali della nicchia, Iris li studia, Ada sceglie le tue foto da pCloud, Pietro e Giulia scrivono slide, caption e hashtag. Tu approvi, poi si impaginano su Canva e tornano qui pronti da pubblicare.</p>' +
     (L.map((x) => '<a class="card lav" href="#/post/' + x.id + '"><div class="riga"><b style="flex:1">#' + x.id + ' \xB7 ' + e(x.cliente || 'cliente') + (x.titolo ? ' \xB7 ' + e(x.titolo) : '') + '</b><span class="pill ' + (PILL_POST[x.stato] || '') + '">' + (ST_POST[x.stato] || x.stato) + '</span></div>' +
       '<div class="mut">' + x.numero + ' ' + (x.tipo === 'post' ? 'post' : x.tipo === 'misto' ? 'contenuti' : 'caroselli') + ' \xB7 fase: ' + e(x.fase) + ' \xB7 ' + new Date(x.creato).toLocaleString('it-IT', { dateStyle: 'medium', timeStyle: 'short' }) + '</div>' + (x.errore ? '<div class="err">' + e(x.errore) + '</div>' : '') + '</a>').join('') || '<p class="mut">Ancora nessun lavoro.</p>');
@@ -6484,7 +6485,7 @@ async function approvazioni() {
     Promise.all(Po.filter((x) => ['da_approvare', 'attende_canva'].includes(x.stato)).map((x) => chiama('/api/post/' + x.id).catch(() => null))),
     Promise.all(Ri.filter((x) => x.stato === 'proposte').map((x) => chiama('/api/riunioni/' + x.id).catch(() => null))),
   ]);
-  const sez = (ic, t, n, corpo) => n ? '<h2 class="ap-h">' + ic + ' ' + t + ' <span class="pill">' + n + '</span></h2>' + corpo : '';
+  const sez = (ic, t, n, corpo, cat) => n ? '<div class="apsez" data-cat="' + cat + '"><h2 class="ap-h">' + ic + ' ' + t + ' <span class="pill">' + n + '</span></h2>' + corpo + '</div>' : '';
   // 1. reel
   const bReel = reel.map((l) => '<div class="card ap" id="apr' + l.id + '"><div class="riga" style="align-items:flex-start;gap:14px">' +
     '<video src="/api/lavori/' + l.id + '/reel.mp4" controls playsinline preload="none" poster="' + (l.copertina ? '/api/lavori/' + l.id + '/copertina.jpg' : '') + '" style="width:170px;aspect-ratio:9/16;border-radius:12px;background:#000;flex:0 0 170px"></video>' +
@@ -6503,13 +6504,14 @@ async function approvazioni() {
     P.reel.slice(0, 30).map((r) => '<details class="ap-voce"><summary><b>' + r.numero + '.</b> ' + e((r.copione || r).titolo || r.argomento || '') + '</summary><div style="white-space:pre-wrap;font-size:14px;margin-top:6px">' + e(JSON.stringify(r.copione || r, null, 1).replace(/[{}"[]]/g, '').slice(0, 1500)) + '</div></details>').join('') +
     '<button class="ap_piano" data-id="' + P.id + '" style="width:auto;margin-top:8px">\u2705 Approva i copioni</button></div>').join('');
   // 4. caroselli
-  const bPo = poD.filter(Boolean).map((P) => { const Ct = P.contenuti || {}; const da = P.stato === 'da_approvare';
+  const tipoPo = (P) => P.tipo === 'post' ? 'post' : P.tipo === 'misto' ? 'post caroselli' : 'caroselli';
+  const bPo = poD.filter(Boolean).map((P) => '<div class="apsez" data-cat="' + tipoPo(P) + '">' + ((P) => { const Ct = P.contenuti || {}; const da = P.stato === 'da_approvare';
     if (!da) return '<div class="card ap"><b>\u{1F3A8} Caroselli da fare su Canva</b> \xB7 ' + e(P.cliente || '') + '<div class="mut">approvati: ora vanno impaginati su Canva \xB7 <a href="#/post/' + P.id + '">apri</a></div></div>';
     return '<div class="card ap"><b>\u{1F5C2}\uFE0F Caroselli ' + e(P.cliente || '') + '</b><div class="mut" style="margin-bottom:8px"><a href="#/post/' + P.id + '">apri per modificare le slide</a></div>' +
       (Ct.post || []).filter((x) => x.stato === 'da_approvare' || !x.stato).map((x) => '<div class="ap-voce"><label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" class="po_ap" data-p="' + P.id + '" data-n="' + x.n + '" checked style="width:auto">' + x.n + '. ' + e(x.titolo || '') + '</label>' +
         '<ol style="padding-left:18px;margin:6px 0">' + (x.slide || []).map((sl) => '<li><b>' + e(sl.titolo || '') + '</b>' + (sl.testo ? ' \u2014 ' + e(sl.testo) : '') + '</li>').join('') + '</ol>' +
         '<textarea class="po_cap" data-p="' + P.id + '" data-n="' + x.n + '" style="min-height:70px">' + e(x.caption || '') + '</textarea></div>').join('') +
-      '<button class="po_go" data-p="' + P.id + '" style="width:auto;margin-top:8px">\u2705 Approva i selezionati</button></div>'; }).join('');
+      '<button class="po_go" data-p="' + P.id + '" style="width:auto;margin-top:8px">\u2705 Approva i selezionati</button></div>'; })(P) + '</div>').join('');
   // 5. proposte delle riunioni
   const bRi = riD.filter(Boolean).map((R) => '<div class="card ap"><b>\u{1F91D} ' + e(R.titolo || R.richiesta || 'Riunione') + '</b><div class="mut" style="margin-bottom:8px">' + e(R.cliente || '') + ' \xB7 <a href="#/riunione/' + R.id + '">verbale completo</a></div>' +
     (R.proposte || []).map((pr, k) => '<div class="ap-voce' + (k === R.consigliata ? ' consigliata' : '') + '"><b>' + (k === R.consigliata ? '\u2B50 ' : '') + e(pr.titolo) + '</b><div style="font-size:14px;margin:4px 0">' + e(pr.sintesi || '') + '</div>' +
@@ -6520,16 +6522,23 @@ async function approvazioni() {
     '<div class="riga" style="gap:6px;margin-top:8px"><button class="doc_ok" data-id="' + d.id + '" style="width:auto">\u{1F44D} Letto, va bene</button><a class="btn sec" href="#/incarico/' + d.id + '">Apri e chiedi modifiche</a></div></details>').join('');
   // 7. post del calendario (contenuti)
   const gruppi = [['da_pubblicare', '\u23F0 Da pubblicare adesso'], ['da_approvare', '\u2705 Post da approvare']];
-  const bCont = gruppi.map(([st, t]) => { const g = L.filter((c) => c.stato === st); return g.length ? '<h2 class="ap-h">' + t + ' <span class="pill">' + g.length + '</span></h2>' + g.map(vistaContenuto).join('') : ''; }).join('');
+  const bCont = gruppi.map(([st, t]) => { const g = L.filter((c) => c.stato === st); return g.length ? '<div class="apsez" data-cat="post"><h2 class="ap-h">' + t + ' <span class="pill">' + g.length + '</span></h2>' + g.map(vistaContenuto).join('') + '</div>' : ''; }).join('');
   const totale = reel.length + bAv.split('class="ap-voce"').length - 1 + piD.filter(Boolean).length + poD.filter(Boolean).length + riD.filter(Boolean).length + Doc.length + L.filter((c) => ['da_approvare', 'da_pubblicare'].includes(c.stato)).length;
   const prog = L.filter((c) => ['programmato', 'approvato'].includes(c.stato));
   $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Approvazioni' + (totale ? ' <span class="pill" style="background:var(--warn);color:#fff">' + totale + '</span>' : '') + '</h1><button class="sec" id="notif" style="width:auto">\u{1F514} Notifiche su questo telefono</button></div>' +
-    '<p class="mut">Tutto quello che aspetta te, da approvare qui senza cercare: reel, copioni, caroselli, post, proposte e documenti degli agenti.</p>' +
+    '<div class="riga filtri" id="ap_f" style="flex-wrap:wrap;gap:6px;margin:6px 0 4px">' + [['tutto', 'Tutto'], ['video', '\u{1F3AC} Video'], ['post', '\u{1F4F1} Post'], ['caroselli', '\u{1F5C2}\uFE0F Caroselli'], ['copioni', '\u270D\uFE0F Copioni'], ['altro', '\u{1F91D} Proposte e documenti']].map(([k, t]) => '<button class="chip' + (k === (sessionStorage.apf || 'tutto') ? ' att' : '') + '" data-f="' + k + '">' + t + '</button>').join('') +
+      '<span style="flex:1"></span><a class="chip" href="#/reel">\u23F3 In lavorazione</a><a class="chip" href="#/nuovo">+ Reel</a><a class="chip" href="#/post/nuovo">+ Post o caroselli</a></div><div id="ap_vuoto" class="vuoto" hidden>Niente in questa categoria.</div>' +
     (totale ? '' : '<div class="vuoto">Niente da approvare: quando qualcosa \xE8 pronto ti arriva la notifica sul telefono.</div>') +
-    sez('\u{1F3AC}', 'Reel da guardare', reel.length, bReel) + sez('\u270D\uFE0F', 'Copioni del tuo profilo', avD.filter(Boolean).length, bAv) + sez('\u{1F4DD}', 'Copioni per i clienti', piD.filter(Boolean).length, bPi) +
-    sez('\u{1F5C2}\uFE0F', 'Caroselli', poD.filter(Boolean).length, bPo) + bCont + sez('\u{1F91D}', 'Proposte delle riunioni da scegliere', riD.filter(Boolean).length, bRi) + sez('\u{1F4C4}', 'Documenti degli agenti da leggere', Doc.length, bDoc) +
-    (prog.length ? '<h2 class="ap-h">\u{1F5D3}\uFE0F In programmazione <span class="pill">' + prog.length + '</span></h2>' + prog.slice(0, 15).map(vistaContenuto).join('') : '');
+    sez('\u{1F3AC}', 'Reel da guardare', reel.length, bReel, 'video') + sez('\u270D\uFE0F', 'Copioni del tuo profilo', avD.filter(Boolean).length, bAv, 'copioni') + sez('\u{1F4DD}', 'Copioni per i clienti', piD.filter(Boolean).length, bPi, 'copioni') +
+    (bPo ? '<h2 class="ap-h apsez" data-cat="post caroselli">\u{1F5C2}\uFE0F Post e caroselli</h2>' + bPo : '') + bCont + sez('\u{1F91D}', 'Proposte delle riunioni da scegliere', riD.filter(Boolean).length, bRi, 'altro') + sez('\u{1F4C4}', 'Documenti degli agenti da leggere', Doc.length, bDoc, 'altro') +
+    (prog.length ? '<div class="apsez" data-cat="post"><h2 class="ap-h">\u{1F5D3}\uFE0F In programmazione <span class="pill">' + prog.length + '</span></h2>' + prog.slice(0, 15).map(vistaContenuto).join('') + '</div>' : '');
   agganciaContenuti(L, rotta);
+  const filtra = (f) => { try { sessionStorage.apf = f; } catch (_) {} let n = 0;
+    document.querySelectorAll('#ap_f [data-f]').forEach((b) => b.classList.toggle('att', b.dataset.f === f));
+    document.querySelectorAll('.apsez').forEach((x) => { const ok = f === 'tutto' || x.dataset.cat.split(' ').includes(f); x.style.display = ok ? '' : 'none'; if (ok && !x.matches('h2')) n++; });
+    if ($('#ap_vuoto')) $('#ap_vuoto').hidden = !totale || n > 0; };
+  document.querySelectorAll('#ap_f [data-f]').forEach((b) => b.onclick = () => filtra(b.dataset.f));
+  filtra((() => { try { return sessionStorage.apf || 'tutto'; } catch (_) { return 'tutto'; } })());
   const azione = async (b, fn) => { b.disabled = true; const t = b.textContent; b.textContent = '\u2026'; try { await fn(); rotta(); } catch (x) { alert(x.message); b.disabled = false; b.textContent = t; } };
   if ($('#notif')) $('#notif').onclick = attivaNotifiche;
   document.querySelectorAll('.ap_reel').forEach((b) => b.onclick = () => azione(b, () => chiama('/api/lavori/' + b.dataset.id + '/approva', { method: 'POST', body: {} })));
