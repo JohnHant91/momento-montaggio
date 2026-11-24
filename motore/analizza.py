@@ -504,7 +504,7 @@ def monta(lavoro):
         shutil.rmtree(cartella, ignore_errors=True)
 
 
-ATTESA_MAX = int(os.environ.get("ATTESA_MAX", "720"))  # resto sveglio 12 minuti senza lavoro: le fasi successive arrivano subito
+ATTESA_MAX = int(os.environ.get("ATTESA_MAX", "240" if os.environ.get("LAVORO") else "720"))  # motore di un solo reel: 4 minuti senza lavoro e chiude (le fasi degli agenti nel mezzo durano 1-3 minuti); giro generale: 12
 
 
 def risveglia():
