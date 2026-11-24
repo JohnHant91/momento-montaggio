@@ -95,6 +95,11 @@ Sii sintetico: al massimo 8 momenti e 5 problemi, frasi brevi.
 Se è una FOTO o una SLIDE (tecnico.tipo = immagine): niente momenti né problemi di tempo; descrivi cosa mostra e trascrivi
 il testo che contiene (se è una slide di carosello) in "testo_nell_immagine".
 
+VERSO DELL'IMMAGINE ("rotazione"): guarda se i fotogrammi sono dritti (persone e oggetti in piedi, tavoli e orizzonte
+orizzontali, scritte leggibili). Se la camera era girata e l'immagine esce coricata o capovolta, scrivi di quanti gradi in
+senso ORARIO va girata per tornare dritta: 90, -90 (cioè antiorario) o 180. Se è già dritta scrivi 0. Nel dubbio 0.
+Un'inquadratura orizzontale dritta NON va girata: la ritaglia il montatore.
+
 Contesto del lavoro: ${contesto}
 
 Rispondi SOLO con JSON:
@@ -106,7 +111,8 @@ Rispondi SOLO con JSON:
     "qualita": 1-5, "uso_consigliato": "gancio|sviluppo|climax|chiusura|b_roll|scartare", "perche": "..."}],
   "problemi": [{"da": n, "a": n, "tipo": "mosso|fuori_fuoco|sovraesposto|sottoesposto|rumore_audio|altro", "nota": "..."}],
   "parlato": {"presente": bool, "sintesi": "di cosa si parla, o null"},
-  "adatta_al_verticale": "si|serve_reframe|solo_con_sfondo_sfocato",
+  "adatta_al_verticale": "si|serve_reframe",
+  "rotazione": 0,
   "note_montaggio": "consigli pratici per usarla",
   "testo_nell_immagine": "solo per foto/slide: il testo scritto, o null"
 }`;
@@ -316,8 +322,10 @@ export const chiaveRif = (v) => `rif2:${v.piattaforma}:${v.id}`;
 // Il resto del sistema (analisi, scheda, regia, montatore) non sa da dove arrivano. Per aggiungere stock/AI/HeyGen
 // basta aggiungere una voce qui e il download corrispondente nel motore (motore/analizza.py → scarica).
 // dove il motore prende un file: pCloud (fileid), link diretto (url) o archivio interno ("archivio:percorso", firmato quando parte il motore)
-export const rifSorgente = (c) => c?.sorgente?.tipo === 'url' ? { fileid: null, url: c.sorgente.url }
-  : c?.sorgente?.tipo === 'archivio' ? { fileid: null, url: 'archivio:' + c.sorgente.percorso } : { fileid: c?.fileid, url: null };
+// "ruota": gradi in senso orario per raddrizzare il girato coricato (lo vede Iris sui fotogrammi, lo applica il montatore)
+const ruotaDi = (c) => { const r = Number(c?.analisi?.rotazione); return [90, -90, 180].includes(r) ? { ruota: r } : {}; };
+export const rifSorgente = (c) => ({ ...(c?.sorgente?.tipo === 'url' ? { fileid: null, url: c.sorgente.url }
+  : c?.sorgente?.tipo === 'archivio' ? { fileid: null, url: 'archivio:' + c.sorgente.percorso } : { fileid: c?.fileid, url: null }), ...ruotaDi(c) });
 
 export const FONTI = {
   archivio: { nome: 'Archivio dell\u2019agenzia', pronta: (L) => !!L.pcloud, elenca: async (L, env) => A.clipArchivio(env, L.pcloud) },

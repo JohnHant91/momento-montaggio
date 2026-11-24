@@ -97,6 +97,67 @@ def scarica_url(url, dest):
         raise RuntimeError(f"download non riuscito (HTTP {e.code}): link scaduto o non pubblico")
 
 
+# ------------------------------------------------------------------ girato storto o con le bande nere
+TRASP = {90: "transpose=1", -90: "transpose=2", 270: "transpose=2", 180: "hflip,vflip"}
+
+
+def bande_nere(path, durata, immagine):
+    """Bande nere fisse (letterbox/pillarbox) in tutto il girato: ritaglio da togliere, o None.
+    Prudente: le bande devono essere simmetriche e uguali in 3 punti della clip (un fondo scuro non le sostituisce)."""
+    punti = [0] if immagine else [max(0, durata * f - 1) for f in (0.2, 0.5, 0.8)]
+    scatole = []
+    for t in punti:
+        cmd = ["ffmpeg", "-hide_banner", "-ss", f"{t:.2f}", "-i", path] + (["-frames:v", "1"] if immagine else ["-t", "2"]) + \
+              ["-vf", "cropdetect=limit=20:round=2:reset=0", "-f", "null", "-"]
+        trovati = re.findall(r"crop=(\d+):(\d+):(\d+):(\d+)", esegui(cmd, 300).stderr)
+        if not trovati:
+            return None
+        scatole.append(tuple(map(int, trovati[-1])))
+    if len(set(scatole)) > 1 and max(abs(a[k] - b[k]) for a in scatole for b in scatole for k in range(4)) > 8:
+        return None
+    w, h, x, y = scatole[-1]
+    t = tecnico(path)
+    W, H = (int(v) for v in t["risoluzione"].split("x"))
+    if w < W * 0.5 or h < H * 0.5 or (w >= W * 0.97 and h >= H * 0.97):
+        return None
+    if abs(x - (W - w - x)) > 10 or abs(y - (H - h - y)) > 10:
+        return None
+    return f"crop={w}:{h}:{x}:{y}"
+
+
+def raddrizza(path, ruota, avvisa=None):
+    """Gira il girato nel verso giusto (se Iris l'ha visto storto) e toglie le bande nere zoomando dentro l'immagine.
+    Il file corretto sostituisce quello scaricato, così tutto il montaggio lavora già sul girato dritto."""
+    try:
+        t = tecnico(path)
+        immagine = t.get("codec") in ("mjpeg", "png", "webp", "bmp", "tiff") or (t.get("durata_sec") or 0) < 0.2
+        filtri = []
+        taglio = bande_nere(path, t.get("durata_sec") or 0, immagine)
+        if taglio:
+            filtri.append(taglio)
+        try:
+            r = int(ruota or 0)
+        except (TypeError, ValueError):
+            r = 0
+        if r in TRASP:
+            filtri.append(TRASP[r])
+        if not filtri:
+            return path
+        out = path + (".dritta.jpg" if immagine else ".dritta.mp4")
+        cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", path, "-vf", ",".join(filtri)]
+        cmd += (["-frames:v", "1", "-q:v", "2"] if immagine else ["-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "15", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart"])
+        p = esegui(cmd + [out], 1800)
+        if p.returncode != 0 or not os.path.exists(out) or os.path.getsize(out) < 1000:
+            return path
+        os.replace(out, path)
+        if avvisa:
+            cosa = ([f"girata di {r}°"] if r in TRASP else []) + (["tolte le bande nere"] if taglio else [])
+            avvisa("motore", f"{os.path.basename(path)[-24:]}: " + " e ".join(cosa))
+        return path
+    except Exception:
+        return path
+
+
 def scarica(lavoro, el, cartella):
     dest = os.path.join(cartella, f"v_{el['indice']}")
     if el.get("fileid"):
@@ -452,6 +513,8 @@ def monta(lavoro):
             s = voci[k]
             dest = os.path.join(cartella, "src_" + re.sub(r"\W+", "_", k)[-40:])
             scarica_url(link_pcloud(lavoro, s["fileid"]) if s.get("fileid") else s["url"], dest)
+            if s is not piano.get("musica"):  # girato storto o con bande nere: lo raddrizzo e zoommo prima di montare
+                raddrizza(dest, s.get("ruota"), avvisa)
             return k, dest
         file_per_id = {}
         with ThreadPoolExecutor(3) as ex:
