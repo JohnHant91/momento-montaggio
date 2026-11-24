@@ -1,0 +1,4 @@
+SECONDI_RENDER=61
+stream|width=1920|height=1080|r_frame_rate=30/1
+stream|r_frame_rate=0/0
+format|duration=15.000000
