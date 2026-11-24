@@ -1,0 +1,29 @@
+# Prova della copertina moderna su una foto di pubblico dominio (solo per verificare installazione e resa)
+name: prova-copertina
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  prova:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -q pillow numpy opencv-python-headless "rembg[cpu]"
+      - name: Copertina di prova
+        run: |
+          curl -sL -A "Mozilla/5.0" -o foto.jpg "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Pierre-Auguste_Renoir%2C_Le_D%C3%A9jeuner_des_canotiers.jpg/1024px-Pierre-Auguste_Renoir%2C_Le_D%C3%A9jeuner_des_canotiers.jpg" || true
+          curl -sL -A "Mozilla/5.0" -o persona.jpg "https://upload.wikimedia.org/wikipedia/commons/thumb/1/14/Abraham_Lincoln_O-77_matte_collodion_print.jpg/800px-Abraham_Lincoln_O-77_matte_collodion_print.jpg"
+          cd motore && time python3 -c "
+          import copertina as C
+          C.copertina_moderna('../persona.jpg', 0, 'Il segreto della VERA colazione', '../cop_persona.jpg', immagine=True, evidenzia='vera')
+          C.copertina_moderna('../persona.jpg', 0, '3 errori col caffè', '../cop_rossa.jpg', immagine=True, evidenzia='errori', accento='#FF4D4D')
+          print('scontorno:', C._scontorna.__name__, getattr(C._scontorna, 'sessione', None) is not None)
+          "
+      - uses: actions/upload-artifact@v4
+        with:
+          name: copertine
+          path: cop_*.jpg
