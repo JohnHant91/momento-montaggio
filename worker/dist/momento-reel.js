@@ -3364,7 +3364,7 @@ ${regole}`;
   const fontReel = motore !== "montatore" ? null : { titoli: FONT_REEL.includes(p.font_reel?.titoli) ? p.font_reel.titoli : "montserrat", testo: FONT_REEL.includes(p.font_reel?.testo) ? p.font_reel.testo : "montserrat" };
   if (motore === "montatore" && p.sottotitoli) p.sottotitoli = { ...p.sottotitoli, stile: STILI_SOTT.includes(p.sottotitoli.stile) ? p.sottotitoli.stile : "box" };
   const usate = new Set(seg.map((x) => x.clip));
-  const riserve = motore !== "montatore" ? [] : tutte.map((c, i) => ({ c, i })).filter(({ c, i }) => c?.stato === "fatto" && !eImm(c) && !usate.has(i) && (Number(c.tecnico?.durata_sec) || 0) >= 1.5).slice(0, 14).map(({ c, i }) => ({ clip: i, ...sorg(c), nome: c.nome, durata_clip: Number(c.tecnico?.durata_sec) || null }));
+  const riserve = motore !== "montatore" ? [] : tutte.map((c, i) => ({ c, i })).filter(({ c, i }) => c?.stato === "fatto" && !eImm(c) && !usate.has(i) && (Number(c.tecnico?.durata_sec) || 0) >= 1.5).slice(0, 6).map(({ c, i }) => ({ clip: i, ...sorg(c), nome: c.nome, durata_clip: Number(c.tecnico?.durata_sec) || null }));
   let logoArch = L.fonte === "archivio" ? await logoCliente(env, L.pcloud).catch(() => null) : null;
   if (cop) {
     const profilo = avatar || /profilo instagram|mio profilo|per il mio profilo/i.test(L.prompt || "");

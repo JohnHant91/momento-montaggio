@@ -738,7 +738,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
   // ripresa dello stesso momento (la più vicina nell'ordine di ripresa) invece di montarlo mosso
   const usate = new Set(seg.map((x) => x.clip));
   const riserve = motore !== 'montatore' ? [] : tutte.map((c, i) => ({ c, i })).filter(({ c, i }) => c?.stato === 'fatto' && !eImm(c) && !usate.has(i) && (Number(c.tecnico?.durata_sec) || 0) >= 1.5)
-    .slice(0, 14).map(({ c, i }) => ({ clip: i, ...sorg(c), nome: c.nome, durata_clip: Number(c.tecnico?.durata_sec) || null }));
+    .slice(0, 6).map(({ c, i }) => ({ clip: i, ...sorg(c), nome: c.nome, durata_clip: Number(c.tecnico?.durata_sec) || null }));
   let logoArch = L.fonte === 'archivio' ? await A.logoCliente(env, L.pcloud).catch(() => null) : null;
   // copertina: stile YouTube per il profilo di Johnny, stile del cliente (ricavato dai suoi esempi) per i clienti
   if (cop) {

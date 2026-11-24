@@ -569,7 +569,7 @@ def monta(lavoro):
             scarica_url(link_pcloud(lavoro, s["fileid"]) if s.get("fileid") else s["url"], dest)
             return k, dest
         file_per_id = {}
-        with ThreadPoolExecutor(3) as ex:
+        with ThreadPoolExecutor(6) as ex:
             for k, dest in ex.map(prendi, list(voci)):
                 file_per_id[k] = dest
         # verso del girato: le clip orizzontali girate con la camera in verticale escono coricate. Claude guarda un

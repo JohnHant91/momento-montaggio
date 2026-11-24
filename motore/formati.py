@@ -1069,13 +1069,21 @@ class MontatoreCompleto(TalkingHead):
 
         def candidati(src, info, serve, vicino):
             fine = max(0.0, info["dur"] - serve - 0.05)
-            passi = 10
+            passi = 6
             tt = sorted({round(min(fine, max(0.0, vicino)), 2)} | {round(fine * k / passi, 2) for k in range(passi + 1)})
             return [t for t in tt if t <= fine]
 
         def migliore(src, info, serve, vicino, zf=None):
-            cand = candidati(src, info, serve, vicino)
             rit = {"z": (zf or {}).get("z", 1), "cx": (zf or {}).get("cx", 0.5), "cy": (zf or {}).get("cy", 0.5)}
+            # velocità: se il tratto scelto dal Regista è già fermo lo tengo senza misurare tutta la clip
+            fine = max(0.0, info["dur"] - serve - 0.05)
+            t0 = round(min(fine, max(0.0, vicino)), 2)
+            occ0 = usati.get(src, [])
+            if not any(a - serve < t0 < b for a, b in occ0):
+                v0 = voto_tratto(misura_camera(src, t0, serve, info, rit))
+                if v0 <= self.BUONO * 0.8:
+                    return (v0, v0, t0)
+            cand = candidati(src, info, serve, vicino)
             with ThreadPoolExecutor(PARALLELO) as ex:
                 voti = list(ex.map(lambda t: (voto_tratto(misura_camera(src, t, serve, info, rit)), t), cand))
             occ = usati.get(src, [])

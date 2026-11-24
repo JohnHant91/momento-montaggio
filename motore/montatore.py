@@ -339,7 +339,7 @@ class Montatore:
         if stab is True:
             try:
                 self.ff(["-ss", f"{t_in:.3f}", "-t", f"{sorgente + 0.2:.3f}", "-i", src, "-vf",
-                         f"vidstabdetect=shakiness=8:accuracy=15:stepsize=6:mincontrast=0.2:result={trf}", "-f", "null", "-"], "stabilizza")
+                         f"vidstabdetect=shakiness=8:accuracy=10:stepsize=8:mincontrast=0.2:result={trf}", "-f", "null", "-"], "stabilizza")
                 a_mano = bool(self.p.get("camera_a_mano"))  # stile street: tolgo il tremolio ma tengo la camera viva
                 if (cam["deriva"] < 0.025 or ferma) and not a_mano:  # inquadratura bloccata come su un treppiede
                     filtri.append(f"vidstabtransform=input={trf}:tripod=1:maxangle=0:optzoom=1:interpol=bicubic")
@@ -684,7 +684,7 @@ class Montatore:
         rate = max(8.0, min(16.0, 560 / max(totale, 1)))  # Mbit/s: master di qualità (IG ricomprime: più parte pulito, meglio esce); resta sotto ~75 MB
         self.ff(["-i", video, "-i", mixwav, "-filter_complex", f"[0:v]ass='{ass}':fontsdir='{self.fontdir}'[vout];[1:a]{norm}" + (f",afade=t=out:st={totale - getattr(self, 'fine_nero', 0) - 0.3:.3f}:d={getattr(self, 'fine_nero', 0) + 0.3:.3f}" if getattr(self, "fine_nero", 0) else "") + "[aout]",
                  "-map", "[vout]", "-map", "[aout]", "-t", f"{totale:.3f}",
-                        "-c:v", "libx264", "-preset", "slow", "-crf", "16", "-tune", "film", "-x264-params", "aq-mode=3", "-profile:v", "high", "-maxrate", f"{rate:.1f}M", "-bufsize", f"{rate * 2:.1f}M",
+                        "-c:v", "libx264", "-preset", "medium", "-crf", "16", "-tune", "film", "-x264-params", "aq-mode=3", "-profile:v", "high", "-maxrate", f"{rate:.1f}M", "-bufsize", f"{rate * 2:.1f}M",
                         "-pix_fmt", "yuv420p", "-r", str(FPS), "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out], "mix finale")
 
     # -------------------------------------------------------------- revisore
