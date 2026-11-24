@@ -99,6 +99,18 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 .ar-riga{display:grid;grid-template-columns:1fr 120px 70px;gap:8px;align-items:center;font-size:13px;margin-top:6px}.ar-riga span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ar-bar{height:6px;background:#eee;border-radius:4px;overflow:hidden}.ar-bar i{display:block;height:100%;width:0;background:var(--teal,#12a3a4)}
 .sl-fila{display:flex;gap:8px;overflow-x:auto;margin-top:8px;padding-bottom:4px}.sl-fila img{height:190px;aspect-ratio:4/5;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
 .nota-chiara{background:color-mix(in srgb,#ff7aa2 12%,var(--card));border:1px solid color-mix(in srgb,#ff7aa2 35%,var(--line));border-radius:12px;padding:8px 12px;font-size:14px;margin:8px 0}
+.cal{display:grid;grid-template-columns:300px 1fr;gap:18px;margin-top:14px;align-items:start}.cal-lato{background:var(--card);border:1px solid var(--line);border-radius:var(--r,16px);padding:6px 12px 14px;position:sticky;top:16px;max-height:calc(100vh - 40px);overflow:auto;box-shadow:var(--ombra)}
+.cal-h{margin:12px 0 8px;font-size:16px}.cal-gr{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--mut);margin:14px 0 6px}
+.cal-voce{display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:7px;margin:6px 0;position:relative;cursor:grab}.cal-voce.trascino{opacity:.45}
+.cal-img{flex:0 0 40px;height:56px;border-radius:8px;background:var(--s2);display:grid;place-items:center;overflow:hidden;font-size:18px}.cal-img img{width:100%;height:100%;object-fit:cover}
+.cal-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.cal-tx b{font-size:13px;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.cal-tx small{font-size:11.5px;color:var(--mut)}.cal-tx .pill{align-self:flex-start;font-size:10.5px;padding:2px 8px}
+.cal-voce.p{flex-direction:column;align-items:stretch;padding:6px;gap:6px}.cal-voce.p .cal-img{flex:none;width:100%;height:auto;aspect-ratio:9/12}
+.cal-x{position:absolute;top:4px;right:4px;width:22px;height:22px;padding:0;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:14px;line-height:1}
+.cal-sett{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}.cal-g{background:color-mix(in srgb,var(--card) 60%,transparent);border:1px solid var(--line);border-radius:14px;padding:8px;min-height:190px;transition:background .15s,border-color .15s}
+.cal-g.oggi{border:2px solid var(--teal);background:var(--card)}.cal-g.passato{opacity:.55}.cal-g.su{background:var(--tealbg);border-color:var(--teal)}
+.cal-gt{display:flex;align-items:baseline;gap:6px;margin-bottom:6px}.cal-gt span{font-size:11px;color:var(--mut);text-transform:lowercase}.cal-gt b{font-size:18px}.cal-gt em{font-style:normal;font-size:10.5px;font-weight:700;color:var(--teal2);margin-left:auto}
+.cal-vuoto{color:var(--mut);font-size:12px;text-align:center;padding:18px 4px;opacity:.7}.cal-scegli{position:fixed;left:12px;right:12px;bottom:12px;z-index:50;max-width:520px;margin:auto}
+@media(max-width:900px){.cal{grid-template-columns:1fr}.cal-lato{position:static;max-height:none}.cal-sett{grid-template-columns:repeat(7,minmax(118px,1fr));overflow-x:auto;padding-bottom:6px}}
 .ap-h{display:flex;align-items:center;gap:8px;margin-top:26px}.ap{margin-bottom:12px}.ap-voce{border-top:1px solid var(--line);padding:10px 0}.ap-voce:first-of-type{border-top:0}.ap-voce.consigliata{background:var(--card)bea;border-radius:10px;padding:10px}.ap summary{cursor:pointer}
 .lavorazioni{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin:12px 0}.lz{display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px;color:inherit;text-decoration:none}.lz .ic{font-size:22px}.lz .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}.lz b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lz small{font-size:12px;color:var(--mut)}
 .avanz{height:6px;border-radius:9px;background:var(--s2);overflow:hidden}.avanz i{display:block;height:100%;background:linear-gradient(90deg,#12a3a4,#3fd0c9);border-radius:9px;transition:width .6s}
@@ -275,6 +287,7 @@ const ICO = {
   riunioni: '<circle cx="12" cy="8" r="3"/><path d="M5 20c.8-3.5 3.6-5.5 7-5.5s6.2 2 7 5.5M4.5 10.5a2.3 2.3 0 1 0 0-.1M19.5 10.5a2.3 2.3 0 1 0 0-.1"/>',
   profilo: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".6"/>',
   approvazioni: '<path d="M20 6 9 17l-5-5"/>',
+  calendario: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M8 14h3M13 14h3M8 17h3"/>',
   archivio: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
   clienti: '<path d="M16 20v-1.5a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4V20M9.5 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M21 20v-1.5a4 4 0 0 0-3-3.9M15.5 3.6a3.5 3.5 0 0 1 0 6.8"/>',
   post: '<rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 21h12a2 2 0 0 0 2-2V7M3 13l4-4 4 4 3-3 3 3"/>',
@@ -284,7 +297,7 @@ const ICO = {
   gestionale: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   impostazioni: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'
 };
-const VOCI = [['agenzia', 'Agenzia', '#/'], ['riunioni', 'Riunioni', '#/riunioni'], ['approvazioni', 'Approvazioni', '#/approvazioni'], ['profilo', 'Profilo IG', '#/profilo'], ['clienti', 'Clienti', '#/clienti'], ['archivio', 'Archivio', '#/archivio']];
+const VOCI = [['agenzia', 'Agenzia', '#/'], ['riunioni', 'Riunioni', '#/riunioni'], ['approvazioni', 'Approvazioni', '#/approvazioni'], ['calendario', 'Calendario', '#/calendario'], ['profilo', 'Profilo IG', '#/profilo'], ['clienti', 'Clienti', '#/clienti'], ['archivio', 'Archivio', '#/archivio']];
 const STRUMENTI = [ ['gestionale', 'Gestionale', '#/gestionale'], ['costi', 'Costi', '#/costi']];
 const voce = (v) => '<a class="vm" href="' + v[2] + '" data-k="' + v[0] + '"><svg viewBox="0 0 24 24">' + ICO[v[0]] + '</svg><span class="tx">' + v[1] + '</span>' + (v[0] === 'costi' ? '<span class="num" id="num_costi"></span>' : '') + '</a>';
 function menu(on) {
@@ -304,7 +317,7 @@ async function aggiornaNumCosti() {
 const soldi = (usd, cambio) => '€ ' + (usd * (cambio || 0.86)).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 function evidenzia() {
   const h = location.hash || '#/';
-  const k = h === '#/' || h.startsWith('#/agente') || h.startsWith('#/ufficio') || h.startsWith('#/incarico') || h === '#/chat/capo' ? 'agenzia' : h.startsWith('#/riunion') ? 'riunioni' : h.startsWith('#/profilo') ? 'profilo' : h.startsWith('#/archivio') ? 'archivio' : h.startsWith('#/approvazion') ? 'approvazioni' : h.startsWith('#/client') ? 'clienti' :
+  const k = h === '#/' || h.startsWith('#/agente') || h.startsWith('#/ufficio') || h.startsWith('#/incarico') || h === '#/chat/capo' ? 'agenzia' : h.startsWith('#/riunion') ? 'riunioni' : h.startsWith('#/profilo') ? 'profilo' : h.startsWith('#/archivio') ? 'archivio' : h.startsWith('#/calendario') ? 'calendario' : h.startsWith('#/approvazion') ? 'approvazioni' : h.startsWith('#/client') ? 'clienti' :
     h.startsWith('#/reel') || h.startsWith('#/lavoro') || h.startsWith('#/nuovo') || h.startsWith('#/post') || h.startsWith('#/copion') || h.startsWith('#/piano') ? 'approvazioni' : h.startsWith('#/chat/gestionale') || h.startsWith('#/chat/contabile') || h === '#/gestionale' ? 'gestionale' : h.startsWith('#/costi') ? 'costi' : h.startsWith('#/impostazioni') ? 'impostazioni' : '';
   document.querySelectorAll('#nav .vm[data-k]').forEach((a) => a.classList.toggle('att', a.dataset.k === k));
   const tutte = VOCI.concat(STRUMENTI, [['impostazioni', 'Impostazioni']]).find((v) => v[0] === k);
@@ -1421,6 +1434,48 @@ async function archivioPagina(cart) {
     dz.onclick = () => $('#ar_file').click(); }
 }
 
+// CALENDARIO "Cosa esce": a sinistra i contenuti, a destra questa settimana e la prossima; si trascinano sui giorni
+const ST_CAL = { approvato: ['approvato', 'pronto'], da_approvare: ['da approvare', 'errore'], programmato: ['programmato', 'in_corso'], pubblicato: ['pubblicato', 'pronto'], in_lavorazione: ['in lavorazione', ''], pausa: ['in pausa', ''], errore: ['errore', 'errore'], da_pubblicare: ['da pubblicare', 'errore'] };
+async function calendarioPagina() {
+  const C = await chiama('/api/calendario');
+  const oggi = new Date(C.oggi + 'T12:00:00');
+  const lun = new Date(oggi); lun.setDate(oggi.getDate() - ((oggi.getDay() + 6) % 7));
+  const giorno = (k) => { const d = new Date(lun); d.setDate(lun.getDate() + k); return d; };
+  const iso = (d) => d.toISOString().slice(0, 10);
+  const GG = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'];
+  const chiave = (v) => v.tipo + ':' + v.rif + ':' + v.n;
+  const V = C.voci;
+  const daMettere = V.filter((v) => !v.data && ['approvato', 'da_approvare'].includes(v.stato));
+  const inLav = V.filter((v) => !v.data && ['in_lavorazione', 'pausa'].includes(v.stato)).slice(0, 12);
+  const mini = (v, piccola) => '<div class="cal-voce' + (piccola ? ' p' : '') + '" draggable="' + (!v.fisso) + '" data-k="' + chiave(v) + '">' +
+    '<a class="cal-img" href="' + v.link + '">' + (v.img ? '<img loading="lazy" src="' + v.img + '">' : '<span>' + (v.tipo === 'reel' ? '🎬' : v.tipo === 'post' ? '🗂️' : '📝') + '</span>') + '</a>' +
+    '<div class="cal-tx"><b>' + e(v.titolo) + '</b><small>' + (v.cliente ? e(v.cliente) + ' · ' : '') + (v.tipo === 'reel' ? 'reel' : v.tipo === 'post' ? 'carosello' : 'post') + (v.ora ? ' · ' + v.ora : '') + '</small>' +
+    (ST_CAL[v.stato] ? '<span class="pill ' + ST_CAL[v.stato][1] + '">' + ST_CAL[v.stato][0] + '</span>' : '') + '</div>' +
+    (v.data && !v.fisso ? '<button class="cal-x" data-k="' + chiave(v) + '" title="Togli dal giorno">×</button>' : '') + '</div>';
+  const settimana = (off, titolo) => '<h2 class="cal-h">' + titolo + '</h2><div class="cal-sett">' + [0, 1, 2, 3, 4, 5, 6].map((k) => {
+    const d = giorno(off + k), q = iso(d), del = V.filter((v) => v.data === q);
+    return '<div class="cal-g' + (q === C.oggi ? ' oggi' : '') + (d < oggi && q !== C.oggi ? ' passato' : '') + '" data-d="' + q + '"><div class="cal-gt"><span>' + GG[k] + '</span><b>' + d.getDate() + '</b>' + (q === C.oggi ? '<em>oggi</em>' : '') + '</div>' +
+      (del.length ? del.map((v) => mini(v, true)).join('') : '<div class="cal-vuoto">libero</div>') + '</div>'; }).join('') + '</div>';
+  $('#app').innerHTML = '<div class="riga"><div style="flex:1"><h1>Cosa esce</h1><p class="mut" style="margin:0">A sinistra i tuoi contenuti, a destra le settimane. Trascina un contenuto sul giorno in cui deve uscire.</p></div><a class="btn sec" href="#/approvazioni">Approvazioni</a></div>' +
+    '<div class="cal"><aside class="cal-lato"><h2 class="cal-h">I tuoi contenuti</h2>' +
+      '<div class="cal-gr">Da mettere in un giorno <span class="pill">' + daMettere.length + '</span></div>' + (daMettere.map((v) => mini(v)).join('') || '<div class="cal-vuoto">Niente di pronto da programmare.</div>') +
+      '<div class="cal-gr">In lavorazione <span class="pill">' + inLav.length + '</span></div>' + (inLav.map((v) => mini(v)).join('') || '<div class="cal-vuoto">Niente in lavorazione.</div>') +
+    '</aside><section class="cal-dx">' + settimana(0, 'Questa settimana') + settimana(7, 'La prossima') + '</section></div>' +
+    '<div id="cal_sc" class="cal-scegli" hidden></div>';
+  const metti = async (k, data) => { const [tipo, rif, n] = k.split(':'); try { await chiama('/api/calendario', { method: 'POST', body: { tipo, rif: Number(rif), n: Number(n), data } }); rotta(); } catch (x) { alert(x.message); } };
+  document.querySelectorAll('.cal-voce[draggable="true"]').forEach((el) => { el.ondragstart = (ev) => { ev.dataTransfer.setData('text/plain', el.dataset.k); el.classList.add('trascino'); }; el.ondragend = () => el.classList.remove('trascino'); });
+  document.querySelectorAll('.cal-g').forEach((g) => { g.ondragover = (ev) => { ev.preventDefault(); g.classList.add('su'); }; g.ondragleave = () => g.classList.remove('su');
+    g.ondrop = (ev) => { ev.preventDefault(); g.classList.remove('su'); const k = ev.dataTransfer.getData('text/plain'); if (k) metti(k, g.dataset.d); }; });
+  document.querySelectorAll('.cal-x').forEach((b) => b.onclick = (ev) => { ev.stopPropagation(); metti(b.dataset.k, null); });
+  // dal telefono (niente trascinamento): tocchi il contenuto e scegli il giorno
+  document.querySelectorAll('.cal-lato .cal-voce[draggable="true"] .cal-tx').forEach((t) => t.onclick = () => {
+    const k = t.parentElement.dataset.k, box = $('#cal_sc');
+    box.innerHTML = '<div class="card"><b>In che giorno esce?</b><div class="riga" style="gap:6px;margin-top:10px;flex-wrap:wrap">' + Array.from({ length: 14 }, (_, i) => giorno(i)).filter((d) => d >= new Date(C.oggi + 'T00:00:00')).map((d) => '<button class="chip" data-d="' + iso(d) + '">' + GG[(d.getDay() + 6) % 7] + ' ' + d.getDate() + '</button>').join('') + '</div><button class="sec" id="cal_no" style="width:auto;margin-top:10px">Annulla</button></div>';
+    box.hidden = false; box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    box.querySelectorAll('[data-d]').forEach((b) => b.onclick = () => metti(k, b.dataset.d)); $('#cal_no').onclick = () => { box.hidden = true; };
+  });
+}
+
 async function clientiPagina() {
   const [L, G] = await Promise.all([chiama('/api/clienti'), chiama('/api/gestionale/clienti')]);
   const liberi = G.filter((g) => !L.some((c) => c.gest_id === g.id));
@@ -1511,6 +1566,7 @@ async function rotta() {
     else if (h.startsWith('#/agente/')) await agentePagina(h.split('/')[2]);
     else if (h.startsWith('#/incarico/')) await incarico(h.split('/')[2]);
     else if (h === '#/approvazioni') await approvazioni();
+    else if (h === '#/calendario') await calendarioPagina();
     else if (h === '#/archivio' || h.startsWith('#/archivio/')) await archivioPagina(decodeURIComponent(h.slice(11)));
     else if (h === '#/riunioni') await riunioniPagina();
     else if (h === '#/profilo') await profiloPagina();

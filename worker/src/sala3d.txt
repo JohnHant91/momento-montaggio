@@ -449,21 +449,46 @@ function costruisci(dati) {
     }
   };
   const ALTO = 1.55, BASSO = 0.38;
+  // vetrate della direzione: vetro azzurrato con montanti in alluminio scuro, a tutta altezza
+  const vetroMat = new THREE.MeshStandardMaterial({ color: 0xbfe3ec, transparent: true, opacity: 0.28, roughness: 0.05, metalness: 0.2, depthWrite: false });
+  const allumMat = new THREE.MeshStandardMaterial({ color: 0x3a4248, roughness: 0.35, metalness: 0.7 });
+  const vetrata = (x0, z0, x1, z1, h, porta) => {
+    const lungo = Math.hypot(x1 - x0, z1 - z0), orizz = Math.abs(z1 - z0) < 0.01;
+    const pezzi = porta ? [[0, porta - 0.55], [porta + 0.55, lungo]] : [[0, lungo]];
+    const at = (c, y, sx, sy, sz, m) => { const b = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), m); b.position.set(orizz ? x0 + c : x0, y, orizz ? z0 : z0 + c); scena.add(b); return b; };
+    for (const [s0, s1] of pezzi) {
+      const L = s1 - s0; if (L < 0.05) continue;
+      const v = at((s0 + s1) / 2, h / 2, orizz ? L : 0.03, h, orizz ? 0.03 : L, vetroMat); v.renderOrder = 2;
+      at((s0 + s1) / 2, h - 0.02, orizz ? L : 0.06, 0.04, orizz ? 0.06 : L, allumMat); // traverso alto
+      at((s0 + s1) / 2, 0.06, orizz ? L : 0.07, 0.08, orizz ? 0.07 : L, allumMat); // zoccolo
+      const n = Math.max(1, Math.round(L / 1.4));
+      for (let k = 0; k <= n; k++) { const c = s0 + (L * k) / n; at(c, h / 2, orizz ? 0.045 : 0.05, h, orizz ? 0.05 : 0.045, allumMat); }
+    }
+  };
+  const DIR = STANZE.find((r) => r.id === 'direzione');
+  // i muri dei vicini sul confine con la direzione non si disegnano: lì c'è la vetrata
+  const suConfineDir = (R, x) => DIR && R.id !== 'direzione' && (Math.abs(x - DIR.x) < 0.01 || Math.abs(x - (DIR.x + DIR.w)) < 0.01) && R.z < DIR.z + DIR.d && R.z + R.d > DIR.z;
   muro(0, 0, LARGO, 0, 2.3); // parete di fondo dell'edificio
   S.aree = {}; S.agenti = {}; S.etAree = [];
   const uffici = Object.fromEntries(dati.uffici.map((u) => [u.id, u]));
   for (const R of STANZE) {
     // pavimento della stanza
-    const fl = new THREE.Mesh(new RoundedBoxGeometry(R.w - 0.14, 0.014, R.d - 0.14, 2, 0.006), new THREE.MeshStandardMaterial({ color: new THREE.Color(TINTE[R.id] || '#f3f3f1').offsetHSL(0, 0.15, -0.03), roughness: 0.6 }));
+    const fl = new THREE.Mesh(new RoundedBoxGeometry(R.w - 0.14, 0.014, R.d - 0.14, 2, 0.006), new THREE.MeshStandardMaterial({ color: new THREE.Color(TINTE[R.id] || '#f3f3f1').lerp(new THREE.Color('#ffffff'), 0.45), roughness: 0.6 }));
     fl.position.set(R.x + R.w / 2, 0.04, R.z + R.d / 2); fl.receiveShadow = true; fl.userData.uff = R.id; scena.add(fl);
     // pareti laterali (alte verso il fondo, basse verso chi guarda) e parete sul corridoio con la porta
     const xs = [R.x, R.x + R.w];
+    if (R.id === 'direzione') {
+      for (const x of xs) vetrata(x, R.z, x, R.z + R.d, ALTO);
+      vetrata(R.x, R.z + R.d, R.x + R.w, R.z + R.d, ALTO * 0.72, R.porta || R.w / 2);
+    }
     for (const x of xs) {
+      if (R.id === 'direzione' || suConfineDir(R, x)) continue;
       if (R.lato === 'n') { muro(x, 0, x, R.d * 0.55, ALTO); muro(x, R.d * 0.55, x, R.d, BASSO + 0.25); }
       else { muro(x, R.z, x, R.z + R.d * 0.45, ALTO - 0.4); muro(x, R.z + R.d * 0.45, x, R.z + R.d, BASSO); }
     }
     const porta = R.porta || Math.min(R.w - 0.8, R.lato === 'n' ? R.w - 1.0 : 1.0);
-    if (R.lato === 'n') muro(R.x, R.z + R.d, R.x + R.w, R.z + R.d, BASSO, porta);
+    if (R.id === 'direzione') { /* vetrata sul corridoio già fatta */ }
+    else if (R.lato === 'n') muro(R.x, R.z + R.d, R.x + R.w, R.z + R.d, BASSO, porta);
     else { muro(R.x, R.z, R.x + R.w, R.z, ALTO - 0.4, porta); muro(R.x, R.z + R.d, R.x + R.w, R.z + R.d, BASSO); }
     const nome = R.nome || uffici[R.id]?.nome || R.id;
     // targa della stanza accanto alla porta (sul corridoio)

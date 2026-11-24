@@ -6446,6 +6446,88 @@ var MANIFEST = JSON.stringify({
 var ICONA_192 = "iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAADbklEQVR42u3dzVHrQBCFUfUUa5MiXuCgzAJSxAmYCCj5R5I1c88JgLL9+psemVdFTTtz+D5fJ4Z1OZ5qT6+nDDvJUZShJzmGMvgkh1AGn+QQyuCTHEIZfJJDaIafniw9Y2XwSd4GzfCTvA2a4Sc5gmb4SY6gGX6SI2iGn+QImuEnOYJm+EmOoBl+kiNohp/kCJqPiWTN6U/yFmiGn+QIXIFwBXL6k7oFbABsAKc/qVvABsAGcPqTugVsAGwApz+pW8AGwAaA6ABcf0i9BtkA2AAgABAAZCkPwNgAIAAQAAgABAACAAGAAEAAIAAQAAgABAACgD699fiifz8+V/m57z9fMf/wPkMbYLOh8D4FAAJwOnp/AjAk3pcAQABOS+9HAIbG+xAACMDp6fULwBB53QIAAThNnf4CMFSGXwAgAKer018AhszwCwAE4LR1+gvA0Bl+AYAAck9fp78AYiMw/AIAASRuAae/AGIjMPwCAAEkbgGnvwBiIzD8AgABJG4Bp78AYiMw/AIAASRuAae/AGIjMPwCAAEkbgGnvwBiIzD8AgABvMLaf+Zz7nR3+gsg9iq09vAn/R1kARgUwy+Afq5Ca57+hl8Au47AvV8AOP0F4Cpk+AXgFDX8AjBQCACxCsBgGX4BGDDDLwCDhgAQpQAMnOEXgMEz/AIQAQKIjUB8AhAdAjCQCCAoArEJIDYCwy8AcSEAg4oAgiIQlQBiIzD8AhARAjDACCAoAvEIIDYCwy8AsSAAg40AgiIQiQBiIzD8AhAFAjDwCCAoAjEIwCZAACAAEAAIAAQAAgABgABAACAAEAAIAAQAAgABgABAADCnDt/nq48BGwAEAAIAAYAAQAAgABAACAAEAIMEcDmeysdAosvxVDYArkAgABAABAbgQZjEB2AbABvAR4AAXIMIvP7YANgA/5UBo5/+NgA2wFwhMOrpbwNgA9xaCox2+tsA2AD3FgOjnP6zG0AEjDz8rkC4Aj1bEPR6+t+8AUTAiMN/1xVIBIw2/Hc/A4iAkYb/oYdgETDK8D/8LZAIGGH4n/oaVAT0PvxP/x5ABPQ8/Iv8IkwE9Dr80zRNiw6vP7lKL4O/yn+FsA3oafgX3wC2Ab0M/uoBCIEebhWbXVmEwB6v05vf2YXAnp4jX/rQKgZe/eXJ7r61EYVh39Ifyv6Ao1864Y8AAAAASUVORK5CYII=";
 var ICONA_512 = "iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAYAAAD0eNT6AAALaUlEQVR42u3cwXUUVxBA0eo6XosU0cIKSixEiigBkQI+RtDz370RWL/HU+9Xj30Nt/T09vrhFIATvD+/XE7hfjwUAx5AIAgADHsAUSAAMPABBIEAwMAHEAQCwNAHQAwIAEMfADEgAAx9AMSAADD4ARACAsDQB0AMCACDHwAhIAAMfgCEgAAw+AEQAgLA4AdACAgAgx8AIfBfreEPAL3ZcXl4ANDbBlwGPwD0QmANfwDozZjLQwGA3jZgDX8A6M2e9QAAoDeDLocOAJN7JbCGPwD0ZtM6YADozajLoQLA5F4JrOEPAL3ZtQ4QAHozbB0cAPRm2TowAOjNtHVQANCbbeuAAKA349bBAEBv1q0DAYDezFsHAQC92beGPwD0ZuAa/gDQm4Vr+ANALwLW8AeAXgSs4Q8AvQhYwx8AehGwhj8A9CJgHTUA9KzbPwD0tgBr+ANALwLW8AeAXgT4DQAAjN8AuP0DQGALsIY/APQiYA1/AOhFgN8AAMD4DYDbPwAEtgBr+ANALwK8AgCA8QrA7R8AAlsAGwAAsAFw+weAwhZgDX8A6EWAVwAAMF4BuP0DQGALYAMAADYAbv8AUNgC2AAAgA2A2z8AFLYANgAAYAPg9g8AhS2ADQAA2AC4/QNAYQtgAwAANgAAgAAY638AmANfA9gAAIANgNs/ABS2ADYAAGADAACkA8D6HwDm2NcANgAAYAMAAGQDwPofAObo1wA2AABgAwAAJAPA+h8A5vjXADYAAGADAAAIAADg/ADw/h8AJvE7ABsAAPAKAAAQAADA2QHg/T8ATOZ3ADYAAOAVAAAgAAAAAQAAHBQAfgAIAJP6IaANAAB4BQAACAAAQAAAAAIAABAAAIAAAABu6/L/AAAAGwAAQAAAAAIAABAAAIAAAAAEAAAgAAAAAQAACAAAQAAAAAIAABAAAIAAAAAEAAAgAAAAAQAACAAAEAAAgAAAAAQAACAAAAABAAAIAABAAAAAAgAAEAAAgAAAAAQAACAAAAABAAAIAABAAAAAAgAAmJmZfxzB2X58/ff4v/HL928eNP798u8XNgD4EgafOxAAAIAAwG0MfN5AAOBLGXzOEAAAgAAAtzPw+UIAgC9pfK5AAAAAAgDc1vB5AgEAvrTxOQIBAAAIAHB7w+cHBAD4EsfnBgQAACAAwG0OnxcQAOBLHZ8TEAAAgAAAtzt8PkAAgC95fC5AAAAAAgC3PfB5QACAL318DkAAAAACANz+8PxBAIAhgOcOAgAAEADgNojnDQIADAU8ZxAAAIAAALdDPF8QAGBI4LmCAAAABAC4LeJ5ggAAQwPPEQQAACAAwO3R83MIIADAEPHcAAEAAAIAcJv0vEAAAIaK5wQCAAAQAOB2iecDAgAMGTwXEAAAgAAAt008DxAAYOjgOYAAAAAEALh94vxBAIAhhHMHAQAACABwG3XegAAAQ8k5AwIAABAA4HbqfAEBAIaUcwUBAAAIAMBt1XmCAAAMLecIAgAAEACA26vzAwEAGGLODQQAACAAwG0W5wUCAAw1nBMIAABAAIDbrfMBBAAYcs4FEAAAgAAAt13nAQgAMPScAyAAAAABAG6//n4QAI4ADEF/NwgAAEAAAG7D/l4QAICh6O8EAQAACADA7djtHwQAYEga/iAAAAABAHRuy27/IACA2NA0/EEAAAACADj99uz2DwIAiA1Rwx8EAAAgAIDTb9Nu/yAAgNhQNfxBAAAAAgA4/Xbt9g8CAIgNWcMfBAAAIACA02/bbv8gAIDY0DX8QQAAAAIAOP327fYPAgCIDWHDHwQAACAAgNNv427/IACAWAQY/iAAAAABAPfw5fs3WwC3f58rEAAgAgx/QADgtgY+TyAA8KVtC+D273OEAABf3iLA8Pf5QQAAAAIA3OJiWwC3fxAA4Ms8FgGGPwgA8KWOzwkIAOD0LYD/5h8EALjdxSLA6h8EAPiSx+cCBAD4sj99C1C9/Rv+CAAgGwHe+4MAALc+fA5AAIAv/9O3AFb/IADAEIhFgOEPAgAAEADgNuj/DeB5gwAAQwHPGQQAGA54viAAAAABAG6JeK4gAMCwwPMEAQCGBp4jCAAwPPD8QAAAAAIA3CLx3EAAgGGC5wUCAAwVPCcQAACAAAC3S88HEABgyHgugAAAw8bzAAEAAAgAwK3TcwABABg+zh8EAGAIOXcQAACAAAC3UZw3CAAwlHDOIADAcML5ggAAAAQAuKXiXEEAgGGF8wQBAIaWcwQEAAAgAMDt1fkBAgAMMecGCAAwzJwXIADAUHNOIAAAAAEAuN06HxAAgCHnXEAAAIad8wABAAAIAMCt1zmAAAAMP38/CADAEDT8QQAAAAIAbAH8vYAAAEPR3wkIADAc/X2AAAAABAC4Jfu7AAEAhqW/BxAAYGj6OwABAAACAHB79s8PAgAwRA1/EACAYWr4gwAAAAQA4Fbt9g8CAEgPV8MfBAAQG7KGPwgAIDZsDX8QAACAAABOv3W7/YMAAGLD1/AHAQDEhrDhDwIAABAAwOm3cbd/EABALAIMfxAAQCwCDH8QAACAAABO3wK4/YMAAGIRYPiDAABiEWD4gwAAAAQAcPoWwO0fBAAQiwDDHwQAEIsAwx8EAAAgAIDTtwBu/yAAgFgEGP4gAIBYBBj+IAAAAAEAnL4FcPsHAQDEIsDwBwEA+D0AIAAAAAEAAAgAAEAAAAACAAAQAACAAAAABAAAIAAAAAEAAAgAAEAAAAACAAAQAACAAAAABAAACAAAQAAAAAIAABAAAIAAAAAEAAAgAAAAAQAACAAAQAAAAAIAABAAAIAAAAAEAAAgAAAAAQAACAAAEAAAgAAAAAQAACAAAAABAAAIAABAAAAAAgAAEAAAgAAAAAQAACAAAAABAAAIAADg111Pb68fjgEAbAAAAAEAAAgAAEAAAAACAAAQAACAAAAABAAAIAAAAAEAAAgAAEAAAAACAAAQAACAAAAABAAACAAAQAAAAAIAABAAAIAAAAAEAAAgAAAAAQAA3CYA3p9fLscAAB3vzy+XDQAAeAUAAAgAAEAAAAACAAAQAACAAAAA7h0A/l8AADCZ/weADQAAeAUAAAgAAEAAAAAHBoAfAgLAJH4AaAMAAF4BAAACAABoBIDfAQDAHP/+3wYAAGwAAAABAAB0AsDvAABgjn7/bwMAADYAAEA6ALwGAIA5dv1vAwAANgAAQD4AvAYAgDly/W8DAAA2AACAABivAQBgDlz/2wAAgA2ALQAAFG7/NgAAYAMAAAiA8RoAAObA9b8NAADYANgCAEDh9m8DAAA2ALYAAFC4/dsAAIANgC0AABRu/zYAAGADYAsAAIXbvw0AANgA2AIAQOH2/783ACIAAB5v+HsFAADjFYAtAAAEbv82AABgA2ALAACF2/9v3QCIAAB4jOHvFQAAjFcAtgAAELj9f8oGQAQAwP1n6z7KPygAGP43DwAAYDq/AbAFAIDHmKX7qP/gAGD43/gVgAgAgPvNTr8BAIDxGwBbAAA4/Pb/RzcAIgAA7jMr99Q/DAAM/xv9BkAEAMDfn41b+UMBwPC/wX8FIAIAMPz/3izc6h8OAOUZuPUDAIDi7FsHAQC9mbcOBAB6s24dDAD0Ztw6IADozbZ1UADQm2nrwACgN8vWwQFAb4atAwSA3ux6qOH69Pb64WMFgMEf2ADYBgBgRsUDQAQAYDZN7xXAeCUAgMHf3ADYBgBgBsUDQAQAYPZM7xXAeCUAgMHf3ADYBgBgxsQ3ALYBABj88QAQAgAY/NN4BeC1AABmhw2AbQAABr8AEAIAGPzpABACANRfE3s/LgQADH4BIAScAoDBLwDEAACGvgAQAgAY/AJADABg6AsAMQCAoS8AxAAAhr4AEAQAGPgCQBAAYOALAFEAYNgjABAIgAHPp/oJq/Lwt7O2agoAAAAASUVORK5CYII=";
 
+// src/calendario.js
+init_db();
+async function schemaCalendario(env) {
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS uscite (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT NOT NULL, rif INTEGER NOT NULL, n INTEGER DEFAULT 0,
+    data TEXT NOT NULL, ora TEXT, creato TEXT, UNIQUE(tipo, rif, n))`).run();
+}
+async function apiCalendario(req, env, p, m, json3) {
+  if (!p.startsWith("/api/calendario")) return null;
+  await schemaCalendario(env);
+  if (p === "/api/calendario" && m === "GET") {
+    const U = await all(env, "SELECT * FROM uscite");
+    const fissata = (tipo, rif, n = 0) => U.find((u) => u.tipo === tipo && u.rif === rif && (u.n || 0) === n) || null;
+    const voci = [];
+    const R = await all(env, "SELECT id, prompt, stato, fase, approvato, aggiornato, json_extract(scheda, '$.titolo_lavoro') AS titolo, json_extract(montaggio, '$.copertina') AS copertina, json_extract(montaggio, '$.stato') AS mstato FROM lavori ORDER BY id DESC LIMIT 80");
+    for (const l of R) {
+      const pronto3 = l.stato === "pronto";
+      const u = fissata("reel", l.id);
+      voci.push({
+        tipo: "reel",
+        rif: l.id,
+        n: 0,
+        titolo: l.titolo || String(l.prompt || "").slice(0, 60),
+        link: "#/lavoro/" + l.id,
+        img: l.copertina ? `/api/lavori/${l.id}/copertina.jpg` : null,
+        stato: pronto3 ? l.approvato ? "approvato" : "da_approvare" : l.stato === "errore" ? "errore" : l.stato === "pausa" ? "pausa" : "in_lavorazione",
+        fase: l.fase,
+        data: u?.data || null,
+        ora: u?.ora || null
+      });
+    }
+    const P2 = await all(env, "SELECT id, cliente, stato, fase, contenuti, slide_file FROM post_lavori ORDER BY id DESC LIMIT 40").catch(() => []);
+    for (const q of P2) {
+      const Ct = J(q.contenuti, {}), file = J(q.slide_file, {}) || {};
+      const post = (Ct.post || []).filter((x) => x.stato !== "scartato");
+      if (!post.length) {
+        voci.push({ tipo: "post", rif: q.id, n: 0, titolo: (q.cliente || "Caroselli") + " \xB7 in lavorazione", link: "#/post/" + q.id, img: null, stato: "in_lavorazione", data: null });
+        continue;
+      }
+      for (const x of post) {
+        const u = fissata("post", q.id, x.n);
+        const pronta = file[`post-${q.id}/${x.n}-1.png`];
+        voci.push({
+          tipo: "post",
+          rif: q.id,
+          n: x.n,
+          titolo: x.titolo || "Carosello",
+          cliente: q.cliente,
+          link: "#/post/" + q.id,
+          img: pronta ? `/api/post/${q.id}/slide/${x.n}-1.png` : null,
+          stato: x.ig_id ? "programmato" : pronta ? q.stato === "da_vedere" ? "da_approvare" : "approvato" : q.stato === "da_approvare" ? "da_approvare" : "in_lavorazione",
+          data: u?.data || (x.ig_quando ? x.ig_quando.slice(0, 10) : null),
+          ora: u?.ora || null
+        });
+      }
+    }
+    const C = await all(env, "SELECT c.id, c.titolo, c.tipo, c.data, c.ora, c.stato, k.nome AS cliente FROM contenuti c LEFT JOIN clienti k ON k.id=c.cliente_id WHERE c.stato != 'scartato' AND c.data IS NOT NULL ORDER BY c.data DESC LIMIT 80").catch(() => []);
+    for (const c of C) voci.push({ tipo: "contenuto", rif: c.id, n: 0, titolo: c.titolo || c.tipo, cliente: c.cliente, link: "#/approvazioni", img: null, stato: c.stato, data: c.data, ora: c.ora, fisso: true });
+    return json3({ oggi: ora().slice(0, 10), voci });
+  }
+  if (p === "/api/calendario" && m === "POST") {
+    const d = await req.json().catch(() => ({}));
+    if (!["reel", "post"].includes(d.tipo) || !Number(d.rif)) return json3({ errore: "contenuto non valido" }, 400);
+    if (!d.data) {
+      await run(env, "DELETE FROM uscite WHERE tipo=? AND rif=? AND n=?", d.tipo, Number(d.rif), Number(d.n) || 0);
+      return json3({ ok: true });
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d.data)) return json3({ errore: "data non valida" }, 400);
+    await run(
+      env,
+      `INSERT INTO uscite (tipo, rif, n, data, ora, creato) VALUES (?,?,?,?,?,?) ON CONFLICT(tipo, rif, n) DO UPDATE SET data=excluded.data, ora=excluded.ora`,
+      d.tipo,
+      Number(d.rif),
+      Number(d.n) || 0,
+      d.data,
+      /^\d{2}:\d{2}$/.test(d.ora || "") ? d.ora : null,
+      ora()
+    );
+    return json3({ ok: true });
+  }
+  return null;
+}
+
 // src/pagina.js
 var PAGINA = `<!DOCTYPE html>
 <html lang="it"><head><meta charset="utf-8">
@@ -6545,6 +6627,18 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 .ar-riga{display:grid;grid-template-columns:1fr 120px 70px;gap:8px;align-items:center;font-size:13px;margin-top:6px}.ar-riga span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ar-bar{height:6px;background:#eee;border-radius:4px;overflow:hidden}.ar-bar i{display:block;height:100%;width:0;background:var(--teal,#12a3a4)}
 .sl-fila{display:flex;gap:8px;overflow-x:auto;margin-top:8px;padding-bottom:4px}.sl-fila img{height:190px;aspect-ratio:4/5;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
 .nota-chiara{background:color-mix(in srgb,#ff7aa2 12%,var(--card));border:1px solid color-mix(in srgb,#ff7aa2 35%,var(--line));border-radius:12px;padding:8px 12px;font-size:14px;margin:8px 0}
+.cal{display:grid;grid-template-columns:300px 1fr;gap:18px;margin-top:14px;align-items:start}.cal-lato{background:var(--card);border:1px solid var(--line);border-radius:var(--r,16px);padding:6px 12px 14px;position:sticky;top:16px;max-height:calc(100vh - 40px);overflow:auto;box-shadow:var(--ombra)}
+.cal-h{margin:12px 0 8px;font-size:16px}.cal-gr{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--mut);margin:14px 0 6px}
+.cal-voce{display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:7px;margin:6px 0;position:relative;cursor:grab}.cal-voce.trascino{opacity:.45}
+.cal-img{flex:0 0 40px;height:56px;border-radius:8px;background:var(--s2);display:grid;place-items:center;overflow:hidden;font-size:18px}.cal-img img{width:100%;height:100%;object-fit:cover}
+.cal-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.cal-tx b{font-size:13px;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.cal-tx small{font-size:11.5px;color:var(--mut)}.cal-tx .pill{align-self:flex-start;font-size:10.5px;padding:2px 8px}
+.cal-voce.p{flex-direction:column;align-items:stretch;padding:6px;gap:6px}.cal-voce.p .cal-img{flex:none;width:100%;height:auto;aspect-ratio:9/12}
+.cal-x{position:absolute;top:4px;right:4px;width:22px;height:22px;padding:0;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:14px;line-height:1}
+.cal-sett{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}.cal-g{background:color-mix(in srgb,var(--card) 60%,transparent);border:1px solid var(--line);border-radius:14px;padding:8px;min-height:190px;transition:background .15s,border-color .15s}
+.cal-g.oggi{border:2px solid var(--teal);background:var(--card)}.cal-g.passato{opacity:.55}.cal-g.su{background:var(--tealbg);border-color:var(--teal)}
+.cal-gt{display:flex;align-items:baseline;gap:6px;margin-bottom:6px}.cal-gt span{font-size:11px;color:var(--mut);text-transform:lowercase}.cal-gt b{font-size:18px}.cal-gt em{font-style:normal;font-size:10.5px;font-weight:700;color:var(--teal2);margin-left:auto}
+.cal-vuoto{color:var(--mut);font-size:12px;text-align:center;padding:18px 4px;opacity:.7}.cal-scegli{position:fixed;left:12px;right:12px;bottom:12px;z-index:50;max-width:520px;margin:auto}
+@media(max-width:900px){.cal{grid-template-columns:1fr}.cal-lato{position:static;max-height:none}.cal-sett{grid-template-columns:repeat(7,minmax(118px,1fr));overflow-x:auto;padding-bottom:6px}}
 .ap-h{display:flex;align-items:center;gap:8px;margin-top:26px}.ap{margin-bottom:12px}.ap-voce{border-top:1px solid var(--line);padding:10px 0}.ap-voce:first-of-type{border-top:0}.ap-voce.consigliata{background:var(--card)bea;border-radius:10px;padding:10px}.ap summary{cursor:pointer}
 .lavorazioni{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin:12px 0}.lz{display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px;color:inherit;text-decoration:none}.lz .ic{font-size:22px}.lz .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}.lz b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lz small{font-size:12px;color:var(--mut)}
 .avanz{height:6px;border-radius:9px;background:var(--s2);overflow:hidden}.avanz i{display:block;height:100%;background:linear-gradient(90deg,#12a3a4,#3fd0c9);border-radius:9px;transition:width .6s}
@@ -6721,6 +6815,7 @@ const ICO = {
   riunioni: '<circle cx="12" cy="8" r="3"/><path d="M5 20c.8-3.5 3.6-5.5 7-5.5s6.2 2 7 5.5M4.5 10.5a2.3 2.3 0 1 0 0-.1M19.5 10.5a2.3 2.3 0 1 0 0-.1"/>',
   profilo: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".6"/>',
   approvazioni: '<path d="M20 6 9 17l-5-5"/>',
+  calendario: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M8 14h3M13 14h3M8 17h3"/>',
   archivio: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
   clienti: '<path d="M16 20v-1.5a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4V20M9.5 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M21 20v-1.5a4 4 0 0 0-3-3.9M15.5 3.6a3.5 3.5 0 0 1 0 6.8"/>',
   post: '<rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 21h12a2 2 0 0 0 2-2V7M3 13l4-4 4 4 3-3 3 3"/>',
@@ -6730,7 +6825,7 @@ const ICO = {
   gestionale: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   impostazioni: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'
 };
-const VOCI = [['agenzia', 'Agenzia', '#/'], ['riunioni', 'Riunioni', '#/riunioni'], ['approvazioni', 'Approvazioni', '#/approvazioni'], ['profilo', 'Profilo IG', '#/profilo'], ['clienti', 'Clienti', '#/clienti'], ['archivio', 'Archivio', '#/archivio']];
+const VOCI = [['agenzia', 'Agenzia', '#/'], ['riunioni', 'Riunioni', '#/riunioni'], ['approvazioni', 'Approvazioni', '#/approvazioni'], ['calendario', 'Calendario', '#/calendario'], ['profilo', 'Profilo IG', '#/profilo'], ['clienti', 'Clienti', '#/clienti'], ['archivio', 'Archivio', '#/archivio']];
 const STRUMENTI = [ ['gestionale', 'Gestionale', '#/gestionale'], ['costi', 'Costi', '#/costi']];
 const voce = (v) => '<a class="vm" href="' + v[2] + '" data-k="' + v[0] + '"><svg viewBox="0 0 24 24">' + ICO[v[0]] + '</svg><span class="tx">' + v[1] + '</span>' + (v[0] === 'costi' ? '<span class="num" id="num_costi"></span>' : '') + '</a>';
 function menu(on) {
@@ -6750,7 +6845,7 @@ async function aggiornaNumCosti() {
 const soldi = (usd, cambio) => '\u20AC ' + (usd * (cambio || 0.86)).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 function evidenzia() {
   const h = location.hash || '#/';
-  const k = h === '#/' || h.startsWith('#/agente') || h.startsWith('#/ufficio') || h.startsWith('#/incarico') || h === '#/chat/capo' ? 'agenzia' : h.startsWith('#/riunion') ? 'riunioni' : h.startsWith('#/profilo') ? 'profilo' : h.startsWith('#/archivio') ? 'archivio' : h.startsWith('#/approvazion') ? 'approvazioni' : h.startsWith('#/client') ? 'clienti' :
+  const k = h === '#/' || h.startsWith('#/agente') || h.startsWith('#/ufficio') || h.startsWith('#/incarico') || h === '#/chat/capo' ? 'agenzia' : h.startsWith('#/riunion') ? 'riunioni' : h.startsWith('#/profilo') ? 'profilo' : h.startsWith('#/archivio') ? 'archivio' : h.startsWith('#/calendario') ? 'calendario' : h.startsWith('#/approvazion') ? 'approvazioni' : h.startsWith('#/client') ? 'clienti' :
     h.startsWith('#/reel') || h.startsWith('#/lavoro') || h.startsWith('#/nuovo') || h.startsWith('#/post') || h.startsWith('#/copion') || h.startsWith('#/piano') ? 'approvazioni' : h.startsWith('#/chat/gestionale') || h.startsWith('#/chat/contabile') || h === '#/gestionale' ? 'gestionale' : h.startsWith('#/costi') ? 'costi' : h.startsWith('#/impostazioni') ? 'impostazioni' : '';
   document.querySelectorAll('#nav .vm[data-k]').forEach((a) => a.classList.toggle('att', a.dataset.k === k));
   const tutte = VOCI.concat(STRUMENTI, [['impostazioni', 'Impostazioni']]).find((v) => v[0] === k);
@@ -7867,6 +7962,48 @@ async function archivioPagina(cart) {
     dz.onclick = () => $('#ar_file').click(); }
 }
 
+// CALENDARIO "Cosa esce": a sinistra i contenuti, a destra questa settimana e la prossima; si trascinano sui giorni
+const ST_CAL = { approvato: ['approvato', 'pronto'], da_approvare: ['da approvare', 'errore'], programmato: ['programmato', 'in_corso'], pubblicato: ['pubblicato', 'pronto'], in_lavorazione: ['in lavorazione', ''], pausa: ['in pausa', ''], errore: ['errore', 'errore'], da_pubblicare: ['da pubblicare', 'errore'] };
+async function calendarioPagina() {
+  const C = await chiama('/api/calendario');
+  const oggi = new Date(C.oggi + 'T12:00:00');
+  const lun = new Date(oggi); lun.setDate(oggi.getDate() - ((oggi.getDay() + 6) % 7));
+  const giorno = (k) => { const d = new Date(lun); d.setDate(lun.getDate() + k); return d; };
+  const iso = (d) => d.toISOString().slice(0, 10);
+  const GG = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'];
+  const chiave = (v) => v.tipo + ':' + v.rif + ':' + v.n;
+  const V = C.voci;
+  const daMettere = V.filter((v) => !v.data && ['approvato', 'da_approvare'].includes(v.stato));
+  const inLav = V.filter((v) => !v.data && ['in_lavorazione', 'pausa'].includes(v.stato)).slice(0, 12);
+  const mini = (v, piccola) => '<div class="cal-voce' + (piccola ? ' p' : '') + '" draggable="' + (!v.fisso) + '" data-k="' + chiave(v) + '">' +
+    '<a class="cal-img" href="' + v.link + '">' + (v.img ? '<img loading="lazy" src="' + v.img + '">' : '<span>' + (v.tipo === 'reel' ? '\u{1F3AC}' : v.tipo === 'post' ? '\u{1F5C2}\uFE0F' : '\u{1F4DD}') + '</span>') + '</a>' +
+    '<div class="cal-tx"><b>' + e(v.titolo) + '</b><small>' + (v.cliente ? e(v.cliente) + ' \xB7 ' : '') + (v.tipo === 'reel' ? 'reel' : v.tipo === 'post' ? 'carosello' : 'post') + (v.ora ? ' \xB7 ' + v.ora : '') + '</small>' +
+    (ST_CAL[v.stato] ? '<span class="pill ' + ST_CAL[v.stato][1] + '">' + ST_CAL[v.stato][0] + '</span>' : '') + '</div>' +
+    (v.data && !v.fisso ? '<button class="cal-x" data-k="' + chiave(v) + '" title="Togli dal giorno">\xD7</button>' : '') + '</div>';
+  const settimana = (off, titolo) => '<h2 class="cal-h">' + titolo + '</h2><div class="cal-sett">' + [0, 1, 2, 3, 4, 5, 6].map((k) => {
+    const d = giorno(off + k), q = iso(d), del = V.filter((v) => v.data === q);
+    return '<div class="cal-g' + (q === C.oggi ? ' oggi' : '') + (d < oggi && q !== C.oggi ? ' passato' : '') + '" data-d="' + q + '"><div class="cal-gt"><span>' + GG[k] + '</span><b>' + d.getDate() + '</b>' + (q === C.oggi ? '<em>oggi</em>' : '') + '</div>' +
+      (del.length ? del.map((v) => mini(v, true)).join('') : '<div class="cal-vuoto">libero</div>') + '</div>'; }).join('') + '</div>';
+  $('#app').innerHTML = '<div class="riga"><div style="flex:1"><h1>Cosa esce</h1><p class="mut" style="margin:0">A sinistra i tuoi contenuti, a destra le settimane. Trascina un contenuto sul giorno in cui deve uscire.</p></div><a class="btn sec" href="#/approvazioni">Approvazioni</a></div>' +
+    '<div class="cal"><aside class="cal-lato"><h2 class="cal-h">I tuoi contenuti</h2>' +
+      '<div class="cal-gr">Da mettere in un giorno <span class="pill">' + daMettere.length + '</span></div>' + (daMettere.map((v) => mini(v)).join('') || '<div class="cal-vuoto">Niente di pronto da programmare.</div>') +
+      '<div class="cal-gr">In lavorazione <span class="pill">' + inLav.length + '</span></div>' + (inLav.map((v) => mini(v)).join('') || '<div class="cal-vuoto">Niente in lavorazione.</div>') +
+    '</aside><section class="cal-dx">' + settimana(0, 'Questa settimana') + settimana(7, 'La prossima') + '</section></div>' +
+    '<div id="cal_sc" class="cal-scegli" hidden></div>';
+  const metti = async (k, data) => { const [tipo, rif, n] = k.split(':'); try { await chiama('/api/calendario', { method: 'POST', body: { tipo, rif: Number(rif), n: Number(n), data } }); rotta(); } catch (x) { alert(x.message); } };
+  document.querySelectorAll('.cal-voce[draggable="true"]').forEach((el) => { el.ondragstart = (ev) => { ev.dataTransfer.setData('text/plain', el.dataset.k); el.classList.add('trascino'); }; el.ondragend = () => el.classList.remove('trascino'); });
+  document.querySelectorAll('.cal-g').forEach((g) => { g.ondragover = (ev) => { ev.preventDefault(); g.classList.add('su'); }; g.ondragleave = () => g.classList.remove('su');
+    g.ondrop = (ev) => { ev.preventDefault(); g.classList.remove('su'); const k = ev.dataTransfer.getData('text/plain'); if (k) metti(k, g.dataset.d); }; });
+  document.querySelectorAll('.cal-x').forEach((b) => b.onclick = (ev) => { ev.stopPropagation(); metti(b.dataset.k, null); });
+  // dal telefono (niente trascinamento): tocchi il contenuto e scegli il giorno
+  document.querySelectorAll('.cal-lato .cal-voce[draggable="true"] .cal-tx').forEach((t) => t.onclick = () => {
+    const k = t.parentElement.dataset.k, box = $('#cal_sc');
+    box.innerHTML = '<div class="card"><b>In che giorno esce?</b><div class="riga" style="gap:6px;margin-top:10px;flex-wrap:wrap">' + Array.from({ length: 14 }, (_, i) => giorno(i)).filter((d) => d >= new Date(C.oggi + 'T00:00:00')).map((d) => '<button class="chip" data-d="' + iso(d) + '">' + GG[(d.getDay() + 6) % 7] + ' ' + d.getDate() + '</button>').join('') + '</div><button class="sec" id="cal_no" style="width:auto;margin-top:10px">Annulla</button></div>';
+    box.hidden = false; box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    box.querySelectorAll('[data-d]').forEach((b) => b.onclick = () => metti(k, b.dataset.d)); $('#cal_no').onclick = () => { box.hidden = true; };
+  });
+}
+
 async function clientiPagina() {
   const [L, G] = await Promise.all([chiama('/api/clienti'), chiama('/api/gestionale/clienti')]);
   const liberi = G.filter((g) => !L.some((c) => c.gest_id === g.id));
@@ -7957,6 +8094,7 @@ async function rotta() {
     else if (h.startsWith('#/agente/')) await agentePagina(h.split('/')[2]);
     else if (h.startsWith('#/incarico/')) await incarico(h.split('/')[2]);
     else if (h === '#/approvazioni') await approvazioni();
+    else if (h === '#/calendario') await calendarioPagina();
     else if (h === '#/archivio' || h.startsWith('#/archivio/')) await archivioPagina(decodeURIComponent(h.slice(11)));
     else if (h === '#/riunioni') await riunioniPagina();
     else if (h === '#/profilo') await profiloPagina();
@@ -8432,21 +8570,46 @@ function costruisci(dati) {
     }
   };
   const ALTO = 1.55, BASSO = 0.38;
+  // vetrate della direzione: vetro azzurrato con montanti in alluminio scuro, a tutta altezza
+  const vetroMat = new THREE.MeshStandardMaterial({ color: 0xbfe3ec, transparent: true, opacity: 0.28, roughness: 0.05, metalness: 0.2, depthWrite: false });
+  const allumMat = new THREE.MeshStandardMaterial({ color: 0x3a4248, roughness: 0.35, metalness: 0.7 });
+  const vetrata = (x0, z0, x1, z1, h, porta) => {
+    const lungo = Math.hypot(x1 - x0, z1 - z0), orizz = Math.abs(z1 - z0) < 0.01;
+    const pezzi = porta ? [[0, porta - 0.55], [porta + 0.55, lungo]] : [[0, lungo]];
+    const at = (c, y, sx, sy, sz, m) => { const b = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), m); b.position.set(orizz ? x0 + c : x0, y, orizz ? z0 : z0 + c); scena.add(b); return b; };
+    for (const [s0, s1] of pezzi) {
+      const L = s1 - s0; if (L < 0.05) continue;
+      const v = at((s0 + s1) / 2, h / 2, orizz ? L : 0.03, h, orizz ? 0.03 : L, vetroMat); v.renderOrder = 2;
+      at((s0 + s1) / 2, h - 0.02, orizz ? L : 0.06, 0.04, orizz ? 0.06 : L, allumMat); // traverso alto
+      at((s0 + s1) / 2, 0.06, orizz ? L : 0.07, 0.08, orizz ? 0.07 : L, allumMat); // zoccolo
+      const n = Math.max(1, Math.round(L / 1.4));
+      for (let k = 0; k <= n; k++) { const c = s0 + (L * k) / n; at(c, h / 2, orizz ? 0.045 : 0.05, h, orizz ? 0.05 : 0.045, allumMat); }
+    }
+  };
+  const DIR = STANZE.find((r) => r.id === 'direzione');
+  // i muri dei vicini sul confine con la direzione non si disegnano: l\xEC c'\xE8 la vetrata
+  const suConfineDir = (R, x) => DIR && R.id !== 'direzione' && (Math.abs(x - DIR.x) < 0.01 || Math.abs(x - (DIR.x + DIR.w)) < 0.01) && R.z < DIR.z + DIR.d && R.z + R.d > DIR.z;
   muro(0, 0, LARGO, 0, 2.3); // parete di fondo dell'edificio
   S.aree = {}; S.agenti = {}; S.etAree = [];
   const uffici = Object.fromEntries(dati.uffici.map((u) => [u.id, u]));
   for (const R of STANZE) {
     // pavimento della stanza
-    const fl = new THREE.Mesh(new RoundedBoxGeometry(R.w - 0.14, 0.014, R.d - 0.14, 2, 0.006), new THREE.MeshStandardMaterial({ color: new THREE.Color(TINTE[R.id] || '#f3f3f1').offsetHSL(0, 0.15, -0.03), roughness: 0.6 }));
+    const fl = new THREE.Mesh(new RoundedBoxGeometry(R.w - 0.14, 0.014, R.d - 0.14, 2, 0.006), new THREE.MeshStandardMaterial({ color: new THREE.Color(TINTE[R.id] || '#f3f3f1').lerp(new THREE.Color('#ffffff'), 0.45), roughness: 0.6 }));
     fl.position.set(R.x + R.w / 2, 0.04, R.z + R.d / 2); fl.receiveShadow = true; fl.userData.uff = R.id; scena.add(fl);
     // pareti laterali (alte verso il fondo, basse verso chi guarda) e parete sul corridoio con la porta
     const xs = [R.x, R.x + R.w];
+    if (R.id === 'direzione') {
+      for (const x of xs) vetrata(x, R.z, x, R.z + R.d, ALTO);
+      vetrata(R.x, R.z + R.d, R.x + R.w, R.z + R.d, ALTO * 0.72, R.porta || R.w / 2);
+    }
     for (const x of xs) {
+      if (R.id === 'direzione' || suConfineDir(R, x)) continue;
       if (R.lato === 'n') { muro(x, 0, x, R.d * 0.55, ALTO); muro(x, R.d * 0.55, x, R.d, BASSO + 0.25); }
       else { muro(x, R.z, x, R.z + R.d * 0.45, ALTO - 0.4); muro(x, R.z + R.d * 0.45, x, R.z + R.d, BASSO); }
     }
     const porta = R.porta || Math.min(R.w - 0.8, R.lato === 'n' ? R.w - 1.0 : 1.0);
-    if (R.lato === 'n') muro(R.x, R.z + R.d, R.x + R.w, R.z + R.d, BASSO, porta);
+    if (R.id === 'direzione') { /* vetrata sul corridoio gi\xE0 fatta */ }
+    else if (R.lato === 'n') muro(R.x, R.z + R.d, R.x + R.w, R.z + R.d, BASSO, porta);
     else { muro(R.x, R.z, R.x + R.w, R.z, ALTO - 0.4, porta); muro(R.x, R.z + R.d, R.x + R.w, R.z + R.d, BASSO); }
     const nome = R.nome || uffici[R.id]?.nome || R.id;
     // targa della stanza accanto alla porta (sul corridoio)
@@ -9166,6 +9329,10 @@ async function api(req, env, url) {
   }
   if (p.startsWith("/api/avatar")) {
     const r = await apiAvatar(req, env, p, m, json2);
+    if (r) return r;
+  }
+  if (p.startsWith("/api/calendario")) {
+    const r = await apiCalendario(req, env, p, m, json2);
     if (r) return r;
   }
   if (p.startsWith("/api/archivio/importa")) {
