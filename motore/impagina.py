@@ -73,17 +73,17 @@ def main():
     # foto e logo una volta sola
     foto = {}
     for s in job["slide"]:
-        f = s.get("foto")
-        if not f or s["nome_foto"] in foto:
-            continue
-        try:
-            src = os.path.join(cart, f"orig_{len(foto)}")
-            scarica(f["url"] if f.get("url") else link_pcloud(job, f["fileid"]), src)
-            dest = os.path.join(cart, f"foto_{len(foto)}.jpg")
-            prepara_foto(src, dest)
-            foto[s["nome_foto"]] = dest
-        except Exception as e:
-            log(f"una foto non scaricata ({str(e)[:60]})")
+        for f in s.get("foto") or []:
+            if f["nome"] in foto:
+                continue
+            try:
+                src = os.path.join(cart, f"orig_{len(foto)}")
+                scarica(f["url"] if f.get("url") else link_pcloud(job, f["fileid"]), src)
+                dest = os.path.join(cart, f"foto_{len(foto)}.jpg")
+                prepara_foto(src, dest)
+                foto[f["nome"]] = dest
+            except Exception as e:
+                log(f"una foto non scaricata ({str(e)[:60]})")
     logo = None
     if job.get("logo"):
         try:

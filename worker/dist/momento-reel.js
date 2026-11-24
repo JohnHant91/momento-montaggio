@@ -3866,7 +3866,13 @@ var MODELLI = {
   lista: "titolo e 3-5 punti (scrivi i punti nel testo separati da a capo)",
   citazione: "frase in grande tra virgolette, autore sotto",
   numero: "un numero enorme (deve essere nel titolo, vero e dato da Johnny) con la spiegazione sotto",
-  cta: "chiusura: logo, invito all\u2019azione, profilo"
+  cta: "chiusura: logo, invito all\u2019azione, profilo",
+  checklist: "lista da spuntare con le caselle (il formato pi\xF9 salvato): un punto per riga nel testo",
+  confronto: "due colonne s\xEC/no o prima/dopo: nel testo righe che iniziano con + (giusto) e - (sbagliato)",
+  collage: '2-4 foto a griglia con un titolo (metti le altre foto in "altre_foto")',
+  editoriale: "stile rivista: titolo grande serif, foto ritagliata in un riquadro, testo in colonna",
+  nota: "come un post/nota condivisa: scheda bianca con nome del profilo e testo personale, tono diretto",
+  panorama: "una foto orizzontale che continua da una slide all\u2019altra (usa la stessa foto su slide consecutive)"
 };
 var FONT = {
   "Inter": "Inter:wght@400;600;800",
@@ -3938,7 +3944,7 @@ function slideHTML({ slide, i, totale, stile, logo, profilo }) {
     corpo = `<div class="foto alta" style="background-image:url('${foto}')"></div>${pagina}<div class="sotto"><h2 style="font-size:${tg(76)}px">${titolo}</h2>${testo ? `<p>${testo}</p>` : ""}</div>`;
   } else if (m === "lista") {
     const punti = String(slide.testo || "").split(/\n|;/).map((x) => x.replace(/^\s*[-•\d.)]+\s*/, "").trim()).filter(Boolean).slice(0, 6);
-    corpo = `${pagina}<div class="pieno"><h2 style="font-size:${tg(84)}px">${titolo}</h2><ul>${punti.map((x) => `<li><span style="background:${T.accento}"></span>${esc(x)}</li>`).join("")}</ul></div>`;
+    corpo = `${pagina}<div class="pieno"><h2 style="font-size:${tg(100)}px">${titolo}</h2><ul>${punti.map((x) => `<li><span style="background:${T.accento}"></span>${esc(x)}</li>`).join("")}</ul></div>`;
   } else if (m === "citazione") {
     fondo = T.scuro;
     corpo = `${pagina}<div class="centro"><div class="virg" style="color:${T.accento}">\u201C</div><h2 style="font-size:${tg(80)}px;color:#fff">${titolo}</h2>${testo ? `<p style="color:rgba(255,255,255,.75)">${testo}</p>` : ""}</div>`;
@@ -3950,15 +3956,37 @@ function slideHTML({ slide, i, totale, stile, logo, profilo }) {
     fondo = T.scuro;
     corpo = `<div class="centro">${logo ? `<img class="logo grande" src="{{LOGO}}">` : ""}<h2 style="font-size:${tg(88)}px;color:#fff">${titolo}</h2>${testo ? `<p style="color:rgba(255,255,255,.8)">${testo}</p>` : ""}
       ${profilo ? `<div class="profilo" style="background:${T.accento};color:${suColore(T.accento)}">@${esc(profilo)}</div>` : ""}</div>`;
+  } else if (m === "checklist") {
+    const punti = String(slide.testo || "").split(/\n|;/).map((x) => x.replace(/^\s*[-•\d.)\[\]x✓]+\s*/i, "").trim()).filter(Boolean).slice(0, 7);
+    corpo = `${pagina}<div class="pieno"><h2 style="font-size:${tg(96)}px">${titolo}</h2><ul class="spunte">${punti.map((x) => `<li><i style="border-color:${T.accento};background:${T.accento}"><b style="color:${suColore(T.accento)}">\u2713</b></i>${esc(x)}</li>`).join("")}</ul></div>`;
+  } else if (m === "confronto") {
+    const righe = String(slide.testo || "").split(/\n/).map((x) => x.trim()).filter(Boolean);
+    const si = righe.filter((x) => /^\+/.test(x)).map((x) => esc(x.slice(1).trim())), no = righe.filter((x) => /^-/.test(x)).map((x) => esc(x.slice(1).trim()));
+    corpo = `${pagina}<div class="pieno"><h2 style="font-size:${tg(90)}px">${titolo}</h2><div class="due"><div class="col no"><div class="segno">\u2715</div>${no.map((x) => `<p>${x}</p>`).join("")}</div>
+      <div class="col si" style="background:${T.accento};color:${suColore(T.accento)}"><div class="segno">\u2713</div>${si.map((x) => `<p>${x}</p>`).join("")}</div></div></div>`;
+  } else if (m === "collage") {
+    const tutte = [slide.foto, ...slide.altre_foto || []].filter(Boolean).slice(0, 4).map((f) => `{{FOTO:${f}}}`);
+    corpo = `<div class="griglia g${tutte.length}">${tutte.map((u) => `<div style="background-image:url('${u}')"></div>`).join("")}</div>${titolo ? `<div class="etic" style="background:${T.chiaro};color:${suColore(T.chiaro)}">${titolo}</div>` : ""}`;
+    fondo = T.chiaro;
+  } else if (m === "editoriale") {
+    corpo = `${pagina}<div class="ed"><h1 style="font-size:${tg(112)}px">${titolo}</h1>${foto ? `<div class="ritaglio" style="background-image:url('${foto}')"></div>` : ""}${testo ? `<p class="colonna">${testo}</p>` : ""}</div>${logoTag}`;
+  } else if (m === "nota") {
+    fondo = T.accento;
+    corpo = `<div class="nota"><div class="testa"><div class="av" style="background:${T.scuro}">${esc((profilo || "M")[0].toUpperCase())}</div><div><b>${esc(profilo ? profilo : "Momento")}</b><small>@${esc(profilo || "momento")}</small></div></div>
+      <h2 style="font-size:${tg(66)}px">${titolo}</h2>${testo ? `<p>${testo}</p>` : ""}</div>${pagina}`;
+  } else if (m === "panorama") {
+    const parte = Number(slide.parte ?? 0), di = Math.max(2, Number(slide.di ?? 3));
+    fondo = T.scuro;
+    corpo = `<div class="foto piena" style="background-image:url('${foto}');background-size:${di * 100}% auto;background-position:${parte / (di - 1) * 100}% 50%"></div>${titolo ? `<div class="velo"></div><div class="basso"><h2 style="font-size:${tg(84)}px;color:#fff">${titolo}</h2>${testo ? `<p style="color:rgba(255,255,255,.85)">${testo}</p>` : ""}</div>` : ""}`;
   } else {
-    corpo = `${pagina}<div class="pieno"><div class="barra" style="background:${T.accento}"></div><h2 style="font-size:${tg(88)}px">${titolo}</h2>${testo ? `<p class="grande">${testo}</p>` : ""}</div>${logoTag}`;
+    corpo = `${pagina}<div class="pieno"><div class="barra" style="background:${T.accento}"></div><h2 style="font-size:${tg(104)}px">${titolo}</h2>${testo ? `<p class="grande">${testo}</p>` : ""}</div>${logoTag}`;
   }
   const colTesto = suColore(fondo);
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?${famiglie}&display=block" rel="stylesheet"><style>
 *{box-sizing:border-box;margin:0}html,body{width:1080px;height:1350px;overflow:hidden}
 body{background:${fondo};color:${colTesto};font-family:'${fx}',sans-serif;position:relative;-webkit-font-smoothing:antialiased}
 h1,h2{font-family:'${ft}',serif;font-weight:800;line-height:1.02;letter-spacing:-.02em;text-wrap:balance}
-p{font-size:40px;line-height:1.35;margin-top:28px;text-wrap:pretty;max-width:900px}p.grande{font-size:44px}
+p{font-size:46px;line-height:1.35;margin-top:30px;text-wrap:pretty;max-width:900px}p.grande{font-size:50px}
 .foto{position:absolute;background-size:cover;background-position:center}.foto.piena{inset:0}.foto.alta{left:0;right:0;top:0;height:62%}
 .velo{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 35%,rgba(0,0,0,.78) 100%)}
 .basso{position:absolute;left:84px;right:84px;bottom:110px}.barra{width:96px;height:12px;border-radius:6px;margin-bottom:34px}
@@ -3969,11 +3997,21 @@ p{font-size:40px;line-height:1.35;margin-top:28px;text-wrap:pretty;max-width:900
 .logo{position:absolute;left:84px;top:84px;height:86px;max-width:300px;object-fit:contain}.logo.grande{position:static;height:150px;max-width:460px;margin-bottom:56px}
 .pag{position:absolute;right:84px;top:84px;font-size:30px;font-weight:600;opacity:.55}
 .scorri{position:absolute;right:84px;bottom:54px;font-size:28px;font-weight:600;letter-spacing:.04em;opacity:.8}
-ul{list-style:none;padding:0;margin-top:44px;display:flex;flex-direction:column;gap:30px}li{display:flex;gap:28px;align-items:flex-start;font-size:42px;line-height:1.3}
+ul{list-style:none;padding:0;margin-top:44px;display:flex;flex-direction:column;gap:30px}li{display:flex;gap:28px;align-items:flex-start;font-size:50px;line-height:1.3}
 li span{flex:0 0 22px;height:22px;border-radius:50%;margin-top:14px}
 .virg{font-family:'${ft}',serif;font-size:260px;line-height:.6;height:120px}
 .numero{font-family:'${ft}',serif;font-weight:800;font-size:300px;line-height:.9;letter-spacing:-.04em}
 .profilo{margin-top:56px;padding:22px 40px;border-radius:999px;font-size:38px;font-weight:700}
+.spunte li{align-items:center}.spunte i{flex:0 0 66px;height:66px;border-radius:14px;border:4px solid;display:grid;place-items:center;font-style:normal}.spunte i b{font-size:34px}
+.due{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:48px}.col{border-radius:28px;padding:40px 34px;min-height:560px}.col.no{background:rgba(127,127,127,.12)}.col p{font-size:40px;margin-top:18px;line-height:1.3}
+.segno{font-size:64px;font-weight:800;line-height:1}
+.griglia{position:absolute;inset:0;display:grid;gap:10px;padding:10px}.griglia>div{background-size:cover;background-position:center;border-radius:18px}
+.griglia.g2{grid-template-rows:1fr 1fr}.griglia.g3{grid-template-columns:1fr 1fr;grid-template-rows:1.3fr 1fr}.griglia.g3>div:first-child{grid-column:1/3}.griglia.g4{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
+.etic{position:absolute;left:50px;bottom:50px;max-width:820px;padding:26px 34px;border-radius:22px;font-weight:800;font-size:52px;line-height:1.1}
+.ed{position:absolute;inset:0;padding:120px 84px 90px}.ed h1{font-weight:900}.ritaglio{margin-top:46px;height:520px;border-radius:0 140px 0 140px;background-size:cover;background-position:center}.colonna{font-size:38px;column-count:2;column-gap:44px;max-width:none}
+.nota{position:absolute;left:70px;right:70px;top:50%;transform:translateY(-50%);background:#fff;color:#111;border-radius:40px;padding:60px 56px;box-shadow:0 40px 80px -40px rgba(0,0,0,.45)}
+.nota .testa{display:flex;gap:22px;align-items:center;margin-bottom:40px}.nota .av{width:84px;height:84px;border-radius:50%;color:#fff;display:grid;place-items:center;font-size:40px;font-weight:800}.nota b{display:block;font-size:34px}.nota small{font-size:28px;opacity:.55}
+.nota h2{font-family:inherit;font-weight:700;letter-spacing:-.01em;line-height:1.15}.nota p{font-size:36px;color:#333}
 </style></head><body>${corpo}</body></html>`;
 }
 async function preparaImpaginazione(env, P2) {
@@ -3986,17 +4024,21 @@ async function preparaImpaginazione(env, P2) {
   const fotoF = J(P2.foto, {})?.foto || [];
   const slide = [];
   for (const x of (Ct.post || []).filter((y) => y.stato === "approvato")) {
-    const S = x.slide || [];
+    const S = (x.slide || []).map((s) => ({ ...s }));
+    for (let k = 0; k < S.length; k++) if (S[k].modello === "panorama" && S[k].foto && (k === 0 || S[k - 1].modello !== "panorama" || S[k - 1].foto !== S[k].foto)) {
+      let j2 = k;
+      while (j2 + 1 < S.length && S[j2 + 1].modello === "panorama" && S[j2 + 1].foto === S[k].foto) j2++;
+      for (let t = k; t <= j2; t++) Object.assign(S[t], { parte: t - k, di: Math.max(2, j2 - k + 1) });
+    }
     S.forEach((s, k) => slide.push({
       n: x.n,
       k: k + 1,
       chiave: `post-${P2.id}/${x.n}-${k + 1}.png`,
       html: slideHTML({ slide: s, i: k, totale: S.length, stile: st, logo, profilo }),
-      foto: s.foto ? (() => {
-        const f = fotoF.find((z) => z.nome === s.foto);
-        return f ? f.percorso ? { archivio: f.percorso } : { fileid: f.fileid } : null;
-      })() : null,
-      nome_foto: s.foto || null
+      foto: [s.foto, ...s.altre_foto || []].filter(Boolean).map((nome) => {
+        const f = fotoF.find((z) => z.nome === nome);
+        return f ? { nome, ...f.percorso ? { archivio: f.percorso } : { fileid: f.fileid } } : null;
+      }).filter(Boolean)
     }));
   }
   return { slide, logo, pcloud: /code=/.test(P2.pcloud || "") ? P2.pcloud : null };
@@ -4022,7 +4064,7 @@ async function motoreImpagina(req, env, p, m, json3, identitaGitHub2, firmaLink)
       AND (?=0 OR id=?) AND (json_extract(canva,'$.fino') IS NULL OR json_extract(canva,'$.fino') < ?) ORDER BY id LIMIT 1) RETURNING *`, pass2, new Date(Date.now() + 30 * 6e4).toISOString(), ora(), id, id, ora());
     if (!P3) return new Response(null, { status: 204 });
     const pac = await preparaImpaginazione(env, P3);
-    for (const s of pac.slide) if (s.foto?.archivio) s.foto.url = await firmaLink(env, url.origin, s.foto.archivio);
+    for (const s of pac.slide) for (const f of s.foto) if (f.archivio) f.url = await firmaLink(env, url.origin, f.archivio);
     return json3({
       id: P3.id,
       pass: pass2,
@@ -4293,7 +4335,7 @@ FOTO DISPONIBILI (scattate da Johnny): ${F.length ? F.map((f) => `${f.nome} \xB7
 Rispondi SOLO JSON:
 {"stile": {"palette": ["#hex", "#hex", "#hex"], "font_titoli": "...", "font_testo": "...", "mood": "...", "regole": "indicazioni grafiche per tutto il set"},
  "post": [{"n": 1, "tipo": "carosello | post", "titolo": "titolo interno", "obiettivo": "salvataggi | condivisioni | commenti | contatti",
-   "slide": [{"n": 1, "ruolo": "copertina | contenuto | cta", "modello": "uno dei MODELLI", "titolo": "testo grande", "testo": "testo piccolo o vuoto (per lista: un punto per riga)", "foto": "nome file o null"}],
+   "slide": [{"n": 1, "ruolo": "copertina | contenuto | cta", "modello": "uno dei MODELLI", "titolo": "testo grande", "testo": "testo piccolo o vuoto (per lista: un punto per riga)", "foto": "nome file o null", "altre_foto": ["solo per collage"]}],
    "caption": "caption completa con gancio e CTA", "hashtag": ["8-12 hashtag senza #"], "alt": "testo alternativo"}]}`,
     { maxTokens: 16e3 }
   );
