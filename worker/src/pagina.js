@@ -246,6 +246,9 @@ td,th{border-bottom-color:var(--line)}
 .att small{color:var(--mut)}.att small.su{color:var(--txt)}.att b{color:var(--txt)}
 .sala{background:radial-gradient(120% 90% at 50% 40%,#fbfcfc 0%,#eaefed 75%)}
 #app>.riga a[href^="#/archivio"],.riga a[href="#/archivio"]{text-decoration:none}
+.sala{background:radial-gradient(120% 90% at 50% 40%,#0f1a26 0%,#070b12 75%)!important;border-color:#1b2a36!important}
+.et-uff{background:rgba(8,14,22,.78)!important;color:#7fe7ff!important;border:1px solid rgba(34,211,238,.35);box-shadow:0 0 18px -6px rgba(34,211,238,.6)}
+.legenda{background:rgba(8,14,22,.8)!important;color:#9fb6c4!important;border-color:#1b2a36!important}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 @media print{:root{--bg:#fff;--card:#fff;--txt:#000;--line:#ccc}}
 </style></head><body>

@@ -119,7 +119,27 @@ const texQuadro = (a, b) => canvasTex(128, 160, (g, w, h) => {
   g.fillStyle = 'rgba(255,255,255,.35)'; g.beginPath(); g.arc(64, 70, 26, 0, Math.PI * 2); g.fill();
 });
 
+// TEMA QUARTIER GENERALE: base futuristica (vetro scuro, luci ciano, pavimenti in metallo lucido)
+const HQ = true;
+const CIANO = 0x22d3ee;
 function materiali() {
+  if (HQ) return {
+    legno: new THREE.MeshStandardMaterial({ color: 0xe6edf4, roughness: 0.22, metalness: 0.15 }),
+    bianco: new THREE.MeshStandardMaterial({ color: 0x1c2530, roughness: 0.35, metalness: 0.6 }),
+    pav: new THREE.MeshStandardMaterial({ color: 0x0d1219, roughness: 0.28, metalness: 0.55 }),
+    bordo: new THREE.MeshStandardMaterial({ color: 0x111821, roughness: 0.3, metalness: 0.6 }),
+    nero: new THREE.MeshStandardMaterial({ color: 0x0b0e13, roughness: 0.35, metalness: 0.4 }),
+    sedia: new THREE.MeshStandardMaterial({ color: 0x151b24, roughness: 0.5, metalness: 0.3 }),
+    metallo: new THREE.MeshStandardMaterial({ color: 0x3a4654, roughness: 0.25, metalness: 0.85 }),
+    pelle: new THREE.MeshStandardMaterial({ color: 0xf1c6a0, roughness: 0.6 }),
+    felpa: new THREE.MeshStandardMaterial({ color: 0x1e3a5f, roughness: 0.7 }),
+    jeans: new THREE.MeshStandardMaterial({ color: 0x1b2230, roughness: 0.8 }),
+    scarpe: new THREE.MeshStandardMaterial({ color: 0xdfe7ef, roughness: 0.6 }),
+    capelli: [0x2a1d16, 0x3b2a1e, 0x1a1a1a, 0x7a4a26, 0xc79a5b].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.85 })),
+    vaso: new THREE.MeshStandardMaterial({ color: 0x1c2530, roughness: 0.3, metalness: 0.6 }),
+    agave: new THREE.MeshStandardMaterial({ color: 0x4f8a6a, roughness: 0.7 }),
+    luce: new THREE.MeshStandardMaterial({ color: CIANO, emissive: CIANO, emissiveIntensity: 3 }),
+  };
   return {
     legno: new THREE.MeshStandardMaterial({ map: texLegno(), roughness: 0.5 }),
     bianco: new THREE.MeshStandardMaterial({ color: 0xf6f6f4, roughness: 0.55 }),
@@ -382,7 +402,7 @@ function arredaMeeting(R) {
   const { scena, mat } = S;
   // tavolo ovale grande come quello della direzione, 10 posti, al centro della sala
   const cx = R.x + R.w / 2, cz = R.z + R.d * 0.58;
-  const tappeto = new THREE.Mesh(new RoundedBoxGeometry(6.4, 0.012, 3.4, 2, 0.006), new THREE.MeshStandardMaterial({ color: 0xd3dbe6, roughness: 0.95 }));
+  const tappeto = new THREE.Mesh(new RoundedBoxGeometry(6.4, 0.012, 3.4, 2, 0.006), new THREE.MeshStandardMaterial(HQ ? { color: 0x0e2a33, emissive: 0x0b4f5e, emissiveIntensity: 0.7, roughness: 0.4 } : { color: 0xd3dbe6, roughness: 0.95 }));
   tappeto.position.set(cx, 0.05, cz); tappeto.receiveShadow = true; scena.add(tappeto);
   const piano = ombra(new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.06, 48), mat.legno)); piano.scale.set(1.75, 1, 0.68); piano.position.set(cx, 0.75, cz); scena.add(piano);
   for (const dx of [-1.0, 1.0]) { const g = box(0.08, 0.72, 0.5, mat.bianco, 0.02); g.position.set(cx + dx, 0.37, cz); scena.add(g); }
@@ -458,10 +478,10 @@ function arredaUfficio(R) {
   fic.position.set(R.x + 0.55, 0.05, nord ? 0.6 : R.z + 0.6); scena.add(fic);
   // tappeto sotto le scrivanie
   const tap = new THREE.Mesh(new RoundedBoxGeometry(Math.min(R.w - 1.2, R.col * POSTO + 1.2), 0.01, Math.min(R.d - 1.6, 3.2), 2, 0.004),
-    new THREE.MeshStandardMaterial({ color: new THREE.Color(TINTE[R.id] || '#eeeeee').offsetHSL(0, 0.1, -0.12), roughness: 0.95 }));
+    new THREE.MeshStandardMaterial({ color: HQ ? new THREE.Color(TINTE[R.id] || '#eeeeee').lerp(new THREE.Color('#0a0f16'), 0.9) : new THREE.Color(TINTE[R.id] || '#eeeeee').offsetHSL(0, 0.1, -0.12), roughness: 0.95 }));
   tap.position.set(R.x + R.w / 2, 0.052, nord ? (R.scrivanie != null ? R.scrivanie : R.d / 2) + 0.5 : R.z + R.d / 2); tap.receiveShadow = true; scena.add(tap);
   // lampade a sospensione sopra le scrivanie
-  const lm = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.4, metalness: 0.5 }), luce = new THREE.MeshStandardMaterial({ color: 0xfff3d6, emissive: 0xffe3a3, emissiveIntensity: 0.9 });
+  const lm = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.4, metalness: 0.5 }), luce = HQ ? mat.luce : new THREE.MeshStandardMaterial({ color: 0xfff3d6, emissive: 0xffe3a3, emissiveIntensity: 0.9 });
   const n = Math.max(1, Math.round(R.w / 4));
   for (let i = 0; i < n; i++) {
     const x = R.x + (R.w * (i + 0.5)) / n, z = nord ? R.d * 0.42 : R.z + R.d * 0.5;
@@ -479,7 +499,7 @@ function arredaDirezione(R) {
   giroDiSedie(cx, cz, 2.15, 1.05, 10, 'direzione');
   const lap = box(0.34, 0.02, 0.24, mat.metallo, 0.01); lap.position.set(cx - 0.6, 0.79, cz); scena.add(lap);
   const tazza = ombra(new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.035, 0.09, 16), mat.bianco)); tazza.position.set(cx + 0.5, 0.82, cz + 0.15); scena.add(tazza);
-  const tappeto = new THREE.Mesh(new RoundedBoxGeometry(5.6, 0.012, 2.6, 2, 0.006), new THREE.MeshStandardMaterial({ color: 0xcfd6e6, roughness: 0.95 }));
+  const tappeto = new THREE.Mesh(new RoundedBoxGeometry(5.6, 0.012, 2.6, 2, 0.006), new THREE.MeshStandardMaterial(HQ ? { color: 0x0e2a33, emissive: 0x0b4f5e, emissiveIntensity: 0.7, roughness: 0.4 } : { color: 0xcfd6e6, roughness: 0.95 }));
   tappeto.position.set(cx, 0.055, cz); tappeto.receiveShadow = true; scena.add(tappeto);
   const libreria = box(1.8, 1.4, 0.35, mat.bianco, 0.03); libreria.position.set(R.x + R.w - 1.3, 0.7, R.z + 0.3); scena.add(libreria);
   for (let i = 0; i < 9; i++) { const l = box(0.08, 0.3, 0.24, matC([0xd97757, 0x5a74d6, 0x5f9a5c, 0xf0b44c, 0x2f3e56][i % 5], 0.7), 0.01); l.position.set(R.x + R.w - 2.05 + i * 0.17, 1.05, R.z + 0.32); scena.add(l); }
@@ -505,12 +525,14 @@ function costruisci(dati) {
   const base = box(LARGO + 0.6, 0.3, FONDO + 0.6, mat.bordo, 0.12); base.position.set(CX, -0.15, CZ); scena.add(base);
   const pav = box(LARGO, 0.04, FONDO, mat.pav, 0.05); pav.position.set(CX, 0.01, CZ); pav.receiveShadow = true; scena.add(pav);
   // corridoio: parquet chiaro con un tappeto lungo
-  const cor = box(LARGO, 0.03, COR_D, mat.legno, 0.01); cor.position.set(CX, 0.04, COR_Z + COR_D / 2); cor.receiveShadow = true; scena.add(cor);
-  const tappeto = new THREE.Mesh(new RoundedBoxGeometry(LARGO - 1.2, 0.012, 0.8, 2, 0.006), new THREE.MeshStandardMaterial({ color: 0xd8d2c6, roughness: 0.95 }));
+  const cor = box(LARGO, 0.03, COR_D, HQ ? mat.pav : mat.legno, 0.01); cor.position.set(CX, 0.04, COR_Z + COR_D / 2); cor.receiveShadow = true; scena.add(cor);
+  const tappeto = new THREE.Mesh(new RoundedBoxGeometry(LARGO - 1.2, 0.012, 0.8, 2, 0.006), new THREE.MeshStandardMaterial({ color: HQ ? 0x111a24 : 0xd8d2c6, roughness: HQ ? 0.4 : 0.95, metalness: HQ ? 0.4 : 0 }));
   tappeto.position.set(CX, 0.062, COR_Z + COR_D / 2); tappeto.receiveShadow = true; scena.add(tappeto);
   for (const x of [1.0, LARGO / 2, LARGO - 1.0]) { const a = agave(mat, 0.75); a.position.set(x, 0.05, COR_Z + 0.35); scena.add(a); }
+  if (HQ) for (const dz of [0.12, COR_D - 0.12]) { const l = new THREE.Mesh(new THREE.BoxGeometry(LARGO - 0.4, 0.01, 0.05), mat.luce); l.position.set(CX, 0.07, COR_Z + dz); scena.add(l); }
   // pareti: alte sul fondo, basse davanti (vista "casa delle bambole"), porta sul corridoio
-  const muro = (x0, z0, x1, z1, h, porta) => {
+  const muro = (x0, z0, x1, z1, h, porta) => (HQ && h < 2.2 ? vetrata(x0, z0, x1, z1, Math.max(h, 1.1), porta) : muroPieno(x0, z0, x1, z1, h, porta));
+  const muroPieno = (x0, z0, x1, z1, h, porta) => {
     const lungo = Math.hypot(x1 - x0, z1 - z0), orizz = Math.abs(z1 - z0) < 0.01;
     const pezzi = porta ? [[0, porta - 0.55], [porta + 0.55, lungo]] : [[0, lungo]];
     for (const [s0, s1] of pezzi) {
@@ -524,8 +546,10 @@ function costruisci(dati) {
   };
   const ALTO = 1.55, BASSO = 0.38;
   // vetrate della direzione: vetro azzurrato con montanti in alluminio scuro, a tutta altezza
-  const vetroMat = new THREE.MeshStandardMaterial({ color: 0xbfe3ec, transparent: true, opacity: 0.28, roughness: 0.05, metalness: 0.2, depthWrite: false });
-  const allumMat = new THREE.MeshStandardMaterial({ color: 0x3a4248, roughness: 0.35, metalness: 0.7 });
+  const vetroMat = HQ ? new THREE.MeshStandardMaterial({ color: 0x5fc8ff, transparent: true, opacity: 0.16, roughness: 0.05, metalness: 0.4, depthWrite: false, emissive: 0x0a3a55, emissiveIntensity: 0.4 })
+    : new THREE.MeshStandardMaterial({ color: 0xbfe3ec, transparent: true, opacity: 0.28, roughness: 0.05, metalness: 0.2, depthWrite: false });
+  const allumMat = HQ ? new THREE.MeshStandardMaterial({ color: 0x1a222c, roughness: 0.3, metalness: 0.8 }) : new THREE.MeshStandardMaterial({ color: 0x3a4248, roughness: 0.35, metalness: 0.7 });
+  const lineaMat = new THREE.MeshStandardMaterial({ color: CIANO, emissive: CIANO, emissiveIntensity: HQ ? 3 : 0 });
   const vetrata = (x0, z0, x1, z1, h, porta) => {
     const lungo = Math.hypot(x1 - x0, z1 - z0), orizz = Math.abs(z1 - z0) < 0.01;
     const pezzi = porta ? [[0, porta - 0.55], [porta + 0.55, lungo]] : [[0, lungo]];
@@ -533,7 +557,8 @@ function costruisci(dati) {
     for (const [s0, s1] of pezzi) {
       const L = s1 - s0; if (L < 0.05) continue;
       const v = at((s0 + s1) / 2, h / 2, orizz ? L : 0.03, h, orizz ? 0.03 : L, vetroMat); v.renderOrder = 2;
-      at((s0 + s1) / 2, h - 0.02, orizz ? L : 0.06, 0.04, orizz ? 0.06 : L, allumMat); // traverso alto
+      at((s0 + s1) / 2, h - 0.02, orizz ? L : 0.06, 0.04, orizz ? 0.06 : L, HQ ? lineaMat : allumMat); // traverso alto (luminoso nella base)
+      if (HQ) at((s0 + s1) / 2, 0.12, orizz ? L : 0.035, 0.012, orizz ? 0.035 : L, lineaMat); // filo di luce a terra
       at((s0 + s1) / 2, 0.06, orizz ? L : 0.07, 0.08, orizz ? 0.07 : L, allumMat); // zoccolo
       const n = Math.max(1, Math.round(L / 1.4));
       for (let k = 0; k <= n; k++) { const c = s0 + (L * k) / n; at(c, h / 2, orizz ? 0.045 : 0.05, h, orizz ? 0.05 : 0.045, allumMat); }
@@ -547,7 +572,7 @@ function costruisci(dati) {
   const uffici = Object.fromEntries(dati.uffici.map((u) => [u.id, u]));
   for (const R of STANZE) {
     // pavimento della stanza
-    const fl = new THREE.Mesh(new RoundedBoxGeometry(R.w - 0.14, 0.014, R.d - 0.14, 2, 0.006), new THREE.MeshStandardMaterial({ color: new THREE.Color(TINTE[R.id] || '#f3f3f1').lerp(new THREE.Color('#ffffff'), 0.45), roughness: 0.6 }));
+    const fl = new THREE.Mesh(new RoundedBoxGeometry(R.w - 0.14, 0.014, R.d - 0.14, 2, 0.006), new THREE.MeshStandardMaterial({ metalness: HQ ? 0.5 : 0, color: (HQ ? new THREE.Color(TINTE[R.id] || '#f3f3f1').lerp(new THREE.Color('#0c121a'), 0.86) : new THREE.Color(TINTE[R.id] || '#f3f3f1').lerp(new THREE.Color('#ffffff'), 0.45)), roughness: 0.6 }));
     fl.position.set(R.x + R.w / 2, 0.04, R.z + R.d / 2); fl.receiveShadow = true; fl.userData.uff = R.id; scena.add(fl);
     // pareti laterali (alte verso il fondo, basse verso chi guarda) e parete sul corridoio con la porta
     const xs = [R.x, R.x + R.w];
@@ -580,6 +605,7 @@ function costruisci(dati) {
       if (nRiga <= 0) continue;
       const xr = x0 + (largo - nRiga * POSTO) / 2;
       const piano = box(nRiga * POSTO, 0.05, 0.78, mat.legno, 0.015); piano.position.set(xr + (nRiga * POSTO) / 2, 0.76, zDesk); piano.userData.uff = R.id; scena.add(piano);
+      if (HQ) { const fl = new THREE.Mesh(new THREE.BoxGeometry(nRiga * POSTO - 0.04, 0.012, 0.012), mat.luce); fl.position.set(xr + (nRiga * POSTO) / 2, 0.735, zDesk + 0.39); scena.add(fl); }
       for (const [dx, dz] of [[0.04, -0.34], [nRiga * POSTO - 0.04, -0.34], [0.04, 0.34], [nRiga * POSTO - 0.04, 0.34]]) { const g = box(0.04, 0.74, 0.04, mat.bianco, 0); g.position.set(xr + dx, 0.37, zDesk + dz); scena.add(g); }
       for (let c = 0; c < nRiga; c++) {
         const A = ags[r * R.col + c], k = r * R.col + c;
@@ -612,7 +638,9 @@ function costruisci(dati) {
   nucleo.position.set(ST('direzione').x + 1.6, 1.15, ST('direzione').d * 0.66); nucleo.userData.cervello = true; scena.add(nucleo);
   const punti = new THREE.Points(new THREE.IcosahedronGeometry(0.42, 3), new THREE.PointsMaterial({ color: 0x3b63ff, size: 0.045, sizeAttenuation: true }));
   punti.position.copy(nucleo.position); punti.userData.cervello = true; scena.add(punti);
-  S.cervello = { nucleo, punti };
+  const anello = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.012, 8, 64), mat.luce || new THREE.MeshBasicMaterial({ color: 0x3b63ff }));
+  anello.position.copy(nucleo.position); anello.rotation.x = Math.PI / 2; anello.userData.cervello = true; scena.add(anello);
+  S.cervello = { nucleo, punti, anello };
   aggiorna(dati);
 }
 
@@ -882,7 +910,7 @@ function anima(t) {
   }
   passeggiate(s);
   animaSegni(s);
-  if (S.cervello) { S.cervello.punti.rotation.y = s * 0.35; S.cervello.punti.rotation.x = Math.sin(s * 0.3) * 0.3; S.cervello.nucleo.material.emissiveIntensity = 0.7 + Math.sin(s * 2) * 0.25; }
+  if (S.cervello) { S.cervello.punti.rotation.y = s * 0.35; S.cervello.punti.rotation.x = Math.sin(s * 0.3) * 0.3; S.cervello.nucleo.material.emissiveIntensity = 0.7 + Math.sin(s * 2) * 0.25; if (S.cervello.anello) { S.cervello.anello.rotation.z = s * 0.8; S.cervello.anello.position.y = S.cervello.nucleo.position.y + Math.sin(s * 1.4) * 0.06; } }
   S.lontano = S.camera.position.distanceTo(S.controls.target) > 22;
   adatta(t);
   S.renderer.render(S.scena, S.camera);
@@ -913,13 +941,13 @@ export function avvia(cont, dati, cb) {
   renderer.domElement.className = 'sala-canvas';
   cont.prepend(renderer.domElement);
   const scena = new THREE.Scene();
-  scena.background = new THREE.Color('#f1f0ed');
+  scena.background = new THREE.Color(HQ ? '#070b12' : '#f1f0ed');
   const pmrem = new THREE.PMREMGenerator(renderer);
   scena.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
-  scena.environmentIntensity = 0.7;
+  scena.environmentIntensity = HQ ? 0.45 : 0.7;
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 300);
-  scena.add(new THREE.HemisphereLight(0xffffff, 0xe0dbd2, 0.45));
-  const sole = new THREE.DirectionalLight(0xfffaf2, 2.2);
+  scena.add(HQ ? new THREE.HemisphereLight(0x9fd4ff, 0x05080d, 0.5) : new THREE.HemisphereLight(0xffffff, 0xe0dbd2, 0.45));
+  const sole = new THREE.DirectionalLight(HQ ? 0xd6ecff : 0xfffaf2, HQ ? 1.7 : 2.2);
   sole.position.set(CX - 5, 20, CZ + 8); sole.target.position.set(CX, 0, CZ);
   sole.castShadow = true; sole.shadow.mapSize.set(4096, 4096); sole.shadow.bias = -0.0003; sole.shadow.normalBias = 0.02; sole.shadow.radius = 5;
   Object.assign(sole.shadow.camera, { left: -LARGO / 2 - 3, right: LARGO / 2 + 3, top: FONDO / 2 + 4, bottom: -FONDO / 2 - 4, near: 1, far: 90 });
