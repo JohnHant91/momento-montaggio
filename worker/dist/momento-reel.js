@@ -8370,6 +8370,7 @@ function clipPer(M, prefisso) {
   for (const [n, c] of Object.entries(M.clip)) {
     const k = c.clone();
     for (const tr of k.tracks) tr.name = tr.name.replace(/^mixamorig\\d*/, prefisso);
+    if (/Walk|StandingIdle/.test(n)) k.tracks = k.tracks.filter((tr) => !/Hips\\.position$/.test(tr.name)); // piedi a terra: niente salti o galleggiamenti
     out[n] = k;
   }
   return (M.perPrefisso[prefisso] = out);
@@ -8399,7 +8400,7 @@ function creaGLB(id, M) {
     Walk: mixer.clipAction((donna && C.FemaleWalk) || C.StandardWalk), Idle: mixer.clipAction(C.StandingIdle),
   };
   for (const a of Object.values(az)) a.time = Math.random() * 3;
-  return { o, w, modello, mixer, az, corrente: null, seduto: true, dz: SEDUTA_DZ };
+  return { o, w, modello, mixer, az, corrente: null, seduto: true, dz: SEDUTA_DZ, dy: 0 };
 }
 function glbVai(G, nome, dissolvi = 0.4) {
   if (G.corrente === nome) return;
@@ -8407,14 +8408,26 @@ function glbVai(G, nome, dissolvi = 0.4) {
   if (G.corrente) G.az[G.corrente].crossFadeTo(nuova, dissolvi, false); else nuova.reset().play();
   G.corrente = nome;
 }
-function glbSiedi(G) { G.seduto = true; G.w.position.set(0, 0, G.dz || 0); }
+function glbSiedi(G) { G.seduto = true; G.w.position.set(0, G.dy || 0, G.dz || 0); }
+const FIANCHI_Y = 0.6, FIANCHI_Z = 0.12; // sedile a 0,50 m: il bacino sta poco sopra, centrato sulla seduta (che \xE8 dietro il punto del posto)
+function calibraSeduta(G) {
+  const hips = G.hips || (G.hips = (() => { let h = null; G.modello.traverse((o) => { if (!h && o.isBone && /Hips$/.test(o.name)) h = o; }); return h; })());
+  if (!hips) { G.calibrato = true; return; }
+  G.o.updateMatrixWorld(true);
+  const v = G.o.worldToLocal(hips.getWorldPosition(new THREE.Vector3()));
+  G.dy = (G.dy || 0) + (FIANCHI_Y - v.y); G.dz = (G.dz || 0) + (FIANCHI_Z - v.z);
+  G.dy = Math.max(-0.35, Math.min(0.35, G.dy)); G.dz = Math.max(-0.2, Math.min(0.6, G.dz));
+  G.w.position.set(0, G.dy, G.dz); G.calibrato = true;
+}
 function glbSeduto(G, t, lavora, dt) {
   if (!G.seduto) glbSiedi(G);
   glbVai(G, lavora ? 'scrive' : 'fermo');
   G.acc = (G.acc || 0) + dt;
   if (G.acc >= (S.lontano ? 0.1 : 0)) { G.mixer.update(G.acc); G.acc = 0; }
+  G.tSeduto = (G.tSeduto || 0) + dt;
+  if (!G.calibrato && G.tSeduto > 0.8) calibraSeduta(G); // dopo la dissolvenza, con la posa seduta piena
 }
-function glbMuovi(G, nome, dt) { if (G.seduto) { G.seduto = false; G.w.position.set(0, 0, 0); } glbVai(G, nome, 0.3); G.mixer.update(dt); }
+function glbMuovi(G, nome, dt) { if (G.seduto) { G.seduto = false; G.tSeduto = 0; G.w.position.set(0, 0, 0); } glbVai(G, nome, 0.3); G.mixer.update(dt); }
 async function caricaPersone() {
   const pronti = await (await fetch('/persone/elenco.json')).json();
   const anim = ['Typing', 'SittingIdle', 'StandardWalk', 'FemaleWalk', 'StandingIdle'].filter((n) => pronti.includes('anim_' + n));
@@ -8694,18 +8707,21 @@ function arredaRelax(R) {
   for (const d of [-1.25, 1.25]) { const br = box(0.22, 0.6, 0.9, stoffa, 0.08); br.position.set(cx + d, 0.32, cz + 0.6); scena.add(br); }
   const tav = ombra(new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.05, 32), mat.legno)); tav.position.set(cx, 0.42, cz - 0.4); scena.add(tav);
   const gamba = ombra(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.4, 12), mat.metallo)); gamba.position.set(cx, 0.21, cz - 0.4); scena.add(gamba);
-  const caffe = box(0.5, 0.7, 0.45, mat.nero, 0.04); caffe.position.set(R.x + 0.5, 0.95, R.z + 0.5); scena.add(caffe);
-  const mobile = box(1.6, 0.9, 0.55, mat.bianco, 0.03); mobile.position.set(R.x + 1.0, 0.45, R.z + 0.45); scena.add(mobile);
-  const pi = agave(mat, 1.1); pi.position.set(R.x + R.w - 0.5, 0.05, R.z + 0.5); scena.add(pi);
-  // frigo e bancone con snack
-  const frigo = box(0.6, 1.7, 0.6, mat.metallo, 0.04); frigo.position.set(R.x + R.w - 0.45, 0.85, R.z + R.d - 0.5); scena.add(frigo);
-  const banco = box(1.4, 0.95, 0.5, mat.bianco, 0.03); banco.position.set(R.x + R.w - 1.6, 0.47, R.z + R.d - 0.4); scena.add(banco);
-  [0xf4a261, 0xe76f51, 0x2a9d8f].forEach((c, i) => { const f = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), new THREE.MeshStandardMaterial({ color: c })); f.position.set(R.x + R.w - 2.0 + i * 0.2, 1.0, R.z + R.d - 0.4); scena.add(f); });
+  // angolo caff\xE8 sulla parete destra (la porta \xE8 a sinistra, sul corridoio: resta libera)
+  const mobile = box(0.55, 0.9, 1.6, mat.bianco, 0.03); mobile.position.set(R.x + R.w - 0.32, 0.45, R.z + 1.5); scena.add(mobile);
+  const caffe = box(0.45, 0.55, 0.45, mat.nero, 0.04); caffe.position.set(R.x + R.w - 0.32, 1.18, R.z + 1.1); scena.add(caffe);
+  const spia = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.08, 0.2), mat.luce || mat.metallo); spia.position.set(R.x + R.w - 0.55, 1.25, R.z + 1.1); scena.add(spia);
+  [0, 1].forEach((i) => { const t = ombra(new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.035, 0.09, 12), mat.vaso)); t.position.set(R.x + R.w - 0.35, 0.95, R.z + 1.7 + i * 0.25); scena.add(t); });
+  // frigo e bancone con snack sulla parete in fondo a sinistra
+  const frigo = box(0.6, 1.7, 0.6, mat.metallo, 0.04); frigo.position.set(R.x + 0.4, 0.85, R.z + R.d - 0.45); scena.add(frigo);
+  const banco = box(1.4, 0.95, 0.5, mat.bianco, 0.03); banco.position.set(R.x + 1.55, 0.47, R.z + R.d - 0.35); scena.add(banco);
+  [0xf4a261, 0xe76f51, 0x2a9d8f].forEach((c, i) => { const f = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), new THREE.MeshStandardMaterial({ color: c })); f.position.set(R.x + 1.25 + i * 0.25, 1.0, R.z + R.d - 0.35); scena.add(f); });
+  const pi = agave(mat, 1.1); pi.position.set(R.x + R.w - 0.5, 0.05, R.z + R.d - 0.5); scena.add(pi);
   (S.posti ||= {}).relax = [
-    { pos: new THREE.Vector3(R.x + 0.6, 0, R.z + 1.15), rot: Math.PI, cosa: 'caff\xE8' },
-    { pos: new THREE.Vector3(R.x + 1.3, 0, R.z + 1.2), rot: Math.PI, cosa: 'caff\xE8' },
-    { pos: new THREE.Vector3(R.x + R.w - 1.6, 0, R.z + R.d - 1.05), rot: 0, cosa: 'spuntino' },
-    { pos: new THREE.Vector3(R.x + R.w / 2 - 0.6, 0, R.z + R.d / 2 - 0.4), rot: Math.PI / 2, cosa: 'chiacchiere' },
+    { pos: new THREE.Vector3(R.x + R.w - 0.95, 0, R.z + 1.1), rot: -Math.PI / 2, cosa: 'caff\xE8' },
+    { pos: new THREE.Vector3(R.x + R.w - 0.95, 0, R.z + 1.9), rot: -Math.PI / 2, cosa: 'caff\xE8' },
+    { pos: new THREE.Vector3(R.x + 1.55, 0, R.z + R.d - 1.0), rot: Math.PI, cosa: 'spuntino' },
+    { pos: new THREE.Vector3(cx - 0.7, 0, cz - 1.2), rot: Math.PI, cosa: 'chiacchiere' },
   ];
 }
 
@@ -9028,7 +9044,7 @@ function muovi(P, s, dt) {
     return;
   }
   const dir = obb.clone().sub(o.position); dir.y = 0;
-  const dist = dir.length(), v = 1.25 * dt;
+  const dist = dir.length(), v = 1.0 * dt;
   if (dist < 0.05) {
     C.i++;
     if (C.i >= C.punti.length) {
