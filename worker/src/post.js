@@ -179,7 +179,7 @@ async function faseContenuti(env, cfg, P) {
 MODELLI DI SLIDE (scegli per ogni slide quello giusto, la copertina con foto se c'è una foto buona):
 ${Object.entries(MODELLI).map(([k, v]) => '- ' + k + ': ' + v).join('\n')}
 REGOLE: ogni slide ha UNA idea; copertina con gancio forte e corto; testi brevi (rispetta il massimo di parole per slide); l'ultima slide chiude con una CTA chiara;
-usa SOLO le foto dell'elenco (nome file esatto) quando ci sono, la migliore come copertina, mai la stessa foto due volte nello stesso carosello; niente dati inventati sul cliente.
+niente emoji nei testi delle slide (le icone vanno nel campo icona); usa SOLO le foto dell'elenco (nome file esatto) quando ci sono, la migliore come copertina, mai la stessa foto due volte nello stesso carosello; niente dati inventati sul cliente.
 ===== SKILL: carousel-writer =====
 ${(SKILL['carousel-writer'] || '').slice(0, 6000)}
 ===== SKILL: caption-writer =====
@@ -194,7 +194,7 @@ FOTO DISPONIBILI (scattate da Johnny): ${F.length ? F.map((f) => `${f.nome} · $
 Rispondi SOLO JSON:
 {"stile": {"palette": ["#hex", "#hex", "#hex"], "font_titoli": "...", "font_testo": "...", "mood": "...", "regole": "indicazioni grafiche per tutto il set"},
  "post": [{"n": 1, "tipo": "carosello | post", "titolo": "titolo interno", "obiettivo": "salvataggi | condivisioni | commenti | contatti",
-   "slide": [{"n": 1, "ruolo": "copertina | contenuto | cta", "modello": "uno dei MODELLI", "titolo": "testo grande", "testo": "testo piccolo o vuoto (per lista: un punto per riga)", "foto": "nome file o null", "altre_foto": ["solo per collage"]}],
+   "slide": [{"n": 1, "ruolo": "copertina | contenuto | cta", "modello": "uno dei MODELLI", "titolo": "testo grande", "testo": "testo piccolo o vuoto (per lista: un punto per riga)", "foto": "nome file o null", "altre_foto": ["solo per collage"], "icona": "facoltativa: icona Iconify del set Phosphor per testo, lista e numero (es. ph:coffee-bold, ph:fire-bold, ph:clock-bold, ph:map-pin-bold, ph:heart-bold) — mai emoji"}],
    "caption": "caption completa con gancio e CTA", "hashtag": ["8-12 hashtag senza #"], "alt": "testo alternativo"}]}`, { maxTokens: 16000 });
   const post = (out.post || []).slice(0, P.numero).map((p, i) => ({ ...p, n: i + 1, stato: 'da_approvare' }));
   // Chiara ripassa ogni post prima che arrivi a Johnny

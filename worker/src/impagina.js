@@ -24,6 +24,9 @@ const FONT = { 'Inter': 'Inter:wght@400;600;800', 'Montserrat': 'Montserrat:wght
   'Playfair Display': 'Playfair+Display:wght@500;700;900', 'DM Serif Display': 'DM+Serif+Display', 'Fraunces': 'Fraunces:wght@500;700;900', 'Lora': 'Lora:wght@400;600',
   'Cormorant Garamond': 'Cormorant+Garamond:wght@500;700', 'Instrument Serif': 'Instrument+Serif' };
 const trovaFont = (nome, riserva) => Object.keys(FONT).find((f) => String(nome || '').toLowerCase().includes(f.toLowerCase())) || riserva;
+const ICONA_RE = /^[a-z0-9]+(-[a-z0-9]+)*:[a-z0-9]+(-[a-z0-9]+)*$/;
+// icone Iconify (set Phosphor, MIT) disegnate come svg del colore giusto
+const icona = (nome, colore, lato) => ICONA_RE.test(nome || '') ? `<img class="ico" src="https://api.iconify.design/${nome.split(':')[0]}/${nome.split(':')[1]}.svg?color=${encodeURIComponent(colore)}&height=${lato * 2}" style="width:${lato}px;height:${lato}px">` : '';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const hex = (c, r) => /^#[0-9a-f]{6}$/i.test(c || '') ? c : r;
 const lum = (h) => { const n = parseInt(h.slice(1), 16); const [r, g, b] = [n >> 16, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
@@ -74,26 +77,26 @@ export function slideHTML({ slide, i, totale, stile, logo, profilo }) {
     corpo = `<div class="foto alta" style="background-image:url('${foto}')"></div>${pagina}<div class="sotto"><h2 style="font-size:${tg(76)}px">${titolo}</h2>${testo ? `<p>${testo}</p>` : ''}</div>`;
   } else if (m === 'lista') {
     const punti = String(slide.testo || '').split(/\n|;/).map((x) => x.replace(/^\s*[-•\d.)]+\s*/, '').trim()).filter(Boolean).slice(0, 6);
-    corpo = `${pagina}<div class="pieno"><h2 style="font-size:${tg(100)}px">${titolo}</h2><ul>${punti.map((x) => `<li><span style="background:${T.accento}"></span>${esc(x)}</li>`).join('')}</ul></div>`;
+    corpo = `${pagina}<div class="pieno"><h2 style="font-size:${tg(100)}px">${titolo}</h2><ul>${punti.map((x) => `<li>${slide.icona ? `<em class="ico-pt" style="background:${T.accento}">${icona(slide.icona, suColore(T.accento), 34)}</em>` : `<span style="background:${T.accento}"></span>`}${esc(x)}</li>`).join('')}</ul></div>`;
   } else if (m === 'citazione') {
     fondo = T.scuro;
     corpo = `${pagina}<div class="centro"><div class="virg" style="color:${T.accento}">“</div><h2 style="font-size:${tg(80)}px;color:#fff">${titolo}</h2>${testo ? `<p style="color:rgba(255,255,255,.75)">${testo}</p>` : ''}</div>`;
   } else if (m === 'numero') {
     const n = (slide.titolo || '').match(/[\d.,]+\s*%?|\d+/)?.[0] || '';
     const resto = esc((slide.titolo || '').replace(n, '').trim());
-    corpo = `${pagina}<div class="centro"><div class="numero" style="color:${T.accento}">${esc(n)}</div>${resto ? `<h2 style="font-size:64px">${resto}</h2>` : ''}${testo ? `<p>${testo}</p>` : ''}</div>`;
+    corpo = `${pagina}<div class="centro">${slide.icona ? `<div class="ico-box" style="background:${T.accento}">${icona(slide.icona, suColore(T.accento), 72)}</div>` : ''}<div class="numero" style="color:${T.accento}">${esc(n)}</div>${resto ? `<h2 style="font-size:64px">${resto}</h2>` : ''}${testo ? `<p>${testo}</p>` : ''}</div>`;
   } else if (m === 'cta') {
     fondo = T.scuro;
     corpo = `<div class="centro">${logo ? `<img class="logo grande" src="{{LOGO}}">` : ''}<h2 style="font-size:${tg(88)}px;color:#fff">${titolo}</h2>${testo ? `<p style="color:rgba(255,255,255,.8)">${testo}</p>` : ''}
       ${profilo ? `<div class="profilo" style="background:${T.accento};color:${suColore(T.accento)}">@${esc(profilo)}</div>` : ''}</div>`;
   } else if (m === 'checklist') {
     const punti = String(slide.testo || '').split(/\n|;/).map((x) => x.replace(/^\s*[-•\d.)\[\]x✓]+\s*/i, '').trim()).filter(Boolean).slice(0, 7);
-    corpo = `${pagina}<div class="pieno"><h2 style="font-size:${tg(96)}px">${titolo}</h2><ul class="spunte">${punti.map((x) => `<li><i style="border-color:${T.accento};background:${T.accento}"><b style="color:${suColore(T.accento)}">✓</b></i>${esc(x)}</li>`).join('')}</ul></div>`;
+    corpo = `${pagina}<div class="pieno"><h2 style="font-size:${tg(96)}px">${titolo}</h2><ul class="spunte">${punti.map((x) => `<li><i style="border-color:${T.accento};background:${T.accento}">${icona('ph:check-bold', suColore(T.accento), 38)}</i>${esc(x)}</li>`).join('')}</ul></div>`;
   } else if (m === 'confronto') {
     const righe = String(slide.testo || '').split(/\n/).map((x) => x.trim()).filter(Boolean);
     const si = righe.filter((x) => /^\+/.test(x)).map((x) => esc(x.slice(1).trim())), no = righe.filter((x) => /^-/.test(x)).map((x) => esc(x.slice(1).trim()));
-    corpo = `${pagina}<div class="pieno"><h2 style="font-size:${tg(90)}px">${titolo}</h2><div class="due"><div class="col no"><div class="segno">✕</div>${no.map((x) => `<p>${x}</p>`).join('')}</div>
-      <div class="col si" style="background:${T.accento};color:${suColore(T.accento)}"><div class="segno">✓</div>${si.map((x) => `<p>${x}</p>`).join('')}</div></div></div>`;
+    corpo = `${pagina}<div class="pieno"><h2 style="font-size:${tg(90)}px">${titolo}</h2><div class="due"><div class="col no"><div class="segno">${icona('ph:x-bold', suColore(T.chiaro), 64)}</div>${no.map((x) => `<p>${x}</p>`).join('')}</div>
+      <div class="col si" style="background:${T.accento};color:${suColore(T.accento)}"><div class="segno">${icona('ph:check-bold', suColore(T.accento), 64)}</div>${si.map((x) => `<p>${x}</p>`).join('')}</div></div></div>`;
   } else if (m === 'collage') {
     const tutte = [slide.foto, ...(slide.altre_foto || [])].filter(Boolean).slice(0, 4).map((f) => `{{FOTO:${f}}}`);
     corpo = `<div class="griglia g${tutte.length}">${tutte.map((u) => `<div style="background-image:url('${u}')"></div>`).join('')}</div>${titolo ? `<div class="etic" style="background:${T.chiaro};color:${suColore(T.chiaro)}">${titolo}</div>` : ''}`;
@@ -109,7 +112,7 @@ export function slideHTML({ slide, i, totale, stile, logo, profilo }) {
     fondo = T.scuro;
     corpo = `<div class="foto piena" style="background-image:url('${foto}');background-size:${di * 100}% auto;background-position:${(parte / (di - 1)) * 100}% 50%"></div>${titolo ? `<div class="velo"></div><div class="basso"><h2 style="font-size:${tg(84)}px;color:#fff">${titolo}</h2>${testo ? `<p style="color:rgba(255,255,255,.85)">${testo}</p>` : ''}</div>` : ''}`;
   } else {
-    corpo = `${pagina}<div class="pieno"><div class="barra\" style="background:${T.accento}"></div><h2 style="font-size:${tg(104)}px">${titolo}</h2>${testo ? `<p class="grande">${testo}</p>` : ''}</div>${logoTag}`;
+    corpo = `${pagina}<div class="pieno">${slide.icona ? `<div class="ico-box" style="background:${T.accento}">${icona(slide.icona, suColore(T.accento), 72)}</div>` : `<div class="barra" style="background:${T.accento}"></div>`}<h2 style="font-size:${tg(104)}px">${titolo}</h2>${testo ? `<p class="grande">${testo}</p>` : ''}</div>${logoTag}`;
   }
   const colTesto = suColore(fondo);
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?${famiglie}&display=block" rel="stylesheet"><style>
@@ -132,6 +135,7 @@ li span{flex:0 0 22px;height:22px;border-radius:50%;margin-top:14px}
 .virg{font-family:'${ft}',serif;font-size:260px;line-height:.6;height:120px}
 .numero{font-family:'${ft}',serif;font-weight:800;font-size:300px;line-height:.9;letter-spacing:-.04em}
 .profilo{margin-top:56px;padding:22px 40px;border-radius:999px;font-size:38px;font-weight:700}
+.ico-box{width:128px;height:128px;border-radius:32px;display:grid;place-items:center;margin-bottom:40px}.ico-pt{flex:0 0 60px;height:60px;border-radius:16px;display:grid;place-items:center;font-style:normal}
 .spunte li{align-items:center}.spunte i{flex:0 0 66px;height:66px;border-radius:14px;border:4px solid;display:grid;place-items:center;font-style:normal}.spunte i b{font-size:34px}
 .due{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:48px}.col{border-radius:28px;padding:40px 34px;min-height:560px}.col.no{background:rgba(127,127,127,.12)}.col p{font-size:40px;margin-top:18px;line-height:1.3}
 .segno{font-size:64px;font-weight:800;line-height:1}

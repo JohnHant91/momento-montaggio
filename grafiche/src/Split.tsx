@@ -209,6 +209,15 @@ const Contatore: React.FC<{ d: any }> = ({ d }) => {
   );
 };
 
+// Icone Iconify (set Phosphor, MIT): "ph:coffee-bold" → svg vettoriale del colore giusto. Qualsiasi altro testo resta com'è.
+const ICONA_RE = /^[a-z0-9]+(-[a-z0-9]+)*:[a-z0-9]+(-[a-z0-9]+)*$/;
+export const Icona: React.FC<{ nome?: string; colore: string; lato: number }> = ({ nome, colore, lato }) => {
+  if (!nome) return null;
+  if (!ICONA_RE.test(nome)) return <span style={{ fontSize: lato * 0.85, lineHeight: 1 }}>{nome}</span>;
+  const [set, n] = nome.split(":");
+  return <Img src={`https://api.iconify.design/${set}/${n}.svg?color=${encodeURIComponent(colore)}&height=${lato * 2}`} style={{ width: lato, height: lato }} maxRetries={2} onError={() => { /* icona non arrivata: il riquadro resta vuoto, il reel si monta lo stesso */ }} />;
+};
+
 const Lista: React.FC<{ d: any }> = ({ d }) => {
   const x = React.useContext(C);
   const voci: string[] = (d.voci || []).slice(0, 6);
@@ -219,7 +228,7 @@ const Lista: React.FC<{ d: any }> = ({ d }) => {
         <Entra key={i} ritardo={6 + i * 7}>
           <div style={{ display: "flex", alignItems: "center", gap: 24, background: "#fff", borderRadius: 22, padding: "22px 28px", marginBottom: 16, boxShadow: "0 14px 34px -20px rgba(0,0,0,.35)" }}>
             <div style={{ width: 54, height: 54, borderRadius: 16, background: d.spunte ? "#E7F6EC" : x.pal.accento, color: d.spunte ? "#22A55B" : "#fff",
-              fontFamily: x.testo, fontWeight: 800, fontSize: 30, display: "grid", placeItems: "center" }}>{d.spunte ? "✓" : i + 1}</div>
+              fontFamily: x.testo, fontWeight: 800, fontSize: 30, display: "grid", placeItems: "center" }}>{d.spunte ? <Icona nome="ph:check-bold" colore="#22A55B" lato={32} /> : (d.icone?.[i] ? <Icona nome={d.icone[i]} colore="#ffffff" lato={30} /> : i + 1)}</div>
             <div style={{ fontFamily: x.testo, fontSize: 40, color: x.pal.inchiostro, fontWeight: 600 }}>{v}</div>
           </div>
         </Entra>
@@ -251,7 +260,7 @@ const Card: React.FC<{ d: any }> = ({ d }) => {
     <Entra da="scala">
       <div style={{ width: 820, background: "#fff", borderRadius: 32, padding: 46, boxShadow: "0 30px 70px -25px rgba(0,0,0,.3)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
-          {d.icona ? <div style={{ width: 92, height: 92, borderRadius: 26, background: x.pal.secondario, display: "grid", placeItems: "center", fontSize: 52 }}>{d.icona}</div> : null}
+          {d.icona ? <div style={{ width: 92, height: 92, borderRadius: 26, background: x.pal.secondario, display: "grid", placeItems: "center", fontSize: 52 }}><Icona nome={d.icona} colore={x.pal.inchiostro} lato={54} /></div> : null}
           <div style={{ fontFamily: x.titoli, fontSize: 68, color: x.pal.inchiostro, lineHeight: 1.05 }}>{d.titolo}</div>
         </div>
         {d.testo ? <div style={{ fontFamily: x.testo, fontSize: 36, color: x.pal.inchiostro, opacity: 0.7, marginTop: 24, lineHeight: 1.35 }}>{d.testo}</div> : null}
