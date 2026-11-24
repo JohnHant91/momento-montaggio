@@ -1,0 +1,34 @@
+name: prova-hyperframes
+# Pilota del nuovo montatore: verifica che HyperFrames (HeyGen, Apache 2.0) renderizzi gratis qui su GitHub,
+# con un esempio del suo catalogo (nessun materiale di Johnny), e misura i tempi.
+on: workflow_dispatch
+jobs:
+  prova:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: scarica HyperFrames
+        run: |
+          git clone -q --depth 1 https://github.com/heygen-com/hyperframes hf
+          sudo apt-get -qq update && sudo apt-get -qq install -y ffmpeg >/dev/null
+      - name: render di prova
+        run: |
+          cp -r hf/registry/examples/kinetic-type demo
+          cd demo
+          T0=$(date +%s)
+          npx -y @hyperframes/cli@latest render --output ../demo.mp4 2>&1 | tail -25
+          echo "SECONDI_RENDER=$(( $(date +%s) - T0 ))" | tee -a ../tempi.txt
+          cd ..
+          ffprobe -v error -show_entries format=duration:stream=width,height,r_frame_rate -of compact demo.mp4 | tee -a tempi.txt
+          mkdir out && for t in 0.5 2 4 6; do ffmpeg -v error -ss $t -i demo.mp4 -frames:v 1 -vf scale=360:-1 out/f_$t.jpg; done
+          ffmpeg -v error -i out/f_0.5.jpg -i out/f_2.jpg -i out/f_4.jpg -i out/f_6.jpg -filter_complex hstack=4 out/tavola.jpg
+          cp tempi.txt out/
+      - name: pubblica la tavola
+        run: |
+          cd out && git init -q && git checkout -q -b prova-hyperframes && git add . \
+          && git -c user.name=motore -c user.email=motore@momento commit -qm "prova HyperFrames" \
+          && git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" prova-hyperframes
+    permissions:
+      contents: write
