@@ -18,7 +18,7 @@ jobs:
           cp -r hf/registry/examples/kinetic-type demo
           cd demo
           T0=$(date +%s)
-          npx -y @hyperframes/cli@latest render --output ../demo.mp4 2>&1 | tail -25
+          npx -y hyperframes@latest render --output ../demo.mp4 2>&1 | tail -40; set -o pipefail
           echo "SECONDI_RENDER=$(( $(date +%s) - T0 ))" | tee -a ../tempi.txt
           cd ..
           ffprobe -v error -show_entries format=duration:stream=width,height,r_frame_rate -of compact demo.mp4 | tee -a tempi.txt
