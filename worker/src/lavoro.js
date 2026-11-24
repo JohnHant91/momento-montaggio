@@ -547,7 +547,9 @@ Rispondi SOLO JSON: {"correzioni": [{"id": n, "testo": "testo corretto, oppure \
 }
 
 // regole fisse di Johnny per tutti i reel (modificabili in Impostazioni): Rocco le legge in ogni piano
-export const REGOLE_REEL_BASE = `- Le clip orizzontali restano orizzontali: si ritaglia il 9:16 sul soggetto, non si girano mai.
+export const REGOLE_REEL_BASE = `- Durata massima 1'30" (oltre non è più un Reel).
+- Testi, sottotitoli, loghi e il soggetto importante stanno nella zona sicura: 220 px liberi in alto, 450 px in basso, 35 px ai lati; in basso a destra ci sono i pulsanti.
+- Le clip orizzontali restano orizzontali: si ritaglia il 9:16 sul soggetto, non si girano mai.
 - Mai due volte la stessa clip nello stesso reel.
 - Quando chiedo dove deve stare l'attenzione (es. "nel finale l'attenzione sulla scatola"), quell'oggetto deve stare al centro del 9:16 nei pezzi dove compare (campo "fuoco").
 - Niente emoji nei testi a schermo.`;
@@ -659,6 +661,8 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
   // rete di sicurezza (gratis): se Johnny ha chiesto dove va l'attenzione e il piano non l'ha segnato, lo segno sui pezzi finali
   const attenz = String((indicazioni?.testo || '') + ' ' + (L.prompt || '')).match(/attenzione\s+(?:deve\s+(?:essere|stare)\s+|va\s+|sempre\s+)?(?:sul|sulla|sullo|sui|sulle|sugli|su)\s+(?:l'|la\s+|il\s+|lo\s+|le\s+|i\s+|gli\s+)?([^.,;:\n]{2,30})/i);
   if (attenz && seg.length && !seg.some((x) => x.fuoco)) { const ogg = attenz[1].trim().split(/\s+/).slice(0, 4).join(' '); seg.slice(-2).forEach((x) => { x.fuoco = ogg; }); await log(env, L.id, 'regista', `🎯 attenzione su "${ogg}" nei pezzi finali`); }
+  // Instagram: oltre 1'30" non è più un Reel → i pezzi in più si tolgono
+  { let tot = 0; const k = seg.findIndex((x) => (tot += Number(x.durata) || 0) > 90); if (k > 0) { seg.splice(k); await log(env, L.id, 'regista', 'reel accorciato a 1\'30" (limite dei Reel)'); } }
   if (!seg.length && formato !== 'carosello') throw new Error('il piano del Regista non contiene pezzi validi');
   // lo stile è vincolante: transizioni ed effetti fuori stile vengono sostituiti
   if (R) {

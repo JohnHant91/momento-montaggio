@@ -16,8 +16,9 @@ import numpy as np
 
 from montatore import Montatore, W, H, FPS, X264_INT, PARALLELO
 
-# zone sicure di Instagram: sopra ~250 px e sotto ~350 px ci sono nome, caption e pulsanti
-SICURO_ALTO, SICURO_BASSO = 250, H - 350
+# zona sicura dei Reel (schema di Johnny): 220 px in alto, 450 px in basso, 35 px ai lati; in più la colonna dei pulsanti
+# (cuore, commenti) entra nella zona in basso a destra: sotto SICURO_PULSANTI i testi larghi non ci vanno
+SICURO_ALTO, SICURO_BASSO, SICURO_PULSANTI = 240, H - 450, 1250
 FOTOGRAMMA = 1 / FPS
 
 
@@ -493,7 +494,7 @@ class TalkingHead(_Base):
             sh = s0["_info"]["h"] or H
             alto_viso = ((v["cy"] - v["fh"] * 0.75) * sh - y) / ch * H
             mento = ((v["cy"] + v["fh"] * 0.62) * sh - y) / ch * H
-            y_sub = int(min(max(mento + 150, 1180), SICURO_BASSO - 110))
+            y_sub = int(min(max(mento + 150, 1100), SICURO_PULSANTI - 90))
             y_gancio = int(min(max(alto_viso - 130, SICURO_ALTO + 120), 760))
             if alto_viso - 130 < SICURO_ALTO + 60:  # testa troppo in alto: il gancio va sotto, al posto dei sottotitoli
                 y_gancio = y_sub
@@ -543,7 +544,7 @@ class TalkingHead(_Base):
                 x += lw + spazio
             testo = " ".join((f"{{\\c{giallo}}}{p}{{\\c{bianco}}}" if norm(w["testo"]) in evid else p) for p, w in zip(parole_r, r))
             pan = getattr(self, "pannello", None)
-            y_r = (SICURO_BASSO - 120) if pan and pan[0] - 0.05 <= da < pan[1] else y_sub
+            y_r = (SICURO_PULSANTI - 90) if pan and pan[0] - 0.05 <= da < pan[1] else y_sub
             if piccoli:
                 y_r = SICURO_ALTO + 30
                 testo = " ".join((f"{{\\c{giallo}}}{pulisci(w['testo'])}{{\\c{bianco}}}" if norm(w["testo"]) in evid else pulisci(w["testo"])) for w in r)

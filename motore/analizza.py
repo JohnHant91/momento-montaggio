@@ -186,7 +186,8 @@ def inquadra_su(lavoro, path, t, oggetto):
         wx, ww = r["x"], r["w"]
     z = min(2.2, 0.5 / max(0.05, ww, r["h"] * 0.9))  # stringo solo se l'oggetto è piccolo (deve prendere ~metà schermo)
     if z > 1.1:
-        out["zoom_fisso"] = {"z": round(z, 2), "cx": round(min(1, max(0, wx)), 3), "cy": round(r["y"], 3)}
+        # l'oggetto va al centro della ZONA SICURA del Reel (220-1470 px → 44% dell'altezza), non al centro dello schermo
+        out["zoom_fisso"] = {"z": round(z, 2), "cx": round(min(1, max(0, wx)), 3), "cy": round(min(1, max(0, r["y"] + 0.06 / z)), 3)}
     return out or None
 
 

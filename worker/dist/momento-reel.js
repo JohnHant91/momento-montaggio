@@ -3115,7 +3115,9 @@ Rispondi SOLO JSON: {"correzioni": [{"id": n, "testo": "testo corretto, oppure "
     await log(env, L.id, "copy", `correttore non disponibile (${String(e.message).slice(0, 100)}): testi lasciati come sono`, "warn");
   }
 }
-var REGOLE_REEL_BASE = `- Le clip orizzontali restano orizzontali: si ritaglia il 9:16 sul soggetto, non si girano mai.
+var REGOLE_REEL_BASE = `- Durata massima 1'30" (oltre non \xE8 pi\xF9 un Reel).
+- Testi, sottotitoli, loghi e il soggetto importante stanno nella zona sicura: 220 px liberi in alto, 450 px in basso, 35 px ai lati; in basso a destra ci sono i pulsanti.
+- Le clip orizzontali restano orizzontali: si ritaglia il 9:16 sul soggetto, non si girano mai.
 - Mai due volte la stessa clip nello stesso reel.
 - Quando chiedo dove deve stare l'attenzione (es. "nel finale l'attenzione sulla scatola"), quell'oggetto deve stare al centro del 9:16 nei pezzi dove compare (campo "fuoco").
 - Niente emoji nei testi a schermo.`;
@@ -3257,6 +3259,14 @@ ${regole}`;
       x.fuoco = ogg;
     });
     await log(env, L.id, "regista", `\u{1F3AF} attenzione su "${ogg}" nei pezzi finali`);
+  }
+  {
+    let tot2 = 0;
+    const k = seg.findIndex((x) => (tot2 += Number(x.durata) || 0) > 90);
+    if (k > 0) {
+      seg.splice(k);
+      await log(env, L.id, "regista", `reel accorciato a 1'30" (limite dei Reel)`);
+    }
   }
   if (!seg.length && formato !== "carosello") throw new Error("il piano del Regista non contiene pezzi validi");
   if (R) {

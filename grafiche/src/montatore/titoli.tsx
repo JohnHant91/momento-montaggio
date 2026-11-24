@@ -22,13 +22,13 @@ const clamp = { extrapolateLeft: "clamp" as const, extrapolateRight: "clamp" as 
 const rnd = (n: number) => { const x = Math.sin(n * 91.7 + 17.3) * 43758.5453; return x - Math.floor(x); };
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9àèéìòù]/g, "");
 
-// riquadro della posizione (1080x1920, safe zone 250-1500 in altezza)
+// riquadro della posizione (1080x1920, zona sicura Reel: 220-1470 in altezza, 35 px ai lati, pulsanti a destra da 1250)
 function box(pos: string | undefined): React.CSSProperties {
   switch (pos) {
     case "sx": return { left: 40, width: 360, top: 640, height: 560, alignItems: "flex-start", textAlign: "left" };
     case "dx": return { right: 40, width: 360, top: 640, height: 560, alignItems: "flex-end", textAlign: "right" };
-    case "basso": return { left: 70, right: 70, top: 1120, height: 230, alignItems: "center", textAlign: "center" };
-    case "centro": return { left: 70, right: 70, top: 660, height: 600, alignItems: "center", textAlign: "center" };
+    case "basso": return { left: 70, right: 70, top: 1010, height: 230, alignItems: "center", textAlign: "center" }; // sopra i pulsanti (da 1250)
+    case "centro": return { left: 70, right: 70, top: 660, height: 560, alignItems: "center", textAlign: "center" };
     default: return { left: 70, right: 70, top: 260, height: 300, alignItems: "center", textAlign: "center" };
   }
 }

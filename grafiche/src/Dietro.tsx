@@ -166,7 +166,7 @@ export const Dietro: React.FC<DietroProps> = (P) => {
       {/* la persona ritagliata davanti alle scritte */}
       {P.ritaglio ? strato(<OffthreadVideo src={staticFile(P.ritaglio)} transparent style={stileV} />) : null}
       {/* la parola detta, piccola, sul petto */}
-      {parolaOra && !inCapitolo ? <div style={{ position: "absolute", left: 0, right: 0, top: Math.min(1500, cy * 1920 + 520), textAlign: "center", fontFamily: SANS, fontWeight: 800,
+      {parolaOra && !inCapitolo ? <div style={{ position: "absolute", left: 0, right: 0, top: Math.min(1180, cy * 1920 + 520), textAlign: "center", fontFamily: SANS, fontWeight: 800,
         fontSize: 54, color: "#fff", textShadow: "0 4px 18px rgba(0,0,0,.6)" }}>{parolaOra.t.replace(/[.,!?;:]/g, "").toLowerCase()}</div> : null}
       {/* schede di vetro (davanti) */}
       {P.scene.filter((s) => !s.pieno && (s.tipo === "card" || s.tipo === "titolo" || s.tipo === "lista")).map((s, i) => (
