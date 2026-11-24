@@ -9,7 +9,7 @@
 
 Il Regista (Rocco) sceglie il formato nel piano: "formato": "montaggio" | "talking_head" | "carosello".
 """
-import json, math, os, re, subprocess, sys, time
+import json, math, os, re, shutil, subprocess, sys, time
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
