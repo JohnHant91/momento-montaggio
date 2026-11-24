@@ -14,7 +14,7 @@ import { nuovoLavoroPost } from './post.js';
 export const CAPI = [
   ['direzione', 'capo', 'Alba', 'Direttrice'],
   ['marketing', 'stratega', 'Marco', 'capo Marketing'],
-  ['social', 'copywriter', 'Giulia', 'capo Social'],
+  ['social', 'smm', 'Chiara', 'Social media manager, capo Social'],
   ['video', 'direttore', 'Leo', 'capo Video'],
   ['foto', 'ritocco', 'Teo', 'capo Foto'],
   ['web', 'web', 'Walter', 'capo Web & E-commerce'],
@@ -22,7 +22,7 @@ export const CAPI = [
   ['gestionale', 'gestionale', 'Gino', 'capo Gestionale'],
   ['contabilita', 'contabile', 'Dora', 'capo Contabilità'],
 ];
-const PER_RICHIESTA = ['capo', 'stratega', 'copywriter', 'direttore', 'ritocco', 'web', 'booking'];
+const PER_RICHIESTA = ['capo', 'stratega', 'smm', 'direttore', 'ritocco', 'web', 'booking'];
 const SETTIMANALE = CAPI.map((c) => c[1]);
 const NOME = Object.fromEntries(CAPI.map(([, id, n, r]) => [id, `${n} (${r})`]));
 const DURATA_VISIVA = 150e3; // i capireparto restano in sala almeno 2 minuti e mezzo: arrivano, discutono, tornano

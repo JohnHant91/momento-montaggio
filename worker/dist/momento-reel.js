@@ -4792,7 +4792,8 @@ var SQUADRA = {
   capo: { n: "Alba", r: "Direttrice dell\u2019agenzia", u: "direzione", i: "\u{1F9ED}", c: "#3fd0c9", skill: ["social-strategy"], d: "\xC8 l\u2019unica con cui parli. Riceve le tue richieste, convoca i capireparto in sala meeting, ti porta le proposte e, quando scegli, fa partire gli uffici. Ogni settimana guida la riunione operativa in direzione e ti manda il report." },
   stratega: { n: "Marco", r: "Stratega \xB7 brand, strategia, campagne e report", u: "marketing", i: "\u265F\uFE0F", c: "#7aa2ff", skill: ["brand-profile", "social-strategy", "content-pillars", "goals-and-kpis", "content-audit", "competitor-analysis", "campaign-and-launch-planning", "seasonal-and-moment-marketing", "analytics-and-reporting"], d: "Fa tutto il marketing di un cliente in una persona sola: scheda cliente (chi \xE8, a chi parla, come parla, cosa non dire; tutti gli altri la leggono), strategia, obiettivi e pilastri, audit del profilo e dei concorrenti, campagne e ricorrenze, report mensile dai numeri che gli dai. Non inventa numeri." },
   ricerca: { n: "Sofia", r: "Ricerca, trend e virali", u: "marketing", i: "\u{1F4DA}", c: "#5aa9e6", skill: ["audience-research", "trend-jacking", "viral-reverse-engineering"], d: "Si documenta sul web su ogni argomento (fatti verificati con le fonti, numeri, errori comuni, domande della gente) e trova i trend e i video virali del settore. Una ricerca vale per 10 contenuti. Non inventa nulla." },
-  copywriter: { n: "Giulia", r: "Copy, calendario e community", u: "social", i: "\u270D\uFE0F", c: "#f0b44c", skill: ["caption-writer", "hook-writer", "hashtag-strategy", "content-calendar", "reply-and-comment-writer"], d: "Caption, ganci, hashtag e parole chiave nella voce del cliente; costruisce il calendario editoriale e programma i contenuti che approvi; prepara le risposte a commenti e recensioni (tu approvi prima che escano)." },
+  smm: { n: "Chiara", r: "Social media manager \xB7 capo Social", u: "social", i: "\u{1F4E3}", c: "#ff7aa2", skill: ["social-strategy", "content-calendar", "batch-content-plan", "analytics-and-reporting", "instagram-growth", "community-management"], d: "Guida i social di ogni cliente e parla con Alba: decide la linea editoriale e il piano del mese (quanti reel, caroselli e post, su cosa, quando), smista il lavoro a Giulia, Pietro e al comparto Video, tiene il calendario, segue i numeri e la community e fa il punto con te." },
+  copywriter: { n: "Giulia", r: "Copywriter \xB7 caption, ganci e risposte", u: "social", i: "\u270D\uFE0F", c: "#f0b44c", skill: ["caption-writer", "hook-writer", "hashtag-strategy", "reply-and-comment-writer"], d: "Caption, ganci, hashtag e parole chiave nella voce del cliente; prepara le risposte a commenti e recensioni (tu approvi prima che escano). Lavora sul piano di Chiara." },
   caroselli: { n: "Pietro", r: "Grafico \xB7 post, caroselli e copertine", u: "social", i: "\u{1F3A8}", c: "#e58bd0", skill: ["carousel-writer", "quote-cards-and-text-graphics", "design-and-templates", "thumbnail-design"], d: "Il grafico dell\u2019agenzia: scrive e impagina post e caroselli con i 14 modelli dell\u2019agenzia (colori, font e logo del cliente), disegna le copertine dei reel (stile YouTube per il profilo di Johnny, stile del cliente imparato dai suoi esempi) e studia le copertine di esempio dei clienti." },
   ritocco: { n: "Teo", r: "Fotoritocco \xB7 maestro di Photoshop e Lightroom", u: "foto", i: "\u{1FA84}", c: "#9bf6ff", skill: ["ai-image-editing", "image-prompt"], d: "Il reparto foto in una persona: carichi su pCloud la cartella dello shooting e lui sviluppa i RAW (o i JPG) con un look uniforme come un preset Lightroom, fa un ritocco leggero e naturale della pelle, scarta le foto mosse, a occhi chiusi e i doppioni, e ti consegna lo ZIP. Prepara anche i brief degli shooting e, quando non c\u2019\xE8 una foto vera, i prompt per le immagini AI. Mai falsare prodotti e luoghi." },
   web: { n: "Walter", r: "Sito, SEO ed e-commerce", u: "web", i: "\u{1F310}", c: "#8ecae6", skill: ["ai-search-optimization", "social-seo", "social-proof-and-testimonials", "email-and-newsletter"], d: "Testi del sito, SEO e visibilit\xE0 su Google e sulle AI, link in bio; schede prodotto, recensioni, newsletter e funnel per vendere online." },
@@ -4806,8 +4807,10 @@ var ACCORPATI = {
   audit: "stratega",
   campagne: "stratega",
   report: "stratega",
-  calendario: "copywriter",
-  community: "copywriter",
+  calendario: "smm",
+  community: "smm",
+  social: "smm",
+  piano_editoriale: "smm",
   trend: "ricerca",
   fotografo: "ritocco",
   immagini: "ritocco",
@@ -5444,7 +5447,7 @@ init_consumi();
 var CAPI = [
   ["direzione", "capo", "Alba", "Direttrice"],
   ["marketing", "stratega", "Marco", "capo Marketing"],
-  ["social", "copywriter", "Giulia", "capo Social"],
+  ["social", "smm", "Chiara", "Social media manager, capo Social"],
   ["video", "direttore", "Leo", "capo Video"],
   ["foto", "ritocco", "Teo", "capo Foto"],
   ["web", "web", "Walter", "capo Web & E-commerce"],
@@ -5452,7 +5455,7 @@ var CAPI = [
   ["gestionale", "gestionale", "Gino", "capo Gestionale"],
   ["contabilita", "contabile", "Dora", "capo Contabilit\xE0"]
 ];
-var PER_RICHIESTA = ["capo", "stratega", "copywriter", "direttore", "ritocco", "web", "booking"];
+var PER_RICHIESTA = ["capo", "stratega", "smm", "direttore", "ritocco", "web", "booking"];
 var SETTIMANALE = CAPI.map((c) => c[1]);
 var NOME = Object.fromEntries(CAPI.map(([, id, n, r]) => [id, `${n} (${r})`]));
 var DURATA_VISIVA = 15e4;
