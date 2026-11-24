@@ -5564,14 +5564,14 @@ var CAPI = [
   ["direzione", "capo", "Alba", "Direttrice"],
   ["marketing", "stratega", "Marco", "capo Marketing"],
   ["social", "smm", "Chiara", "Social media manager, capo Social"],
-  ["video", "direttore", "Leo", "capo Video"],
+  ["video", "regista", "Rocco", "regista e capo Video"],
   ["foto", "ritocco", "Teo", "capo Foto"],
   ["web", "web", "Walter", "capo Web & E-commerce"],
   ["booking", "booking", "Bea", "capo Booking & WhatsApp"],
   ["gestionale", "gestionale", "Gino", "capo Gestionale"],
   ["contabilita", "contabile", "Dora", "capo Contabilit\xE0"]
 ];
-var PER_RICHIESTA = ["capo", "stratega", "smm", "direttore", "ritocco", "web", "booking"];
+var PER_RICHIESTA = ["capo", "stratega", "smm", "regista", "ritocco", "web", "booking"];
 var SETTIMANALE = CAPI.map((c) => c[1]);
 var NOME = Object.fromEntries(CAPI.map(([, id, n, r]) => [id, `${n} (${r})`]));
 var DURATA_VISIVA = 15e4;
@@ -6694,19 +6694,18 @@ let timer = null;
 
 const AGENTI = {
   idee: { n: 'Nora', r: 'Idee e copioni dei reel', i: '\u{1F4A1}', c: '#f0b44c', s: 'video', d: 'Riceve i tuoi argomenti e il numero di reel del contratto, costruisce strategia, calendario e giornate di ripresa, e scrive per ogni reel il copione da girare: scene, inquadrature, camera, durata, testi e caption.' },
-  direttore: { n: 'Leo', r: 'Direttore creativo e di stile', i: '\u{1F3AC}', c: '#12a3a4', s: 'direzione', d: 'Legge il tuo prompt, capisce settore, obiettivo, pubblico e lo stile che chiedi (natalizio, brasiliano, street\u2026), decide cosa cercare e alla fine scrive la scheda tecnica del reel.' },
   scout: { n: 'Ines', r: 'Scout social', i: '\u{1F52D}', c: '#d6409f', s: 'scouting', d: 'Cerca i reel che funzionano su Instagram, TikTok e YouTube Shorts (settore e stile), li ordina per visualizzazioni e coinvolgimento e li recupera per Iris.' },
   occhi: { n: 'Iris', r: 'Occhi \xB7 reel di riferimento e tue clip', i: '\u{1F441}\uFE0F', c: '#8b7cf6', s: 'visione', d: 'Claude: smonta i reel di riferimento (gancio, ritmo, inquadrature) e guarda le tue clip: momenti utili con i tempi, qualit\xE0, problemi (mosso, fuori fuoco).' },
-  regista: { n: 'Rocco', r: 'Regista e testi', i: '\u{1F3A5}', c: '#e07a5f', s: 'post', d: 'Claude: sceglie i pezzi migliori con i tempi esatti, l\u2019ordine, le transizioni e la musica, e scrive gancio, testi a schermo, chiusura e caption (corretti in italiano, mai inventati).' },
+  regista: { n: 'Rocco', r: 'Regista \xB7 direzione creativa e montaggio', i: '\u{1F3A5}', c: '#e07a5f', s: 'post', d: 'Legge la tua richiesta, capisce settore, obiettivo e stile, decide cosa cercare e scrive la scheda tecnica; poi sceglie i pezzi migliori con i tempi esatti, l\u2019ordine, le transizioni e la musica, e scrive gancio, testi a schermo, chiusura e caption (corretti in italiano, mai inventati).' },
   motore: { n: 'Max', r: 'Montatore (GitHub)', i: '\u2699\uFE0F', c: '#81b29a', s: 'post', d: 'Gira gratis su GitHub: scarica e misura le clip, scarta i tratti mossi, taglia a tempo, verticale 9:16, transizioni ed effetti, colore, titoli animati, sottotitoli, mix audio a \u221214 LUFS e controllo qualit\xE0 finale.' },
   regia: { n: 'Regia', r: 'sistema', i: '\u{1F6F0}\uFE0F', c: '#5d7378' },
 };
-const VECCHI = { 'Direttore creativo': 'direttore', 'Occhi (Gemini)': 'occhi', 'Analista': 'occhi', 'Regia': 'regia', 'Ricerca': 'scout' };
+const VECCHI = { 'Direttore creativo': 'regista', 'Occhi (Gemini)': 'occhi', 'Analista': 'occhi', 'Regia': 'regia', 'Ricerca': 'scout' };
 // squadra video dimezzata: i vecchi reparti confluiscono in 5 agenti (i registri storici restano leggibili)
-const ACCORPATI_VIDEO = { stella: 'direttore', scout_yt: 'scout', scout_tt: 'scout', scout_ig: 'scout', analista: 'occhi', copy: 'regista', editor: 'motore', vfx: 'motore', color: 'motore', audio: 'motore', sottotitoli: 'motore', revisore: 'motore' };
+const ACCORPATI_VIDEO = { direttore: 'regista', stella: 'regista', scout_yt: 'scout', scout_tt: 'scout', scout_ig: 'scout', analista: 'occhi', copy: 'regista', editor: 'motore', vfx: 'motore', color: 'motore', audio: 'motore', sottotitoli: 'motore', revisore: 'motore' };
 const AGID = (a) => ACCORPATI_VIDEO[a] || (AGENTI[a] ? a : VECCHI[a] || 'regia');
 const STANZE = [['direzione', 'Direzione creativa'], ['scouting', 'Scouting \xB7 ricerca di settore'], ['visione', 'Sala visione'], ['post', 'Post-produzione']];
-const FASE_AGENTI = { piano: ['direttore'], ricerca: ['scout'], riferimenti: ['motore', 'occhi'], clip: ['motore', 'occhi'], scheda: ['direttore'], regia: ['regista'], montaggio: ['motore', 'caroselli'] };
+const FASE_AGENTI = { piano: ['regista'], ricerca: ['scout'], riferimenti: ['motore', 'occhi'], clip: ['motore', 'occhi'], scheda: ['regista'], regia: ['regista'], montaggio: ['motore', 'caroselli'] };
 const fa = (q) => { const s = (Date.now() - new Date(q)) / 1000; return s < 60 ? 'ora' : s < 3600 ? Math.round(s / 60) + ' min fa' : s < 86400 ? Math.round(s / 3600) + ' h fa' : new Date(q).toLocaleDateString('it-IT'); };
 
 async function chiama(path, opts = {}) {
@@ -7268,7 +7267,7 @@ const PIANTA = [
 ];
 const FASE_PROFILO = { ricerca: ['ricerca'], virali: ['trend'], copioni: ['idee'], avatar: ['avatar'], montaggio: ['avatar'] };
 const FASE_POST_AG = { ricerca: ['scout'], studio: ['occhi'], foto: ['occhi'], contenuti: ['caroselli'], scarica: ['caroselli'] };
-const VIDEO_TEAM = ['idee', 'direttore', 'videomaker', 'scout', 'occhi', 'regista', 'motore', 'avatar'];
+const VIDEO_TEAM = ['idee', 'videomaker', 'scout', 'occhi', 'regista', 'motore', 'avatar'];
 let SALA = { s: 1, x: 0, y: 0, dati: null, sel: null, ufficio: null };
 
 function statiAgenti(R) {
@@ -7388,7 +7387,7 @@ async function azienda() {
   const striscia = [...lavorano, ...coda].filter((a) => AGENTI[a]).map((a) => '<button class="att ' + st[a] + '" data-va="' + a + '"><span class="pt"></span><span class="fa">' + (AGENTI[a].i || '\u2022') + '</span><span class="tx"><b>' + e(AGENTI[a].n) + ' <em>' + (st[a] === 'lavora' ? 'al lavoro' : 'in coda') + '</em></b>' +
     (cosa[a]?.testo ? '<small class="su">' + e(cosa[a].testo) + '</small>' : '') + (cosa[a]?.ora ? '<small>' + e(cosa[a].ora) + '</small>' : '') + '</span></button>').join('');
   // LAVORAZIONI IN CORSO a colpo d'occhio: ogni reel, copione, carosello e incarico con la fase e quanto manca
-  const FASI_PR = { piano: 'Leo legge la richiesta', ricerca: 'cerca i reel di riferimento', riferimenti: 'studia i riferimenti', clip: 'Max scarica e misura le clip', scheda: 'Ada scrive la scheda', regia: 'Rocco prepara il montaggio', montaggio: 'il motore monta il reel' };
+  const FASI_PR = { piano: 'Rocco legge la richiesta', ricerca: 'cerca i reel di riferimento', riferimenti: 'studia i riferimenti', clip: 'Max scarica e misura le clip', scheda: 'Ada scrive la scheda', regia: 'Rocco prepara il montaggio', montaggio: 'il motore monta il reel' };
   const FASI_AVP = { ricerca: 'Sofia si documenta', virali: 'cerca i video virali', copioni: 'Nora scrive i copioni', approvazione: 'aspetta te', avatar: 'Ava genera il video HeyGen', montaggio: 'il motore monta' };
   const lav = [
     ...(R.reel || []).map((l) => { const i = FASI.findIndex((f) => f[0] === l.fase); return { ic: '\u{1F3AC}', t: '#' + l.id + ' ' + (l.titolo || 'reel'), f: FASI_PR[l.fase] || l.fase, p: Math.max(6, Math.round((i + (l.fase === 'montaggio' && l.mstato !== 'da_fare' ? 0.6 : 0.2)) / (FASI.length - 1) * 100)), link: '#/lavoro/' + l.id }; }),

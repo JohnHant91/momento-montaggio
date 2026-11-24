@@ -15,14 +15,14 @@ export const CAPI = [
   ['direzione', 'capo', 'Alba', 'Direttrice'],
   ['marketing', 'stratega', 'Marco', 'capo Marketing'],
   ['social', 'smm', 'Chiara', 'Social media manager, capo Social'],
-  ['video', 'direttore', 'Leo', 'capo Video'],
+  ['video', 'regista', 'Rocco', 'regista e capo Video'],
   ['foto', 'ritocco', 'Teo', 'capo Foto'],
   ['web', 'web', 'Walter', 'capo Web & E-commerce'],
   ['booking', 'booking', 'Bea', 'capo Booking & WhatsApp'],
   ['gestionale', 'gestionale', 'Gino', 'capo Gestionale'],
   ['contabilita', 'contabile', 'Dora', 'capo Contabilità'],
 ];
-const PER_RICHIESTA = ['capo', 'stratega', 'smm', 'direttore', 'ritocco', 'web', 'booking'];
+const PER_RICHIESTA = ['capo', 'stratega', 'smm', 'regista', 'ritocco', 'web', 'booking'];
 const SETTIMANALE = CAPI.map((c) => c[1]);
 const NOME = Object.fromEntries(CAPI.map(([, id, n, r]) => [id, `${n} (${r})`]));
 const DURATA_VISIVA = 150e3; // i capireparto restano in sala almeno 2 minuti e mezzo: arrivano, discutono, tornano
