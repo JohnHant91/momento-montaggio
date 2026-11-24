@@ -33,8 +33,13 @@ def costruisci(progetto, video, totale, parole, righe, volto, P, fps=30):
     evid = {_norm(x) for x in (P.get("evidenzia") or []) if _norm(x)}
     cy = float((volto or {}).get("cy", 0.32))
     y_mento = min(1380, max(1050, int((cy + 0.17) * H)))
-    y_gancio = SAFE_TOP + 10
-    alt_gancio = max(190, int((cy - 0.13) * H) - y_gancio)  # dalla safe zone fino a sopra la fronte
+    # gancio sopra la testa se c'è spazio; se il viso è alto nell'inquadratura (es. avatar HeyGen) va sul petto, mai sugli occhi
+    sopra = int((cy - 0.13) * H) - SAFE_TOP
+    if sopra >= 300:
+        y_gancio, alt_gancio = SAFE_TOP + 10, sopra - 10
+    else:
+        y_gancio, alt_gancio = y_mento - 60, 380
+    y_numeri = y_mento + 130 if y_mento + 130 + 300 < SAFE_BOTTOM + 200 else SAFE_TOP  # i numeri sotto i sottotitoli, non sul viso
 
     # gancio: la prima frase (o quella scelta dal regista), fino alla fine della prima riga
     prima = righe[0] if righe else []
@@ -66,7 +71,7 @@ def costruisci(progetto, video, totale, parole, righe, volto, P, fps=30):
 
     cta = str(P.get("cta") or "Seguimi per altri consigli")[:40]
     dati = {
-        "totale": round(totale, 3), "accento": accento, "yMento": y_mento, "yGancio": y_gancio, "altGancio": alt_gancio,
+        "totale": round(totale, 3), "accento": accento, "yMento": y_mento, "yGancio": y_gancio, "altGancio": alt_gancio, "yNumeri": y_numeri,
         "parole": [{"t": p["t"], "da": round(p["da"], 3), "a": round(p["a"], 3), "k": _norm(p["t"]) in evid} for p in parole],
         "righe": righe, "gancio": testo_gancio, "fineGancio": round(fine_gancio, 3),
         "evidGancio": [w for w in testo_gancio.split() if _norm(w) in evid] or [max(testo_gancio.split() or [""], key=len)],
@@ -225,6 +230,7 @@ PAGINA = r"""<!doctype html>
   D.numeri.forEach(function (n, i) {
     var el = document.createElement("div");
     el.className = "numero";
+    el.style.top = D.yNumeri + "px";
     el.innerHTML = '<div class="v"><span></span><span class="c">0</span><span></span></div>' + (n.etichetta ? '<div class="e"></div>' : "");
     var sp = el.querySelectorAll(".v span");
     sp[0].textContent = n.pre; sp[2].textContent = n.post;
