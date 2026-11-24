@@ -528,7 +528,7 @@ class Montatore:
         bianco = self.ass_colore(col.get("testo", "#FFFFFF"))
         acc = self.ass_colore(col.get("accento", "#F2B84B"))
         box = self.ass_colore(col.get("box", "#000000"), 0x40)
-        pos_y = {"alto": 420, "centro": 900, "terzo_inferiore": 1160}  # zona sicura Reel: 220-1470, pulsanti a destra da 1250
+        pos_y = {"alto": 420, "centro": 900, "terzo_inferiore": 1120}  # zona sicura Reel: 220-1470, pulsanti a destra da 1220
         head = ("[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nWrapStyle: 0\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\n"
                 "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
                 f"Style: Titolo,{f_tit},118,{bianco},{bianco},&H00000000,&H64000000,-1,0,0,0,100,100,1,0,1,0,7,5,70,70,0,1\n"

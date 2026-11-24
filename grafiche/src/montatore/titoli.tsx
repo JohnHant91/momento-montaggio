@@ -27,8 +27,8 @@ function box(pos: string | undefined): React.CSSProperties {
   switch (pos) {
     case "sx": return { left: 40, width: 360, top: 640, height: 560, alignItems: "flex-start", textAlign: "left" };
     case "dx": return { right: 40, width: 360, top: 640, height: 560, alignItems: "flex-end", textAlign: "right" };
-    case "basso": return { left: 70, right: 70, top: 1010, height: 230, alignItems: "center", textAlign: "center" }; // sopra i pulsanti (da 1250)
-    case "centro": return { left: 70, right: 70, top: 660, height: 560, alignItems: "center", textAlign: "center" };
+    case "basso": return { left: 70, right: 70, top: 980, height: 230, alignItems: "center", textAlign: "center" }; // sopra i pulsanti (da 1220)
+    case "centro": return { left: 70, right: 70, top: 640, height: 560, alignItems: "center", textAlign: "center" };
     default: return { left: 70, right: 70, top: 260, height: 300, alignItems: "center", textAlign: "center" };
   }
 }

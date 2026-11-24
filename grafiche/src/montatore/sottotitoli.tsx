@@ -42,7 +42,7 @@ export const Sottotitoli: React.FC<SottotitoliProps> = (S) => {
   if (gi < 0) return null;
   const g = gruppi[gi];
   const ent = t - (P[g[0]].da - 0.06);
-  const y = Math.min(S.y || 1140, 1140); // il riquadro (±110) resta sopra la colonna dei pulsanti (da 1250)
+  const y = Math.min(S.y || 1100, 1100); // il riquadro (±110) resta sopra la colonna dei pulsanti (da 1220)
   const up = (s: string) => (S.maiuscolo === false || stile === "minimal" ? s : s.toUpperCase());
   const attiva = g.findIndex((i) => t >= P[i].da - 0.03 && t < (P[i + 1] ? Math.max(P[i].a, P[i + 1].da - 0.03) : P[i].a + 0.3));
   const fs = stile === "pop" ? 92 : stile === "minimal" ? 58 : 70;

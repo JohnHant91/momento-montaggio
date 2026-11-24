@@ -6,7 +6,8 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageEnhance, ImageChops
 
 W, H = 1080, 1920
-SICURO_ALTO, SICURO_BASSO = 250, 1670
+# copertina: nella griglia del profilo si vede solo il 3:4 centrale (1080x1440 → y 240-1680): titolo e viso stanno lì dentro
+SICURO_ALTO, SICURO_BASSO = 260, 1650
 
 
 def _font(cartella, famiglia="Anton", peso=400):

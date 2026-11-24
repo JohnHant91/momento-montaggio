@@ -18,7 +18,7 @@ from montatore import Montatore, W, H, FPS, X264_INT, PARALLELO
 
 # zona sicura dei Reel (schema di Johnny): 220 px in alto, 450 px in basso, 35 px ai lati; in più la colonna dei pulsanti
 # (cuore, commenti) entra nella zona in basso a destra: sotto SICURO_PULSANTI i testi larghi non ci vanno
-SICURO_ALTO, SICURO_BASSO, SICURO_PULSANTI = 240, H - 450, 1250
+SICURO_ALTO, SICURO_BASSO, SICURO_PULSANTI = 240, H - 450, 1220
 FOTOGRAMMA = 1 / FPS
 
 

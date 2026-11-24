@@ -3116,7 +3116,8 @@ Rispondi SOLO JSON: {"correzioni": [{"id": n, "testo": "testo corretto, oppure "
   }
 }
 var REGOLE_REEL_BASE = `- Durata massima 1'30" (oltre non \xE8 pi\xF9 un Reel).
-- Testi, sottotitoli, loghi e il soggetto importante stanno nella zona sicura: 220 px liberi in alto, 450 px in basso, 35 px ai lati; in basso a destra ci sono i pulsanti.
+- Testi, sottotitoli, loghi e il soggetto importante stanno nella zona sicura: 220 px liberi in alto, 450 px in basso, 35 px ai lati; in basso a destra, da 1220 px in gi\xF9, ci sono i pulsanti.
+- Copertina: titolo e soggetto dentro il 3:4 centrale (1080x1440, da 240 a 1680 px), perch\xE9 nella griglia del profilo si vede solo quello.
 - Le clip orizzontali restano orizzontali: si ritaglia il 9:16 sul soggetto, non si girano mai.
 - Mai due volte la stessa clip nello stesso reel.
 - Quando chiedo dove deve stare l'attenzione (es. "nel finale l'attenzione sulla scatola"), quell'oggetto deve stare al centro del 9:16 nei pezzi dove compare (campo "fuoco").
@@ -7211,7 +7212,7 @@ function vistaReel(L) {
   const t0 = Date.now();
   return '<h2>Il reel' + (m.versione > 1 ? ' \xB7 versione ' + m.versione : '') + '</h2><div class="card" style="text-align:center"><div class="riga" style="justify-content:center;align-items:flex-start;gap:14px">' +
     '<video src="/api/lavori/' + L.id + '/reel.mp4?v=' + e(m.versione || 1) + '" controls playsinline preload="metadata" style="width:100%;max-width:330px;border-radius:12px;background:#000"></video>' +
-    (m.copertina ? '<div><img src="/api/lavori/' + L.id + '/copertina.jpg?v=' + e(m.versione || 1) + '" style="width:150px;border-radius:10px;display:block"><div class="mut">copertina</div></div>' : '') + '</div>' +
+    (m.copertina ? '<div><img src="/api/lavori/' + L.id + '/copertina.jpg?v=' + e(m.versione || 1) + '" style="width:150px;border-radius:10px;display:block"><div class="mut">copertina</div></div><div><img src="/api/lavori/' + L.id + '/copertina.jpg?v=' + e(m.versione || 1) + '" style="width:150px;aspect-ratio:3/4;object-fit:cover;border-radius:4px;display:block"><div class="mut">come appare nella griglia</div></div>' : '') + '</div>' +
     '<div class="riga" style="justify-content:center;margin-top:10px"><a class="btn" href="/api/lavori/' + L.id + '/reel.mp4?scarica=1">Scarica MP4</a>' + (m.copertina ? '<a class="btn sec" href="/api/lavori/' + L.id + '/copertina.jpg?scarica=1">Scarica copertina</a>' : '') + '</div>' +
     '<p class="mut">' + e(r.durata) + ' s \xB7 ' + e(r.lufs) + ' LUFS \xB7 ' + e(r.mb) + ' MB \xB7 montato in ' + e(r.secondi_di_lavoro) + ' s</p>' +
     ((r.problemi || []).length ? '<p class="err">\u26A0\uFE0E ' + e(r.problemi.join(' \xB7 ')) + '</p>' : '<p style="color:var(--ok)">\u2713 Revisore: tutto ok</p>') + '</div>' +
