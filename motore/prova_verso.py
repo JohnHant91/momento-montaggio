@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from PIL import Image, ImageDraw
 
 REGIA = os.environ.get("REGIA", "https://momento-reel.gestionalelcl.workers.dev")
+UA = "Mozilla/5.0 (motore Momento)"  # Cloudflare rifiuta lo user-agent di Python
 
 
 def token_github():
@@ -16,13 +17,13 @@ def token_github():
 
 def chiama(percorso, corpo):
     req = urllib.request.Request(REGIA + percorso, data=json.dumps(corpo).encode(), method="POST",
-                                 headers={"authorization": "Bearer " + token_github(), "content-type": "application/json"})
+                                 headers={"authorization": "Bearer " + token_github(), "content-type": "application/json", "user-agent": UA})
     with urllib.request.urlopen(req, timeout=900) as r:
         return json.loads(r.read())
 
 
 def durata(url):
-    p = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", url], capture_output=True, text=True, timeout=120)
+    p = subprocess.run(["ffprobe", "-v", "error", "-user_agent", UA, "-show_entries", "format=duration", "-of", "csv=p=0", url], capture_output=True, text=True, timeout=120)
     try:
         return float(p.stdout.strip())
     except ValueError:
@@ -31,7 +32,7 @@ def durata(url):
 
 def fotogramma(f):
     d = durata(f["url"]) or 2
-    p = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{d * 0.4:.2f}", "-i", f["url"], "-frames:v", "1",
+    p = subprocess.run(["ffmpeg", "-v", "error", "-user_agent", UA, "-ss", f"{d * 0.4:.2f}", "-i", f["url"], "-frames:v", "1",
                         "-vf", "scale=512:512:force_original_aspect_ratio=decrease", "-q:v", "4", "-f", "image2", "-"], capture_output=True, timeout=300)
     return p.stdout or None
 
