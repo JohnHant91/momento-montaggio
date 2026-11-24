@@ -52,7 +52,7 @@ async function chiediVerso(cfg, immagini) {
   const gradi = [];
   for (let k = 0; k < immagini.length; k += 10) {
     const lotto = immagini.slice(k, k + 10);
-    const out = await S.claudeVisione(cfg, cfg.CLAUDE_MODEL, PROMPT_VERSO, `Immagini: ${lotto.length}.`, lotto.map((j, n) => ({ cosa: `fotogramma ${n + 1}`, jpeg: j })), 400);
+    const out = await S.claudeVisione(cfg, cfg.CLAUDE_MODEL, PROMPT_VERSO, `Immagini: ${lotto.length}.`, lotto.map((j, n) => ({ cosa: `fotogramma ${n + 1}`, jpeg: j })), 2000);
     for (let n = 0; n < lotto.length; n++) { const g = Number(out?.gradi?.[n]); gradi.push([90, -90, 180].includes(g) ? g : 0); }
   }
   return gradi;
@@ -71,7 +71,8 @@ export async function motoreApi(req, env, url) {
     if (p.endsWith('/esito')) {
       const d = await req.json().catch(() => ({}));
       const cfg = chi(await configurazione(env), { area: 'reel', agente: 'occhi' });
-      const gradi = await chiediVerso(cfg, (d.immagini || []).slice(0, 200));
+      let gradi;
+      try { gradi = await chiediVerso(cfg, (d.immagini || []).slice(0, 200)); } catch (e) { return json({ errore: String(e?.message || e).slice(0, 300) }, 500); }
       await run(env, 'INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES (?,?)', 'PROVA_VERSO_ESITO', JSON.stringify({ quando: ora(), nomi: d.nomi || [], gradi }));
       return json({ gradi });
     }

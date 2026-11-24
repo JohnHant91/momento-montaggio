@@ -139,6 +139,8 @@ def verso_clip(lavoro, file_per_k):
     if not voci:
         return {}
     r = regia(lavoro, "verso", corpo={"immagini": [j for _, j in voci]}, timeout=300)
+    if r.get("errore") or len(r.get("gradi") or []) != len(voci):
+        raise RuntimeError(r.get("errore") or "risposta incompleta")
     out = {}
     for i, g in enumerate(r.get("gradi") or []):
         if i < len(voci) and g in (90, -90, 180):
