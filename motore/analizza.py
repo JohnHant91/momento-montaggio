@@ -614,6 +614,21 @@ def monta(lavoro):
                         avvisa("editor", f"{s.get('nome') or 'pezzo'}: {s['fuoco']} non trovato nell'immagine, lascio l'inquadratura piena", "warn")
                 except Exception as e:
                     avvisa("editor", f"fuoco su {s['fuoco']} non riuscito: {str(e)[:80]}", "warn")
+        # fotogrammi al secondo del reel = quelli del girato (25 in Italia): montare a 30 un girato a 25 ripete
+        # un fotogramma ogni cinque e l'immagine scatta
+        try:
+            import montatore as MT, formati as FM
+            fs = sorted(tecnico(s["file"]).get("fps") or 0 for s in (piano.get("segmenti") or [])[:12] if s.get("file"))
+            fs = [f for f in fs if f]
+            if fs:
+                f0 = fs[len(fs) // 2]
+                fr = 25 if 23 < f0 < 26.5 or 47 < f0 < 51 else 24 if 23 < f0 <= 24.1 else 30
+                MT.FPS = FM.FPS = fr
+                FM.FOTOGRAMMA = 1 / fr
+                MT.X264_INT[MT.X264_INT.index("-r") + 1] = str(fr)
+                avvisa("motore", f"girato a {f0:g} fps: monto a {fr} fotogrammi al secondo")
+        except Exception as e:
+            avvisa("motore", f"fps del girato non letti: {str(e)[:80]}", "warn")
         out = os.path.join(cartella, "reel.mp4")
         piano["_lavoro"] = lavoro.get("id") if isinstance(lavoro, dict) else lavoro
         Classe = montatore_per(piano)

@@ -163,14 +163,15 @@ class Montatore:
         if rif is not None:
             gain = np.clip(rif["rgb"] / np.maximum(m / max(m.mean(), 1), 0.01), 0.86, 1.14)
             gain = 1 + (gain - 1) * 0.85
-            y_target = rif["y"]
+            y_target = max(rif["y"], 112)
         else:
             gain = np.clip(m.mean() / np.maximum(m, 1), 0.88, 1.12)
             gain = 1 + (gain - 1) * 0.7  # correzione delicata: non deve ammazzare il look naturale della luce
             y_target = 118
         y = float(np.median(lum))
-        gamma = float(np.clip(math.log(y_target / 255) / math.log(max(y, 5) / 255), 0.75, 1.25)) if 25 < y < 240 else 1.0
-        gamma = 1 + (gamma - 1) * 0.8
+        scuro = y < 80  # girato sottoesposto (laboratori, sere): si porta su davvero, non di un pelo
+        gamma = float(np.clip(math.log(y_target / 255) / math.log(max(y, 5) / 255), 0.55 if scuro else 0.75, 1.25)) if 12 < y < 240 else 1.0
+        gamma = 1 + (gamma - 1) * (1.0 if scuro else 0.8)
         filtro = f"colorchannelmixer=rr={gain[0]:.3f}:gg={gain[1]:.3f}:bb={gain[2]:.3f},eq=gamma={gamma:.3f}"
         # sovraesposizione: tante zone quasi bianche o immagine troppo chiara -> curva che recupera le alte luci
         bruciati = float((lum > 240).mean())
@@ -178,6 +179,8 @@ class Montatore:
         if bruciati > 0.015 or p98 > 248 or y > 150:
             k = float(np.clip(max(bruciati * 2.5, (y - 130) / 400, (p98 - 235) / 150), 0.04, 0.18))
             filtro += (f",curves=all='0/0 0.25/{0.25 - k * 0.3:.3f} 0.5/{0.5 - k * 0.8:.3f} 0.75/{0.75 - k:.3f} 0.9/{0.88 - k:.3f} 1/{0.96 - k * 0.5:.3f}'")
+        if y < 60:  # molto scuro: alzo anche i mezzitoni con una curva morbida (le ombre restano dense)
+            filtro += ",curves=all='0/0 0.2/0.26 0.5/0.6 0.8/0.86 1/1'"
         # neri lavati: un po' di profondità
         p2 = float(np.percentile(lum, 2))
         if p2 > 28:
@@ -310,9 +313,9 @@ class Montatore:
         if rallenty:
             # 50 fps a 0,6x = 30 fps veri (a 0,5x sarebbero 25 fps e il 30 fps duplicherebbe fotogrammi: scatti)
             # rallenty vero solo sul girato a 48 fps o più; sotto, niente fotogrammi inventati (deformano l'immagine): al massimo 0,8x
-            vel = min(vel, max(0.5, FPS / info["fps"])) if info["fps"] >= 45 else 0.8
-        if info["fps"] < 45 and vel < 0.8:
-            vel = 0.8  # mai fotogrammi inventati sul girato a 24-30 fps
+            vel = min(vel, max(0.5, FPS / info["fps"])) if info["fps"] >= 45 else 1.0
+        if info["fps"] < 45 and vel < 1:
+            vel = 1.0  # sul girato a 24-30 fps un rallentamento ripete i fotogrammi: l'immagine scatta
         sorgente = dur * vel  # secondi di girato che servono
         t_in = max(0.0, min(float(s.get("in", 0)), max(0.0, info["dur"] - sorgente - 0.05)))
         out = os.path.join(self.tmp, f"pezzo_{i:02d}.mp4")
@@ -684,7 +687,7 @@ class Montatore:
         rate = max(8.0, min(16.0, 560 / max(totale, 1)))  # Mbit/s: master di qualità (IG ricomprime: più parte pulito, meglio esce); resta sotto ~75 MB
         self.ff(["-i", video, "-i", mixwav, "-filter_complex", f"[0:v]ass='{ass}':fontsdir='{self.fontdir}'[vout];[1:a]{norm}" + (f",afade=t=out:st={totale - getattr(self, 'fine_nero', 0) - 0.3:.3f}:d={getattr(self, 'fine_nero', 0) + 0.3:.3f}" if getattr(self, "fine_nero", 0) else "") + "[aout]",
                  "-map", "[vout]", "-map", "[aout]", "-t", f"{totale:.3f}",
-                        "-c:v", "libx264", "-preset", "medium", "-crf", "16", "-tune", "film", "-x264-params", "aq-mode=3", "-profile:v", "high", "-maxrate", f"{rate:.1f}M", "-bufsize", f"{rate * 2:.1f}M",
+                        "-c:v", "libx264", "-preset", "medium", "-crf", "16", "-tune", "film", "-x264-params", "aq-mode=3", "-profile:v", "high", "-maxrate", f"{rate:.1f}M", "-bufsize", f"{rate * 4:.1f}M",
                         "-pix_fmt", "yuv420p", "-r", str(FPS), "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out], "mix finale")
 
     # -------------------------------------------------------------- revisore
