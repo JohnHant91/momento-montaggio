@@ -441,6 +441,7 @@ export async function apiAgenzia(req, env, p, m, json) {
     return json(r);
   }
   const cc = p.match(/^\/api\/contenuti\/(\d+)$/);
+  if (cc && m === 'DELETE') { await run(env, 'DELETE FROM contenuti WHERE id=?', cc[1]); return json({ ok: true }); }
   if (cc && m === 'POST') {
     const d = await corpo();
     const c = await one(env, 'SELECT c.*, k.gest_id AS cliente_gest FROM contenuti c LEFT JOIN clienti k ON k.id=c.cliente_id WHERE c.id=?', cc[1]);

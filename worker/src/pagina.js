@@ -1039,7 +1039,7 @@ async function agentePagina(id) {
   };
 }
 
-function vistaContenuto(c) {
+function vistaContenuto(c, conElimina) {
   const h = JSON.parse(c.hashtag || '[]');
   const az = c.stato === 'da_approvare' ? '<button data-ok="' + c.id + '">✅ Approva</button><button class="sec" data-mod="' + c.id + '">✏️ Modifica</button><button class="rosso" data-no="' + c.id + '">Scarta</button>' :
     (c.stato === 'programmato' || c.stato === 'approvato' || c.stato === 'da_pubblicare') ? '<button class="sec" data-pub="' + c.id + '">Segna pubblicato</button><button class="sec" data-mod="' + c.id + '">✏️ Modifica</button>' : '';
@@ -1047,7 +1047,7 @@ function vistaContenuto(c) {
     '<div class="mut">' + (c.cliente ? e(c.cliente) + ' · ' : '') + (c.data ? '📅 ' + e(c.data) + (c.ora ? ' ' + e(c.ora) : '') : 'senza data') + ' · ' + e(AGENTI[c.agente]?.n || '') + '</div>' +
     '<div style="white-space:pre-wrap;margin:8px 0">' + e(c.testo || '') + (h.length ? '\\n\\n' + e(h.join(' ')) : '') + '</div>' +
     (c.visual ? '<div class="mut" style="white-space:pre-wrap">🖼️ ' + e(c.visual) + '</div>' : '') +
-    '<div class="riga" style="margin-top:8px">' + az + '<button class="sec" data-copia="' + c.id + '">Copia testo</button></div></div>';
+    '<div class="riga" style="margin-top:8px">' + az + '<button class="sec" data-copia="' + c.id + '">Copia testo</button>' + (conElimina === true ? btnDel('/api/contenuti/' + c.id, 'il post “' + (c.titolo || '') + '”') : '') + '</div></div>';
 }
 function agganciaContenuti(lista, dopo) {
   const trova = (id) => lista.find((x) => String(x.id) === String(id));
@@ -1233,7 +1233,7 @@ async function approvazioni() {
     '<video src="/api/lavori/' + l.id + '/reel.mp4" controls playsinline preload="none" poster="' + (l.copertina ? '/api/lavori/' + l.id + '/copertina.jpg' : '') + '" style="width:170px;aspect-ratio:9/16;border-radius:12px;background:#000;flex:0 0 170px"></video>' +
     '<div style="flex:1;min-width:0"><b>#' + l.id + ' · ' + e(l.titolo || l.prompt.slice(0, 90)) + '</b><div class="mut" style="margin:4px 0 10px">' + (l.avatar ? '🎭 profilo · ' : '') + 'pronto ' + fa(l.aggiornato) + ' · <a href="#/lavoro/' + l.id + '">dettagli</a></div>' +
     (l.nota_chiara ? '<div class="nota-chiara">📣 <b>Chiara' + (l.voto_chiara ? ' · ' + l.voto_chiara + '/10' : '') + ':</b> ' + e(l.nota_chiara) + '</div>' : '') +
-    '<div class="riga" style="gap:6px;flex-wrap:wrap"><button class="ap_reel" data-id="' + l.id + '" style="width:auto">✅ Approva</button><a class="btn sec" href="/api/lavori/' + l.id + '/reel.mp4?scarica=1">⬇︎ Scarica</a></div>' +
+    '<div class="riga" style="gap:6px;flex-wrap:wrap"><button class="ap_reel" data-id="' + l.id + '" style="width:auto">✅ Approva</button><a class="btn sec" href="/api/lavori/' + l.id + '/reel.mp4?scarica=1">⬇︎ Scarica</a>' + btnDel('/api/lavori/' + l.id, 'il reel #' + l.id) + '</div>' +
     '<textarea class="ap_rim" data-id="' + l.id + '" placeholder="Cosa cambio? (es. musica più lenta, togli la clip del forno, finale più lungo…)" style="margin-top:10px;min-height:60px"></textarea>' +
     '<button class="sec ap_rimb" data-id="' + l.id + '" style="width:auto;margin-top:6px">✏️ Rimonta con queste modifiche</button></div></div></div>').join('');
   // 2. copioni del profilo
@@ -1241,11 +1241,11 @@ async function approvazioni() {
     A.copioni.filter((c) => c.stato === 'da_approvare').map((c) => '<div class="ap-voce"><label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" class="av_ap" data-a="' + A.id + '" data-n="' + c.n + '" checked style="width:auto">' + e(c.titolo || 'Copione ' + c.n) + '</label>' +
       '<textarea class="av_tx" data-a="' + A.id + '" data-n="' + c.n + '" style="min-height:120px">' + e(c.testo || '') + '</textarea></div>').join('') +
     '<label>Clip tue da aggiungere, cartella pCloud (facoltativo)</label><input class="av_pc" data-a="' + A.id + '" placeholder="https://e.pcloud.link/publink/show?code=…">' +
-    '<button class="av_go" data-a="' + A.id + '" style="width:auto;margin-top:8px">✅ Approva i selezionati e genera</button></div>' : '').join('');
+    '<div class="riga" style="gap:6px;margin-top:8px"><button class="av_go" data-a="' + A.id + '" style="width:auto">✅ Approva i selezionati e genera</button>' + btnDel('/api/avatar/' + A.id, '“' + A.argomento + '”') + '</div></div>' : '').join('');
   // 3. copioni dei clienti
   const bPi = piD.filter(Boolean).map((P) => '<div class="card ap"><b>📝 ' + e((P.strategia || {}).titolo_piano || P.cliente) + '</b><div class="mut" style="margin-bottom:8px">' + e(P.cliente) + ' · ' + P.reel.length + ' copioni · <a href="#/copioni/' + P.id + '">apri e modifica</a></div>' +
     P.reel.slice(0, 30).map((r) => '<details class="ap-voce"><summary><b>' + r.numero + '.</b> ' + e((r.copione || r).titolo || r.argomento || '') + '</summary><div style="white-space:pre-wrap;font-size:14px;margin-top:6px">' + e(JSON.stringify(r.copione || r, null, 1).replace(/[{}"\[\]]/g, '').slice(0, 1500)) + '</div></details>').join('') +
-    '<button class="ap_piano" data-id="' + P.id + '" style="width:auto;margin-top:8px">✅ Approva i copioni</button></div>').join('');
+    '<div class="riga" style="gap:6px;margin-top:8px"><button class="ap_piano" data-id="' + P.id + '" style="width:auto">✅ Approva i copioni</button>' + btnDel('/api/piani/' + P.id, 'i copioni di ' + P.cliente) + '</div></div>').join('');
   // 4. caroselli
   const tipoPo = (P) => P.tipo === 'post' ? 'post' : P.tipo === 'misto' ? 'post caroselli' : 'caroselli';
   const bPo = poD.filter(Boolean).map((P) => '<div class="apsez" data-cat="' + tipoPo(P) + '">' + ((P) => { const Ct = P.contenuti || {}; const da = P.stato === 'da_approvare';
@@ -1254,27 +1254,27 @@ async function approvazioni() {
       return '<div class="card ap"><b>🎨 Slide pronte · ' + e(P.cliente || '') + '</b><div class="mut" style="margin-bottom:8px">impaginate con i modelli dell’agenzia</div>' +
         Object.entries(per).map(([n, ks]) => { const x = (Ct.post || []).find((y) => String(y.n) === n) || {}; return '<div class="ap-voce"><b>' + n + '. ' + e(x.titolo || '') + '</b><div class="sl-fila">' +
           ks.sort((a, b) => a[0] - b[0]).map(([, k]) => '<a href="/api/post/' + P.id + '/slide/' + k.split('/')[1] + '" target="_blank"><img loading="lazy" src="/api/post/' + P.id + '/slide/' + k.split('/')[1] + '"></a>').join('') + '</div></div>'; }).join('') +
-        '<div class="riga" style="gap:6px;margin-top:8px"><a class="btn" href="#/post/' + P.id + '">Pubblica o programma</a><button class="sec po_rifai" data-p="' + P.id + '" style="width:auto">Rifai l’impaginazione</button></div></div>'; }
+        '<div class="riga" style="gap:6px;margin-top:8px"><a class="btn" href="#/post/' + P.id + '">Pubblica o programma</a><button class="sec po_rifai" data-p="' + P.id + '" style="width:auto">Rifai l’impaginazione</button>' + btnDel('/api/post/' + P.id, 'i caroselli di ' + (P.cliente || '')) + '</div></div>'; }
     return '<div class="card ap"><b>🗂️ Caroselli ' + e(P.cliente || '') + '</b><div class="mut" style="margin-bottom:8px"><a href="#/post/' + P.id + '">apri per modificare le slide</a></div>' +
       (Ct.post || []).filter((x) => x.stato === 'da_approvare' || !x.stato).map((x) => '<div class="ap-voce"><label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" class="po_ap" data-p="' + P.id + '" data-n="' + x.n + '" checked style="width:auto">' + x.n + '. ' + e(x.titolo || '') + '</label>' +
         (x.nota_chiara?.nota ? '<div class="nota-chiara">📣 <b>Chiara' + (x.nota_chiara.voto ? ' · ' + x.nota_chiara.voto + '/10' : '') + ':</b> ' + e(x.nota_chiara.nota) + '</div>' : '') +
         '<ol style="padding-left:18px;margin:6px 0">' + (x.slide || []).map((sl) => '<li><b>' + e(sl.titolo || '') + '</b>' + (sl.testo ? ' — ' + e(sl.testo) : '') + '</li>').join('') + '</ol>' +
         '<textarea class="po_cap" data-p="' + P.id + '" data-n="' + x.n + '" style="min-height:70px">' + e(x.caption || '') + '</textarea></div>').join('') +
-      '<button class="po_go" data-p="' + P.id + '" style="width:auto;margin-top:8px">✅ Approva i selezionati</button></div>'; })(P) + '</div>').join('');
+      '<div class="riga" style="gap:6px;margin-top:8px"><button class="po_go" data-p="' + P.id + '" style="width:auto">✅ Approva i selezionati</button>' + btnDel('/api/post/' + P.id, 'i caroselli di ' + (P.cliente || '')) + '</div></div>'; })(P) + '</div>').join('');
   // 5. proposte delle riunioni
   const bRi = riD.filter(Boolean).map((R) => '<div class="card ap"><b>🤝 ' + e(R.titolo || R.richiesta || 'Riunione') + '</b><div class="mut" style="margin-bottom:8px">' + e(R.cliente || '') + ' · <a href="#/riunione/' + R.id + '">verbale completo</a></div>' +
     (R.proposte || []).map((pr, k) => '<div class="ap-voce' + (k === R.consigliata ? ' consigliata' : '') + '"><b>' + (k === R.consigliata ? '⭐ ' : '') + e(pr.titolo) + '</b><div style="font-size:14px;margin:4px 0">' + e(pr.sintesi || '') + '</div>' +
-      '<div class="mut">' + e(pr.tempi || '') + (pr.costo ? ' · ' + e(pr.costo) : '') + '</div><button class="ri_go" data-r="' + R.id + '" data-i="' + k + '" style="width:auto;margin-top:6px">Scegli questa</button></div>').join('') + '</div>').join('');
+      '<div class="mut">' + e(pr.tempi || '') + (pr.costo ? ' · ' + e(pr.costo) : '') + '</div><button class="ri_go" data-r="' + R.id + '" data-i="' + k + '" style="width:auto;margin-top:6px">Scegli questa</button></div>').join('') + '<div style="margin-top:8px">' + btnDel('/api/riunioni/' + R.id, 'la riunione “' + (R.titolo || R.richiesta || '') + '”') + '</div></div>').join('');
   // 6. documenti degli agenti
   const bDoc = Doc.map((d) => '<details class="card ap"><summary><b>📄 ' + e(d.titolo || 'Documento') + '</b> <span class="mut">' + e((AGENTI[d.agente] || {}).n || d.agente) + (d.cliente ? ' · ' + e(d.cliente) : '') + ' · ' + fa(d.aggiornato) + '</span></summary>' +
     (d.sintesi ? '<p>' + e(d.sintesi) + '</p>' : '') + (d.documento ? '<div class="md" style="max-height:420px;overflow:auto">' + md(d.documento) + '</div>' : '') +
-    '<div class="riga" style="gap:6px;margin-top:8px"><button class="doc_ok" data-id="' + d.id + '" style="width:auto">👍 Letto, va bene</button><a class="btn sec" href="#/incarico/' + d.id + '">Apri e chiedi modifiche</a></div></details>').join('');
+    '<div class="riga" style="gap:6px;margin-top:8px"><button class="doc_ok" data-id="' + d.id + '" style="width:auto">👍 Letto, va bene</button><a class="btn sec" href="#/incarico/' + d.id + '">Apri e chiedi modifiche</a>' + btnDel('/api/incarichi/' + d.id, 'il documento “' + (d.titolo || '') + '”') + '</div></details>').join('');
   // 7. post del calendario (contenuti)
   const gruppi = [['da_pubblicare', '⏰ Da pubblicare adesso'], ['da_approvare', '✅ Post da approvare']];
-  const bCont = gruppi.map(([st, t]) => { const g = L.filter((c) => c.stato === st); return g.length ? '<div class="apsez" data-cat="post"><h2 class="ap-h">' + t + ' <span class="pill">' + g.length + '</span></h2>' + g.map(vistaContenuto).join('') + '</div>' : ''; }).join('');
+  const bCont = gruppi.map(([st, t]) => { const g = L.filter((c) => c.stato === st); return g.length ? '<div class="apsez" data-cat="post"><h2 class="ap-h">' + t + ' <span class="pill">' + g.length + '</span></h2>' + g.map((c) => vistaContenuto(c, true)).join('') + '</div>' : ''; }).join('');
   const totale = reel.length + bAv.split('class="ap-voce"').length - 1 + piD.filter(Boolean).length + poD.filter(Boolean).length + riD.filter(Boolean).length + Doc.length + L.filter((c) => ['da_approvare', 'da_pubblicare'].includes(c.stato)).length;
   const prog = L.filter((c) => ['programmato', 'approvato'].includes(c.stato));
-  $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Approvazioni' + (totale ? ' <span class="pill" style="background:var(--warn);color:#fff">' + totale + '</span>' : '') + '</h1><button class="sec" id="notif" style="width:auto">🔔 Notifiche su questo telefono</button></div>' +
+  $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Approvazioni' + (totale ? ' <span class="pill" style="background:var(--warn);color:#fff">' + totale + '</span>' : '') + '</h1>' + (totale ? '<button class="rosso" id="ap_delall" style="width:auto;margin-right:6px">🗑 Elimina tutti</button>' : '') + '<button class="sec" id="notif" style="width:auto">🔔 Notifiche su questo telefono</button></div>' +
     '<div class="riga filtri" id="ap_f" style="flex-wrap:wrap;gap:6px;margin:6px 0 4px">' + [['tutto', 'Tutto'], ['video', '🎬 Video'], ['post', '📱 Post'], ['caroselli', '🗂️ Caroselli'], ['copioni', '✍️ Copioni'], ['altro', '🤝 Proposte e documenti']].map(([k, t]) => '<button class="chip' + (k === (sessionStorage.apf || 'tutto') ? ' att' : '') + '" data-f="' + k + '">' + t + '</button>').join('') +
       '<span style="flex:1"></span><a class="chip" href="#/reel">⏳ In lavorazione</a><a class="chip" href="#/nuovo">+ Reel</a><a class="chip" href="#/post/nuovo">+ Post o caroselli</a><a class="chip" href="#/copioni/nuovo">+ Copioni per un cliente</a></div><div id="ap_vuoto" class="vuoto" hidden>Niente in questa categoria.</div>' +
     (totale ? '' : '<div class="vuoto">Niente da approvare: quando qualcosa è pronto ti arriva la notifica sul telefono.</div>') +
@@ -1282,14 +1282,22 @@ async function approvazioni() {
     (bPo ? '<h2 class="ap-h apsez" data-cat="post caroselli">🗂️ Post e caroselli</h2>' + bPo : '') + bCont + sez('🤝', 'Proposte delle riunioni da scegliere', riD.filter(Boolean).length, bRi, 'altro') + sez('📄', 'Documenti degli agenti da leggere', Doc.length, bDoc, 'altro') +
     (prog.length ? '<div class="apsez" data-cat="post"><h2 class="ap-h">🗓️ In programmazione <span class="pill">' + prog.length + '</span></h2>' + prog.slice(0, 15).map(vistaContenuto).join('') + '</div>' : '');
   agganciaContenuti(L, rotta);
+  // gli elementi da eliminare visibili col filtro scelto (una sola volta ciascuno: un lavoro di caroselli ha un solo pulsante che conta)
+  const visibili = () => [...new Set([...document.querySelectorAll('.apsez .ap_del')].filter((b) => [...document.querySelectorAll('.apsez')].every((x) => !x.contains(b) || x.style.display !== 'none')).map((b) => b.dataset.url))];
   const filtra = (f) => { try { sessionStorage.apf = f; } catch (_) {} let n = 0;
     document.querySelectorAll('#ap_f [data-f]').forEach((b) => b.classList.toggle('att', b.dataset.f === f));
     document.querySelectorAll('.apsez').forEach((x) => { const ok = f === 'tutto' || x.dataset.cat.split(' ').includes(f); x.style.display = ok ? '' : 'none'; if (ok && !x.matches('h2')) n++; });
-    if ($('#ap_vuoto')) $('#ap_vuoto').hidden = !totale || n > 0; };
+    if ($('#ap_vuoto')) $('#ap_vuoto').hidden = !totale || n > 0;
+    const vis = visibili(); if ($('#ap_delall')) { $('#ap_delall').hidden = !vis.length; $('#ap_delall').textContent = '🗑 Elimina tutti' + (f === 'tutto' ? '' : ' questi') + ' (' + vis.length + ')'; } };
   document.querySelectorAll('#ap_f [data-f]').forEach((b) => b.onclick = () => filtra(b.dataset.f));
   filtra((() => { try { return sessionStorage.apf || 'tutto'; } catch (_) { return 'tutto'; } })());
   const azione = async (b, fn) => { b.disabled = true; const t = b.textContent; b.textContent = '…'; try { await fn(); rotta(); } catch (x) { alert(x.message); b.disabled = false; b.textContent = t; } };
   if ($('#notif')) $('#notif').onclick = attivaNotifiche;
+  document.querySelectorAll('.ap_del').forEach((b) => b.onclick = () => { if (!confirm('Elimino ' + (b.dataset.nome || 'questo elemento') + '? Non si può annullare.')) return; azione(b, () => chiama(b.dataset.url, { method: 'DELETE' })); });
+  if ($('#ap_delall')) $('#ap_delall').onclick = async () => { const b = $('#ap_delall'), L = visibili(); if (!L.length) return;
+    if (!confirm((L.length === 1 ? 'Elimino l’unico elemento da approvare che vedi' : 'Elimino tutti i ' + L.length + ' elementi da approvare che vedi') + ((sessionStorage.apf || 'tutto') === 'tutto' ? '' : ' in questo filtro') + '? Non si può annullare.')) return;
+    b.disabled = true; let k = 0, err = 0; for (const u of L) { b.textContent = 'Elimino ' + (++k) + ' di ' + L.length + '…'; try { await chiama(u, { method: 'DELETE' }); } catch (_) { err++; } }
+    if (err) alert(err + ' elementi non eliminati: riprova'); rotta(); };
   document.querySelectorAll('.ap_reel').forEach((b) => b.onclick = () => azione(b, () => chiama('/api/lavori/' + b.dataset.id + '/approva', { method: 'POST', body: {} })));
   document.querySelectorAll('.ap_rimb').forEach((b) => b.onclick = () => { const t = document.querySelector('.ap_rim[data-id="' + b.dataset.id + '"]').value.trim(); if (!t) return alert('Scrivi cosa vuoi cambiare'); azione(b, () => chiama('/api/lavori/' + b.dataset.id + '/rimonta', { method: 'POST', body: { testo: t } })); });
   document.querySelectorAll('.av_go').forEach((b) => b.onclick = () => { const a = b.dataset.a; const n = [...document.querySelectorAll('.av_ap[data-a="' + a + '"]:checked')].map((x) => Number(x.dataset.n));
@@ -1306,6 +1314,7 @@ async function approvazioni() {
 
 // ARCHIVIO: le cartelle dell'agenzia su Cloudflare (clienti → progetti, musica, grafiche…). Si carica da qui, anche file da diversi GB.
 const pesoTesto = (b) => !b ? 'vuota' : b > 1073741824 ? (b / 1073741824).toFixed(1).replace('.', ',') + ' GB' : b > 1048576 ? Math.round(b / 1048576) + ' MB' : Math.max(1, Math.round((b || 0) / 1024)) + ' KB';
+const btnDel = (url, nome) => '<button class="rosso ap_del" data-url="' + url + '" data-nome="' + e(nome || '') + '" style="width:auto">🗑 Elimina</button>';
 const ICONA_FILE = { cartella: '📁', video: '🎬', immagine: '🖼️', musica: '🎵', altro: '📄' };
 async function archivioPagina(cart) {
   const A = await chiama('/api/archivio?cartella=' + encodeURIComponent(cart || ''));
