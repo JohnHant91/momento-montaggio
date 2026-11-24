@@ -52,10 +52,11 @@ export async function schemaAgenzia(env) {
 }
 
 // ------------------------------------------------------------------ scheda cliente
+import { testoLinea, lineaCliente, schemaChiara } from './chiara.js';
 export async function cliente(env, id) { return id ? one(env, 'SELECT * FROM clienti WHERE id=?', id) : null; }
 const testoScheda = (C) => C ? `SCHEDA CLIENTE: ${C.nome}${C.nicchia ? ' · ' + C.nicchia : ''}
 ${C.scheda || '(la scheda non è ancora stata scritta: lavora con quello che sai dal brief e scrivilo in "domande")'}
-${C.note ? 'NOTE DI JOHNNY: ' + C.note : ''}` : 'CLIENTE: nessuno in particolare (lavoro interno di Momento Produzione o generico).';
+${C.note ? 'NOTE DI JOHNNY: ' + C.note : ''}${C.linea ? '\n' + testoLinea(J(C.linea, null)) : ''}` : 'CLIENTE: nessuno in particolare (lavoro interno di Momento Produzione o generico).';
 
 const ADATTA = `COME USI LE SKILL QUI SOTTO (sono il tuo metodo di lavoro, adattale così):
 - "brand-profile.md", voce, pubblico ecc. = la SCHEDA CLIENTE che trovi nel messaggio. Se manca qualcosa, fai l'ipotesi più ragionevole e scrivila in "domande".
@@ -506,6 +507,15 @@ export async function apiAgenzia(req, env, p, m, json) {
     const r = await one(env, 'INSERT INTO incarichi (agente, cliente_id, titolo, brief, creato, aggiornato) VALUES (?,?,?,?,?,?) RETURNING id', 'brand', C.id, 'Scheda cliente: ' + C.nome,
       (C.scheda ? 'Aggiorna la scheda esistente (qui sotto) con le nuove informazioni.\nSCHEDA ATTUALE:\n' + C.scheda + '\n\n' : '') + 'INFORMAZIONI DI JOHNNY:\n' + String(d.info || '').slice(0, 8000), ora(), ora());
     return json({ id: r.id });
+  }
+  const kl = p.match(/^\/api\/clienti\/(\d+)\/linea$/);
+  if (kl && m === 'POST') {
+    await schemaChiara(env);
+    const C = await cliente(env, kl[1]); if (!C) return json({ errore: 'non trovato' }, 404);
+    const { configurazione } = await import('./db.js');
+    const { chi } = await import('./consumi.js');
+    const cfg = chi(await configurazione(env), { area: 'agenzia', agente: 'smm', cliente_id: C.id });
+    return json({ linea: await lineaCliente(env, cfg, C, true) });
   }
   if (kc && m === 'DELETE') { await run(env, 'DELETE FROM clienti WHERE id=?', kc[1]); return json({ ok: true }); }
   return null;

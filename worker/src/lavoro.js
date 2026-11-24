@@ -4,6 +4,7 @@ import { J, all, log, one, ora, run, configurazione } from './db.js';
 import { libreriaTesto } from './libreria.js';
 import * as S from './servizi.js';
 import * as A from './archivio.js';
+import { clientePerNome, lineaCliente, testoLinea, ripassoChiara } from './chiara.js';
 import { rilevaStile, ricetta, ricercaStile } from './stili.js';
 import { LUT, LUT_NOMI, lutPerStile, descriviLut, voceLut } from './lut.js';
 import { MANUALE_AUDIO, MANUALE_COPY, MANUALE_DIRETTORE, MANUALE_FORMATI, MANUALE_IRIS, MANUALE_MODELLO, MANUALE_PUBBLICAZIONE, MANUALE_REGISTA, MANUALE_SPOT } from './manuali.js';
@@ -567,7 +568,13 @@ VINCOLI: look ${R.look}; durata dei pezzi ${R.durata ? R.durata.map((x) => x.toF
 Applica questo linguaggio alle clip di Johnny: scegli i momenti che si prestano a questo stile.
 LUT CONSIGLIATE PER QUESTO STILE (scegline una e dosala; più il girato è già bello e luminoso, più bassa l'intensità):
 ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
-  const p = await S.claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda, clip) + extraMusica + extraStile + extra, { maxTokens: 12000 });
+  // Chiara passa a Rocco la linea editoriale del cliente (voce, cosa evitare, CTA)
+  const nomeCliente = L.fonte === 'archivio' && /^Clienti\//.test(L.pcloud || '') ? L.pcloud.split('/')[1] : await A.clienteDalTesto(env, L.prompt).catch(() => null);
+  const Ccl = nomeCliente ? await clientePerNome(env, nomeCliente).catch(() => null) : null;
+  const lineaCl = Ccl ? await lineaCliente(env, cfg, Ccl).catch(() => null) : null;
+  const extraLinea = lineaCl ? '\n\n' + testoLinea(lineaCl) + '\nTitoli, testi a schermo, copertina e caption devono rispettare questa linea.' : '';
+  if (lineaCl) await log(env, L.id, 'smm', `📣 Chiara passa a Rocco la linea editoriale di ${Ccl.nome}`);
+  const p = await S.claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda, clip) + extraMusica + extraStile + extraLinea + extra, { maxTokens: 12000 });
   // controllo del piano: valori ammessi, clip esistenti, tempi dentro le clip
   const tutte = J(L.clip, []);
   const eImm = (c) => c?.tipo === 'immagine' || c?.tecnico?.tipo === 'immagine';
@@ -713,7 +720,9 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
     lut: indicazioni?.lut === 'nessuna' ? null : voceLut(LUT[indicazioni?.lut] ? indicazioni.lut : (LUT[p.lut?.nome] ? p.lut.nome : (lookVoluto ? null : lutPerStile(J(L.stile, null))[0])), indicazioni?.lut ? null : p.lut?.intensita),
   };
   const versione = (prima?.versione || 0) + 1;
-  await run(env, 'UPDATE lavori SET montaggio=? WHERE id=?', JSON.stringify({ stato: 'da_fare', piano, versione, creato: ora(), indicazioni: indicazioni || null }), L.id);
+  // Chiara ripassa titoli, copertina e caption prima del montaggio: la sua nota arriva a Johnny con il reel
+  const notaChiara = await ripassoChiara(env, cfg, Ccl, 'reel', { titoli: (piano.titoli || []).map((t) => t.testo || t), copertina: piano.copertina?.testo, caption: piano.caption || p.caption, chiusura: piano.chiusura?.testo || p.chiusura }).catch(() => null);
+  await run(env, 'UPDATE lavori SET montaggio=? WHERE id=?', JSON.stringify({ stato: 'da_fare', piano, versione, creato: ora(), indicazioni: indicazioni || null, nota_chiara: notaChiara }), L.id);
   const tot = seg.reduce((a, s) => a + s.durata, 0);
   const nomeF = { montaggio: 'montaggio', talking_head: 'talking-head', carosello: 'carosello', split_grafico: 'split con grafiche animate', parole_dietro: 'parole giganti dietro la persona' }[formato];
   await log(env, L.id, 'regista', formato === 'carosello' ? `piano pronto: formato carosello, ${slide.length} slide` :

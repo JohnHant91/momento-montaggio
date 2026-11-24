@@ -3,6 +3,7 @@
 // testi, caption. Lavora a fasi dal cron: strategia → copioni a gruppi di 4 → fatto. Si può rifare un singolo reel.
 import { all, one, run, J, ora, configurazione, log } from './db.js';
 import * as S from './servizi.js';
+import { clientePerNome, lineaCliente, testoLinea } from './chiara.js';
 import { MANUALE_COPIONI, MANUALE_COPY, MANUALE_DIRETTORE } from './manuali.js';
 import { chi } from './consumi.js';
 
@@ -53,11 +54,17 @@ PIATTAFORME: ${d.piattaforme || 'Instagram Reels (+ TikTok)'}
 OBIETTIVO DEL CLIENTE: ${d.obiettivo || '(deducilo)'}
 PUBBLICO: ${d.pubblico || '(deducilo)'}
 TONO: ${d.tono || '(deducilo dal settore)'}
-NOTE DI JOHNNY: ${d.note || '—'}`;
+NOTE DI JOHNNY: ${d.note || '—'}${d.linea_testo ? '\n\n' + d.linea_testo : ''}`;
 }
 
 async function faseStrategia(env, cfg, P) {
   const d = J(P.dati, {});
+  // Chiara passa a Nora la linea editoriale del cliente (se il cliente è in agenzia)
+  if (!d.linea_testo) {
+    const C = await clientePerNome(env, d.cliente).catch(() => null);
+    const L = C ? await lineaCliente(env, cfg, C).catch(() => null) : null;
+    if (L) { d.linea_testo = testoLinea(L); await run(env, 'UPDATE piani SET dati=? WHERE id=?', JSON.stringify(d), P.id); await log(env, null, 'smm', `📣 Chiara passa a Nora la linea editoriale di ${C.nome} per i copioni`); }
+  }
   await log(env, null, 'idee', `💡 piano "${d.cliente}": studio gli argomenti e distribuisco ${d.numero} reel in ${d.mesi} mesi`);
   const s = await S.claude(cfg, SISTEMA_STRATEGIA, `${datiTesto(d)}
 

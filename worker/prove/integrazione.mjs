@@ -213,6 +213,7 @@ ok(P.fase === 'impagina' && P.stato === 'in_corso' && P.contenuti.post[0].captio
   const k = pac.slide.slice(0, 2).map((x) => x.chiave);
   for (const c of k) await W.fetch(new Request('https://x/api/motore/impagina/' + pid2 + '/slide?k=' + encodeURIComponent(c), { method: 'PUT', headers: { 'x-pass': pass }, body: new Uint8Array([255, 216, 255]) }), env);
   await W.fetch(new Request('https://x/api/motore/impagina/' + pid2 + '/fine', { method: 'POST', headers: { 'x-pass': pass, 'content-type': 'application/json' }, body: JSON.stringify({ fatte: k, errori: [] }) }), env);
+  { const Pp = (await chiama('/api/post/' + pid2)).j; ok(Pp.contenuti.post.some((x) => x.nota_chiara?.nota), 'Chiara ripassa i caroselli prima di Johnny'); }
   P = (await chiama('/api/post/' + pid2)).j; ok(P.stato === 'da_vedere' && P.slide_file.length === 2, 'le slide impaginate tornano e vanno in Approvazioni');
   const a = await chiama('/api/azienda'); ok(a.j.da_approvare >= 1, 'il contatore delle approvazioni le conta'); }
 r = await chiama('/api/post/' + pid2 + '/canva', { method: 'POST', body: { post: [{ n: 1, design_id: 'DAF1234567x', link: 'https://www.canva.com/design/DAF/edit', png: ['https://export.canva.example/1.png', 'https://export.canva.example/2.png'] }] } });

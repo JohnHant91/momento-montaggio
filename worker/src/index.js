@@ -187,7 +187,7 @@ async function api(req, env, url) {
   }
 
   if (p === '/api/lavori' && m === 'GET') {
-    const r = await all(env, "SELECT id, prompt, stato, fase, errore, creato, aggiornato, approvato, json_extract(scheda, '$.titolo_lavoro') AS titolo, json_extract(montaggio, '$.stato') AS mstato, json_extract(montaggio, '$.copertina') AS copertina, json_extract(stile, '$.avatar') AS avatar FROM lavori ORDER BY id DESC LIMIT 100");
+    const r = await all(env, "SELECT id, prompt, stato, fase, errore, creato, aggiornato, approvato, json_extract(scheda, '$.titolo_lavoro') AS titolo, json_extract(montaggio, '$.stato') AS mstato, json_extract(montaggio, '$.copertina') AS copertina, json_extract(stile, '$.avatar') AS avatar, json_extract(montaggio, '$.nota_chiara.nota') AS nota_chiara, json_extract(montaggio, '$.nota_chiara.voto') AS voto_chiara FROM lavori ORDER BY id DESC LIMIT 100");
     return json(r);
   }
   if (p === '/api/lavori' && m === 'POST') {

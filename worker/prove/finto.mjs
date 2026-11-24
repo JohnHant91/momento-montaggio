@@ -61,6 +61,8 @@ function rispostaClaude(body) {
   const sys = typeof body.system === 'string' ? body.system : JSON.stringify(body.system);
   const msg = JSON.stringify(body.messages);
   chiamateClaude.push(sys.slice(0, 60));
+  if (sys.includes('Sei Chiara, social media manager di AGENZIA MOMENTO AI')) return { obiettivo: 'prenotazioni', pubblico: 'coppie', voce: 'calda', pilastri: ['camere', 'colazione'], cosa_evitare: ['prezzi'], mix_mese: { reel: 4, caroselli: 4, post: 4 }, stile_visivo: 'luce calda', cta: ['scrivici in DM'], da_chiedere: [] };
+  if (sys.includes('Sei Chiara, social media manager. Ripassi')) return { voto: 8, ok: true, nota: 'Coerente con la linea, gancio forte.' };
   if (sys.includes('Scegli la musica per un reel')) { const k = msg.match(/i\\":(\d+),\\"umore\\":\\"Natal/); return { i: k ? Number(k[1]) : 0 }; }
   if (sys.includes('Prepari le ricerche')) return { youtube: ['reel ristoranti errori', 'restaurant reels mistakes'], tiktok: ['reel ristorante'], hashtag: ['ristoranti'] };
   if (sys.startsWith('Sei Zoe')) return { ganci_che_funzionano: ['Il motivo per cui… non è quello che pensi'], strutture: ['problema-tensione-soluzione'], angoli_scoperti: ['il menu'], durata_ideale_sec: 55, da_evitare: ['elenchi'], nota: 'ok' };

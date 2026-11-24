@@ -12,6 +12,7 @@ import { cliente } from './agenzia.js';
 import { instagram, firmaPubblica } from './avatar.js';
 import { MODELLI, svegliaImpagina } from './impagina.js';
 import { fileSotto } from './archivio.js';
+import { clientePerNome, lineaCliente, testoLinea, ripassoChiara } from './chiara.js';
 
 const BLOCCO_MIN = 12;
 export const FASI_POST = [['ricerca', 'Post virali'], ['studio', 'Studio'], ['foto', 'Foto'], ['contenuti', 'Testi'], ['approvazione', 'Approvazione'], ['impagina', 'Impaginazione'], ['fatto', 'Pronto']];
@@ -170,7 +171,9 @@ async function fasefoto(env, cfg, P) {
 
 // ------------------------------------------------------------------ 4. Pietro scrive i caroselli, Giulia caption e hashtag
 async function faseContenuti(env, cfg, P) {
-  const C = P.cliente_id ? await cliente(env, P.cliente_id) : null;
+  const C = P.cliente_id ? await cliente(env, P.cliente_id) : await clientePerNome(env, P.cliente).catch(() => null);
+  const linea = C ? await lineaCliente(env, cfg, C).catch(() => null) : null;
+  if (linea) await log(env, null, 'smm', `📣 Chiara passa a Pietro e Giulia la linea editoriale di ${C.nome}`);
   const St = J(P.studio, {}), F = (J(P.foto, {})?.foto || []).filter((f) => f.uso !== 'scarta').sort((a, b) => (b.qualita || 0) - (a.qualita || 0));
   const out = await S.claude(cfg, `Sei Pietro (caroselli e grafiche) con Giulia (copywriter) di AGENZIA MOMENTO AI. Scrivi post e caroselli Instagram pronti da impaginare con i modelli dell'agenzia.
 MODELLI DI SLIDE (scegli per ogni slide quello giusto, la copertina con foto se c'è una foto buona):
@@ -181,7 +184,7 @@ usa SOLO le foto dell'elenco (nome file esatto) quando ci sono, la migliore come
 ${(SKILL['carousel-writer'] || '').slice(0, 6000)}
 ===== SKILL: caption-writer =====
 ${(SKILL['caption-writer'] || '').slice(0, 3000)}`,
-  `CLIENTE: ${P.cliente}${C?.scheda ? '\nSCHEDA DEL CLIENTE:\n' + String(C.scheda).slice(0, 3000) : ''}
+  `CLIENTE: ${P.cliente}${C?.scheda ? '\nSCHEDA DEL CLIENTE:\n' + String(C.scheda).slice(0, 3000) : ''}${linea ? '\n' + testoLinea(linea) : ''}
 NICCHIA: ${P.nicchia}
 COSA VUOLE JOHNNY: ${P.numero} ${P.tipo === 'post' ? 'post a foto singola' : P.tipo === 'misto' ? 'contenuti tra caroselli e post singoli' : 'caroselli'} da ${P.slide} slide circa.
 BRIEF: ${P.brief}${P.note ? '\nNOTE: ' + P.note : ''}
@@ -194,6 +197,9 @@ Rispondi SOLO JSON:
    "slide": [{"n": 1, "ruolo": "copertina | contenuto | cta", "modello": "uno dei MODELLI", "titolo": "testo grande", "testo": "testo piccolo o vuoto (per lista: un punto per riga)", "foto": "nome file o null", "altre_foto": ["solo per collage"]}],
    "caption": "caption completa con gancio e CTA", "hashtag": ["8-12 hashtag senza #"], "alt": "testo alternativo"}]}`, { maxTokens: 16000 });
   const post = (out.post || []).slice(0, P.numero).map((p, i) => ({ ...p, n: i + 1, stato: 'da_approvare' }));
+  // Chiara ripassa ogni post prima che arrivi a Johnny
+  for (const x of post) x.nota_chiara = await ripassoChiara(env, cfg, C, x.tipo || 'carosello', { titolo: x.titolo, slide: (x.slide || []).map((s) => [s.titolo, s.testo].filter(Boolean).join(' — ')), caption: x.caption });
+  if (post.some((x) => x.nota_chiara)) await log(env, null, 'smm', `📣 Chiara ha ripassato ${post.length} contenuti di ${P.cliente}: le sue note sono in Approvazioni`);
   await run(env, "UPDATE post_lavori SET contenuti=?, fase='approvazione', stato='da_approvare', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify({ stile: out.stile || {}, post }), ora(), P.id);
   await log(env, null, 'caroselli', `🗂️ post #${P.id}: ${post.length} ${P.tipo === 'post' ? 'post' : 'caroselli'} scritti (${post.reduce((s, p) => s + (p.slide || []).length, 0)} slide). Johnny, tocca a te approvarli`);
 }
