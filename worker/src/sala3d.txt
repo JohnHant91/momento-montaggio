@@ -19,7 +19,8 @@ const STANZE = [
   { id: 'marketing', x: 0, z: 0, w: 8.25, d: COR_Z, lato: 'n', col: 3 },
   { id: 'social', x: 8.25, z: 0, w: 8.25, d: COR_Z, lato: 'n', col: 3 },
   { id: 'direzione', x: 16.5, z: 0, w: 12, d: COR_Z, lato: 'n', col: 3, porta: 6, scrivanie: 1.3 },
-  { id: 'video', x: 28.5, z: 0, w: 16.5, d: COR_Z, lato: 'n', col: 6 },
+  { id: 'video', x: 28.5, z: 0, w: 11, d: COR_Z, lato: 'n', col: 6 },
+  { id: 'giochi', x: 39.5, z: 0, w: 5.5, d: COR_Z, lato: 'n', col: 0, nome: 'Sala giochi' },
   // fila sud (davanti): porta verso il corridoio = parete di fondo della stanza; la sala meeting è al centro, grande come la direzione
   { id: 'relax', x: 0, z: COR_Z + COR_D, w: 5.0, d: SUD, lato: 's', col: 0, nome: 'Sala relax' },
   { id: 'foto', x: 5.0, z: COR_Z + COR_D, w: 6.0, d: SUD, lato: 's', col: 3 },
@@ -30,7 +31,7 @@ const STANZE = [
   { id: 'contabilita', x: 39.5, z: COR_Z + COR_D, w: 5.5, d: SUD, lato: 's', col: 1 },
 ];
 const ST = (id) => STANZE.find((r) => r.id === id);
-const TINTE = { direzione: '#e7ebff', marketing: '#fff0e6', social: '#ffeef4', video: '#eaf6ee', foto: '#fff7e2', web: '#e9f4fb', booking: '#eef8e6', gestionale: '#f1edff', contabilita: '#fff3e3', relax: '#f4efe6', meeting: '#eef2f7' };
+const TINTE = { giochi: '#ffe9f0', direzione: '#e7ebff', marketing: '#fff0e6', social: '#ffeef4', video: '#eaf6ee', foto: '#fff7e2', web: '#e9f4fb', booking: '#eef8e6', gestionale: '#f1edff', contabilita: '#fff3e3', relax: '#f4efe6', meeting: '#eef2f7' };
 
 // ---------------------------------------------------------------- texture disegnate al volo
 function canvasTex(w, h, fn) {
@@ -493,18 +494,71 @@ function arredaUfficio(R) {
 
 function arredaDirezione(R) {
   const { scena, mat } = S;
-  const cx = R.x + R.w / 2 + 0.8, cz = R.z + R.d * 0.66;
-  const piano = ombra(new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.06, 48), mat.legno)); piano.scale.set(1.6, 1, 0.62); piano.position.set(cx, 0.75, cz); scena.add(piano);
-  for (const dx of [-0.9, 0.9]) { const g = box(0.08, 0.72, 0.5, mat.bianco, 0.02); g.position.set(cx + dx, 0.37, cz); scena.add(g); }
-  giroDiSedie(cx, cz, 2.15, 1.05, 10, 'direzione');
-  const lap = box(0.34, 0.02, 0.24, mat.metallo, 0.01); lap.position.set(cx - 0.6, 0.79, cz); scena.add(lap);
-  const tazza = ombra(new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.035, 0.09, 16), mat.bianco)); tazza.position.set(cx + 0.5, 0.82, cz + 0.15); scena.add(tazza);
-  const tappeto = new THREE.Mesh(new RoundedBoxGeometry(5.6, 0.012, 2.6, 2, 0.006), new THREE.MeshStandardMaterial(HQ ? { color: 0x0e2a33, emissive: 0x0b4f5e, emissiveIntensity: 0.7, roughness: 0.4 } : { color: 0xcfd6e6, roughness: 0.95 }));
-  tappeto.position.set(cx, 0.055, cz); tappeto.receiveShadow = true; scena.add(tappeto);
-  const libreria = box(1.8, 1.4, 0.35, mat.bianco, 0.03); libreria.position.set(R.x + R.w - 1.3, 0.7, R.z + 0.3); scena.add(libreria);
-  for (let i = 0; i < 9; i++) { const l = box(0.08, 0.3, 0.24, matC([0xd97757, 0x5a74d6, 0x5f9a5c, 0xf0b44c, 0x2f3e56][i % 5], 0.7), 0.01); l.position.set(R.x + R.w - 2.05 + i * 0.17, 1.05, R.z + 0.32); scena.add(l); }
+  const cx = R.x + R.w / 2, cz = R.z + R.d * 0.42;
+  const tappeto = new THREE.Mesh(new RoundedBoxGeometry(6.2, 0.012, 4.4, 2, 0.006), new THREE.MeshStandardMaterial(HQ ? { color: 0x0e2a33, emissive: 0x0b4f5e, emissiveIntensity: 0.7, roughness: 0.4 } : { color: 0xcfd6e6, roughness: 0.95 }));
+  tappeto.position.set(cx, 0.055, cz + 0.4); tappeto.receiveShadow = true; scena.add(tappeto);
+  // scrivania grandissima (4 m) con il fianco luminoso
+  const piano = box(4.0, 0.08, 1.5, mat.legno, 0.03); piano.position.set(cx, 0.78, cz); scena.add(piano);
+  const fronte = box(4.0, 0.7, 0.06, mat.bianco, 0.02); fronte.position.set(cx, 0.4, cz + 0.72); scena.add(fronte);
+  for (const dx of [-1.95, 1.95]) { const f = box(0.08, 0.74, 1.4, mat.bianco, 0.02); f.position.set(cx + dx, 0.37, cz); scena.add(f); }
+  if (HQ) { const l = new THREE.Mesh(new THREE.BoxGeometry(3.9, 0.015, 0.015), mat.luce); l.position.set(cx, 0.74, cz + 0.76); scena.add(l); }
+  const lap = box(0.34, 0.02, 0.24, mat.metallo, 0.01); lap.position.set(cx + 0.9, 0.83, cz - 0.1); scena.add(lap);
+  const tazza = ombra(new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.035, 0.09, 16), mat.vaso)); tazza.position.set(cx - 1.2, 0.86, cz + 0.2); scena.add(tazza);
+  // dall'altra parte, verso la porta: tre sedie per gli ospiti rivolte al direttore
+  for (const dx of [-1.1, 0, 1.1]) { const se = sedia(mat); se.position.set(cx + dx, 0, cz + 1.45); se.rotation.y = Math.PI; scena.add(se); }
+  // libreria alle spalle del direttore
+  const libreria = box(2.4, 1.6, 0.35, mat.bianco, 0.03); libreria.position.set(cx, 0.8, R.z + 0.3); scena.add(libreria);
+  for (let i = 0; i < 12; i++) { const l = box(0.08, 0.3, 0.24, matC([0xd97757, 0x5a74d6, 0x5f9a5c, 0xf0b44c, 0x2f3e56][i % 5], 0.7), 0.01); l.position.set(cx - 1.0 + i * 0.17, 1.2, R.z + 0.32); scena.add(l); }
+  S.direzioneDesk = { cx, cz };
+}
+// il direttore: dietro la scrivania grande, guarda verso la porta
+function postoDirettore(R, A) {
+  const { scena, mat } = S;
+  const { cx, cz } = S.direzioneDesk;
+  const x = cx, z = cz - 1.05;
+  const mon = monitor(mat, A, ''); mon.g.position.set(x - 0.2, 0.82, cz - 0.35); mon.g.rotation.y = Math.PI; mon.g.rotation.x = 0; scena.add(mon.g);
+  const se = sedia(mat); se.position.set(x, 0, z - 0.1); se.rotation.y = Math.PI; scena.add(se);
+  const U = umano(A.id); U.o.position.set(x, 0, z); U.o.rotation.y = Math.PI; scena.add(U.o);
+  [mon.g, se, U.o].forEach((o) => o.traverse((m) => { m.userData.ag = A.id; }));
+  const sg = segnoLavoro(); scena.add(sg.gemma, sg.anello);
+  S.agenti[A.id] = { A, U, ...sg, x, z, casa: new THREE.Vector3(x, 0, z), rotCasa: Math.PI, sm: mon.sm, tex: mon.tex, ctx: mon.ctx, tipo: '', stanza: R, seduto: true };
 }
 
+// ---------------------------------------------------------------- sala giochi
+function arredaGiochi(R) {
+  const { scena, mat } = S;
+  const cx = R.x + R.w / 2;
+  const posti = [];
+  // ping pong (blu, rete al centro)
+  const pp = box(1.5, 0.05, 2.7, new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.5 }), 0.01); pp.position.set(cx, 0.76, 2.6); scena.add(pp);
+  const linea = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.002, 2.7), new THREE.MeshStandardMaterial({ color: 0xffffff })); linea.position.set(cx, 0.79, 2.6); scena.add(linea);
+  const rete = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.15, 0.01), new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 })); rete.position.set(cx, 0.86, 2.6); scena.add(rete);
+  for (const [dx, dz] of [[-0.6, -1.1], [0.6, -1.1], [-0.6, 1.1], [0.6, 1.1]]) { const g = box(0.05, 0.74, 0.05, mat.metallo, 0); g.position.set(cx + dx, 0.37, 2.6 + dz); scena.add(g); }
+  posti.push({ pos: new THREE.Vector3(cx, 0, 2.6 - 1.75), rot: Math.PI }, { pos: new THREE.Vector3(cx, 0, 2.6 + 1.75), rot: 0 });
+  // biliardo (panno verde, sponde in legno)
+  const tz = 5.9;
+  const panno = box(1.2, 0.06, 2.2, new THREE.MeshStandardMaterial({ color: 0x0f7a4a, roughness: 0.9 }), 0.01); panno.position.set(cx, 0.8, tz); scena.add(panno);
+  const sponde = box(1.4, 0.12, 2.4, new THREE.MeshStandardMaterial({ color: 0x5a3a22, roughness: 0.5 }), 0.03); sponde.position.set(cx, 0.74, tz); scena.add(sponde);
+  const fusto = box(1.0, 0.68, 1.9, new THREE.MeshStandardMaterial({ color: 0x3e2716, roughness: 0.6 }), 0.03); fusto.position.set(cx, 0.36, tz); scena.add(fusto);
+  [0xffffff, 0xf0b400, 0xd62828, 0x1d4ed8, 0x111111].forEach((c, i) => { const b = new THREE.Mesh(new THREE.SphereGeometry(0.04, 12, 8), new THREE.MeshStandardMaterial({ color: c, roughness: 0.2 })); b.position.set(cx - 0.25 + (i % 3) * 0.2, 0.87, tz - 0.4 + Math.floor(i / 3) * 0.5); scena.add(b); });
+  posti.push({ pos: new THREE.Vector3(cx + 0.95, 0, tz - 0.4), rot: Math.PI / 2 }, { pos: new THREE.Vector3(cx - 0.95, 0, tz + 0.5), rot: -Math.PI / 2 });
+  // biliardino
+  const bx = R.x + 0.75, bz = 8.0;
+  const cassa = box(0.75, 0.3, 1.3, new THREE.MeshStandardMaterial({ color: 0x14532d, roughness: 0.6 }), 0.03); cassa.position.set(bx, 0.82, bz); scena.add(cassa);
+  for (const dx of [-0.3, 0.3]) for (const dz of [-0.55, 0.55]) { const g = box(0.06, 0.68, 0.06, mat.nero, 0); g.position.set(bx + dx, 0.34, bz + dz); scena.add(g); }
+  for (let i = 0; i < 6; i++) { const asta = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.1, 6), mat.metallo); asta.rotation.z = Math.PI / 2; asta.position.set(bx, 0.95, bz - 0.5 + i * 0.2); scena.add(asta); }
+  posti.push({ pos: new THREE.Vector3(bx + 0.7, 0, bz), rot: Math.PI / 2 });
+  // flipper contro la parete di fondo, con la testata luminosa
+  const fx = R.x + R.w - 0.75, fz = 0.95;
+  const corpo = box(0.7, 0.35, 1.3, new THREE.MeshStandardMaterial({ color: 0x7c3aed, roughness: 0.4 }), 0.03); corpo.position.set(fx, 0.85, fz); corpo.rotation.x = -0.12; scena.add(corpo);
+  const vetro = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 1.2), new THREE.MeshStandardMaterial({ color: 0x22d3ee, emissive: 0x7c3aed, emissiveIntensity: 1.2 })); vetro.rotation.x = -Math.PI / 2 - 0.12; vetro.position.set(fx, 1.03, fz); scena.add(vetro);
+  const testata = box(0.7, 0.6, 0.12, new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xff2d95, emissiveIntensity: 1.4 }), 0.02); testata.position.set(fx, 1.45, fz - 0.6); scena.add(testata);
+  for (const dx of [-0.3, 0.3]) for (const dz of [-0.55, 0.55]) { const g = box(0.05, 0.7, 0.05, mat.nero, 0); g.position.set(fx + dx, 0.35, fz + dz); scena.add(g); }
+  posti.push({ pos: new THREE.Vector3(fx, 0, fz + 0.95), rot: 0 });
+  // divanetto e pianta
+  const pi = agave(mat, 1.0); pi.position.set(R.x + 0.5, 0.05, 0.6); scena.add(pi);
+  (S.posti ||= {}).giochi = posti;
+}
 function arredaRelax(R) {
   const { scena, mat } = S;
   const stoffa = new THREE.MeshStandardMaterial({ color: 0x8d9aa6, roughness: 0.9 });
@@ -517,6 +571,16 @@ function arredaRelax(R) {
   const caffe = box(0.5, 0.7, 0.45, mat.nero, 0.04); caffe.position.set(R.x + 0.5, 0.95, R.z + 0.5); scena.add(caffe);
   const mobile = box(1.6, 0.9, 0.55, mat.bianco, 0.03); mobile.position.set(R.x + 1.0, 0.45, R.z + 0.45); scena.add(mobile);
   const pi = agave(mat, 1.1); pi.position.set(R.x + R.w - 0.5, 0.05, R.z + 0.5); scena.add(pi);
+  // frigo e bancone con snack
+  const frigo = box(0.6, 1.7, 0.6, mat.metallo, 0.04); frigo.position.set(R.x + R.w - 0.45, 0.85, R.z + R.d - 0.5); scena.add(frigo);
+  const banco = box(1.4, 0.95, 0.5, mat.bianco, 0.03); banco.position.set(R.x + R.w - 1.6, 0.47, R.z + R.d - 0.4); scena.add(banco);
+  [0xf4a261, 0xe76f51, 0x2a9d8f].forEach((c, i) => { const f = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), new THREE.MeshStandardMaterial({ color: c })); f.position.set(R.x + R.w - 2.0 + i * 0.2, 1.0, R.z + R.d - 0.4); scena.add(f); });
+  (S.posti ||= {}).relax = [
+    { pos: new THREE.Vector3(R.x + 0.6, 0, R.z + 1.15), rot: Math.PI, cosa: 'caffè' },
+    { pos: new THREE.Vector3(R.x + 1.3, 0, R.z + 1.2), rot: Math.PI, cosa: 'caffè' },
+    { pos: new THREE.Vector3(R.x + R.w - 1.6, 0, R.z + R.d - 1.05), rot: 0, cosa: 'spuntino' },
+    { pos: new THREE.Vector3(R.x + R.w / 2 - 0.6, 0, R.z + R.d / 2 - 0.4), rot: Math.PI / 2, cosa: 'chiacchiere' },
+  ];
 }
 
 // ---------------------------------------------------------------- costruzione dell'edificio
@@ -594,12 +658,14 @@ function costruisci(dati) {
     S.etAree.push({ id: R.id, nome: nome.split(' · ')[0].replace('Web & E-commerce', 'Web & Shop').replace('Booking & WhatsApp', 'Booking'), pos: new THREE.Vector3(R.x + R.w / 2, 0.1, R.lato === 'n' ? R.z + R.d - 0.15 : R.z + 0.55) });
     S.aree[R.id] = { x: R.x, z: R.z, w: R.w, d: R.d };
     if (R.id === 'relax') { arredaRelax(R); continue; }
+    if (R.id === 'giochi') { arredaGiochi(R); continue; }
     if (R.id === 'meeting') { arredaMeeting(R); continue; }
     if (R.id === 'direzione') arredaDirezione(R);
     const ags = dati.agenti.filter((a) => a.u === R.id);
     const righe = Math.max(1, Math.ceil(ags.length / R.col)), largo = R.col * POSTO;
     const x0 = R.x + (R.w - largo) / 2, z0 = R.scrivanie != null ? R.z + R.scrivanie : R.z + Math.max(0.9, (R.d - righe * FILA) / 2 + 0.25);
-    for (let r = 0; r < righe; r++) {
+    if (R.id === 'direzione') { ags.slice(0, 1).forEach((A) => postoDirettore(R, A)); }
+    else for (let r = 0; r < righe; r++) {
       const zDesk = z0 + r * FILA;
       const nRiga = Math.min(R.col, ags.length - r * R.col);
       if (nRiga <= 0) continue;
@@ -771,11 +837,15 @@ function porta(R) {
     : { dentro: new THREE.Vector3(px, 0, R.z + 0.7), fuori: new THREE.Vector3(px, 0, COR_Z + COR_D * 0.65) };
 }
 function percorso(P) {
-  const da = porta(P.stanza), stanze = STANZE.filter((r) => r.id !== P.stanza.id);
-  const meta = Math.random() < 0.55 ? STANZE.find((r) => r.id === 'relax') : stanze[Math.floor(Math.random() * stanze.length)];
+  const da = porta(P.stanza), stanze = STANZE.filter((r) => r.id !== P.stanza.id && r.id !== 'relax' && r.id !== 'giochi');
+  const k = Math.random();
+  const meta = k < 0.45 ? STANZE.find((r) => r.id === 'relax') : k < 0.85 ? STANZE.find((r) => r.id === 'giochi') : stanze[Math.floor(Math.random() * stanze.length)];
   const a = porta(meta);
   const alzati = new THREE.Vector3(P.casa.x + 0.55, 0, P.casa.z + 0.35);
-  const fondo = meta.id === 'relax' ? new THREE.Vector3(meta.x + 0.9, 0, meta.z + 1.1) : a.dentro.clone().add(new THREE.Vector3(0, 0, meta.lato === 'n' ? -0.6 : 0.6));
+  const libero = (S.posti?.[meta.id] || []).filter((p) => !Object.values(S.agenti).some((Q) => Q !== P && Q.svago === p));
+  const posto = libero.length ? libero[Math.floor(Math.random() * libero.length)] : null;
+  P.svago = posto;
+  const fondo = posto ? posto.pos.clone() : a.dentro.clone().add(new THREE.Vector3(0, 0, meta.lato === 'n' ? -0.6 : 0.6));
   const andata = [alzati, new THREE.Vector3(alzati.x, 0, da.dentro.z), da.dentro, da.fuori, a.fuori, a.dentro, fondo];
   return { punti: [...andata, 'sosta', ...andata.slice(0, -1).reverse(), P.casa.clone()], i: 0, sosta: 0 };
 }
@@ -788,10 +858,10 @@ function viaggio(da, aStanza, fine) {
   return pts;
 }
 function vaiInRiunione(P, Q, i) {
-  const posti = S.posti?.[Q.stanza]; if (!posti) return;
+  const posti = S.posti?.[Q.stanza] || S.posti?.meeting; if (!posti) return;
   const seat = posti[i % posti.length], o = P.U.o;
   const parti = P.cammino ? o.position.clone() : new THREE.Vector3(P.casa.x + 0.55, 0, P.casa.z + 0.35);
-  const R = STANZE.find((r) => r.id === Q.stanza);
+  const R = S.posti?.[Q.stanza] ? STANZE.find((r) => r.id === Q.stanza) : STANZE.find((r) => r.id === 'meeting');
   P.riunione = Q.id;
   P.cammino = { punti: [parti, ...viaggio(parti, R, seat.pos)], i: 0, sosta: 0, fine: { tipo: 'riunione', seat } };
   P.seduto = false; P.fase = 0;
@@ -815,9 +885,9 @@ function aggiornaRiunioni(dati) {
 
 function passeggiate(s) {
   if (s < (S.prossima || 3)) return;
-  S.prossima = s + 6 + Math.random() * 8;
+  S.prossima = s + 3 + Math.random() * 5;
   const inGiro = Object.values(S.agenti).filter((P) => P.cammino).length;
-  if (inGiro >= 3) return;
+  if (inGiro >= 6) return;
   const liberi = Object.values(S.agenti).filter((P) => !P.cammino && !P.stato && !P.riunione && S.scelto !== P.A.id);
   if (!liberi.length) return;
   const P = liberi[Math.floor(Math.random() * liberi.length)];
@@ -827,7 +897,7 @@ function muovi(P, s, dt) {
   const C = P.cammino, o = P.U.o, obb = C.punti[C.i];
   if (obb === 'sosta') {
     if (P.G) glbMuovi(P.G, 'Idle', dt); else posaInPiedi(P.U, s);
-    if (!C.sosta) C.sosta = s + 5 + Math.random() * 6;
+    if (!C.sosta) { C.sosta = s + (P.svago ? 14 + Math.random() * 14 : 5 + Math.random() * 6); if (P.svago) P.U.o.rotation.y = P.svago.rot; }
     if (s > C.sosta) { C.i++; C.sosta = 0; }
     return;
   }
@@ -836,9 +906,10 @@ function muovi(P, s, dt) {
   if (dist < 0.05) {
     C.i++;
     if (C.i >= C.punti.length) {
-      P.cammino = null; P.seduto = true;
+      P.cammino = null; P.seduto = true; P.svago = null;
       if (C.fine?.tipo === 'riunione') { o.position.copy(C.fine.seat.pos); o.rotation.y = C.fine.seat.rot; }
-      else { o.position.copy(P.casa); o.rotation.y = 0; }
+      else if (C.fine?.tipo === 'svago') { o.position.copy(C.fine.p.pos); o.rotation.y = C.fine.p.rot; }
+      else { o.position.copy(P.casa); o.rotation.y = P.rotCasa || 0; }
       if (P.G) glbSiedi(P.G);
     }
     return;

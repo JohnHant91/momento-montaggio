@@ -834,6 +834,7 @@ const PIANTA = [
   ['gestionale', 'Gestionale', 720, 740, 360, 260, '#efe9ff'],
   ['contabilita', 'Contabilità', 1080, 740, 360, 260, '#fff0d9'],
   ['meeting', 'Sala meeting', 1440, 740, 300, 260, '#eef2f7'],
+  ['giochi', 'Sala giochi', 1440, 0, 300, 300, '#ffe9f0'],
 ];
 const FASE_PROFILO = { ricerca: ['ricerca'], virali: ['trend'], copioni: ['idee'], avatar: ['avatar'], montaggio: ['avatar'] };
 const FASE_POST_AG = { ricerca: ['scout'], studio: ['occhi'], foto: ['occhi'], contenuti: ['caroselli'], scarica: ['caroselli'] };
