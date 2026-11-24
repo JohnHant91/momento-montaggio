@@ -8224,6 +8224,71 @@ const texTv = () => canvasTex(512, 288, (g, w, h) => {
   g.fillStyle = '#fff'; g.font = '700 54px Inter, system-ui, sans-serif'; g.fillText('momento', 40, 130);
   g.font = '500 26px Inter, system-ui, sans-serif'; g.globalAlpha = 0.8; g.fillText('agenzia AI \xB7 in diretta', 42, 180); g.globalAlpha = 1;
 });
+// tabellone di una stanza: cornice, schermo luminoso; a terra (fila sud) su due piedi
+function schermoStanza(R, x, y, z, w, h, inPiedi) {
+  const { scena, mat } = S;
+  const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 560;
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+  const corpo = box(w + 0.12, h + 0.12, 0.08, mat.nero, 0.02); corpo.position.set(x, y, z); scena.add(corpo);
+  const sc = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.75, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+  sc.position.set(x, y, z + 0.05); scena.add(sc);
+  if (HQ) { const l = new THREE.Mesh(new THREE.BoxGeometry(w + 0.12, 0.012, 0.012), mat.luce); l.position.set(x, y - h / 2 - 0.07, z + 0.045); scena.add(l); }
+  if (inPiedi) {
+    for (const dx of [-w / 2 + 0.2, w / 2 - 0.2]) { const g = box(0.06, y - h / 2, 0.06, mat.metallo, 0.01); g.position.set(x + dx, (y - h / 2) / 2, z); scena.add(g); }
+    blocca(x - w / 2, z - 0.15, x + w / 2, z + 0.15, 0.12);
+  }
+  (S.schermiStanze ||= {})[R.id] = { cv, tex, R };
+}
+const STATO_TXT = { lavora: ['AL LAVORO', '#3ddc84'], coda: ['IN CODA', '#ffb020'] };
+function disegnaSchermiStanze(dati, t = performance.now() / 1000) {
+  if (!S?.schermiStanze) return;
+  for (const [id, T] of Object.entries(S.schermiStanze)) {
+    const g = T.cv.getContext('2d'), w = T.cv.width, h = T.cv.height;
+    const ags = Object.values(S.agenti).filter((P) => P.stanza?.id === id);
+    const gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, '#0b1c2a'); gr.addColorStop(1, '#06101a'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#22d3ee'; g.fillRect(0, 0, w, 6);
+    const nomeU = (T.R.nome || (dati?.uffici || []).find((u) => u.id === id)?.nome || id).split(' \xB7 ')[0];
+    g.fillStyle = '#e6f6ff'; g.font = '700 40px Inter, system-ui, sans-serif'; g.fillText(nomeU, 32, 60);
+    const attivi = ags.filter((P) => P.stato === 'lavora').length;
+    g.font = '600 24px Inter, system-ui'; g.fillStyle = attivi ? '#3ddc84' : '#7f93a3';
+    const st = attivi ? attivi + ' al lavoro' : 'tutti liberi'; g.fillText(st, w - 32 - g.measureText(st).width, 58);
+    // video: anche i reel in lavorazione nella parte bassa
+    const reel = id === 'video' ? (dati?.reelTv || []).slice(0, 2) : [];
+    const spazio = h - 90 - (reel.length ? 46 * reel.length + 20 : 0);
+    const alt = Math.max(54, Math.min(96, spazio / Math.max(1, ags.length)));
+    ags.slice(0, Math.floor(spazio / alt)).forEach((P, k) => {
+      const y = 90 + k * alt, A = P.A || {}, s = STATO_TXT[P.stato] || ['LIBERO', '#6b7f8f'];
+      g.fillStyle = 'rgba(255,255,255,0.05)'; g.fillRect(24, y, w - 48, alt - 10);
+      g.fillStyle = A.c || '#22d3ee'; g.fillRect(24, y, 6, alt - 10);
+      g.fillStyle = '#ffffff'; g.font = '700 26px Inter, system-ui'; g.fillText((A.i ? A.i + ' ' : '') + (A.n || ''), 44, y + 32);
+      const nw = g.measureText((A.i ? A.i + ' ' : '') + (A.n || '')).width;
+      const compito = P.msg || (P.log || [])[0] || 'in attesa di lavoro';
+      if (alt <= 62) { // righe strette: il compito al posto del ruolo
+        g.font = '400 19px Inter, system-ui'; g.fillStyle = P.stato ? '#d8e6ef' : '#6b7f8f';
+        let tx = String(compito); while (g.measureText(tx).width > w - 340 - nw && tx.length > 8) tx = tx.slice(0, -2); if (tx !== String(compito)) tx += '\u2026';
+        g.fillText(tx, 58 + nw, y + 31);
+      } else { g.font = '500 18px Inter, system-ui'; g.fillStyle = '#8fb0c4'; g.fillText(String(A.r || '').slice(0, 40), 54 + nw, y + 31); }
+      g.font = '700 16px Inter, system-ui'; g.fillStyle = s[1]; const sw = g.measureText(s[0]).width; g.fillText(s[0], w - 40 - sw, y + 30);
+      if (P.stato === 'lavora') { g.beginPath(); g.arc(w - 52 - sw, y + 24, 6, 0, Math.PI * 2); g.globalAlpha = 0.5 + 0.5 * Math.sin(t * 4); g.fill(); g.globalAlpha = 1; }
+      if (alt > 62) {
+        g.font = '400 20px Inter, system-ui'; g.fillStyle = P.stato ? '#d8e6ef' : '#6b7f8f';
+        const testo = P.msg || (P.log || [])[0] || 'in attesa di lavoro';
+        let tx = String(testo); while (g.measureText(tx).width > w - 260 && tx.length > 10) tx = tx.slice(0, -2); if (tx !== String(testo)) tx += '\u2026';
+        g.fillText(tx, 44, y + 60);
+        if (P.stato === 'lavora') { g.fillStyle = 'rgba(255,255,255,0.1)'; g.fillRect(w - 220, y + 50, 180, 8); g.fillStyle = A.c || '#22d3ee'; g.fillRect(w - 220, y + 50, 180 * ((t * 0.08 + k * 0.3) % 1), 8); }
+      }
+    });
+    if (!ags.length) { g.fillStyle = '#6b7f8f'; g.font = '500 24px Inter, system-ui'; g.fillText('nessun agente in questo ufficio', 32, 130); }
+    reel.forEach((r, k) => {
+      const y = h - 46 * (reel.length - k) - 10;
+      g.fillStyle = 'rgba(34,211,238,0.1)'; g.fillRect(24, y, w - 48, 38);
+      g.fillStyle = '#e6f6ff'; g.font = '600 19px Inter, system-ui'; g.fillText('\u{1F3AC} ' + String(r.t || '').slice(0, 40), 36, y + 25);
+      g.fillStyle = 'rgba(255,255,255,.15)'; g.fillRect(w - 220, y + 15, 180, 8); g.fillStyle = '#22d3ee'; g.fillRect(w - 220, y + 15, 180 * Math.min(1, (r.p || 0) / 100), 8);
+    });
+    T.tex.needsUpdate = true;
+  }
+}
+
 function disegnaTvVideo(dati) {
   const T = S.tvVideo; if (!T) return;
   const cv = T.tex.image, g = cv.getContext('2d'), w = cv.width, h = cv.height;
@@ -8834,13 +8899,18 @@ function costruisci(dati) {
     // una pianta per stanza
     const pi = agave(mat, 0.85); pi.position.set(R.x + R.w - 0.45, 0.05, R.lato === 'n' ? R.z + 0.5 : R.z + R.d - 0.5); scena.add(pi);
   }
-  // arredi alle pareti di fondo: lavagna (marketing), TV (video), quadri (direzione e social)
-  const lav = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.2), new THREE.MeshStandardMaterial({ map: texLavagna(), roughness: 0.6 })); lav.position.set(ST('marketing').x + ST('marketing').w / 2, 1.25, 0.08); scena.add(lav);
-  const cornice = box(2.7, 1.3, 0.04, mat.metallo, 0.01); cornice.position.set(ST('marketing').x + ST('marketing').w / 2, 1.25, 0.06); scena.add(cornice);
-  const tv = box(3.0, 1.6, 0.08, mat.nero, 0.02); tv.position.set(ST('video').x + ST('video').w / 2, 1.35, 0.1); scena.add(tv);
-  const tvT = texTv();
-  const tvS = new THREE.Mesh(new THREE.PlaneGeometry(2.86, 1.48), new THREE.MeshStandardMaterial({ map: tvT, emissive: 0xffffff, emissiveMap: tvT, emissiveIntensity: 0.55, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })); tvS.position.set(ST('video').x + ST('video').w / 2, 1.35, 0.16); scena.add(tvS); S.tvVideo = { tex: tvT };
-  [['#f6c1a0', '#d97757', ST('direzione').x + 1.0], ['#b8c9ff', '#5a74d6', ST('direzione').x + 1.9], ['#f3d9a6', '#c98a2b', ST('direzione').x + 10.4], ['#c7e6c0', '#5f9a5c', ST('social').x + ST('social').w / 2]].forEach(([a, b, x]) => {
+  // SCHERMI GIGANTI: in ogni ufficio il tabellone con i compiti di ogni agente (al posto di lavagna e TV)
+  for (const R of STANZE) {
+    if (['relax', 'giochi', 'meeting'].includes(R.id)) continue;
+    if (R.lato === 'n') {
+      const w = R.id === 'direzione' ? 2.2 : Math.min(3.6, R.w - 3.2), x = R.id === 'direzione' ? R.x + 3.4 : R.x + R.w / 2;
+      schermoStanza(R, x, 1.5, 0.1, w, w * 0.547, false);
+    } else {
+      const w = Math.min(2.4, R.w - 2.4), x = R.x + R.w - 0.4 - w / 2;
+      schermoStanza(R, x, 1.45, R.z + 0.55, w, w * 0.547, true);
+    }
+  }
+  [['#f6c1a0', '#d97757', ST('direzione').x + 1.0], ['#b8c9ff', '#5a74d6', ST('direzione').x + 1.9], ['#f3d9a6', '#c98a2b', ST('direzione').x + 10.4]].forEach(([a, b, x]) => {
     const q = box(0.6, 0.76, 0.04, mat.nero, 0.01); q.position.set(x, 1.4, 0.08); scena.add(q);
     const im = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.68), new THREE.MeshStandardMaterial({ map: texQuadro(a, b) })); im.position.set(x, 1.4, 0.105); scena.add(im);
   });
@@ -8871,7 +8941,7 @@ export function aggiorna(dati) {
   }
   aggiornaRiunioni(dati);
   disegnaEtichette();
-  disegnaTvVideo(dati);
+  disegnaSchermiStanze(dati);
 }
 
 // segno di chi lavora: una gemma luminosa che gira e fluttua sopra la testa e un anello che pulsa sul pavimento
@@ -9189,6 +9259,7 @@ function anima(t) {
   }
   passeggiate(s);
   animaSegni(s);
+  if (s - (S.tSchermi || 0) > (S.lontano ? 3 : 1.5)) { S.tSchermi = s; disegnaSchermiStanze(S.dati, s); }
   if (S.cervello) { S.cervello.punti.rotation.y = s * 0.35; S.cervello.punti.rotation.x = Math.sin(s * 0.3) * 0.3; S.cervello.nucleo.material.emissiveIntensity = 0.7 + Math.sin(s * 2) * 0.25; if (S.cervello.anello) { S.cervello.anello.rotation.z = s * 0.8; S.cervello.anello.position.y = S.cervello.nucleo.position.y + Math.sin(s * 1.4) * 0.06; } }
   S.lontano = S.camera.position.distanceTo(S.controls.target) > 22;
   adatta(t);
