@@ -1319,7 +1319,7 @@ async function archivioPagina(cart) {
   $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Archivio</h1><span class="mut">' + A.totale.file + ' file · ' + String(A.totale.gb).replace('.', ',') + ' GB · ' + (A.totale.euro_mese ? '≈ € ' + A.totale.euro_mese.toFixed(2).replace('.', ',') + ' al mese' : 'gratis fino a 10 GB') + '</span></div>' +
     (A.collegato ? '' : '<div class="card" style="border-color:var(--warn)">⚠︎ Cloudflare R2 non è ancora attivo: puoi creare le cartelle, ma per caricare i file attiva R2 nella dashboard di Cloudflare (R2 → Attiva).</div>') +
     briciole + base +
-    '<div class="riga" style="gap:8px;margin:12px 0;flex-wrap:wrap"><input id="ar_nome" placeholder="Nuova cartella' + (c ? ' dentro ' + e(pezzi[pezzi.length - 1]) : '') + '" style="flex:1;min-width:180px"><button class="sec" id="ar_crea" style="width:auto">📁 Crea</button>' +
+    '<div class="riga" style="gap:8px;margin:12px 0;flex-wrap:wrap"><input id="ar_nome" placeholder="Nuova cartella' + (c ? ' dentro ' + e(pezzi[pezzi.length - 1]) : '') + '" style="flex:1;min-width:180px"><button class="sec" id="ar_crea" style="width:auto">📁 Crea cartella</button>' +
     (c ? '<label class="btn" style="margin:0">⬆︎ Carica file<input type="file" id="ar_file" multiple hidden></label><label class="btn sec" style="margin:0">⬆︎ Carica una cartella intera<input type="file" id="ar_dir" webkitdirectory multiple hidden></label>' : '') +
     (progetto ? '<button id="ar_reel" style="width:auto">🎬 Fai un reel con queste clip</button>' : '') + '</div>' +
     (c ? '<details class="card" id="ar_imp_box"' + (location.hash.includes('importa') ? ' open' : '') + '><summary><b>⇩ Importa da pCloud in questa cartella</b> <span class="mut">· la copia la fa GitHub, non usa la tua connessione</span></summary>' +
@@ -1366,7 +1366,14 @@ async function archivioPagina(cart) {
       if (!r.partito) $('#ar_imp_er').textContent = 'GitHub non è partito: controlla il token GitHub in Impostazioni.';
       mostraImp(); setTimeout(() => { b.disabled = false; b.textContent = 'Importa'; }, 4000);
     } catch (x) { $('#ar_imp_er').textContent = x.message; b.disabled = false; b.textContent = 'Importa'; } };
-  $('#ar_crea').onclick = async () => { const n = $('#ar_nome').value.trim(); if (!n) return; try { await crea((c ? c + '/' : '') + n); rotta(); } catch (x) { alert(x.message); } };
+  // se il campo è vuoto chiede il nome (prima il pulsante non faceva nulla); funziona anche con Invio
+  $('#ar_crea').onclick = async () => {
+    const b = $('#ar_crea'); let n = $('#ar_nome').value.trim();
+    if (!n) n = (prompt('Nome della nuova cartella' + (c ? ' dentro “' + pezzi[pezzi.length - 1] + '”' : '') + ':') || '').trim();
+    if (!n) { $('#ar_nome').focus(); return; }
+    b.disabled = true; b.textContent = 'Creo…';
+    try { await crea((c ? c + '/' : '') + n); rotta(); } catch (x) { alert(x.message); b.disabled = false; b.textContent = '📁 Crea cartella'; } };
+  $('#ar_nome').onkeydown = (ev) => { if (ev.key === 'Enter') $('#ar_crea').click(); };
   if ($('#ar_base')) $('#ar_base').onclick = async () => { for (const q of ['Clienti', 'Musica/Allegra', 'Musica/Emozionante', 'Musica/Natalizia', 'Musica/Latina', 'Musica/Chill', 'Grafiche']) await crea(q); rotta(); };
   if ($('#ar_reel')) $('#ar_reel').onclick = () => { ARCH_PREFILL = c; PREFILL = 'Reel per ' + pezzi[1] + ' · ' + pezzi.slice(2).join(' ') + ': '; location.hash = '#/nuovo'; };
   document.querySelectorAll('.ar_del').forEach((b) => b.onclick = async () => {
