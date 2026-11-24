@@ -442,7 +442,7 @@ def monta(lavoro):
     try:
         chiave = lambda s: str(s.get("fileid") or s.get("url"))
         cop = piano.get("copertina") or {}
-        voci = {chiave(s): s for s in (piano.get("segmenti") or []) + (piano.get("broll") or []) + (piano.get("slide") or []) + (piano.get("schede") or []) + ([piano["musica"]] if piano.get("musica") else [])
+        voci = {chiave(s): s for s in (piano.get("segmenti") or []) + (piano.get("broll") or []) + (piano.get("slide") or []) + (piano.get("schede") or []) + (piano.get("riserve") or []) + ([piano["musica"]] if piano.get("musica") else [])
                 if s.get("fileid") or s.get("url")}
         if cop.get("fileid") or cop.get("url"):
             voci.setdefault(chiave(cop), cop)
@@ -466,7 +466,7 @@ def monta(lavoro):
                 avvisa("motore", f"logo non scaricato: {e}", "warn")
         if piano.get("musica") and chiave(piano["musica"]) in file_per_id:
             piano["musica"]["file"] = file_per_id[chiave(piano["musica"])]
-        for campo in ("segmenti", "broll", "slide", "schede"):
+        for campo in ("segmenti", "broll", "slide", "schede", "riserve"):
             if piano.get(campo):
                 piano[campo] = [dict(s, file=file_per_id[chiave(s)]) for s in piano[campo] if chiave(s) in file_per_id]
         out = os.path.join(cartella, "reel.mp4")

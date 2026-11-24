@@ -992,6 +992,41 @@ class HyperTalking(TalkingHead):
         return rep
 
 
+def misura_camera(src, t_in, durata, info):
+    """Movimento della camera nel tratto: tremolio (vibrazione), scatto (il salto più brusco tra due fotogrammi) e deriva.
+    Un tratto è "lineare" se non trema e non ha scatti; una panoramica lenta e regolare va bene."""
+    w = 160
+    h = int(round(w * info["h"] / max(1, info["w"]) / 2) * 2) if info.get("w") else 284
+    p = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-ss", f"{t_in:.3f}", "-t", f"{max(durata, 0.3):.3f}", "-i", src,
+                        "-vf", f"fps=15,scale={w}:{h},format=gray", "-f", "rawvideo", "-"], capture_output=True)
+    dati = np.frombuffer(p.stdout, dtype=np.uint8)
+    nf = dati.size // (w * h)
+    if nf < 4:
+        return {"tremolio": 9.0, "scatto": 9.0, "deriva": 1.0, "buio": True}
+    g = list(dati[: nf * w * h].reshape(nf, h, w).astype(np.float32))
+    fin = np.outer(np.hanning(h), np.hanning(w))
+    spost = []
+    for a, b in zip(g, g[1:]):
+        A = np.fft.fft2((a - a.mean()) * fin)
+        B = np.fft.fft2((b - b.mean()) * fin)
+        R = A * np.conj(B)
+        r = np.abs(np.fft.ifft2(R / (np.abs(R) + 1e-6)))
+        y, x = np.unravel_index(np.argmax(r), r.shape)
+        spost.append((x if x < w // 2 else x - w, y if y < h // 2 else y - h))
+    sp = np.array(spost, dtype=np.float32)
+    liscio = np.array([sp[max(0, k - 1):k + 2].mean(axis=0) for k in range(len(sp))])
+    dev = np.abs(sp - liscio)
+    # cambi di scena / scatti di luce dentro il tratto (es. qualcuno passa davanti): differenza media tra fotogrammi
+    salti = [float(np.abs(a - b).mean()) for a, b in zip(g, g[1:])]
+    return {"tremolio": float(dev.mean()), "scatto": float(dev.max()), "deriva": float(np.hypot(*sp.sum(axis=0)) / w),
+            "salto_immagine": max(salti) if salti else 0.0, "buio": float(np.mean([x.mean() for x in g])) < 18}
+
+
+def voto_tratto(m):
+    """Più basso è meglio. Un tratto è buono sotto 0,5: niente vibrazioni, niente scatti, niente salti d'immagine."""
+    return m["tremolio"] + 0.35 * m["scatto"] + 1.5 * max(0, m["deriva"] - 0.15) + (0.03 * max(0, m["salto_immagine"] - 45)) + (5 if m["buio"] else 0)
+
+
 TRANSIZIONI_REMOTION = ["taglio", "dissolvenza", "zoom_blur", "whip_sx", "whip_dx", "whip_su", "glitch", "rgb_split", "flash_bianco",
                         "light_leak", "scorri_su", "zoom_in", "spin", "iris", "sfocatura", "flash_nero"]
 # nomi delle transizioni del vecchio montatore → nuove
@@ -1008,6 +1043,65 @@ class MontatoreCompleto(TalkingHead):
     La faccia resta sempre libera: i titoli vanno sopra la testa o ai lati quando nella clip c'è una persona."""
     NOME = "montatore"
 
+    BUONO = 0.5
+
+    def scegli_tratti_fermi(self, segmenti):
+        """REGOLA DI JOHNNY: mai pezzi mossi o con scatti. Per ogni pezzo cerco nella clip il tratto più fermo (vicino a quello
+        scelto dal regista); se la clip non ne ha, la sostituisco con una ripresa di riserva dello stesso girato (preferendo
+        quella girata più vicino) che abbia un tratto fermo."""
+        riserve = [dict(r, _info=self.probe(r["file"])) for r in (self.p.get("riserve") or []) if r.get("file")]
+        usati = {}  # file -> intervalli già usati (per non montare due volte lo stesso tratto)
+
+        def candidati(src, info, serve, vicino):
+            fine = max(0.0, info["dur"] - serve - 0.05)
+            passi = 10
+            tt = sorted({round(min(fine, max(0.0, vicino)), 2)} | {round(fine * k / passi, 2) for k in range(passi + 1)})
+            return [t for t in tt if t <= fine]
+
+        def migliore(src, info, serve, vicino):
+            cand = candidati(src, info, serve, vicino)
+            with ThreadPoolExecutor(PARALLELO) as ex:
+                voti = list(ex.map(lambda t: (voto_tratto(misura_camera(src, t, serve, info)), t), cand))
+            occ = usati.get(src, [])
+            voti = [(v + 0.02 * abs(t - vicino), v, t) for v, t in voti if not any(a - serve < t < b for a, b in occ)]
+            return min(voti) if voti else (99, 99, vicino)
+
+        cambiati, spostati = 0, 0
+        for k, s in enumerate(segmenti):
+            vel = 0.5 if s.get("rallenty") else float(s.get("velocita", 1) or 1)
+            serve = float(s["durata"]) * vel
+            info = s["_info"]
+            if info["dur"] < serve + 0.05:
+                continue
+            _, voto, t = migliore(s["file"], info, serve, float(s.get("in", 0)))
+            if voto <= self.BUONO:
+                if abs(t - float(s.get("in", 0))) > 0.05:
+                    spostati += 1
+                    self.report.append(f"pezzo {k + 1}: spostato a {t:.1f}s, tratto fermo (voto {voto:.2f})")
+                s["in"], s["in_preciso"] = t, True
+            else:
+                # sostituzione con una riserva: la più vicina nell'ordine di ripresa (nomi file in sequenza), poi la più ferma
+                prova = sorted(riserve, key=lambda r: abs((r.get("clip") or 0) - (s.get("clip") or 0)))[:6]
+                scelta = None
+                for r in prova:
+                    if r["_info"]["dur"] < serve + 0.05:
+                        continue
+                    _, vr, tr = migliore(r["file"], r["_info"], serve, r["_info"]["dur"] / 2 - serve / 2)
+                    if vr <= self.BUONO and (scelta is None or vr < scelta[0]):
+                        scelta = (vr, tr, r)
+                    if scelta and scelta[0] < 0.3:
+                        break
+                if scelta:
+                    vr, tr, r = scelta
+                    self.report.append(f"pezzo {k + 1}: la clip {s.get('nome') or ''} era mossa (voto {voto:.2f}), sostituita con {r.get('nome') or 'una riserva'} a {tr:.1f}s")
+                    s.update({"file": r["file"], "_info": r["_info"], "in": tr, "in_preciso": True, "nome": r.get("nome"), "clip": r.get("clip")})
+                    cambiati += 1
+                else:
+                    s["in"], s["in_preciso"] = t, True
+                    self.qc.append(f"pezzo {k + 1} trema ancora (voto {voto:.2f}): nessuna ripresa ferma di quel momento, serve un'altra clip")
+            usati.setdefault(s["file"], []).append((float(s["in"]), float(s["in"]) + serve))
+        self.avvisa("editor", f"controllo il girato: {spostati} pezzi spostati sul tratto fermo, {cambiati} clip mosse sostituite con altre riprese")
+
     def monta(self, out_finale):
         t0 = time.time()
         P = self.p
@@ -1017,6 +1111,7 @@ class MontatoreCompleto(TalkingHead):
             s["_info"] = self.probe(s["file"])
         self.aggancia_ai_battiti(segmenti)
         self.qc = []
+        self.scegli_tratti_fermi(segmenti)
         self.avvisa("color", f"look {P.get('look', 'naturale_vivace')}: porto i {len(segmenti)} pezzi alla stessa luce")
         try:
             self.rif_colore = self.riferimento(segmenti)
@@ -1134,7 +1229,7 @@ class MontatoreCompleto(TalkingHead):
                     os.remove(os.path.join(pub, x))
         # tavola di controllo cifrata (per vederla prima di consegnare)
         os.makedirs("/tmp/tavole", exist_ok=True)
-        tempi = [min(totale - 0.2, c["inizio"] + c["durata"] * 0.5) for c in clip][:8]
+        tempi = [min(totale - 0.2, c["inizio"] + c["durata"] * 0.5) for c in clip][:10]
         try:
             import hyperframes_reel as HF
             HF.tavola(anim, f"/tmp/tavole/tavola_{P.get('_lavoro', 'reel')}.jpg", tempi)
@@ -1157,6 +1252,7 @@ class MontatoreCompleto(TalkingHead):
         rep = self.revisiona(out_finale)
         rep["secondi_di_lavoro"] = round(time.time() - t0)
         rep["formato"] = self.NOME
+        rep["problemi"] = [x for x in rep["problemi"] if "trema ancora" not in x] + [x for x in self.qc if "trema ancora" in x]
         self.avvisa("revisore", f"controllo: {rep['durata']}s · {len(titoli)} titoli · {rep['lufs']} LUFS" + (" · ⚠ " + "; ".join(rep["problemi"]) if rep["problemi"] else " · tutto ok"))
         return rep
 

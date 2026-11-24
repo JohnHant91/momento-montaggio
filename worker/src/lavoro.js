@@ -419,6 +419,8 @@ VALORI AMMESSI
 - effetti_globali: ${EFFETTI_GLOBALI.join(', ')}
 - lut (facoltativa, LUT vere di pellicole e colorist; se la scegli, comanda lei il colore): ${LUT_NOMI.join(', ')}
 - stile testi: titolo_grande_centrale, etichetta_box, sottotitolo_classico; posizione: alto, centro, terzo_inferiore
+- REGOLA FERREA DI JOHNNY: nei titoli e nei testi usa SOLO informazioni che Johnny ha scritto nella richiesta o che si sentono nel girato. Mai inventare numeri, tempi (es. "48 ore di lievitazione"), prezzi, ingredienti, premi o promesse: se non hai informazioni, titoli di atmosfera col nome del prodotto o del cliente, oppure nessun titolo.
+- REGOLA DEL GIRATO: mai pezzi mossi, con scatti di camera o problemi; scegli il tratto fermo della clip o un'altra ripresa dello stesso momento.
 - MONTATORE (formato montaggio): "titoli" in motion graphics, stile ${STILI_TITOLO.join(', ')}; posizione alto (sopra la testa), sx / dx (ai lati del viso), basso, centro (SOLO su clip senza persone: la faccia deve restare sempre libera); sottotitoli.stile: ${STILI_SOTT.join(', ')}; font_reel: ${FONT_REEL.join(', ')}; look_reel.particelle: neve, polvere, coriandoli, bokeh (es. neve per lo spot di Natale)
 - formato: montaggio, talking_head, carosello, split_grafico, parole_dietro (vedi FORMATI DEL MONTATORE)
 - adesivi (solo parole_dietro): ${ADESIVI.join(', ')}
@@ -483,6 +485,7 @@ export async function correggiTesti(env, cfg, L, clip, T) {
   (T.cartelli || []).forEach((c) => testi(c));
   (T.schede || []).forEach((c) => testi(c));
   testi(T.copertina); testi(T.pannello);
+  (T.altri || []).forEach((x) => testi(x));
   if (!voci.length) return;
   const detto = clip.flatMap((c) => (c.trascrizione || []).map((x) => (typeof x === 'string' ? x : x.testo || x.t || ''))).join(' ').slice(0, 6000);
   try {
@@ -640,13 +643,31 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
     stile: STILI_TITOLO.includes(x.stile) ? x.stile : 'blur', posizione: ['alto', 'basso', 'sx', 'dx', 'centro'].includes(x.posizione) ? x.posizione : 'alto',
     sotto: x.sotto ? String(x.sotto).slice(0, 50) : undefined, parole: Array.isArray(x.parole) ? x.parole.slice(0, 6).map((w) => String(w).slice(0, 24)) : undefined,
     numero: x.numero && Number.isFinite(Number(x.numero.valore)) ? { valore: Number(x.numero.valore), prima: String(x.numero.prima || '').slice(0, 4), dopo: String(x.numero.dopo || '').slice(0, 10), decimali: Number(x.numero.decimali) || 0 } : undefined }));
+  // REGOLA DI JOHNNY: nei video niente informazioni inventate. Un titolo con un numero (ore, prezzi, quantità, anni…)
+  // resta solo se quel numero l'ha scritto Johnny nella richiesta o si sente nel girato; il resto lo rilegge il correttore.
+  const fonteFatti = (L.prompt + ' ' + clip.flatMap((c) => (c.trascrizione || []).map((x) => (typeof x === 'string' ? x : x.testo || x.t || ''))).join(' ')).toLowerCase();
+  const numeriOk = (t) => (String(t).match(/\d+(?:[.,]\d+)?/g) || []).every((n) => fonteFatti.includes(n) || fonteFatti.includes(n.replace(',', '.')));
+  for (let i = titoli.length - 1; i >= 0; i--) {
+    const x = titoli[i];
+    if (!numeriOk(x.testo + ' ' + (x.sotto || '') + ' ' + (x.numero ? x.numero.valore : ''))) {
+      await log(env, L.id, 'copy', `✂️ tolto il titolo "${x.testo}${x.sotto ? ' · ' + x.sotto : ''}": il numero non l'hai dato tu e non si sente nel video`, 'warn');
+      titoli.splice(i, 1);
+    }
+  }
+  for (const sg of seg) if (sg.testo && !numeriOk(sg.testo.testo)) sg.testo = null;
+  await correggiTesti(env, cfg, L, clip, { altri: [...titoli, ...seg.map((x) => x.testo).filter(Boolean), p.chiusura || null] });
   const lookReel = motore !== 'montatore' ? null : { grana: Math.min(0.15, Math.max(0, Number(p.look_reel?.grana ?? 0.06))), vignetta: Math.min(0.6, Math.max(0, Number(p.look_reel?.vignetta ?? 0.32))),
     particelle: ['neve', 'polvere', 'coriandoli', 'bokeh'].includes(p.look_reel?.particelle) ? p.look_reel.particelle : null,
     tinta: /^#[0-9a-f]{6}$/i.test(p.look_reel?.tinta || '') ? p.look_reel.tinta : null, tinta_forza: Math.min(0.4, Math.max(0, Number(p.look_reel?.tinta_forza ?? 0.18))) };
   const fontReel = motore !== 'montatore' ? null : { titoli: FONT_REEL.includes(p.font_reel?.titoli) ? p.font_reel.titoli : 'montserrat', testo: FONT_REEL.includes(p.font_reel?.testo) ? p.font_reel.testo : 'montserrat' };
   if (motore === 'montatore' && p.sottotitoli) p.sottotitoli = { ...p.sottotitoli, stile: STILI_SOTT.includes(p.sottotitoli.stile) ? p.sottotitoli.stile : 'box' };
+  // clip di riserva: le altre clip video del girato, così il montatore sostituisce un pezzo che trema con un'altra
+  // ripresa dello stesso momento (la più vicina nell'ordine di ripresa) invece di montarlo mosso
+  const usate = new Set(seg.map((x) => x.clip));
+  const riserve = motore !== 'montatore' ? [] : tutte.map((c, i) => ({ c, i })).filter(({ c, i }) => c?.stato === 'fatto' && !eImm(c) && !usate.has(i) && (Number(c.tecnico?.durata_sec) || 0) >= 1.5)
+    .slice(0, 14).map(({ c, i }) => ({ clip: i, ...sorg(c), nome: c.nome, durata_clip: Number(c.tecnico?.durata_sec) || null }));
   const piano = {
-    ...p, formato: motore, titoli, look_reel: lookReel, font_reel: fontReel, pannello, cartelli, schede, grafiche, palette, font_split, tracker, adesivi,
+    ...p, formato: motore, titoli, riserve, look_reel: lookReel, font_reel: fontReel, pannello, cartelli, schede, grafiche, palette, font_split, tracker, adesivi,
     ...(avatar ? { taglia_silenzi: false } : {}),
     logo: prima?.logo || null,
     stabilizza_tutto: !!(indicazioni?.stabilizza_tutto || prima?.piano?.stabilizza_tutto || p.stabilizza_tutto || R?.camera === 'morbida'),

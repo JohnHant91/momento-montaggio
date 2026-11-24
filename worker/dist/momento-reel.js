@@ -2425,6 +2425,8 @@ VALORI AMMESSI
 - effetti_globali: ${EFFETTI_GLOBALI.join(", ")}
 - lut (facoltativa, LUT vere di pellicole e colorist; se la scegli, comanda lei il colore): ${LUT_NOMI.join(", ")}
 - stile testi: titolo_grande_centrale, etichetta_box, sottotitolo_classico; posizione: alto, centro, terzo_inferiore
+- REGOLA FERREA DI JOHNNY: nei titoli e nei testi usa SOLO informazioni che Johnny ha scritto nella richiesta o che si sentono nel girato. Mai inventare numeri, tempi (es. "48 ore di lievitazione"), prezzi, ingredienti, premi o promesse: se non hai informazioni, titoli di atmosfera col nome del prodotto o del cliente, oppure nessun titolo.
+- REGOLA DEL GIRATO: mai pezzi mossi, con scatti di camera o problemi; scegli il tratto fermo della clip o un'altra ripresa dello stesso momento.
 - MONTATORE (formato montaggio): "titoli" in motion graphics, stile ${STILI_TITOLO.join(", ")}; posizione alto (sopra la testa), sx / dx (ai lati del viso), basso, centro (SOLO su clip senza persone: la faccia deve restare sempre libera); sottotitoli.stile: ${STILI_SOTT.join(", ")}; font_reel: ${FONT_REEL.join(", ")}; look_reel.particelle: neve, polvere, coriandoli, bokeh (es. neve per lo spot di Natale)
 - formato: montaggio, talking_head, carosello, split_grafico, parole_dietro (vedi FORMATI DEL MONTATORE)
 - adesivi (solo parole_dietro): ${ADESIVI.join(", ")}
@@ -2492,6 +2494,7 @@ async function correggiTesti(env, cfg, L, clip, T) {
   (T.schede || []).forEach((c) => testi(c));
   testi(T.copertina);
   testi(T.pannello);
+  (T.altri || []).forEach((x) => testi(x));
   if (!voci.length) return;
   const detto = clip.flatMap((c) => (c.trascrizione || []).map((x) => typeof x === "string" ? x : x.testo || x.t || "")).join(" ").slice(0, 6e3);
   try {
@@ -2705,6 +2708,17 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
     parole: Array.isArray(x.parole) ? x.parole.slice(0, 6).map((w) => String(w).slice(0, 24)) : void 0,
     numero: x.numero && Number.isFinite(Number(x.numero.valore)) ? { valore: Number(x.numero.valore), prima: String(x.numero.prima || "").slice(0, 4), dopo: String(x.numero.dopo || "").slice(0, 10), decimali: Number(x.numero.decimali) || 0 } : void 0
   }));
+  const fonteFatti = (L.prompt + " " + clip.flatMap((c) => (c.trascrizione || []).map((x) => typeof x === "string" ? x : x.testo || x.t || "")).join(" ")).toLowerCase();
+  const numeriOk = (t) => (String(t).match(/\d+(?:[.,]\d+)?/g) || []).every((n) => fonteFatti.includes(n) || fonteFatti.includes(n.replace(",", ".")));
+  for (let i = titoli.length - 1; i >= 0; i--) {
+    const x = titoli[i];
+    if (!numeriOk(x.testo + " " + (x.sotto || "") + " " + (x.numero ? x.numero.valore : ""))) {
+      await log(env, L.id, "copy", `\u2702\uFE0F tolto il titolo "${x.testo}${x.sotto ? " \xB7 " + x.sotto : ""}": il numero non l'hai dato tu e non si sente nel video`, "warn");
+      titoli.splice(i, 1);
+    }
+  }
+  for (const sg of seg) if (sg.testo && !numeriOk(sg.testo.testo)) sg.testo = null;
+  await correggiTesti(env, cfg, L, clip, { altri: [...titoli, ...seg.map((x) => x.testo).filter(Boolean), p.chiusura || null] });
   const lookReel = motore !== "montatore" ? null : {
     grana: Math.min(0.15, Math.max(0, Number(p.look_reel?.grana ?? 0.06))),
     vignetta: Math.min(0.6, Math.max(0, Number(p.look_reel?.vignetta ?? 0.32))),
@@ -2714,10 +2728,13 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
   };
   const fontReel = motore !== "montatore" ? null : { titoli: FONT_REEL.includes(p.font_reel?.titoli) ? p.font_reel.titoli : "montserrat", testo: FONT_REEL.includes(p.font_reel?.testo) ? p.font_reel.testo : "montserrat" };
   if (motore === "montatore" && p.sottotitoli) p.sottotitoli = { ...p.sottotitoli, stile: STILI_SOTT.includes(p.sottotitoli.stile) ? p.sottotitoli.stile : "box" };
+  const usate = new Set(seg.map((x) => x.clip));
+  const riserve = motore !== "montatore" ? [] : tutte.map((c, i) => ({ c, i })).filter(({ c, i }) => c?.stato === "fatto" && !eImm(c) && !usate.has(i) && (Number(c.tecnico?.durata_sec) || 0) >= 1.5).slice(0, 14).map(({ c, i }) => ({ clip: i, ...sorg(c), nome: c.nome, durata_clip: Number(c.tecnico?.durata_sec) || null }));
   const piano2 = {
     ...p,
     formato: motore,
     titoli,
+    riserve,
     look_reel: lookReel,
     font_reel: fontReel,
     pannello,
