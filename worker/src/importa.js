@@ -26,6 +26,30 @@ const riassunto = (I) => { const F = J(I.file, []); const fatti = F.filter((f) =
     saltati: F.filter((f) => f.stato === 'saltato').length, errori: F.filter((f) => f.stato === 'errore').length,
     totale: I.totale, copiati: fatti.reduce((s, f) => s + (f.dimensione || 0), 0) }; };
 
+// stato complessivo calcolato dentro il database, in un colpo solo
+async function chiudiSeFinita(env, id) {
+  await run(env, `UPDATE importazioni SET
+      stato = CASE WHEN EXISTS (SELECT 1 FROM json_each(file) WHERE json_extract(value,'$.stato') NOT IN ('fatto','saltato','errore')) THEN stato
+        WHEN EXISTS (SELECT 1 FROM json_each(file) WHERE json_extract(value,'$.stato') = 'errore') THEN 'errore' ELSE 'fatto' END,
+      fino = CASE WHEN EXISTS (SELECT 1 FROM json_each(file) WHERE json_extract(value,'$.stato') NOT IN ('fatto','saltato','errore')) THEN ? ELSE NULL END
+    WHERE id=? AND stato IN ('in_corso','da_fare')`, new Date(Date.now() + 30 * 60e3).toISOString(), id);
+}
+
+// ripara le importazioni rimaste a metà: i file che sono già nell'archivio (stesso peso) contano come copiati
+async function ricontrolla(env, I) {
+  const F = J(I.file, []); let cambiato = false;
+  for (const f of F) {
+    if (f.stato === 'fatto' || f.stato === 'saltato') continue;
+    const g = await one(env, 'SELECT dimensione FROM archivio WHERE percorso=?', pulisci(I.cartella + '/' + f.rel));
+    if (g && Number(g.dimensione) === Number(f.dimensione)) { f.stato = 'fatto'; f.errore = null; cambiato = true; }
+  }
+  if (!cambiato) return I;
+  const tutti = F.every((x) => ['fatto', 'saltato', 'errore'].includes(x.stato));
+  const stato = I.stato === 'annullata' && !tutti ? 'annullata' : tutti ? (F.some((x) => x.stato === 'errore') ? 'errore' : 'fatto') : I.stato;
+  await run(env, 'UPDATE importazioni SET file=?, stato=?, aggiornato=? WHERE id=?', JSON.stringify(F), stato, ora(), I.id);
+  return { ...I, file: JSON.stringify(F), stato };
+}
+
 // API dell'app (dietro l'accesso)
 export async function apiImporta(req, env, p, m, json) {
   if (!p.startsWith('/api/archivio/importa')) return null;
@@ -60,6 +84,9 @@ export async function apiImporta(req, env, p, m, json) {
   if (p === '/api/archivio/importazioni' && m === 'GET') {
     const c = pulisci(url.searchParams.get('cartella'));
     const L = await all(env, 'SELECT * FROM importazioni WHERE (? = \'\' OR cartella = ? OR (cartella >= ? AND cartella < ?)) ORDER BY id DESC LIMIT 10', c, c, c + '/', c + '0');
+    // quelle ferme (motore finito o fermato) si ricontrollano contro l'archivio
+    const ferma = (x) => x.stato === 'annullata' || x.stato === 'errore' || x.stato === 'in_corso' && (!x.fino || x.fino < ora());
+    for (let k = 0; k < L.length; k++) if (ferma(L[k])) L[k] = await ricontrolla(env, L[k]);
     return json(L.map(riassunto));
   }
   const ri = p.match(/^\/api\/archivio\/importa\/(\d+)\/(riprova|annulla)$/);
@@ -67,7 +94,9 @@ export async function apiImporta(req, env, p, m, json) {
     const I = await one(env, 'SELECT * FROM importazioni WHERE id=?', ri[1]);
     if (!I) return json({ errore: 'non trovata' }, 404);
     if (ri[2] === 'annulla') { await run(env, "UPDATE importazioni SET stato='annullata', aggiornato=? WHERE id=?", ora(), I.id); return json({ ok: true }); }
-    const F = J(I.file, []).map((f) => f.stato === 'errore' || f.stato === 'in_corso' ? { ...f, stato: 'da_fare', errore: null } : f);
+    const R = await ricontrolla(env, I);
+    const F = J(R.file, []).map((f) => f.stato === 'errore' || f.stato === 'in_corso' ? { ...f, stato: 'da_fare', errore: null } : f);
+    if (!F.some((f) => f.stato === 'da_fare')) { await run(env, "UPDATE importazioni SET file=?, stato='fatto', fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(F), ora(), I.id); return json({ ok: true, partito: true }); }
     await run(env, "UPDATE importazioni SET file=?, stato='da_fare', errore=NULL, fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(F), ora(), I.id);
     return json({ ok: true, partito: await sveglia(env, I.id) });
   }
@@ -99,12 +128,12 @@ export async function motoreImporta(req, env, p, m, json, identitaGitHub) {
   const i = Number(url.searchParams.get('i'));
   const f = F[i];
   const dest = f ? pulisci(I.cartella + '/' + f.rel) : null;
+  // aggiornamento atomico del solo file i: prima rileggeva e riscriveva tutto l'elenco, e con 3 file in parallelo
+  // una scrittura cancellava l'altra (un file restava "in corso" per sempre e l'importazione non finiva mai)
   const segna = async (cambi) => {
-    // rilegge e scrive: più file avanzano insieme
-    const ora_ = await one(env, 'SELECT file FROM importazioni WHERE id=?', I.id); const G = J(ora_.file, []); Object.assign(G[i], cambi);
-    const fine = G.every((x) => ['fatto', 'saltato', 'errore'].includes(x.stato));
-    await run(env, 'UPDATE importazioni SET file=?, stato=?, fino=?, aggiornato=? WHERE id=?', JSON.stringify(G),
-      fine ? (G.some((x) => x.stato === 'errore') ? 'errore' : 'fatto') : 'in_corso', fine ? null : new Date(Date.now() + 30 * 60e3).toISOString(), ora(), I.id);
+    const k = '$[' + i + ']';
+    await run(env, `UPDATE importazioni SET file = json_set(file, '${k}.stato', ?, '${k}.errore', ?), aggiornato=? WHERE id=?`, cambi.stato, cambi.errore ?? null, ora(), I.id);
+    await chiudiSeFinita(env, I.id);
   };
   if (mm[2] === 'vivo' && m === 'POST') { await run(env, 'UPDATE importazioni SET fino=?, aggiornato=? WHERE id=?', new Date(Date.now() + 30 * 60e3).toISOString(), ora(), I.id); return json({ ok: true }); }
   if (!f) return json({ errore: 'file non trovato' }, 404);

@@ -1343,11 +1343,11 @@ async function archivioPagina(cart) {
   const mostraImp = async () => {
     const box = $('#ar_imps'); if (!box || !c) return;
     const L = await chiama('/api/archivio/importazioni?cartella=' + encodeURIComponent(c)).catch(() => []);
-    box.innerHTML = L.filter((x) => x.stato !== 'annullata').slice(0, 4).map((x) => { const perc = x.totale ? Math.round(x.copiati / x.totale * 100) : 0;
-      const st = x.stato === 'fatto' ? '✓ copiati ' + (x.fatti + x.saltati) + ' file' + (x.saltati ? ' (' + x.saltati + ' c’erano già)' : '') : x.stato === 'errore' ? '⚠︎ ' + x.errori + ' file non copiati' : x.stato === 'da_fare' ? '⏳ GitHub sta partendo…' : '⇩ ' + x.fatti + ' di ' + (x.file - x.saltati) + ' file · ' + pesoTesto(x.copiati) + ' di ' + pesoTesto(x.totale);
+    box.innerHTML = L.filter((x) => x.stato !== 'annullata' || x.fatti + x.saltati < x.file).slice(0, 4).map((x) => { const perc = x.totale ? Math.round(x.copiati / x.totale * 100) : 0;
+      const st = x.stato === 'fatto' ? '✓ copiati ' + (x.fatti + x.saltati) + ' file' + (x.saltati ? ' (' + x.saltati + ' c’erano già)' : '') : x.stato === 'errore' ? '⚠︎ ' + x.errori + ' file non copiati' : x.stato === 'annullata' ? '⏸ fermata: copiati ' + (x.fatti + x.saltati) + ' di ' + x.file + ' file' : x.stato === 'da_fare' ? '⏳ GitHub sta partendo…' : '⇩ ' + x.fatti + ' di ' + (x.file - x.saltati) + ' file · ' + pesoTesto(x.copiati) + ' di ' + pesoTesto(x.totale);
       return '<div class="card" style="margin-top:8px"><div class="riga"><b style="flex:1">pCloud → ' + e(x.cartella) + '</b><span class="mut">' + st + '</span></div>' +
         (x.stato === 'fatto' ? '' : '<span class="ar-bar" style="display:block;margin-top:6px"><i style="width:' + perc + '%"></i></span>') +
-        (x.stato === 'errore' || x.stato === 'in_corso' && Date.now() - new Date(x.aggiornato) > 40 * 60e3 ? '<button class="sec imp_rip" data-id="' + x.id + '" style="width:auto;margin-top:8px">Riprova i mancanti</button>' : '') +
+        (x.stato === 'errore' || x.stato === 'annullata' || x.stato === 'in_corso' && Date.now() - new Date(x.aggiornato) > 15 * 60e3 ? '<button class="sec imp_rip" data-id="' + x.id + '" style="width:auto;margin-top:8px">' + (x.stato === 'annullata' ? 'Riprendi da dove si è fermata' : 'Riprova i mancanti') + '</button>' : '') +
         (['in_corso', 'da_fare'].includes(x.stato) ? '<button class="sec imp_ann" data-id="' + x.id + '" style="width:auto;margin-top:8px;margin-left:6px">Ferma</button>' : '') + '</div>'; }).join('');
     box.querySelectorAll('.imp_rip').forEach((b) => b.onclick = async () => { await chiama('/api/archivio/importa/' + b.dataset.id + '/riprova', { method: 'POST', body: {} }); mostraImp(); });
     box.querySelectorAll('.imp_ann').forEach((b) => b.onclick = async () => { if (!confirm('Fermo l’importazione? I file già copiati restano.')) return; await chiama('/api/archivio/importa/' + b.dataset.id + '/annulla', { method: 'POST', body: {} }); mostraImp(); });
@@ -1385,7 +1385,7 @@ async function archivioPagina(cart) {
   // per sfruttare tutta la banda); le cartelle trascinate o scelte mantengono le sottocartelle
   const carica = async (lista) => {
     const box = $('#ar_prog');
-    const voci = [...lista].filter((x) => x.f.size > 0 && !/^\./.test(x.f.name));
+    const voci = [...lista].filter((x) => x.f.size > 0 && !/^\\./.test(x.f.name));
     if (!voci.length) return;
     const totale = voci.reduce((t, x) => t + x.f.size, 0); let inviati = 0, t0 = Date.now(), fatti = 0, errori = 0;
     box.innerHTML = '<div class="card" style="margin-top:10px"><div class="riga"><b style="flex:1" id="ag_t">0 di ' + voci.length + ' file</b><span id="ag_v" class="mut"></span></div><span class="ar-bar" style="display:block;margin-top:6px"><i id="ag_b"></i></span>' +
@@ -1393,16 +1393,22 @@ async function archivioPagina(cart) {
     const generale = () => { const sec = (Date.now() - t0) / 1000, mbs = inviati / 1048576 / Math.max(1, sec), resta = (totale - inviati) / 1048576 / Math.max(0.1, mbs);
       $('#ag_b').style.width = Math.round(inviati / totale * 100) + '%'; $('#ag_t').textContent = fatti + ' di ' + voci.length + ' file · ' + pesoTesto(inviati) + ' di ' + pesoTesto(totale);
       $('#ag_v').textContent = mbs.toFixed(1).replace('.', ',') + ' MB/s · ' + (resta > 3600 ? Math.round(resta / 360) / 10 + ' h' : Math.ceil(resta / 60) + ' min') + ' alla fine'; };
-    const giaCi = new Set((await chiama('/api/archivio?cartella=' + encodeURIComponent(c)).catch(() => ({ voci: [] }))).voci.filter((v) => v.tipo !== 'cartella').map((v) => v.nome + '|' + v.dimensione));
+    // file già presenti (stesso nome e peso) in ogni cartella di destinazione: si saltano, così ricaricando la stessa cartella riparte solo da quelli mancanti
+    const gia = {}; const giaIn = (q) => gia[q] || (gia[q] = chiama('/api/archivio?cartella=' + encodeURIComponent(q)).then((A) => new Set(A.voci.filter((v) => v.tipo !== 'cartella').map((v) => v.nome + '|' + v.dimensione))).catch(() => new Set()));
     const invia = (metodo, u, blob, avanz) => new Promise((ok, ko) => { const x = new XMLHttpRequest(); x.open(metodo, u); x.setRequestHeader('content-type', blob.type || 'application/octet-stream');
-      let prima = 0; x.upload.onprogress = (ev) => { avanz(ev.loaded - prima); prima = ev.loaded; };
-      x.onload = () => { let d = {}; try { d = JSON.parse(x.responseText); } catch (_) {} if (x.status < 300) ok(d); else { avanz(-prima); ko(new Error(d.errore || 'HTTP ' + x.status)); } };
-      x.onerror = () => { avanz(-prima); ko(new Error('rete')); }; x.send(blob); });
-    const riprova = async (fn) => { for (let t = 0; ; t++) { try { return await fn(); } catch (x) { if (t >= 4) throw x; await new Promise((r) => setTimeout(r, 1500 * (t + 1))); } } };
+      // guardiano: se per 45 secondi non passa niente (connessione appesa, telefono in standby) chiude e si riprova,
+      // invece di restare fermi per sempre sull'ultimo pezzo
+      let prima = 0, ultimo = Date.now(), finito = false;
+      const guardia = setInterval(() => { if (!finito && Date.now() - ultimo > 45000) { finito = true; clearInterval(guardia); x.abort(); avanz(-prima); ko(new Error('connessione ferma, riprovo')); } }, 5000);
+      const chiudi = () => { finito = true; clearInterval(guardia); };
+      x.upload.onprogress = (ev) => { ultimo = Date.now(); avanz(ev.loaded - prima); prima = ev.loaded; };
+      x.onload = () => { if (finito) return; chiudi(); let d = {}; try { d = JSON.parse(x.responseText); } catch (_) {} if (x.status < 300) ok(d); else { avanz(-prima); ko(new Error(d.errore || 'HTTP ' + x.status)); } };
+      x.onerror = () => { if (finito) return; chiudi(); avanz(-prima); ko(new Error('rete')); }; x.send(blob); });
+    const riprova = async (fn) => { for (let t = 0; ; t++) { try { return await fn(); } catch (x) { if (t >= 6) throw x; await new Promise((r) => setTimeout(r, 1500 * (t + 1))); } } };
     const riga = (nome) => { const d = document.createElement('div'); d.className = 'ar-riga'; d.innerHTML = '<span>' + e(nome) + '</span><span class="ar-bar"><i></i></span><small>…</small>'; $('#ag_l').prepend(d); return d; };
     const uno = async ({ f, rel }) => {
       const dest = c + '/' + rel, nomeF = rel.split('/').pop();
-      if (!rel.includes('/') && giaCi.has(nomeF + '|' + f.size)) { inviati += f.size; fatti++; generale(); return; } // già caricato
+      if ((await giaIn(dest.slice(0, dest.lastIndexOf('/')))).has(nomeF + '|' + f.size)) { inviati += f.size; fatti++; generale(); return; } // già caricato
       const d = riga(rel), bar = d.querySelector('i'), tx = d.querySelector('small'); let mio = 0;
       const avanz = (n) => { mio += n; inviati += n; bar.style.width = Math.round(mio / f.size * 100) + '%'; tx.textContent = Math.round(mio / f.size * 100) + '%'; generale(); };
       try {

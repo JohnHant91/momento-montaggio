@@ -5936,6 +5936,31 @@ var riassunto = (I) => {
     copiati: fatti.reduce((s, f) => s + (f.dimensione || 0), 0)
   };
 };
+async function chiudiSeFinita(env, id) {
+  await run(env, `UPDATE importazioni SET
+      stato = CASE WHEN EXISTS (SELECT 1 FROM json_each(file) WHERE json_extract(value,'$.stato') NOT IN ('fatto','saltato','errore')) THEN stato
+        WHEN EXISTS (SELECT 1 FROM json_each(file) WHERE json_extract(value,'$.stato') = 'errore') THEN 'errore' ELSE 'fatto' END,
+      fino = CASE WHEN EXISTS (SELECT 1 FROM json_each(file) WHERE json_extract(value,'$.stato') NOT IN ('fatto','saltato','errore')) THEN ? ELSE NULL END
+    WHERE id=? AND stato IN ('in_corso','da_fare')`, new Date(Date.now() + 30 * 6e4).toISOString(), id);
+}
+async function ricontrolla(env, I) {
+  const F = J(I.file, []);
+  let cambiato = false;
+  for (const f of F) {
+    if (f.stato === "fatto" || f.stato === "saltato") continue;
+    const g = await one(env, "SELECT dimensione FROM archivio WHERE percorso=?", pulisci(I.cartella + "/" + f.rel));
+    if (g && Number(g.dimensione) === Number(f.dimensione)) {
+      f.stato = "fatto";
+      f.errore = null;
+      cambiato = true;
+    }
+  }
+  if (!cambiato) return I;
+  const tutti = F.every((x) => ["fatto", "saltato", "errore"].includes(x.stato));
+  const stato = I.stato === "annullata" && !tutti ? "annullata" : tutti ? F.some((x) => x.stato === "errore") ? "errore" : "fatto" : I.stato;
+  await run(env, "UPDATE importazioni SET file=?, stato=?, aggiornato=? WHERE id=?", JSON.stringify(F), stato, ora(), I.id);
+  return { ...I, file: JSON.stringify(F), stato };
+}
 async function apiImporta(req, env, p, m, json3) {
   if (!p.startsWith("/api/archivio/importa")) return null;
   await schemaArchivio(env);
@@ -5982,6 +6007,8 @@ async function apiImporta(req, env, p, m, json3) {
   if (p === "/api/archivio/importazioni" && m === "GET") {
     const c = pulisci(url.searchParams.get("cartella"));
     const L = await all(env, "SELECT * FROM importazioni WHERE (? = '' OR cartella = ? OR (cartella >= ? AND cartella < ?)) ORDER BY id DESC LIMIT 10", c, c, c + "/", c + "0");
+    const ferma = (x) => x.stato === "annullata" || x.stato === "errore" || x.stato === "in_corso" && (!x.fino || x.fino < ora());
+    for (let k = 0; k < L.length; k++) if (ferma(L[k])) L[k] = await ricontrolla(env, L[k]);
     return json3(L.map(riassunto));
   }
   const ri = p.match(/^\/api\/archivio\/importa\/(\d+)\/(riprova|annulla)$/);
@@ -5992,7 +6019,12 @@ async function apiImporta(req, env, p, m, json3) {
       await run(env, "UPDATE importazioni SET stato='annullata', aggiornato=? WHERE id=?", ora(), I.id);
       return json3({ ok: true });
     }
-    const F = J(I.file, []).map((f) => f.stato === "errore" || f.stato === "in_corso" ? { ...f, stato: "da_fare", errore: null } : f);
+    const R = await ricontrolla(env, I);
+    const F = J(R.file, []).map((f) => f.stato === "errore" || f.stato === "in_corso" ? { ...f, stato: "da_fare", errore: null } : f);
+    if (!F.some((f) => f.stato === "da_fare")) {
+      await run(env, "UPDATE importazioni SET file=?, stato='fatto', fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(F), ora(), I.id);
+      return json3({ ok: true, partito: true });
+    }
     await run(env, "UPDATE importazioni SET file=?, stato='da_fare', errore=NULL, fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(F), ora(), I.id);
     return json3({ ok: true, partito: await sveglia(env, I.id) });
   }
@@ -6023,19 +6055,9 @@ async function motoreImporta(req, env, p, m, json3, identitaGitHub2) {
   const f = F[i];
   const dest = f ? pulisci(I.cartella + "/" + f.rel) : null;
   const segna = async (cambi) => {
-    const ora_ = await one(env, "SELECT file FROM importazioni WHERE id=?", I.id);
-    const G = J(ora_.file, []);
-    Object.assign(G[i], cambi);
-    const fine = G.every((x) => ["fatto", "saltato", "errore"].includes(x.stato));
-    await run(
-      env,
-      "UPDATE importazioni SET file=?, stato=?, fino=?, aggiornato=? WHERE id=?",
-      JSON.stringify(G),
-      fine ? G.some((x) => x.stato === "errore") ? "errore" : "fatto" : "in_corso",
-      fine ? null : new Date(Date.now() + 30 * 6e4).toISOString(),
-      ora(),
-      I.id
-    );
+    const k = "$[" + i + "]";
+    await run(env, `UPDATE importazioni SET file = json_set(file, '${k}.stato', ?, '${k}.errore', ?), aggiornato=? WHERE id=?`, cambi.stato, cambi.errore ?? null, ora(), I.id);
+    await chiudiSeFinita(env, I.id);
   };
   if (mm[2] === "vivo" && m === "POST") {
     await run(env, "UPDATE importazioni SET fino=?, aggiornato=? WHERE id=?", new Date(Date.now() + 30 * 6e4).toISOString(), ora(), I.id);
@@ -7874,11 +7896,11 @@ async function archivioPagina(cart) {
   const mostraImp = async () => {
     const box = $('#ar_imps'); if (!box || !c) return;
     const L = await chiama('/api/archivio/importazioni?cartella=' + encodeURIComponent(c)).catch(() => []);
-    box.innerHTML = L.filter((x) => x.stato !== 'annullata').slice(0, 4).map((x) => { const perc = x.totale ? Math.round(x.copiati / x.totale * 100) : 0;
-      const st = x.stato === 'fatto' ? '\u2713 copiati ' + (x.fatti + x.saltati) + ' file' + (x.saltati ? ' (' + x.saltati + ' c\u2019erano gi\xE0)' : '') : x.stato === 'errore' ? '\u26A0\uFE0E ' + x.errori + ' file non copiati' : x.stato === 'da_fare' ? '\u23F3 GitHub sta partendo\u2026' : '\u21E9 ' + x.fatti + ' di ' + (x.file - x.saltati) + ' file \xB7 ' + pesoTesto(x.copiati) + ' di ' + pesoTesto(x.totale);
+    box.innerHTML = L.filter((x) => x.stato !== 'annullata' || x.fatti + x.saltati < x.file).slice(0, 4).map((x) => { const perc = x.totale ? Math.round(x.copiati / x.totale * 100) : 0;
+      const st = x.stato === 'fatto' ? '\u2713 copiati ' + (x.fatti + x.saltati) + ' file' + (x.saltati ? ' (' + x.saltati + ' c\u2019erano gi\xE0)' : '') : x.stato === 'errore' ? '\u26A0\uFE0E ' + x.errori + ' file non copiati' : x.stato === 'annullata' ? '\u23F8 fermata: copiati ' + (x.fatti + x.saltati) + ' di ' + x.file + ' file' : x.stato === 'da_fare' ? '\u23F3 GitHub sta partendo\u2026' : '\u21E9 ' + x.fatti + ' di ' + (x.file - x.saltati) + ' file \xB7 ' + pesoTesto(x.copiati) + ' di ' + pesoTesto(x.totale);
       return '<div class="card" style="margin-top:8px"><div class="riga"><b style="flex:1">pCloud \u2192 ' + e(x.cartella) + '</b><span class="mut">' + st + '</span></div>' +
         (x.stato === 'fatto' ? '' : '<span class="ar-bar" style="display:block;margin-top:6px"><i style="width:' + perc + '%"></i></span>') +
-        (x.stato === 'errore' || x.stato === 'in_corso' && Date.now() - new Date(x.aggiornato) > 40 * 60e3 ? '<button class="sec imp_rip" data-id="' + x.id + '" style="width:auto;margin-top:8px">Riprova i mancanti</button>' : '') +
+        (x.stato === 'errore' || x.stato === 'annullata' || x.stato === 'in_corso' && Date.now() - new Date(x.aggiornato) > 15 * 60e3 ? '<button class="sec imp_rip" data-id="' + x.id + '" style="width:auto;margin-top:8px">' + (x.stato === 'annullata' ? 'Riprendi da dove si \xE8 fermata' : 'Riprova i mancanti') + '</button>' : '') +
         (['in_corso', 'da_fare'].includes(x.stato) ? '<button class="sec imp_ann" data-id="' + x.id + '" style="width:auto;margin-top:8px;margin-left:6px">Ferma</button>' : '') + '</div>'; }).join('');
     box.querySelectorAll('.imp_rip').forEach((b) => b.onclick = async () => { await chiama('/api/archivio/importa/' + b.dataset.id + '/riprova', { method: 'POST', body: {} }); mostraImp(); });
     box.querySelectorAll('.imp_ann').forEach((b) => b.onclick = async () => { if (!confirm('Fermo l\u2019importazione? I file gi\xE0 copiati restano.')) return; await chiama('/api/archivio/importa/' + b.dataset.id + '/annulla', { method: 'POST', body: {} }); mostraImp(); });
@@ -7916,7 +7938,7 @@ async function archivioPagina(cart) {
   // per sfruttare tutta la banda); le cartelle trascinate o scelte mantengono le sottocartelle
   const carica = async (lista) => {
     const box = $('#ar_prog');
-    const voci = [...lista].filter((x) => x.f.size > 0 && !/^./.test(x.f.name));
+    const voci = [...lista].filter((x) => x.f.size > 0 && !/^\\./.test(x.f.name));
     if (!voci.length) return;
     const totale = voci.reduce((t, x) => t + x.f.size, 0); let inviati = 0, t0 = Date.now(), fatti = 0, errori = 0;
     box.innerHTML = '<div class="card" style="margin-top:10px"><div class="riga"><b style="flex:1" id="ag_t">0 di ' + voci.length + ' file</b><span id="ag_v" class="mut"></span></div><span class="ar-bar" style="display:block;margin-top:6px"><i id="ag_b"></i></span>' +
@@ -7924,16 +7946,22 @@ async function archivioPagina(cart) {
     const generale = () => { const sec = (Date.now() - t0) / 1000, mbs = inviati / 1048576 / Math.max(1, sec), resta = (totale - inviati) / 1048576 / Math.max(0.1, mbs);
       $('#ag_b').style.width = Math.round(inviati / totale * 100) + '%'; $('#ag_t').textContent = fatti + ' di ' + voci.length + ' file \xB7 ' + pesoTesto(inviati) + ' di ' + pesoTesto(totale);
       $('#ag_v').textContent = mbs.toFixed(1).replace('.', ',') + ' MB/s \xB7 ' + (resta > 3600 ? Math.round(resta / 360) / 10 + ' h' : Math.ceil(resta / 60) + ' min') + ' alla fine'; };
-    const giaCi = new Set((await chiama('/api/archivio?cartella=' + encodeURIComponent(c)).catch(() => ({ voci: [] }))).voci.filter((v) => v.tipo !== 'cartella').map((v) => v.nome + '|' + v.dimensione));
+    // file gi\xE0 presenti (stesso nome e peso) in ogni cartella di destinazione: si saltano, cos\xEC ricaricando la stessa cartella riparte solo da quelli mancanti
+    const gia = {}; const giaIn = (q) => gia[q] || (gia[q] = chiama('/api/archivio?cartella=' + encodeURIComponent(q)).then((A) => new Set(A.voci.filter((v) => v.tipo !== 'cartella').map((v) => v.nome + '|' + v.dimensione))).catch(() => new Set()));
     const invia = (metodo, u, blob, avanz) => new Promise((ok, ko) => { const x = new XMLHttpRequest(); x.open(metodo, u); x.setRequestHeader('content-type', blob.type || 'application/octet-stream');
-      let prima = 0; x.upload.onprogress = (ev) => { avanz(ev.loaded - prima); prima = ev.loaded; };
-      x.onload = () => { let d = {}; try { d = JSON.parse(x.responseText); } catch (_) {} if (x.status < 300) ok(d); else { avanz(-prima); ko(new Error(d.errore || 'HTTP ' + x.status)); } };
-      x.onerror = () => { avanz(-prima); ko(new Error('rete')); }; x.send(blob); });
-    const riprova = async (fn) => { for (let t = 0; ; t++) { try { return await fn(); } catch (x) { if (t >= 4) throw x; await new Promise((r) => setTimeout(r, 1500 * (t + 1))); } } };
+      // guardiano: se per 45 secondi non passa niente (connessione appesa, telefono in standby) chiude e si riprova,
+      // invece di restare fermi per sempre sull'ultimo pezzo
+      let prima = 0, ultimo = Date.now(), finito = false;
+      const guardia = setInterval(() => { if (!finito && Date.now() - ultimo > 45000) { finito = true; clearInterval(guardia); x.abort(); avanz(-prima); ko(new Error('connessione ferma, riprovo')); } }, 5000);
+      const chiudi = () => { finito = true; clearInterval(guardia); };
+      x.upload.onprogress = (ev) => { ultimo = Date.now(); avanz(ev.loaded - prima); prima = ev.loaded; };
+      x.onload = () => { if (finito) return; chiudi(); let d = {}; try { d = JSON.parse(x.responseText); } catch (_) {} if (x.status < 300) ok(d); else { avanz(-prima); ko(new Error(d.errore || 'HTTP ' + x.status)); } };
+      x.onerror = () => { if (finito) return; chiudi(); avanz(-prima); ko(new Error('rete')); }; x.send(blob); });
+    const riprova = async (fn) => { for (let t = 0; ; t++) { try { return await fn(); } catch (x) { if (t >= 6) throw x; await new Promise((r) => setTimeout(r, 1500 * (t + 1))); } } };
     const riga = (nome) => { const d = document.createElement('div'); d.className = 'ar-riga'; d.innerHTML = '<span>' + e(nome) + '</span><span class="ar-bar"><i></i></span><small>\u2026</small>'; $('#ag_l').prepend(d); return d; };
     const uno = async ({ f, rel }) => {
       const dest = c + '/' + rel, nomeF = rel.split('/').pop();
-      if (!rel.includes('/') && giaCi.has(nomeF + '|' + f.size)) { inviati += f.size; fatti++; generale(); return; } // gi\xE0 caricato
+      if ((await giaIn(dest.slice(0, dest.lastIndexOf('/')))).has(nomeF + '|' + f.size)) { inviati += f.size; fatti++; generale(); return; } // gi\xE0 caricato
       const d = riga(rel), bar = d.querySelector('i'), tx = d.querySelector('small'); let mio = 0;
       const avanz = (n) => { mio += n; inviati += n; bar.style.width = Math.round(mio / f.size * 100) + '%'; tx.textContent = Math.round(mio / f.size * 100) + '%'; generale(); };
       try {
