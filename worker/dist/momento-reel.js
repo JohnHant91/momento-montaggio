@@ -5527,7 +5527,7 @@ const FASI = [['piano','Piano'],['ricerca','Ricerca'],['riferimenti','Studio ree
 let timer = null;
 
 const AGENTI = {
-  idee: { n: 'Nora', r: 'Idee e copioni', i: '\u{1F4A1}', c: '#f0b44c', s: 'direzione', d: 'Riceve i tuoi argomenti e il numero di reel del contratto, costruisce strategia, calendario e giornate di ripresa, e scrive per ogni reel il copione da girare: scene, inquadrature, camera, durata, testi e caption.' },
+  idee: { n: 'Nora', r: 'Idee e copioni dei reel', i: '\u{1F4A1}', c: '#f0b44c', s: 'video', d: 'Riceve i tuoi argomenti e il numero di reel del contratto, costruisce strategia, calendario e giornate di ripresa, e scrive per ogni reel il copione da girare: scene, inquadrature, camera, durata, testi e caption.' },
   direttore: { n: 'Leo', r: 'Direttore creativo e di stile', i: '\u{1F3AC}', c: '#12a3a4', s: 'direzione', d: 'Legge il tuo prompt, capisce settore, obiettivo, pubblico e lo stile che chiedi (natalizio, brasiliano, street\u2026), decide cosa cercare e alla fine scrive la scheda tecnica del reel.' },
   scout: { n: 'Ines', r: 'Scout social', i: '\u{1F52D}', c: '#d6409f', s: 'scouting', d: 'Cerca i reel che funzionano su Instagram, TikTok e YouTube Shorts (settore e stile), li ordina per visualizzazioni e coinvolgimento e li recupera per Iris.' },
   occhi: { n: 'Iris', r: 'Occhi \xB7 reel di riferimento e tue clip', i: '\u{1F441}\uFE0F', c: '#8b7cf6', s: 'visione', d: 'Claude: smonta i reel di riferimento (gancio, ritmo, inquadrature) e guarda le tue clip: momenti utili con i tempi, qualit\xE0, problemi (mosso, fuori fuoco).' },
@@ -6096,7 +6096,7 @@ const PIANTA = [
 ];
 const FASE_PROFILO = { ricerca: ['ricerca'], virali: ['trend'], copioni: ['idee'], avatar: ['avatar'], montaggio: ['avatar'] };
 const FASE_POST_AG = { ricerca: ['scout'], studio: ['occhi'], foto: ['occhi'], contenuti: ['caroselli'], scarica: ['caroselli'] };
-const VIDEO_TEAM = ['direttore', 'scout', 'occhi', 'regista', 'motore', 'avatar'];
+const VIDEO_TEAM = ['idee', 'direttore', 'scout', 'occhi', 'regista', 'motore', 'avatar'];
 let SALA = { s: 1, x: 0, y: 0, dati: null, sel: null, ufficio: null };
 
 function statiAgenti(R) {
@@ -6130,7 +6130,7 @@ function statiAgenti(R) {
 function agentiUfficio(R, u) {
   if (u === 'video') return VIDEO_TEAM.filter((a) => AGENTI[a]);
   const ids = Object.keys(R.squadra).filter((k) => R.squadra[k].u === u);
-  return u === 'direzione' ? ids.concat(['idee']) : ids;
+  return ids;
 }
 
 function datiSala(R) {
