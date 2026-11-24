@@ -1000,7 +1000,7 @@ STILI_TITOLO = ["blur", "sale", "rotazione", "numero", "evidenziatore", "macchin
 STILI_SOTTOTITOLI = ["karaoke", "box", "pop", "grassetto", "minimal", "neon"]
 
 
-class MontatoreCompleto(_Base):
+class MontatoreCompleto(TalkingHead):
     """IL MONTATORE: le clip (pCloud, stock o generate) vengono raddrizzate, stabilizzate, rallentate e colorate dal
     motore (ffmpeg, in parallelo), poi UNA composizione Remotion monta tutto: tagli a tempo di musica, transizioni,
     movimenti di camera, titoli in motion graphics, sottotitoli animati, look (grana, vignetta, light leak, particelle),
