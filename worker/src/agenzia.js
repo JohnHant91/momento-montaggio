@@ -219,7 +219,7 @@ async function strumento(env, chi, nome, a) {
   if (a.sezione && !STORE[a.sezione]) return { errore: 'sezione inesistente' };
   if (nome === 'cerca') {
     const t = String(a.testo || '').trim();
-    const r = (await G.prepare(`SELECT id, data FROM records WHERE store=? ${t ? 'AND data LIKE ?' : ''} ORDER BY updated DESC LIMIT 30`).bind(...(t ? [a.sezione, '%' + t + '%'] : [a.sezione])).all()).results;
+    const r = (await G.prepare(`SELECT id, data FROM records WHERE store=? ${t ? 'AND instr(lower(data), lower(?)) > 0' : ''} ORDER BY updated DESC LIMIT 30`).bind(...(t ? [a.sezione, t] : [a.sezione])).all()).results;
     return r.map((x) => { const d = J(x.data, {}); delete d.righe; delete d.condizioni; return d; });
   }
   if (nome === 'leggi') { const r = await G.prepare('SELECT data FROM records WHERE store=? AND id=?').bind(a.sezione, a.id).first(); return r ? J(r.data) : { errore: 'non trovato' }; }

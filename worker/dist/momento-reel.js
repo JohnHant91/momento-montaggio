@@ -1011,7 +1011,7 @@ async function registraFile(env, p, oggetto, mime) {
 }
 async function fileSotto(env, cartella) {
   const c = pulisci(cartella);
-  return all(env, "SELECT * FROM archivio WHERE tipo != 'cartella' AND (cartella = ? OR cartella LIKE ? ESCAPE '\\') ORDER BY percorso", c, c.replace(/[%_\\]/g, "\\$&") + "/%");
+  return all(env, "SELECT * FROM archivio WHERE tipo != 'cartella' AND (cartella = ? OR (cartella >= ? AND cartella < ?)) ORDER BY percorso", c, c + "/", c + "0");
 }
 async function firma(env, p, scade) {
   const k = await crypto.subtle.importKey("raw", new TextEncoder().encode((env.IG_INTERNO_KEY || "") + "|" + (env.ADMIN_PASSWORD || "") + "|archivio"), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -1069,7 +1069,7 @@ async function trovaCartella(env, testo) {
     }
   }
   if (!meglio) return null;
-  const n = await one(env, "SELECT COUNT(*) AS n FROM archivio WHERE tipo IN ('video','immagine') AND (cartella = ? OR cartella LIKE ?)", meglio, meglio + "/%");
+  const n = await one(env, "SELECT COUNT(*) AS n FROM archivio WHERE tipo IN ('video','immagine') AND (cartella = ? OR (cartella >= ? AND cartella < ?))", meglio, meglio + "/", meglio + "0");
   return n.n ? meglio : null;
 }
 async function logoCliente(env, cartella) {
@@ -1087,7 +1087,7 @@ async function apiArchivio(req, env, p, m, json3) {
     const c = pulisci(url.searchParams.get("cartella"));
     const voci = await all(env, "SELECT percorso, nome, tipo, dimensione, creato FROM archivio WHERE cartella = ? ORDER BY tipo != 'cartella', nome COLLATE NOCASE", c);
     for (const v of voci.filter((x) => x.tipo === "cartella")) {
-      const s = await one(env, "SELECT COUNT(*) AS n, COALESCE(SUM(dimensione),0) AS b FROM archivio WHERE tipo != 'cartella' AND (cartella = ? OR cartella LIKE ?)", v.percorso, v.percorso + "/%");
+      const s = await one(env, "SELECT COUNT(*) AS n, COALESCE(SUM(dimensione),0) AS b FROM archivio WHERE tipo != 'cartella' AND (cartella = ? OR (cartella >= ? AND cartella < ?))", v.percorso, v.percorso + "/", v.percorso + "0");
       Object.assign(v, { file: s.n, dimensione: s.b });
     }
     const tot = await one(env, "SELECT COALESCE(SUM(dimensione),0) AS b, COUNT(*) AS n FROM archivio WHERE tipo != 'cartella'");
@@ -1195,7 +1195,7 @@ async function apiArchivio(req, env, p, m, json3) {
     if (!v) return json3({ errore: "non trovato" }, 404);
     const file = v.tipo === "cartella" ? (await fileSotto(env, c)).map((x) => x.percorso) : [c];
     for (let i = 0; i < file.length; i += 500) await env.ARCHIVIO.delete(file.slice(i, i + 500));
-    await run(env, "DELETE FROM archivio WHERE percorso = ? OR percorso LIKE ?", c, c.replace(/[%_]/g, "\\$&") + "/%");
+    await run(env, "DELETE FROM archivio WHERE percorso = ? OR (percorso >= ? AND percorso < ?)", c, c + "/", c + "0");
     return json3({ ok: true, eliminati: file.length });
   }
   return json3({ errore: "non trovato" }, 404);
@@ -1339,7 +1339,7 @@ async function schemaChiara(env) {
 async function clientePerNome(env, nome) {
   if (!nome) return null;
   await schemaChiara(env);
-  return one(env, "SELECT * FROM clienti WHERE lower(nome)=lower(?) OR lower(nome) LIKE lower(?) LIMIT 1", nome, "%" + nome + "%");
+  return one(env, "SELECT * FROM clienti WHERE lower(nome)=lower(?) OR instr(lower(nome), lower(?)) > 0 LIMIT 1", nome, nome);
 }
 async function lineaCliente(env, cfg, C, forza2 = false) {
   if (!C) return null;
@@ -5164,7 +5164,7 @@ async function strumento(env, chi2, nome, a) {
   if (a.sezione && !STORE[a.sezione]) return { errore: "sezione inesistente" };
   if (nome === "cerca") {
     const t = String(a.testo || "").trim();
-    const r = (await G.prepare(`SELECT id, data FROM records WHERE store=? ${t ? "AND data LIKE ?" : ""} ORDER BY updated DESC LIMIT 30`).bind(...t ? [a.sezione, "%" + t + "%"] : [a.sezione]).all()).results;
+    const r = (await G.prepare(`SELECT id, data FROM records WHERE store=? ${t ? "AND instr(lower(data), lower(?)) > 0" : ""} ORDER BY updated DESC LIMIT 30`).bind(...t ? [a.sezione, t] : [a.sezione]).all()).results;
     return r.map((x) => {
       const d = J(x.data, {});
       delete d.righe;
@@ -5981,7 +5981,7 @@ async function apiImporta(req, env, p, m, json3) {
   }
   if (p === "/api/archivio/importazioni" && m === "GET") {
     const c = pulisci(url.searchParams.get("cartella"));
-    const L = await all(env, "SELECT * FROM importazioni WHERE (? = '' OR cartella = ? OR cartella LIKE ?) ORDER BY id DESC LIMIT 10", c, c, c + "/%");
+    const L = await all(env, "SELECT * FROM importazioni WHERE (? = '' OR cartella = ? OR (cartella >= ? AND cartella < ?)) ORDER BY id DESC LIMIT 10", c, c, c + "/", c + "0");
     return json3(L.map(riassunto));
   }
   const ri = p.match(/^\/api\/archivio\/importa\/(\d+)\/(riprova|annulla)$/);

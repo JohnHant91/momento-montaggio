@@ -59,7 +59,7 @@ export async function apiImporta(req, env, p, m, json) {
   }
   if (p === '/api/archivio/importazioni' && m === 'GET') {
     const c = pulisci(url.searchParams.get('cartella'));
-    const L = await all(env, 'SELECT * FROM importazioni WHERE (? = \'\' OR cartella = ? OR cartella LIKE ?) ORDER BY id DESC LIMIT 10', c, c, c + '/%');
+    const L = await all(env, 'SELECT * FROM importazioni WHERE (? = \'\' OR cartella = ? OR (cartella >= ? AND cartella < ?)) ORDER BY id DESC LIMIT 10', c, c, c + '/', c + '0');
     return json(L.map(riassunto));
   }
   const ri = p.match(/^\/api\/archivio\/importa\/(\d+)\/(riprova|annulla)$/);

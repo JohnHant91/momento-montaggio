@@ -42,7 +42,7 @@ async function registraFile(env, p, oggetto, mime) {
 // tutti i file dentro una cartella (anche nelle sottocartelle)
 export async function fileSotto(env, cartella) {
   const c = pulisci(cartella);
-  return all(env, "SELECT * FROM archivio WHERE tipo != 'cartella' AND (cartella = ? OR cartella LIKE ? ESCAPE '\\') ORDER BY percorso", c, c.replace(/[%_\\]/g, '\\$&') + '/%');
+  return all(env, "SELECT * FROM archivio WHERE tipo != 'cartella' AND (cartella = ? OR (cartella >= ? AND cartella < ?)) ORDER BY percorso", c, c + '/', c + '0');
 }
 
 // link firmato che il motore GitHub usa per scaricare (vale 3 giorni, mai indovinabile)
@@ -96,7 +96,7 @@ export async function trovaCartella(env, testo) {
     if (v > voto) { voto = v; meglio = percorso; }
   }
   if (!meglio) return null;
-  const n = await one(env, "SELECT COUNT(*) AS n FROM archivio WHERE tipo IN ('video','immagine') AND (cartella = ? OR cartella LIKE ?)", meglio, meglio + '/%');
+  const n = await one(env, "SELECT COUNT(*) AS n FROM archivio WHERE tipo IN ('video','immagine') AND (cartella = ? OR (cartella >= ? AND cartella < ?))", meglio, meglio + '/', meglio + '0');
   return n.n ? meglio : null;
 }
 
@@ -119,7 +119,7 @@ export async function apiArchivio(req, env, p, m, json) {
     const voci = await all(env, 'SELECT percorso, nome, tipo, dimensione, creato FROM archivio WHERE cartella = ? ORDER BY tipo != \'cartella\', nome COLLATE NOCASE', c);
     // peso di ogni sottocartella e dell'archivio intero (per la stima del costo)
     for (const v of voci.filter((x) => x.tipo === 'cartella')) {
-      const s = await one(env, "SELECT COUNT(*) AS n, COALESCE(SUM(dimensione),0) AS b FROM archivio WHERE tipo != 'cartella' AND (cartella = ? OR cartella LIKE ?)", v.percorso, v.percorso + '/%');
+      const s = await one(env, "SELECT COUNT(*) AS n, COALESCE(SUM(dimensione),0) AS b FROM archivio WHERE tipo != 'cartella' AND (cartella = ? OR (cartella >= ? AND cartella < ?))", v.percorso, v.percorso + '/', v.percorso + '0');
       Object.assign(v, { file: s.n, dimensione: s.b });
     }
     const tot = await one(env, "SELECT COALESCE(SUM(dimensione),0) AS b, COUNT(*) AS n FROM archivio WHERE tipo != 'cartella'");
@@ -213,7 +213,7 @@ export async function apiArchivio(req, env, p, m, json) {
     if (!v) return json({ errore: 'non trovato' }, 404);
     const file = v.tipo === 'cartella' ? (await fileSotto(env, c)).map((x) => x.percorso) : [c];
     for (let i = 0; i < file.length; i += 500) await env.ARCHIVIO.delete(file.slice(i, i + 500));
-    await run(env, "DELETE FROM archivio WHERE percorso = ? OR percorso LIKE ?", c, c.replace(/[%_]/g, '\\$&') + '/%');
+    await run(env, "DELETE FROM archivio WHERE percorso = ? OR (percorso >= ? AND percorso < ?)", c, c + '/', c + '0');
     return json({ ok: true, eliminati: file.length });
   }
   return json({ errore: 'non trovato' }, 404);

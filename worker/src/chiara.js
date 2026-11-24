@@ -12,7 +12,7 @@ export async function schemaChiara(env) {
 export async function clientePerNome(env, nome) {
   if (!nome) return null;
   await schemaChiara(env);
-  return one(env, 'SELECT * FROM clienti WHERE lower(nome)=lower(?) OR lower(nome) LIKE lower(?) LIMIT 1', nome, '%' + nome + '%');
+  return one(env, 'SELECT * FROM clienti WHERE lower(nome)=lower(?) OR instr(lower(nome), lower(?)) > 0 LIMIT 1', nome, nome);
 }
 
 // la linea editoriale del cliente: se non c'è la scrive Chiara (una volta), poi resta e si aggiorna su richiesta
