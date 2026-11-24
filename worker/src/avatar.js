@@ -1,8 +1,7 @@
 // REEL CON L'AVATAR DI JOHNNY (profilo Instagram personale).
 // Johnny dà l'argomento, poi gli agenti lavorano in fila:
 //  1. Sofia (Ricerca) si documenta sul web: fatti verificati con le fonti, numeri, errori comuni, domande della gente.
-//  2. Zoe (Trend) cerca i video simili e quelli virali sull'argomento (YouTube, TikTok, Instagram), ne guarda i migliori
-//     e ricava ganci, strutture e angoli che funzionano.
+//  2. Sofia cerca anche i video virali sull'argomento (YouTube, TikTok, Instagram) e ne fa guardare i migliori a Gemini; gli schemi li ricava Nora
 //  3. Nora scrive i copioni GANCIO → PROBLEMA → TENSIONE → SOLUZIONE → CTA, con i cartelli. Johnny li approva.
 //  4. Ava genera i video con l'avatar HeyGen (serve la chiave API; senza chiave li genera Claude dalla chat).
 //  5. Il comparto Reel li monta con lo stile "Talking head educativo con grafiche".
@@ -70,7 +69,7 @@ export async function nuovoPianoAvatar(env, argomento, numero = 1, note = '', ri
 }
 
 // ------------------------------------------------------------------ 1. ricerca sul web
-async function claudeWeb(cfg, sistema, domanda, maxUses = 8) {
+async function claudeWeb(cfg, sistema, domanda, maxUses = 5) { // 5 ricerche bastano: i risultati del web sono la voce più cara
   const r = await S.richiesta('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': cfg.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
@@ -105,7 +104,7 @@ Rispondi SOLO JSON:
   const valide = (x) => (x || []).filter((f) => !f.fonte || fonti.has(f.fonte) || [...fonti.keys()].some((u) => u.startsWith(String(f.fonte).slice(0, 40))));
   const ricerca = { ...out, fatti: valide(out.fatti), numeri: valide(out.numeri), fonti: [...fonti].slice(0, 25).map(([url, titolo]) => ({ url, titolo })) };
   await run(env, "UPDATE avatar_piani SET ricerca=?, fase='virali', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(ricerca), ora(), A.id);
-  await log(env, null, 'ricerca', `📚 "${A.argomento.slice(0, 60)}": ${ricerca.fatti.length} fatti verificati, ${ricerca.fonti.length} fonti, ${(ricerca.angoli || []).length} angoli. Passo a Zoe i video virali`);
+  await log(env, null, 'ricerca', `📚 "${A.argomento.slice(0, 60)}": ${ricerca.fatti.length} fatti verificati, ${ricerca.fonti.length} fonti, ${(ricerca.angoli || []).length} angoli. cerco i video virali`);
 }
 
 // ------------------------------------------------------------------ 2. video simili e virali
@@ -118,7 +117,7 @@ async function faseVirali(env, cfg, A) {
   for (const e of esiti) if (e.status === 'fulfilled') lista.push(...(Array.isArray(e.value) ? e.value : e.value.video || []));
   const visti = new Set();
   const top = lista.filter((v) => v && !visti.has(v.url) && visti.add(v.url)).map((v) => ({ ...v, punteggio: S.punteggio(v) })).sort((a, b) => b.punteggio - a.punteggio).slice(0, 15);
-  await log(env, null, 'trend', `🔥 "${A.argomento.slice(0, 60)}": ${lista.length} video trovati, guardo i più virali`);
+  await log(env, null, 'ricerca', `🔥 "${A.argomento.slice(0, 60)}": ${lista.length} video trovati, guardo i più virali`);
   // guardo davvero i 3 più forti (Gemini): gancio parola per parola, struttura, perché funziona
   const guardati = [];
   for (const v of top.filter((x) => x.piattaforma === 'youtube').slice(0, 3)) {
@@ -126,21 +125,11 @@ async function faseVirali(env, cfg, A) {
       const g = await S.guardaYoutube(cfg, v.url, `Analizza questo reel come un esperto di contenuti virali. Rispondi SOLO JSON:
 {"gancio_testuale": "le prime parole dette o scritte, parola per parola", "struttura": "come è costruito secondo per secondo, in breve", "tensione": "come tiene lo spettatore fino alla fine", "soluzione": "cosa rivela alla fine", "perche_funziona": "...", "durata_sec": n}`, 1);
       guardati.push({ url: v.url, titolo: v.titolo, views: v.views, ...g });
-    } catch (e) { await log(env, null, 'trend', `non riesco a guardare ${v.url}: ${String(e.message).slice(0, 120)}`, 'warn'); }
+    } catch (e) { await log(env, null, 'ricerca', `non riesco a guardare ${v.url}: ${String(e.message).slice(0, 120)}`, 'warn'); }
   }
-  const sintesi = await S.claude(cfg, `Sei Zoe, Trend e idee di AGENZIA MOMENTO AI. Ricavi dai video virali cosa funziona su un argomento, senza copiare.
-
-===== SKILL: viral-reverse-engineering =====
-${(SKILL['viral-reverse-engineering'] || '').slice(0, 6000)}`,
-  `ARGOMENTO: ${A.argomento}
-VIDEO PIÙ VIRALI (titolo, visualizzazioni, piattaforma): ${JSON.stringify(top.map((v) => ({ p: v.piattaforma, titolo: (v.titolo || '').slice(0, 120), views: v.views, url: v.url })))}
-VIDEO GUARDATI DAVVERO: ${JSON.stringify(guardati)}
-DALLA RICERCA DI SOFIA: angoli ${JSON.stringify(ric.angoli || [])}; errori comuni ${JSON.stringify(ric.errori_comuni || [])}
-
-Rispondi SOLO JSON: {"ganci_che_funzionano": ["schemi di gancio (non copiati)"], "strutture": ["..."], "angoli_scoperti": ["angoli che nessuno ha ancora fatto bene"], "durata_ideale_sec": n, "da_evitare": ["..."], "nota": "2 frasi per Nora"}`, { maxTokens: 4000 });
-  const virali = { video: top.map((v) => ({ piattaforma: v.piattaforma, url: v.url, titolo: v.titolo, views: v.views })), guardati, ...sintesi };
+  const virali = { video: top.map((v) => ({ piattaforma: v.piattaforma, url: v.url, titolo: v.titolo, views: v.views })), guardati };
   await run(env, "UPDATE avatar_piani SET virali=?, fase='copioni', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(virali), ora(), A.id);
-  await log(env, null, 'trend', `🧠 "${A.argomento.slice(0, 60)}": ${(sintesi.ganci_che_funzionano || []).length} schemi di gancio, ${(sintesi.angoli_scoperti || []).length} angoli scoperti. Tocca a Nora`);
+  await log(env, null, 'ricerca', `🧠 "${A.argomento.slice(0, 60)}": ${top.length} virali trovati, ${guardati.length} guardati davvero. Passo tutto a Nora`);
 }
 
 // ------------------------------------------------------------------ 3. copioni
@@ -150,9 +139,10 @@ const FORMATO_COPIONE = `{"titolo": "...", "angolo": "...", "testo": "tutto il t
   "caption": "caption Instagram con gancio e CTA", "hashtag": ["5 hashtag"], "fonti": ["url usati"]}`;
 const contesto = (A) => `ARGOMENTO: ${A.argomento}${A.note ? '\nINDICAZIONI DI JOHNNY: ' + A.note : ''}
 RICERCA DI SOFIA (usa SOLO questi fatti e numeri): ${JSON.stringify(J(A.ricerca, {})).slice(0, 12000)}
-COSA FUNZIONA NEI VIRALI (Zoe): ${JSON.stringify({ ...J(A.virali, {}), video: undefined, guardati: undefined }).slice(0, 6000)}`;
+VIDEO VIRALI SULL'ARGOMENTO (titolo, views) E QUELLI GUARDATI DAVVERO (gancio parola per parola, struttura, perché funziona): ${JSON.stringify({ video: (J(A.virali, {}).video || []).map((v) => ({ p: v.piattaforma, titolo: String(v.titolo || '').slice(0, 100), views: v.views })), guardati: J(A.virali, {}).guardati || [], schemi: J(A.virali, {}).ganci_che_funzionano ? { ganci: J(A.virali, {}).ganci_che_funzionano, angoli: J(A.virali, {}).angoli_scoperti } : undefined }).slice(0, 7000)}
+Ricava tu dai virali cosa funziona (ganci, strutture, angoli non ancora fatti bene), senza copiarli.`;
 
-// Una sola ricerca (Sofia + Zoe) vale per 10 reel: Nora propone 10 idee, sceglie le migliori e scrive il copione solo di
+// Una sola ricerca (Sofia, web e virali) vale per 10 reel: Nora propone 10 idee, sceglie le migliori e scrive il copione solo di
 // quelle; le altre restano in riserva e diventano copioni quando Johnny le sceglie, senza rifare la ricerca.
 async function faseCopioni(env, cfg, A) {
   const sistema = `Sei Nora, Idee e copioni di AGENZIA MOMENTO AI. Scrivi i testi che dirà l'AVATAR di Johnny nei reel del suo profilo Instagram.
@@ -181,7 +171,8 @@ Rispondi SOLO JSON: ${FORMATO_COPIONE}`, { maxTokens: 4000 });
 1) Proponi 10 IDEE di reel DIVERSE (angoli diversi) su questo argomento, dalla migliore alla peggiore, con un voto 1-10 su quanto può diventare virale per il profilo di Johnny.
 2) Scegli le ${quanti} migliori e scrivi SOLO per quelle il copione completo, formato AVATAR: GANCIO → PROBLEMA → TENSIONE (2-3 anelli aperti) → SOLUZIONE solo alla fine → CTA.
 Rispondi SOLO JSON:
-{"idee": [{"titolo": "...", "angolo": "...", "gancio": "la prima frase", "soluzione": "...", "voto": n, "perche": "1 frase"}],
+{"virali": {"ganci_che_funzionano": ["schemi di gancio, non copiati"], "angoli_scoperti": ["..."], "da_evitare": ["..."]},
+ "idee": [{"titolo": "...", "angolo": "...", "gancio": "la prima frase", "soluzione": "...", "voto": n, "perche": "1 frase"}],
  "scelte": [indici (da 0) delle idee scritte],
  "copioni": [${FORMATO_COPIONE}]}`, { maxTokens: 6000 + quanti * 2200 });
   const lista = (out.idee || []).slice(0, 10);
@@ -189,7 +180,8 @@ Rispondi SOLO JSON:
   const nuovi = (out.copioni || []).slice(0, quanti).map((c, k) => ({ n: k + 1, ...c, idea: scelte[k] ?? null, parole: String(c.testo || '').split(/\s+/).filter(Boolean).length, stato: 'da_approvare' }));
   if (!nuovi.length) throw new Error('Nora non ha prodotto copioni');
   nuovi.forEach((c) => { if (c.idea != null && lista[c.idea]) lista[c.idea].usata = c.n; });
-  await run(env, "UPDATE avatar_piani SET copioni=?, idee=?, fase='approvazione', stato='da_approvare', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(nuovi), JSON.stringify(lista), ora(), A.id);
+  const virali = { ...J(A.virali, {}), ...(out.virali && typeof out.virali === 'object' ? out.virali : {}) };
+  await run(env, "UPDATE avatar_piani SET copioni=?, idee=?, virali=?, fase='approvazione', stato='da_approvare', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(nuovi), JSON.stringify(lista), JSON.stringify(virali), ora(), A.id);
   await log(env, null, 'idee', `💡 10 idee su "${A.argomento.slice(0, 60)}": Nora ha scelto le ${nuovi.length} migliori e ne ha scritto il copione, le altre ${lista.length - nuovi.length} restano in riserva`);
 }
 
@@ -225,7 +217,7 @@ async function faseAvatar(env, cfg, A) {
       await log(env, null, 'avatar', `🎭 genero il reel ${c.n} "${c.titolo}" con il tuo avatar`);
     } else if (v.stato === 'in_corso' && v.video_id) {
       const d = await heygen(cfg, 'GET', '/v1/video_status.get?video_id=' + encodeURIComponent(v.video_id));
-      if (d.status === 'completed' && d.video_url) { Object.assign(v, { stato: 'fatto', url: d.video_url, durata: d.duration || null }); cambiato = true; await registra(cfg, 'heygen', 'avatar', { secondi: d.duration || 0 }, ((d.duration || 0) / 60) * (Number(cfg.HEYGEN_DOLLARI_MINUTO) || 1)); await log(env, null, 'avatar', `✅ reel ${c.n} generato (${Math.round(d.duration || 0)} s)`); }
+      if (d.status === 'completed' && d.video_url) { Object.assign(v, { stato: 'fatto', url: d.video_url, durata: d.duration || null }); cambiato = true; await registra(cfg, 'heygen', 'avatar', { secondi: d.duration || 0 }, ((d.duration || 0) / 60) * (Number(cfg.HEYGEN_DOLLARI_MINUTO) || 0.6)); await log(env, null, 'avatar', `✅ reel ${c.n} generato (${Math.round(d.duration || 0)} s)`); }
       if (d.status === 'failed') { Object.assign(v, { stato: 'errore', errore: JSON.stringify(d.error || '').slice(0, 200) }); cambiato = true; await log(env, null, 'avatar', `❌ reel ${c.n}: ${v.errore}`, 'errore'); }
     }
   }
@@ -271,7 +263,7 @@ export async function avanzaAvatar(env) {
   const cfg0 = await configurazione(env);
   for (const A0 of L) {
     if (A0.stato === 'attende_avatar' && !cfg0.HEYGEN_API_KEY) continue;
-    const cfg = chi(cfg0, { area: 'profilo', piano_id: A0.id, agente: { ricerca: 'ricerca', virali: 'trend', copioni: 'idee', avatar: 'avatar' }[A0.fase] || 'avatar' });
+    const cfg = chi(cfg0, { area: 'profilo', piano_id: A0.id, agente: { ricerca: 'ricerca', virali: 'ricerca', copioni: 'idee', avatar: 'avatar' }[A0.fase] || 'avatar' });
     const A = await one(env, 'UPDATE avatar_piani SET blocco_fino=?, tentativi=tentativi+1 WHERE id=? AND (blocco_fino IS NULL OR blocco_fino < ?) RETURNING *', new Date(Date.now() + BLOCCO_MIN * 60e3).toISOString(), A0.id, adesso);
     if (!A) continue;
     try {
@@ -286,7 +278,7 @@ export async function avanzaAvatar(env) {
       const stop = !credito && A.tentativi >= 3;
       await run(env, 'UPDATE avatar_piani SET stato=?, errore=?, tentativi=?, blocco_fino=?, aggiornato=? WHERE id=?', stop ? 'errore' : A.stato === 'attende_avatar' ? 'attende_avatar' : 'in_corso',
         credito ? 'Credito Claude esaurito: riparto da solo quando lo ricarichi' : msg, credito ? 0 : A.tentativi, stop ? null : new Date(Date.now() + (credito ? 10 : 3) * 60e3).toISOString(), ora(), A.id);
-      const ag = { ricerca: 'ricerca', virali: 'trend', copioni: 'idee', avatar: 'avatar', montaggio: 'regia' }[A.fase] || 'ricerca';
+      const ag = { ricerca: 'ricerca', virali: 'ricerca', copioni: 'idee', avatar: 'avatar', montaggio: 'regia' }[A.fase] || 'ricerca';
       await log(env, null, ag, credito ? '⏸️ credito Claude esaurito: riparto quando lo ricarichi' : `${stop ? '❌' : '⚠️'} profilo IG #${A.id} (${A.fase}): ${msg}`, stop || credito ? 'errore' : 'warn');
     }
   }

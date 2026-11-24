@@ -2162,6 +2162,10 @@ Produci la scheda:
   "rischi": ["cosa pu\xF2 venire male e come evitarlo"]
 }`;
 async function fasePiano(env, cfg, L) {
+  if (J(L.stile, null)?.avatar) {
+    await run(env, "UPDATE lavori SET piano=? WHERE id=?", JSON.stringify({ settore: "profilo personale di Johnny", obiettivo: "reel per il profilo Instagram" }), L.id);
+    return;
+  }
   await log(env, L.id, "direttore", "leggo la richiesta e preparo la ricerca");
   const p = await claude(cfg, SISTEMA_PIANO, piano(L.prompt), { maxTokens: 1500 });
   let stile = J(L.stile, null) || rilevaStile(L.prompt);
@@ -3170,7 +3174,7 @@ async function nuovoPianoAvatar(env, argomento, numero = 1, note = "", riunione 
   await log(env, null, "ricerca", `\u{1F50E} nuovo argomento per il profilo di Johnny: "${String(argomento).slice(0, 80)}" (${numero} reel): mi documento`);
   return r.id;
 }
-async function claudeWeb(cfg, sistema, domanda, maxUses = 8) {
+async function claudeWeb(cfg, sistema, domanda, maxUses = 5) {
   const r = await richiesta("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": cfg.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
@@ -3207,7 +3211,7 @@ Rispondi SOLO JSON:
   const valide = (x) => (x || []).filter((f) => !f.fonte || fonti.has(f.fonte) || [...fonti.keys()].some((u) => u.startsWith(String(f.fonte).slice(0, 40))));
   const ricerca = { ...out, fatti: valide(out.fatti), numeri: valide(out.numeri), fonti: [...fonti].slice(0, 25).map(([url, titolo]) => ({ url, titolo })) };
   await run(env, "UPDATE avatar_piani SET ricerca=?, fase='virali', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(ricerca), ora(), A.id);
-  await log(env, null, "ricerca", `\u{1F4DA} "${A.argomento.slice(0, 60)}": ${ricerca.fatti.length} fatti verificati, ${ricerca.fonti.length} fonti, ${(ricerca.angoli || []).length} angoli. Passo a Zoe i video virali`);
+  await log(env, null, "ricerca", `\u{1F4DA} "${A.argomento.slice(0, 60)}": ${ricerca.fatti.length} fatti verificati, ${ricerca.fonti.length} fonti, ${(ricerca.angoli || []).length} angoli. cerco i video virali`);
 }
 async function faseVirali(env, cfg, A) {
   const ric = J(A.ricerca, {});
@@ -3223,7 +3227,7 @@ Rispondi SOLO JSON: {"youtube": ["2 ricerche brevi, una in italiano e una in ing
   for (const e of esiti) if (e.status === "fulfilled") lista.push(...Array.isArray(e.value) ? e.value : e.value.video || []);
   const visti = /* @__PURE__ */ new Set();
   const top = lista.filter((v) => v && !visti.has(v.url) && visti.add(v.url)).map((v) => ({ ...v, punteggio: punteggio(v) })).sort((a, b) => b.punteggio - a.punteggio).slice(0, 15);
-  await log(env, null, "trend", `\u{1F525} "${A.argomento.slice(0, 60)}": ${lista.length} video trovati, guardo i pi\xF9 virali`);
+  await log(env, null, "ricerca", `\u{1F525} "${A.argomento.slice(0, 60)}": ${lista.length} video trovati, guardo i pi\xF9 virali`);
   const guardati = [];
   for (const v of top.filter((x) => x.piattaforma === "youtube").slice(0, 3)) {
     try {
@@ -3231,26 +3235,12 @@ Rispondi SOLO JSON: {"youtube": ["2 ricerche brevi, una in italiano e una in ing
 {"gancio_testuale": "le prime parole dette o scritte, parola per parola", "struttura": "come \xE8 costruito secondo per secondo, in breve", "tensione": "come tiene lo spettatore fino alla fine", "soluzione": "cosa rivela alla fine", "perche_funziona": "...", "durata_sec": n}`, 1);
       guardati.push({ url: v.url, titolo: v.titolo, views: v.views, ...g });
     } catch (e) {
-      await log(env, null, "trend", `non riesco a guardare ${v.url}: ${String(e.message).slice(0, 120)}`, "warn");
+      await log(env, null, "ricerca", `non riesco a guardare ${v.url}: ${String(e.message).slice(0, 120)}`, "warn");
     }
   }
-  const sintesi = await claude(
-    cfg,
-    `Sei Zoe, Trend e idee di AGENZIA MOMENTO AI. Ricavi dai video virali cosa funziona su un argomento, senza copiare.
-
-===== SKILL: viral-reverse-engineering =====
-${(SKILL["viral-reverse-engineering"] || "").slice(0, 6e3)}`,
-    `ARGOMENTO: ${A.argomento}
-VIDEO PI\xD9 VIRALI (titolo, visualizzazioni, piattaforma): ${JSON.stringify(top.map((v) => ({ p: v.piattaforma, titolo: (v.titolo || "").slice(0, 120), views: v.views, url: v.url })))}
-VIDEO GUARDATI DAVVERO: ${JSON.stringify(guardati)}
-DALLA RICERCA DI SOFIA: angoli ${JSON.stringify(ric.angoli || [])}; errori comuni ${JSON.stringify(ric.errori_comuni || [])}
-
-Rispondi SOLO JSON: {"ganci_che_funzionano": ["schemi di gancio (non copiati)"], "strutture": ["..."], "angoli_scoperti": ["angoli che nessuno ha ancora fatto bene"], "durata_ideale_sec": n, "da_evitare": ["..."], "nota": "2 frasi per Nora"}`,
-    { maxTokens: 4e3 }
-  );
-  const virali = { video: top.map((v) => ({ piattaforma: v.piattaforma, url: v.url, titolo: v.titolo, views: v.views })), guardati, ...sintesi };
+  const virali = { video: top.map((v) => ({ piattaforma: v.piattaforma, url: v.url, titolo: v.titolo, views: v.views })), guardati };
   await run(env, "UPDATE avatar_piani SET virali=?, fase='copioni', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(virali), ora(), A.id);
-  await log(env, null, "trend", `\u{1F9E0} "${A.argomento.slice(0, 60)}": ${(sintesi.ganci_che_funzionano || []).length} schemi di gancio, ${(sintesi.angoli_scoperti || []).length} angoli scoperti. Tocca a Nora`);
+  await log(env, null, "ricerca", `\u{1F9E0} "${A.argomento.slice(0, 60)}": ${top.length} virali trovati, ${guardati.length} guardati davvero. Passo tutto a Nora`);
 }
 var FORMATO_COPIONE = `{"titolo": "...", "angolo": "...", "testo": "tutto il testo detto dall'avatar, 120-180 parole",
   "gancio": "la prima frase", "soluzione": "la rivelazione finale in una frase",
@@ -3258,7 +3248,8 @@ var FORMATO_COPIONE = `{"titolo": "...", "angolo": "...", "testo": "tutto il tes
   "caption": "caption Instagram con gancio e CTA", "hashtag": ["5 hashtag"], "fonti": ["url usati"]}`;
 var contesto = (A) => `ARGOMENTO: ${A.argomento}${A.note ? "\nINDICAZIONI DI JOHNNY: " + A.note : ""}
 RICERCA DI SOFIA (usa SOLO questi fatti e numeri): ${JSON.stringify(J(A.ricerca, {})).slice(0, 12e3)}
-COSA FUNZIONA NEI VIRALI (Zoe): ${JSON.stringify({ ...J(A.virali, {}), video: void 0, guardati: void 0 }).slice(0, 6e3)}`;
+VIDEO VIRALI SULL'ARGOMENTO (titolo, views) E QUELLI GUARDATI DAVVERO (gancio parola per parola, struttura, perch\xE9 funziona): ${JSON.stringify({ video: (J(A.virali, {}).video || []).map((v) => ({ p: v.piattaforma, titolo: String(v.titolo || "").slice(0, 100), views: v.views })), guardati: J(A.virali, {}).guardati || [], schemi: J(A.virali, {}).ganci_che_funzionano ? { ganci: J(A.virali, {}).ganci_che_funzionano, angoli: J(A.virali, {}).angoli_scoperti } : void 0 }).slice(0, 7e3)}
+Ricava tu dai virali cosa funziona (ganci, strutture, angoli non ancora fatti bene), senza copiarli.`;
 async function faseCopioni2(env, cfg, A) {
   const sistema = `Sei Nora, Idee e copioni di AGENZIA MOMENTO AI. Scrivi i testi che dir\xE0 l'AVATAR di Johnny nei reel del suo profilo Instagram.
 ${MANUALE_COPIONI}`;
@@ -3286,7 +3277,8 @@ Rispondi SOLO JSON: ${FORMATO_COPIONE}`, { maxTokens: 4e3 });
 1) Proponi 10 IDEE di reel DIVERSE (angoli diversi) su questo argomento, dalla migliore alla peggiore, con un voto 1-10 su quanto pu\xF2 diventare virale per il profilo di Johnny.
 2) Scegli le ${quanti} migliori e scrivi SOLO per quelle il copione completo, formato AVATAR: GANCIO \u2192 PROBLEMA \u2192 TENSIONE (2-3 anelli aperti) \u2192 SOLUZIONE solo alla fine \u2192 CTA.
 Rispondi SOLO JSON:
-{"idee": [{"titolo": "...", "angolo": "...", "gancio": "la prima frase", "soluzione": "...", "voto": n, "perche": "1 frase"}],
+{"virali": {"ganci_che_funzionano": ["schemi di gancio, non copiati"], "angoli_scoperti": ["..."], "da_evitare": ["..."]},
+ "idee": [{"titolo": "...", "angolo": "...", "gancio": "la prima frase", "soluzione": "...", "voto": n, "perche": "1 frase"}],
  "scelte": [indici (da 0) delle idee scritte],
  "copioni": [${FORMATO_COPIONE}]}`, { maxTokens: 6e3 + quanti * 2200 });
   const lista = (out.idee || []).slice(0, 10);
@@ -3296,7 +3288,8 @@ Rispondi SOLO JSON:
   nuovi.forEach((c) => {
     if (c.idea != null && lista[c.idea]) lista[c.idea].usata = c.n;
   });
-  await run(env, "UPDATE avatar_piani SET copioni=?, idee=?, fase='approvazione', stato='da_approvare', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(nuovi), JSON.stringify(lista), ora(), A.id);
+  const virali = { ...J(A.virali, {}), ...out.virali && typeof out.virali === "object" ? out.virali : {} };
+  await run(env, "UPDATE avatar_piani SET copioni=?, idee=?, virali=?, fase='approvazione', stato='da_approvare', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(nuovi), JSON.stringify(lista), JSON.stringify(virali), ora(), A.id);
   await log(env, null, "idee", `\u{1F4A1} 10 idee su "${A.argomento.slice(0, 60)}": Nora ha scelto le ${nuovi.length} migliori e ne ha scritto il copione, le altre ${lista.length - nuovi.length} restano in riserva`);
 }
 async function heygen(cfg, metodo, percorso, corpo) {
@@ -3339,7 +3332,7 @@ async function faseAvatar(env, cfg, A) {
       if (d.status === "completed" && d.video_url) {
         Object.assign(v, { stato: "fatto", url: d.video_url, durata: d.duration || null });
         cambiato = true;
-        await registra(cfg, "heygen", "avatar", { secondi: d.duration || 0 }, (d.duration || 0) / 60 * (Number(cfg.HEYGEN_DOLLARI_MINUTO) || 1));
+        await registra(cfg, "heygen", "avatar", { secondi: d.duration || 0 }, (d.duration || 0) / 60 * (Number(cfg.HEYGEN_DOLLARI_MINUTO) || 0.6));
         await log(env, null, "avatar", `\u2705 reel ${c.n} generato (${Math.round(d.duration || 0)} s)`);
       }
       if (d.status === "failed") {
@@ -3406,7 +3399,7 @@ async function avanzaAvatar(env) {
   const cfg0 = await configurazione(env);
   for (const A0 of L) {
     if (A0.stato === "attende_avatar" && !cfg0.HEYGEN_API_KEY) continue;
-    const cfg = chi(cfg0, { area: "profilo", piano_id: A0.id, agente: { ricerca: "ricerca", virali: "trend", copioni: "idee", avatar: "avatar" }[A0.fase] || "avatar" });
+    const cfg = chi(cfg0, { area: "profilo", piano_id: A0.id, agente: { ricerca: "ricerca", virali: "ricerca", copioni: "idee", avatar: "avatar" }[A0.fase] || "avatar" });
     const A = await one(env, "UPDATE avatar_piani SET blocco_fino=?, tentativi=tentativi+1 WHERE id=? AND (blocco_fino IS NULL OR blocco_fino < ?) RETURNING *", new Date(Date.now() + BLOCCO_MIN3 * 6e4).toISOString(), A0.id, adesso);
     if (!A) continue;
     try {
@@ -3429,7 +3422,7 @@ async function avanzaAvatar(env) {
         ora(),
         A.id
       );
-      const ag = { ricerca: "ricerca", virali: "trend", copioni: "idee", avatar: "avatar", montaggio: "regia" }[A.fase] || "ricerca";
+      const ag = { ricerca: "ricerca", virali: "ricerca", copioni: "idee", avatar: "avatar", montaggio: "regia" }[A.fase] || "ricerca";
       await log(env, null, ag, credito ? "\u23F8\uFE0F credito Claude esaurito: riparto quando lo ricarichi" : `${stop ? "\u274C" : "\u26A0\uFE0F"} profilo IG #${A.id} (${A.fase}): ${msg}`, stop || credito ? "errore" : "warn");
     }
   }
@@ -3967,27 +3960,30 @@ var UFFICI = [
 ];
 var SQUADRA = {
   capo: { n: "Alba", r: "Direttrice dell\u2019agenzia", u: "direzione", i: "\u{1F9ED}", c: "#3fd0c9", skill: ["social-strategy"], d: "\xC8 l\u2019unica con cui parli. Riceve le tue richieste, convoca i capireparto in sala meeting, ti porta le proposte e, quando scegli, fa partire gli uffici. Ogni settimana guida la riunione operativa in direzione e ti manda il report." },
-  brand: { n: "Bianca", r: "Brand manager \xB7 scheda cliente", u: "marketing", i: "\u{1FAAA}", c: "#c58cff", skill: ["brand-profile", "voice-builder", "audience-research"], d: "Scrive la scheda di ogni cliente (chi \xE8, a chi parla, come parla, cosa non dire). Tutti gli altri agenti la leggono prima di lavorare." },
-  stratega: { n: "Marco", r: "Stratega", u: "marketing", i: "\u265F\uFE0F", c: "#7aa2ff", skill: ["social-strategy", "goals-and-kpis", "content-pillars"], d: "Strategia social, obiettivi, KPI e pilastri dei contenuti per il cliente." },
-  audit: { n: "Greta", r: "Audit e concorrenti", u: "marketing", i: "\u{1F50E}", c: "#ffb86b", skill: ["content-audit", "competitor-analysis", "profile-optimization"], d: "Analizza il profilo del cliente e i concorrenti: cosa tenere, cosa buttare, dove c\u2019\xE8 spazio. Base per le proposte ai nuovi clienti." },
-  ricerca: { n: "Sofia", r: "Ricerca e documentazione", u: "marketing", i: "\u{1F4DA}", c: "#5aa9e6", skill: ["audience-research", "trend-jacking"], d: "Si documenta sul web su ogni argomento: fatti verificati con le fonti, numeri, errori comuni, domande della gente, angoli per i contenuti. Non inventa nulla." },
-  campagne: { n: "Elio", r: "Campagne e stagionalit\xE0", u: "marketing", i: "\u{1F4E3}", c: "#ff7a7a", skill: ["campaign-and-launch-planning", "seasonal-and-moment-marketing", "lead-magnets-and-funnels"], d: "Lanci, promozioni, ricorrenze (Natale, estate, eventi locali) e funnel per portare contatti." },
-  report: { n: "Dario", r: "Report e KPI", u: "marketing", i: "\u{1F4CA}", c: "#4fd18b", skill: ["analytics-and-reporting", "goals-and-kpis", "experimentation-and-ab-testing"], d: "Report mensile per il cliente dai numeri che gli dai: cosa ha funzionato e cosa cambiare. Non inventa numeri." },
-  copywriter: { n: "Giulia", r: "Copywriter", u: "social", i: "\u270D\uFE0F", c: "#f0b44c", skill: ["caption-writer", "hook-writer", "hashtag-strategy", "instagram-seo"], d: "Caption, ganci, hashtag e parole chiave per ogni post, nella voce del cliente." },
+  stratega: { n: "Marco", r: "Stratega \xB7 brand, strategia, campagne e report", u: "marketing", i: "\u265F\uFE0F", c: "#7aa2ff", skill: ["brand-profile", "social-strategy", "content-pillars", "goals-and-kpis", "content-audit", "competitor-analysis", "campaign-and-launch-planning", "seasonal-and-moment-marketing", "analytics-and-reporting"], d: "Fa tutto il marketing di un cliente in una persona sola: scheda cliente (chi \xE8, a chi parla, come parla, cosa non dire; tutti gli altri la leggono), strategia, obiettivi e pilastri, audit del profilo e dei concorrenti, campagne e ricorrenze, report mensile dai numeri che gli dai. Non inventa numeri." },
+  ricerca: { n: "Sofia", r: "Ricerca, trend e virali", u: "marketing", i: "\u{1F4DA}", c: "#5aa9e6", skill: ["audience-research", "trend-jacking", "viral-reverse-engineering"], d: "Si documenta sul web su ogni argomento (fatti verificati con le fonti, numeri, errori comuni, domande della gente) e trova i trend e i video virali del settore. Una ricerca vale per 10 contenuti. Non inventa nulla." },
+  copywriter: { n: "Giulia", r: "Copy, calendario e community", u: "social", i: "\u270D\uFE0F", c: "#f0b44c", skill: ["caption-writer", "hook-writer", "hashtag-strategy", "content-calendar", "reply-and-comment-writer"], d: "Caption, ganci, hashtag e parole chiave nella voce del cliente; costruisce il calendario editoriale e programma i contenuti che approvi; prepara le risposte a commenti e recensioni (tu approvi prima che escano)." },
   caroselli: { n: "Pietro", r: "Caroselli e grafiche", u: "social", i: "\u{1F5C2}\uFE0F", c: "#e58bd0", skill: ["carousel-writer", "quote-cards-and-text-graphics", "design-and-templates"], d: "Caroselli slide per slide e grafiche: testi, impaginazione e indicazioni per Canva." },
-  calendario: { n: "Rita", r: "Calendario e programmazione", u: "social", i: "\u{1F5D3}\uFE0F", c: "#12a3a4", skill: ["content-calendar", "batch-content-plan", "scheduling-and-queue"], d: "Costruisce il calendario editoriale e mette in programmazione i contenuti che approvi." },
-  community: { n: "Luca", r: "Community e risposte", u: "social", i: "\u{1F4AC}", c: "#66d9ef", skill: ["reply-and-comment-writer", "community-management", "crisis-and-moderation"], d: "Risposte a commenti, recensioni e messaggi, e gestione dei momenti critici. Tu approvi prima che esca." },
-  trend: { n: "Zoe", r: "Trend e idee", u: "social", i: "\u26A1", c: "#ffd166", skill: ["trend-jacking", "idea-generation-and-ideation", "viral-reverse-engineering"], d: "Idee nuove, trend da cavalcare (solo se coerenti col brand) e analisi dei contenuti virali del settore." },
-  fotografo: { n: "Ugo", r: "Brief di shooting", u: "foto", i: "\u{1F4F7}", c: "#a0c4ff", skill: ["scripting-and-storyboarding", "design-and-templates"], d: "Prepara gli shooting: scatti da fare, luce, styling, persone, attrezzatura, scaletta della giornata." },
-  immagini: { n: "Ivy", r: "Immagini AI", u: "foto", i: "\u{1F3A8}", c: "#bdb2ff", skill: ["image-prompt", "nano-banana", "ideogram"], d: "Quando non c\u2019\xE8 una foto vera: scrive i prompt per generare immagini e grafiche con l\u2019AI, con le regole del brand." },
-  ritocco: { n: "Teo", r: "Ritocco e selezione", u: "foto", i: "\u{1FA84}", c: "#9bf6ff", skill: ["ai-image-editing"], d: "Indicazioni di ritocco, selezione e formati delle foto, senza falsare prodotti e luoghi." },
-  web: { n: "Walter", r: "Sito e SEO", u: "web", i: "\u{1F310}", c: "#8ecae6", skill: ["ai-search-optimization", "social-seo", "link-in-bio-and-traffic"], d: "Testi del sito, SEO, visibilit\xE0 su Google e sulle AI (ChatGPT, Perplexity), link in bio." },
-  ecommerce: { n: "Elena", r: "E-commerce", u: "web", i: "\u{1F6D2}", c: "#ffafcc", skill: ["social-proof-and-testimonials", "lead-magnets-and-funnels", "email-and-newsletter"], d: "Schede prodotto, recensioni, newsletter e funnel per vendere online." },
+  ritocco: { n: "Teo", r: "Fotoritocco \xB7 maestro di Photoshop e Lightroom", u: "foto", i: "\u{1FA84}", c: "#9bf6ff", skill: ["ai-image-editing", "image-prompt"], d: "Il reparto foto in una persona: carichi su pCloud la cartella dello shooting e lui sviluppa i RAW (o i JPG) con un look uniforme come un preset Lightroom, fa un ritocco leggero e naturale della pelle, scarta le foto mosse, a occhi chiusi e i doppioni, e ti consegna lo ZIP. Prepara anche i brief degli shooting e, quando non c\u2019\xE8 una foto vera, i prompt per le immagini AI. Mai falsare prodotti e luoghi." },
+  web: { n: "Walter", r: "Sito, SEO ed e-commerce", u: "web", i: "\u{1F310}", c: "#8ecae6", skill: ["ai-search-optimization", "social-seo", "social-proof-and-testimonials", "email-and-newsletter"], d: "Testi del sito, SEO e visibilit\xE0 su Google e sulle AI, link in bio; schede prodotto, recensioni, newsletter e funnel per vendere online." },
   booking: { n: "Bea", r: "Booking e WhatsApp", u: "booking", i: "\u{1F6CE}\uFE0F", c: "#caffbf", skill: ["social-selling-and-dm", "reply-and-comment-writer"], d: "Risponde alle richieste di prenotazione e ai messaggi WhatsApp/DM. Per ora prepara le risposte; la risposta automatica arriva quando colleghiamo WhatsApp." },
   avatar: { n: "Ava", r: "Avatar HeyGen", u: "video", i: "\u{1F3AD}", c: "#b388ff", speciale: true, d: "Genera i video con l\u2019avatar di Johnny (HeyGen) dai copioni approvati e li passa al comparto Reel per il montaggio." },
   gestionale: { n: "Gino", r: "Segreteria gestionale", u: "gestionale", i: "\u{1F5C4}\uFE0F", c: "#90be6d", chat: true, d: "Ha il pieno controllo del gestionale: gli scrivi \u201Csegnami uno shooting il 12\u201D o \u201Cnuovo cliente\u2026\u201D e lui lo fa." },
   contabile: { n: "Dora", r: "Contabile", u: "contabilita", i: "\u{1F9FE}", c: "#f9c74f", chat: true, d: "Preventivi dal listino, entrate e uscite, scadenze e incassi da sollecitare, sul gestionale." }
 };
+var ACCORPATI = {
+  brand: "stratega",
+  audit: "stratega",
+  campagne: "stratega",
+  report: "stratega",
+  calendario: "copywriter",
+  community: "copywriter",
+  trend: "ricerca",
+  fotografo: "ritocco",
+  immagini: "ritocco",
+  ecommerce: "web"
+};
+var agId = (id) => SQUADRA[id] ? id : ACCORPATI[id] || id;
 var DELEGABILI = Object.keys(SQUADRA).filter((k) => !SQUADRA[k].chat && !SQUADRA[k].speciale && k !== "capo");
 var MAX_FIGLI = 2;
 var MAX_PROFONDITA = 2;
@@ -4018,12 +4014,42 @@ var ADATTA = `COME USI LE SKILL QUI SOTTO (sono il tuo metodo di lavoro, adattal
 - Non hai accesso agli analytics n\xE9 al web: usa solo i numeri e i fatti che ti vengono dati. Mai inventare dati, prezzi, recensioni, servizi, risultati.
 - Non puoi fare domande in diretta: consegna comunque il lavoro finito e metti i dubbi in "domande".
 - Scrivi sempre in italiano, pronto da usare.`;
-function sistemaAgente(id) {
-  const A = SQUADRA[id];
-  const skill = (A.skill || []).map((s) => `
+var PAROLE_SKILL = {
+  "brand-profile": ["scheda", "brand", "voce", "identit"],
+  "social-strategy": ["strategi"],
+  "content-pillars": ["pilastr", "rubric", "temi"],
+  "goals-and-kpis": ["obiettiv", "kpi"],
+  "content-audit": ["audit", "analizz", "profilo"],
+  "competitor-analysis": ["concorrent", "competitor"],
+  "campaign-and-launch-planning": ["campagn", "lancio", "promo"],
+  "seasonal-and-moment-marketing": ["natal", "pasqu", "estat", "ricorrenz", "stagion", "event", "san valentino"],
+  "analytics-and-reporting": ["report", "numeri", "risultat", "statistic", "insight"],
+  "caption-writer": ["caption", "post", "didascal", "testi"],
+  "hook-writer": ["gancio", "ganci", "hook"],
+  "hashtag-strategy": ["hashtag"],
+  "content-calendar": ["calendario", "programm", "piano editoriale", "settiman", "mese"],
+  "reply-and-comment-writer": ["rispost", "commenti", "recension", "messagg"],
+  "viral-reverse-engineering": ["viral"],
+  "trend-jacking": ["trend"],
+  "audience-research": ["pubblico", "target", "ricerca"],
+  "ai-image-editing": ["ritocc", "foto", "selezion"],
+  "image-prompt": ["immagin", "prompt", "ai"],
+  "ai-search-optimization": ["seo", "google", "chatgpt"],
+  "social-seo": ["seo", "parole chiave"],
+  "social-proof-and-testimonials": ["recension", "prodott", "testimon"],
+  "email-and-newsletter": ["newsletter", "email"]
+};
+function sistemaAgente(id, testo = "") {
+  const A = SQUADRA[agId(id)];
+  const t = String(testo).toLowerCase();
+  const tutte = A.skill || [];
+  const punti = (k) => (PAROLE_SKILL[k] || []).filter((w) => t.includes(w)).length;
+  const scelte = tutte.length <= 3 ? tutte : [...tutte].sort((a, b) => punti(b) - punti(a) || tutte.indexOf(a) - tutte.indexOf(b)).slice(0, 3);
+  if (id === "brand" && tutte.includes("brand-profile") && !scelte.includes("brand-profile")) scelte.splice(2, 1, "brand-profile");
+  const skill = scelte.map((s) => `
 
 ===== SKILL: ${s} =====
-${SKILL[s] || ""}`).join("");
+${(SKILL[s] || "").slice(0, 7e3)}`).join("");
   return `Sei ${A.n}, ${A.r} di AGENZIA MOMENTO AI, l'agenzia di Johnny (Momento Produzione: video, foto, social, siti ed e-commerce per clienti di ogni nicchia: ristoranti, bar, B&B, negozi, artigiani, professionisti).
 Il tuo compito: ${A.d}
 Lavori in squadra: altri uffici lavorano in parallelo a te. Passa lavoro a un collega in "passa_a" (massimo ${MAX_FIGLI}) SOLO se \xE8 indispensabile per consegnare quello che Johnny ha chiesto (es. i post hanno bisogno della grafica). Ogni passaggio costa: niente lavori extra non richiesti.
@@ -4040,18 +4066,18 @@ var FORMATO = `Rispondi SOLO con un JSON:
  "domande": ["dubbi o informazioni che servirebbero"]}
 "contenuti" solo se hai prodotto cose da pubblicare o inviare (vanno in approvazione a Johnny); altrimenti [].`;
 async function eseguiIncarico(env, cfg, I) {
-  const A = SQUADRA[I.agente];
+  const A = SQUADRA[agId(I.agente)];
   if (!A || A.chat) throw new Error("agente sconosciuto: " + I.agente);
   const C = await cliente(env, I.cliente_id);
   const prima = await all(env, "SELECT id, agente, titolo, esito FROM incarichi WHERE id IN (?, ?)", I.dipende_da || 0, I.padre_id || 0);
   const contesto2 = prima.map((p) => {
     const e = J(p.esito, {});
-    return `--- dal collega ${SQUADRA[p.agente]?.n || p.agente} (${SQUADRA[p.agente]?.r || ""}), incarico #${p.id} "${p.titolo}":
+    return `--- dal collega ${SQUADRA[agId(p.agente)]?.n || p.agente} (${SQUADRA[agId(p.agente)]?.r || ""}), incarico #${p.id} "${p.titolo}":
 ${String(e.documento || e.sintesi || "").slice(0, 12e3)}`;
   }).join("\n\n");
   await log(env, null, I.agente, `${A.i} inizio #${I.id}: ${I.titolo}${C ? " \xB7 " + C.nome : ""}`);
   const oggi = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
-  const out = await claude(cfg, sistemaAgente(I.agente), `OGGI: ${oggi}
+  const out = await claude(cfg, sistemaAgente(I.agente, `${I.titolo} ${I.brief}`), `OGGI: ${oggi}
 
 ${testoScheda(C)}
 
@@ -4087,7 +4113,7 @@ ${I.agente === "brand" ? 'Il "documento" \xE8 la SCHEDA CLIENTE completa e defin
   let passati = 0;
   if ((I.profondita || 0) < MAX_PROFONDITA) {
     for (const p of (out.passa_a || []).slice(0, MAX_FIGLI)) {
-      if (!DELEGABILI.includes(p.agente) || p.agente === I.agente) continue;
+      if (!DELEGABILI.includes(agId(p.agente)) || p.agente === I.agente) continue;
       await run(
         env,
         "INSERT INTO incarichi (agente, cliente_id, titolo, brief, padre_id, profondita, creato, aggiornato) VALUES (?,?,?,?,?,?,?,?)",
@@ -4311,7 +4337,7 @@ async function eseguiPiano(env, out, testo, clienteId, origine = "") {
   if (cid && !await cliente(env, cid)) cid = null;
   const creati = [];
   for (const x of (out.incarichi || []).slice(0, 12)) {
-    if (!DELEGABILI.includes(x.agente)) continue;
+    if (!DELEGABILI.includes(agId(x.agente))) continue;
     const dip = Number.isInteger(x.dopo) && creati[x.dopo] ? creati[x.dopo] : null;
     const r = await one(
       env,
@@ -4386,14 +4412,14 @@ async function apiAgenzia(req, env, p, m, json3) {
   if (p === "/api/incarichi" && m === "GET") {
     const u = new URL(req.url);
     const ag = u.searchParams.get("agente"), uf = u.searchParams.get("ufficio");
-    const ids = ag ? [ag] : uf ? Object.keys(SQUADRA).filter((k) => SQUADRA[k].u === uf) : null;
+    const ids = ag ? [agId(ag)] : uf ? Object.keys(SQUADRA).filter((k) => SQUADRA[k].u === uf) : null;
     const r = await all(env, `SELECT i.id, i.agente, i.titolo, i.stato, i.errore, i.creato, i.aggiornato, i.padre_id, k.nome AS cliente FROM incarichi i LEFT JOIN clienti k ON k.id=i.cliente_id
       ${ids ? `WHERE i.agente IN (${ids.map(() => "?").join(",")})` : ""} ORDER BY i.id DESC LIMIT 80`, ...ids || []);
     return json3(r);
   }
   if (p === "/api/incarichi" && m === "POST") {
     const d = await corpo();
-    if (!DELEGABILI.includes(d.agente)) return json3({ errore: "scegli un agente" }, 400);
+    if (!DELEGABILI.includes(agId(d.agente))) return json3({ errore: "scegli un agente" }, 400);
     if (String(d.titolo || "").trim().length < 3) return json3({ errore: "scrivi cosa deve fare" }, 400);
     const r = await one(
       env,
@@ -4569,15 +4595,15 @@ ${campi.testo ?? c.testo ?? ""}`.slice(0, 3e3), shotlist: String(campi.visual ??
 var CAPI = [
   ["direzione", "capo", "Alba", "Direttrice"],
   ["marketing", "stratega", "Marco", "capo Marketing"],
-  ["social", "calendario", "Rita", "capo Social"],
+  ["social", "copywriter", "Giulia", "capo Social"],
   ["video", "direttore", "Leo", "capo Video"],
-  ["foto", "fotografo", "Ugo", "capo Foto"],
+  ["foto", "ritocco", "Teo", "capo Foto"],
   ["web", "web", "Walter", "capo Web & E-commerce"],
   ["booking", "booking", "Bea", "capo Booking & WhatsApp"],
   ["gestionale", "gestionale", "Gino", "capo Gestionale"],
   ["contabilita", "contabile", "Dora", "capo Contabilit\xE0"]
 ];
-var PER_RICHIESTA = ["capo", "stratega", "calendario", "direttore", "fotografo", "web", "booking"];
+var PER_RICHIESTA = ["capo", "stratega", "copywriter", "direttore", "ritocco", "web", "booking"];
 var SETTIMANALE = CAPI.map((c) => c[1]);
 var NOME = Object.fromEntries(CAPI.map(([, id, n, r]) => [id, `${n} (${r})`]));
 var DURATA_VISIVA = 15e4;
@@ -4718,7 +4744,7 @@ async function numeri(env) {
     q("SELECT i.agente, i.titolo, i.stato, k.nome AS cliente FROM incarichi i LEFT JOIN clienti k ON k.id=i.cliente_id WHERE i.stato IN ('in_coda','in_corso','errore','da_approvare') ORDER BY i.id LIMIT 30"),
     q("SELECT titolo, stato FROM riunioni WHERE tipo='richiesta' AND creato > ?", da)
   ]);
-  const ufficio = (a) => SQUADRA[a]?.u || "video";
+  const ufficio = (a) => SQUADRA[agId(a)]?.u || "video";
   const perUfficio = {};
   for (const r of perAg) perUfficio[ufficio(r.agente)] = (perUfficio[ufficio(r.agente)] || 0) + r.n;
   return { periodo: `${da.slice(0, 10)} \u2192 ${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}`, incarichi: inc, fatti_per_ufficio: perUfficio, contenuti: cont, reel, piani, clienti_nuovi: nuovi, errori, in_sospeso: attesa, richieste_di_johnny: riu };
@@ -4954,7 +4980,7 @@ async function motoreApi(req, env, url) {
           (fase='riferimenti' AND riferimenti IS NOT NULL AND ${PENDENTE("riferimenti")}) OR
           (fase='clip' AND clip IS NOT NULL AND ${PENDENTE("clip")}) OR
           (fase='montaggio' AND json_extract(montaggio, '$.stato')='da_fare'))
-        ORDER BY id LIMIT 1)
+        ORDER BY CASE WHEN fase='montaggio' THEN 0 ELSE 1 END, id LIMIT 1)
       RETURNING id, fase, pcloud, riferimenti, clip, montaggio`, pass2, new Date(Date.now() + 55 * 6e4).toISOString(), adesso, adesso);
     if (!L2) return new Response(null, { status: 204 });
     const tipo2 = L2.fase;
@@ -5094,8 +5120,23 @@ Rispondi SOLO con il JSON richiesto.`;
     return json({ ok: true });
   }
   if (mm[2] === "fine" && m === "POST") {
+    if ((await req.json().catch(() => ({}))).silenzioso) {
+      let saltati = 0;
+      for (const [i, x] of elenco.entries()) {
+        if (x.stato !== "da_guardare") continue;
+        x.tentativi = (x.tentativi || 0) + 1;
+        if (x.tentativi >= 3) {
+          x.stato = "saltato";
+          x.errore = x.errore || "il motore non riesce a leggerlo (file danneggiato o troppo grande)";
+          saltati++;
+        }
+        await aggiorna(env, id, tipo, i, x);
+      }
+      await run(env, "UPDATE lavori SET motore_pass=NULL, motore_fino=?, motore_visto=? WHERE id=?", new Date(Date.now() + 20 * 6e4).toISOString(), ora(), id);
+      if (saltati) await log(env, id, "motore", `${saltati} ${tipo === "riferimenti" ? "reel" : "clip"} saltati: il motore non riesce a leggerli dopo 3 tentativi`, "warn");
+      return json({ ok: true });
+    }
     await run(env, "UPDATE lavori SET motore_pass=NULL, motore_fino=NULL, motore_visto=? WHERE id=?", ora(), id);
-    if ((await req.json().catch(() => ({}))).silenzioso) return json({ ok: true });
     const fatti = elenco.filter((x) => x.stato === "fatto").length;
     await log(env, id, "motore", `giro del motore finito: ${fatti}/${elenco.length} ${tipo === "riferimenti" ? "reel" : "clip"} analizzati`);
     return json({ ok: true });

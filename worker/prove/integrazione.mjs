@@ -113,7 +113,7 @@ const aid = r.j.id;
 await cron();
 r = await chiama('/api/avatar/' + aid); ok(r.j.fase === 'virali' && r.j.ricerca?.fatti?.length === 1 && r.j.ricerca.fonti.length === 1, 'Sofia: ricerca con fonti, il fatto con fonte inventata è scartato');
 sblocca('avatar_piani'); await cron();
-r = await chiama('/api/avatar/' + aid); ok(r.j.fase === 'copioni' && r.j.virali?.ganci_che_funzionano?.length, 'Zoe: video virali studiati (' + (r.j.virali?.video?.length || 0) + ' video)');
+r = await chiama('/api/avatar/' + aid); ok(r.j.fase === 'copioni' && r.j.virali?.video?.length && !r.j.virali.ganci_che_funzionano, 'virali trovati, senza la chiamata a parte di Zoe (' + (r.j.virali?.video?.length || 0) + ' video)');
 sblocca('avatar_piani'); await cron();
 r = await chiama('/api/avatar/' + aid); ok(r.j.stato === 'da_approvare' && r.j.copioni.length === 3, 'Nora: 3 copioni da approvare');
 r = await chiama('/api/avatar/' + aid + '/approva', { method: 'POST', body: { n: [1, 3], modifiche: { 3: 'testo modificato da Johnny' } } }); ok(r.status === 200, 'approvo 2 copioni, uno modificato');
@@ -129,6 +129,7 @@ r = await chiama('/api/avatar/' + aid); ok(r.j.stato === 'fatto' && r.j.lavori.l
 const lav = env.DB._db.prepare("SELECT fonte, stile, pcloud FROM lavori WHERE fonte='url'").all();
 ok(lav.length >= 2 && lav.slice(-2).map((x) => JSON.parse(x.stile).genere).sort().join() === 'dietro,split' && JSON.parse(lav.at(-1).pcloud)[0].url.startsWith('https://heygen.example/'), 'i due reel alternano split e parole dietro, video da link');
 r = await chiama('/api/avatar/' + aid); ok(r.j.idee.length === 10 && r.j.idee.filter((x) => x.usata).length === 3, 'una ricerca, 10 idee: 3 scritte, 7 in riserva');
+ok(r.j.virali.ganci_che_funzionano?.length && r.j.virali.video?.length, 'Nora ricava gli schemi dei virali nella stessa chiamata delle idee');
 r = await chiama('/api/avatar/' + aid + '/idea', { method: 'POST', body: { i: 5 } }); ok(r.status === 200, 'scelgo un\'idea in riserva');
 r = await chiama('/api/avatar/' + aid + '/idea', { method: 'POST', body: { i: 0 } }); ok(r.status === 400 || r.status === 409, 'idea già usata o lavoro in corso: rifiutata');
 sblocca('avatar_piani'); await cron();

@@ -4,7 +4,7 @@
 // 2) Ogni lunedì mattina: riunione operativa in DIREZIONE sull'andamento dell'agenzia, con report per Johnny.
 import { all, one, run, J, ora, configurazione, log } from './db.js';
 import * as S from './servizi.js';
-import { SQUADRA, DELEGABILI, cliente, eseguiPiano } from './agenzia.js';
+import { SQUADRA, DELEGABILI, agId, cliente, eseguiPiano } from './agenzia.js';
 import { GENERI } from './stili.js';
 import { nuovoPianoAvatar, richiestaProfilo } from './avatar.js';
 import { chi } from './consumi.js';
@@ -14,15 +14,15 @@ import { nuovoLavoroPost } from './post.js';
 export const CAPI = [
   ['direzione', 'capo', 'Alba', 'Direttrice'],
   ['marketing', 'stratega', 'Marco', 'capo Marketing'],
-  ['social', 'calendario', 'Rita', 'capo Social'],
+  ['social', 'copywriter', 'Giulia', 'capo Social'],
   ['video', 'direttore', 'Leo', 'capo Video'],
-  ['foto', 'fotografo', 'Ugo', 'capo Foto'],
+  ['foto', 'ritocco', 'Teo', 'capo Foto'],
   ['web', 'web', 'Walter', 'capo Web & E-commerce'],
   ['booking', 'booking', 'Bea', 'capo Booking & WhatsApp'],
   ['gestionale', 'gestionale', 'Gino', 'capo Gestionale'],
   ['contabilita', 'contabile', 'Dora', 'capo Contabilità'],
 ];
-const PER_RICHIESTA = ['capo', 'stratega', 'calendario', 'direttore', 'fotografo', 'web', 'booking'];
+const PER_RICHIESTA = ['capo', 'stratega', 'copywriter', 'direttore', 'ritocco', 'web', 'booking'];
 const SETTIMANALE = CAPI.map((c) => c[1]);
 const NOME = Object.fromEntries(CAPI.map(([, id, n, r]) => [id, `${n} (${r})`]));
 const DURATA_VISIVA = 150e3; // i capireparto restano in sala almeno 2 minuti e mezzo: arrivano, discutono, tornano
@@ -140,7 +140,7 @@ async function numeri(env) {
     q("SELECT i.agente, i.titolo, i.stato, k.nome AS cliente FROM incarichi i LEFT JOIN clienti k ON k.id=i.cliente_id WHERE i.stato IN ('in_coda','in_corso','errore','da_approvare') ORDER BY i.id LIMIT 30"),
     q("SELECT titolo, stato FROM riunioni WHERE tipo='richiesta' AND creato > ?", da),
   ]);
-  const ufficio = (a) => SQUADRA[a]?.u || 'video';
+  const ufficio = (a) => SQUADRA[agId(a)]?.u || 'video';
   const perUfficio = {};
   for (const r of perAg) perUfficio[ufficio(r.agente)] = (perUfficio[ufficio(r.agente)] || 0) + r.n;
   return { periodo: `${da.slice(0, 10)} → ${new Date().toISOString().slice(0, 10)}`, incarichi: inc, fatti_per_ufficio: perUfficio, contenuti: cont, reel, piani, clienti_nuovi: nuovi, errori, in_sospeso: attesa, richieste_di_johnny: riu };

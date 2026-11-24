@@ -59,7 +59,7 @@ export async function motoreApi(req, env, url) {
           (fase='riferimenti' AND riferimenti IS NOT NULL AND ${PENDENTE('riferimenti')}) OR
           (fase='clip' AND clip IS NOT NULL AND ${PENDENTE('clip')}) OR
           (fase='montaggio' AND json_extract(montaggio, '$.stato')='da_fare'))
-        ORDER BY id LIMIT 1)
+        ORDER BY CASE WHEN fase='montaggio' THEN 0 ELSE 1 END, id LIMIT 1)
       RETURNING id, fase, pcloud, riferimenti, clip, montaggio`, pass, new Date(Date.now() + 55 * 60e3).toISOString(), adesso, adesso);
     if (!L) return new Response(null, { status: 204 });
     const tipo = L.fase;
@@ -210,8 +210,21 @@ export async function motoreApi(req, env, url) {
 
   // 4) giro finito: libera il lavoro (se restano elementi da riprovare, il prossimo giro li riprende)
   if (mm[2] === 'fine' && m === 'POST') {
+    if ((await req.json().catch(() => ({}))).silenzioso) {
+      // il motore ci ha già provato due volte in questo giro: il lavoro aspetta 20 minuti (così non blocca la coda degli
+      // altri), gli elementi ancora da guardare contano un tentativo e al terzo vengono saltati
+      let saltati = 0;
+      for (const [i, x] of elenco.entries()) {
+        if (x.stato !== 'da_guardare') continue;
+        x.tentativi = (x.tentativi || 0) + 1;
+        if (x.tentativi >= 3) { x.stato = 'saltato'; x.errore = x.errore || 'il motore non riesce a leggerlo (file danneggiato o troppo grande)'; saltati++; }
+        await aggiorna(env, id, tipo, i, x);
+      }
+      await run(env, 'UPDATE lavori SET motore_pass=NULL, motore_fino=?, motore_visto=? WHERE id=?', new Date(Date.now() + 20 * 60e3).toISOString(), ora(), id);
+      if (saltati) await log(env, id, 'motore', `${saltati} ${tipo === 'riferimenti' ? 'reel' : 'clip'} saltati: il motore non riesce a leggerli dopo 3 tentativi`, 'warn');
+      return json({ ok: true });
+    }
     await run(env, 'UPDATE lavori SET motore_pass=NULL, motore_fino=NULL, motore_visto=? WHERE id=?', ora(), id);
-    if ((await req.json().catch(() => ({}))).silenzioso) return json({ ok: true });
     const fatti = elenco.filter((x) => x.stato === 'fatto').length;
     await log(env, id, 'motore', `giro del motore finito: ${fatti}/${elenco.length} ${tipo === 'riferimenti' ? 'reel' : 'clip'} analizzati`);
     return json({ ok: true });

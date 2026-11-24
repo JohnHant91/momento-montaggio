@@ -179,6 +179,8 @@ async function cache(env, chiave, calcola) {
 
 // ------------------------------------------------------------------ le fasi
 async function fasePiano(env, cfg, L) {
+  // reel col mio avatar: il piano è già nel copione, niente chiamata a Claude
+  if (J(L.stile, null)?.avatar) { await run(env, 'UPDATE lavori SET piano=? WHERE id=?', JSON.stringify({ settore: 'profilo personale di Johnny', obiettivo: 'reel per il profilo Instagram' }), L.id); return; }
   await log(env, L.id, 'direttore', 'leggo la richiesta e preparo la ricerca');
   const p = await S.claude(cfg, SISTEMA_PIANO, piano(L.prompt), { maxTokens: 1500 });
   // Stella: se Johnny ha chiesto uno stile (street, emozionale, natalizio…) metà della ricerca va su reel montati in quello stile

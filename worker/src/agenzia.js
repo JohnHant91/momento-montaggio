@@ -17,27 +17,21 @@ export const UFFICI = [
 // agenti degli uffici (quelli del Video sono la squadra reel, definita nella pagina)
 export const SQUADRA = {
   capo: { n: 'Alba', r: 'Direttrice dell’agenzia', u: 'direzione', i: '🧭', c: '#3fd0c9', skill: ['social-strategy'], d: 'È l’unica con cui parli. Riceve le tue richieste, convoca i capireparto in sala meeting, ti porta le proposte e, quando scegli, fa partire gli uffici. Ogni settimana guida la riunione operativa in direzione e ti manda il report.' },
-  brand: { n: 'Bianca', r: 'Brand manager · scheda cliente', u: 'marketing', i: '🪪', c: '#c58cff', skill: ['brand-profile', 'voice-builder', 'audience-research'], d: 'Scrive la scheda di ogni cliente (chi è, a chi parla, come parla, cosa non dire). Tutti gli altri agenti la leggono prima di lavorare.' },
-  stratega: { n: 'Marco', r: 'Stratega', u: 'marketing', i: '♟️', c: '#7aa2ff', skill: ['social-strategy', 'goals-and-kpis', 'content-pillars'], d: 'Strategia social, obiettivi, KPI e pilastri dei contenuti per il cliente.' },
-  audit: { n: 'Greta', r: 'Audit e concorrenti', u: 'marketing', i: '🔎', c: '#ffb86b', skill: ['content-audit', 'competitor-analysis', 'profile-optimization'], d: 'Analizza il profilo del cliente e i concorrenti: cosa tenere, cosa buttare, dove c’è spazio. Base per le proposte ai nuovi clienti.' },
-  ricerca: { n: 'Sofia', r: 'Ricerca e documentazione', u: 'marketing', i: '📚', c: '#5aa9e6', skill: ['audience-research', 'trend-jacking'], d: 'Si documenta sul web su ogni argomento: fatti verificati con le fonti, numeri, errori comuni, domande della gente, angoli per i contenuti. Non inventa nulla.' },
-  campagne: { n: 'Elio', r: 'Campagne e stagionalità', u: 'marketing', i: '📣', c: '#ff7a7a', skill: ['campaign-and-launch-planning', 'seasonal-and-moment-marketing', 'lead-magnets-and-funnels'], d: 'Lanci, promozioni, ricorrenze (Natale, estate, eventi locali) e funnel per portare contatti.' },
-  report: { n: 'Dario', r: 'Report e KPI', u: 'marketing', i: '📊', c: '#4fd18b', skill: ['analytics-and-reporting', 'goals-and-kpis', 'experimentation-and-ab-testing'], d: 'Report mensile per il cliente dai numeri che gli dai: cosa ha funzionato e cosa cambiare. Non inventa numeri.' },
-  copywriter: { n: 'Giulia', r: 'Copywriter', u: 'social', i: '✍️', c: '#f0b44c', skill: ['caption-writer', 'hook-writer', 'hashtag-strategy', 'instagram-seo'], d: 'Caption, ganci, hashtag e parole chiave per ogni post, nella voce del cliente.' },
+  stratega: { n: 'Marco', r: 'Stratega · brand, strategia, campagne e report', u: 'marketing', i: '♟️', c: '#7aa2ff', skill: ['brand-profile', 'social-strategy', 'content-pillars', 'goals-and-kpis', 'content-audit', 'competitor-analysis', 'campaign-and-launch-planning', 'seasonal-and-moment-marketing', 'analytics-and-reporting'], d: 'Fa tutto il marketing di un cliente in una persona sola: scheda cliente (chi è, a chi parla, come parla, cosa non dire; tutti gli altri la leggono), strategia, obiettivi e pilastri, audit del profilo e dei concorrenti, campagne e ricorrenze, report mensile dai numeri che gli dai. Non inventa numeri.' },
+  ricerca: { n: 'Sofia', r: 'Ricerca, trend e virali', u: 'marketing', i: '📚', c: '#5aa9e6', skill: ['audience-research', 'trend-jacking', 'viral-reverse-engineering'], d: 'Si documenta sul web su ogni argomento (fatti verificati con le fonti, numeri, errori comuni, domande della gente) e trova i trend e i video virali del settore. Una ricerca vale per 10 contenuti. Non inventa nulla.' },
+  copywriter: { n: 'Giulia', r: 'Copy, calendario e community', u: 'social', i: '✍️', c: '#f0b44c', skill: ['caption-writer', 'hook-writer', 'hashtag-strategy', 'content-calendar', 'reply-and-comment-writer'], d: 'Caption, ganci, hashtag e parole chiave nella voce del cliente; costruisce il calendario editoriale e programma i contenuti che approvi; prepara le risposte a commenti e recensioni (tu approvi prima che escano).' },
   caroselli: { n: 'Pietro', r: 'Caroselli e grafiche', u: 'social', i: '🗂️', c: '#e58bd0', skill: ['carousel-writer', 'quote-cards-and-text-graphics', 'design-and-templates'], d: 'Caroselli slide per slide e grafiche: testi, impaginazione e indicazioni per Canva.' },
-  calendario: { n: 'Rita', r: 'Calendario e programmazione', u: 'social', i: '🗓️', c: '#12a3a4', skill: ['content-calendar', 'batch-content-plan', 'scheduling-and-queue'], d: 'Costruisce il calendario editoriale e mette in programmazione i contenuti che approvi.' },
-  community: { n: 'Luca', r: 'Community e risposte', u: 'social', i: '💬', c: '#66d9ef', skill: ['reply-and-comment-writer', 'community-management', 'crisis-and-moderation'], d: 'Risposte a commenti, recensioni e messaggi, e gestione dei momenti critici. Tu approvi prima che esca.' },
-  trend: { n: 'Zoe', r: 'Trend e idee', u: 'social', i: '⚡', c: '#ffd166', skill: ['trend-jacking', 'idea-generation-and-ideation', 'viral-reverse-engineering'], d: 'Idee nuove, trend da cavalcare (solo se coerenti col brand) e analisi dei contenuti virali del settore.' },
-  fotografo: { n: 'Ugo', r: 'Brief di shooting', u: 'foto', i: '📷', c: '#a0c4ff', skill: ['scripting-and-storyboarding', 'design-and-templates'], d: 'Prepara gli shooting: scatti da fare, luce, styling, persone, attrezzatura, scaletta della giornata.' },
-  immagini: { n: 'Ivy', r: 'Immagini AI', u: 'foto', i: '🎨', c: '#bdb2ff', skill: ['image-prompt', 'nano-banana', 'ideogram'], d: 'Quando non c’è una foto vera: scrive i prompt per generare immagini e grafiche con l’AI, con le regole del brand.' },
-  ritocco: { n: 'Teo', r: 'Ritocco e selezione', u: 'foto', i: '🪄', c: '#9bf6ff', skill: ['ai-image-editing'], d: 'Indicazioni di ritocco, selezione e formati delle foto, senza falsare prodotti e luoghi.' },
-  web: { n: 'Walter', r: 'Sito e SEO', u: 'web', i: '🌐', c: '#8ecae6', skill: ['ai-search-optimization', 'social-seo', 'link-in-bio-and-traffic'], d: 'Testi del sito, SEO, visibilità su Google e sulle AI (ChatGPT, Perplexity), link in bio.' },
-  ecommerce: { n: 'Elena', r: 'E-commerce', u: 'web', i: '🛒', c: '#ffafcc', skill: ['social-proof-and-testimonials', 'lead-magnets-and-funnels', 'email-and-newsletter'], d: 'Schede prodotto, recensioni, newsletter e funnel per vendere online.' },
+  ritocco: { n: 'Teo', r: 'Fotoritocco · maestro di Photoshop e Lightroom', u: 'foto', i: '🪄', c: '#9bf6ff', skill: ['ai-image-editing', 'image-prompt'], d: 'Il reparto foto in una persona: carichi su pCloud la cartella dello shooting e lui sviluppa i RAW (o i JPG) con un look uniforme come un preset Lightroom, fa un ritocco leggero e naturale della pelle, scarta le foto mosse, a occhi chiusi e i doppioni, e ti consegna lo ZIP. Prepara anche i brief degli shooting e, quando non c’è una foto vera, i prompt per le immagini AI. Mai falsare prodotti e luoghi.' },
+  web: { n: 'Walter', r: 'Sito, SEO ed e-commerce', u: 'web', i: '🌐', c: '#8ecae6', skill: ['ai-search-optimization', 'social-seo', 'social-proof-and-testimonials', 'email-and-newsletter'], d: 'Testi del sito, SEO e visibilità su Google e sulle AI, link in bio; schede prodotto, recensioni, newsletter e funnel per vendere online.' },
   booking: { n: 'Bea', r: 'Booking e WhatsApp', u: 'booking', i: '🛎️', c: '#caffbf', skill: ['social-selling-and-dm', 'reply-and-comment-writer'], d: 'Risponde alle richieste di prenotazione e ai messaggi WhatsApp/DM. Per ora prepara le risposte; la risposta automatica arriva quando colleghiamo WhatsApp.' },
   avatar: { n: 'Ava', r: 'Avatar HeyGen', u: 'video', i: '🎭', c: '#b388ff', speciale: true, d: 'Genera i video con l’avatar di Johnny (HeyGen) dai copioni approvati e li passa al comparto Reel per il montaggio.' },
   gestionale: { n: 'Gino', r: 'Segreteria gestionale', u: 'gestionale', i: '🗄️', c: '#90be6d', chat: true, d: 'Ha il pieno controllo del gestionale: gli scrivi “segnami uno shooting il 12” o “nuovo cliente…” e lui lo fa.' },
   contabile: { n: 'Dora', r: 'Contabile', u: 'contabilita', i: '🧾', c: '#f9c74f', chat: true, d: 'Preventivi dal listino, entrate e uscite, scadenze e incassi da sollecitare, sul gestionale.' },
 };
+// agenti accorpati (Johnny: meno agenti, più compiti, metà spesa): i vecchi nomi lavorano col nuovo responsabile
+export const ACCORPATI = { brand: 'stratega', audit: 'stratega', campagne: 'stratega', report: 'stratega', calendario: 'copywriter', community: 'copywriter',
+  trend: 'ricerca', fotografo: 'ritocco', immagini: 'ritocco', ecommerce: 'web' };
+export const agId = (id) => (SQUADRA[id] ? id : ACCORPATI[id] || id);
 export const DELEGABILI = Object.keys(SQUADRA).filter((k) => !SQUADRA[k].chat && !SQUADRA[k].speciale && k !== 'capo');
 const MAX_FIGLI = 2, MAX_PROFONDITA = 2, IN_PARALLELO = 6, BLOCCO_MIN = 15;
 
@@ -68,9 +62,26 @@ const ADATTA = `COME USI LE SKILL QUI SOTTO (sono il tuo metodo di lavoro, adatt
 - Non puoi fare domande in diretta: consegna comunque il lavoro finito e metti i dubbi in "domande".
 - Scrivi sempre in italiano, pronto da usare.`;
 
-function sistemaAgente(id) {
-  const A = SQUADRA[id];
-  const skill = (A.skill || []).map((s) => `\n\n===== SKILL: ${s} =====\n${SKILL[s] || ''}`).join('');
+// agenti con più compiti: si caricano solo le 2-3 skill che servono a QUESTO incarico (le skill intere sono la voce più cara del prompt)
+const PAROLE_SKILL = {
+  'brand-profile': ['scheda', 'brand', 'voce', 'identit'], 'social-strategy': ['strategi'], 'content-pillars': ['pilastr', 'rubric', 'temi'],
+  'goals-and-kpis': ['obiettiv', 'kpi'], 'content-audit': ['audit', 'analizz', 'profilo'], 'competitor-analysis': ['concorrent', 'competitor'],
+  'campaign-and-launch-planning': ['campagn', 'lancio', 'promo'], 'seasonal-and-moment-marketing': ['natal', 'pasqu', 'estat', 'ricorrenz', 'stagion', 'event', 'san valentino'],
+  'analytics-and-reporting': ['report', 'numeri', 'risultat', 'statistic', 'insight'], 'caption-writer': ['caption', 'post', 'didascal', 'testi'],
+  'hook-writer': ['gancio', 'ganci', 'hook'], 'hashtag-strategy': ['hashtag'], 'content-calendar': ['calendario', 'programm', 'piano editoriale', 'settiman', 'mese'],
+  'reply-and-comment-writer': ['rispost', 'commenti', 'recension', 'messagg'], 'viral-reverse-engineering': ['viral'], 'trend-jacking': ['trend'],
+  'audience-research': ['pubblico', 'target', 'ricerca'], 'ai-image-editing': ['ritocc', 'foto', 'selezion'], 'image-prompt': ['immagin', 'prompt', 'ai'],
+  'ai-search-optimization': ['seo', 'google', 'chatgpt'], 'social-seo': ['seo', 'parole chiave'], 'social-proof-and-testimonials': ['recension', 'prodott', 'testimon'],
+  'email-and-newsletter': ['newsletter', 'email'],
+};
+function sistemaAgente(id, testo = '') {
+  const A = SQUADRA[agId(id)];
+  const t = String(testo).toLowerCase();
+  const tutte = A.skill || [];
+  const punti = (k) => (PAROLE_SKILL[k] || []).filter((w) => t.includes(w)).length;
+  const scelte = tutte.length <= 3 ? tutte : [...tutte].sort((a, b) => punti(b) - punti(a) || tutte.indexOf(a) - tutte.indexOf(b)).slice(0, 3);
+  if (id === 'brand' && tutte.includes('brand-profile') && !scelte.includes('brand-profile')) scelte.splice(2, 1, 'brand-profile');
+  const skill = scelte.map((s) => `\n\n===== SKILL: ${s} =====\n${(SKILL[s] || '').slice(0, 7000)}`).join('');
   return `Sei ${A.n}, ${A.r} di AGENZIA MOMENTO AI, l'agenzia di Johnny (Momento Produzione: video, foto, social, siti ed e-commerce per clienti di ogni nicchia: ristoranti, bar, B&B, negozi, artigiani, professionisti).
 Il tuo compito: ${A.d}
 Lavori in squadra: altri uffici lavorano in parallelo a te. Passa lavoro a un collega in "passa_a" (massimo ${MAX_FIGLI}) SOLO se è indispensabile per consegnare quello che Johnny ha chiesto (es. i post hanno bisogno della grafica). Ogni passaggio costa: niente lavori extra non richiesti.
@@ -89,15 +100,15 @@ const FORMATO = `Rispondi SOLO con un JSON:
 "contenuti" solo se hai prodotto cose da pubblicare o inviare (vanno in approvazione a Johnny); altrimenti [].`;
 
 async function eseguiIncarico(env, cfg, I) {
-  const A = SQUADRA[I.agente];
+  const A = SQUADRA[agId(I.agente)];
   if (!A || A.chat) throw new Error('agente sconosciuto: ' + I.agente);
   const C = await cliente(env, I.cliente_id);
   // il lavoro dei colleghi da cui dipendo (e di chi mi ha passato l'incarico)
   const prima = await all(env, 'SELECT id, agente, titolo, esito FROM incarichi WHERE id IN (?, ?)', I.dipende_da || 0, I.padre_id || 0);
-  const contesto = prima.map((p) => { const e = J(p.esito, {}); return `--- dal collega ${SQUADRA[p.agente]?.n || p.agente} (${SQUADRA[p.agente]?.r || ''}), incarico #${p.id} "${p.titolo}":\n${String(e.documento || e.sintesi || '').slice(0, 12000)}`; }).join('\n\n');
+  const contesto = prima.map((p) => { const e = J(p.esito, {}); return `--- dal collega ${SQUADRA[agId(p.agente)]?.n || p.agente} (${SQUADRA[agId(p.agente)]?.r || ''}), incarico #${p.id} "${p.titolo}":\n${String(e.documento || e.sintesi || '').slice(0, 12000)}`; }).join('\n\n');
   await log(env, null, I.agente, `${A.i} inizio #${I.id}: ${I.titolo}${C ? ' · ' + C.nome : ''}`);
   const oggi = new Date().toISOString().slice(0, 10);
-  const out = await S.claude(cfg, sistemaAgente(I.agente), `OGGI: ${oggi}
+  const out = await S.claude(cfg, sistemaAgente(I.agente, `${I.titolo} ${I.brief}`), `OGGI: ${oggi}
 
 ${testoScheda(C)}
 
@@ -121,7 +132,7 @@ ${I.agente === 'brand' ? 'Il "documento" è la SCHEDA CLIENTE completa e definit
   let passati = 0;
   if ((I.profondita || 0) < MAX_PROFONDITA) {
     for (const p of (out.passa_a || []).slice(0, MAX_FIGLI)) {
-      if (!DELEGABILI.includes(p.agente) || p.agente === I.agente) continue;
+      if (!DELEGABILI.includes(agId(p.agente)) || p.agente === I.agente) continue;
       await run(env, 'INSERT INTO incarichi (agente, cliente_id, titolo, brief, padre_id, profondita, creato, aggiornato) VALUES (?,?,?,?,?,?,?,?)',
         p.agente, I.cliente_id || null, String(p.titolo || I.titolo).slice(0, 200), String(p.brief || ''), I.id, (I.profondita || 0) + 1, ora(), ora());
       passati++;
@@ -309,7 +320,7 @@ export async function eseguiPiano(env, out, testo, clienteId, origine = '') {
   if (cid && !(await cliente(env, cid))) cid = null;
   const creati = [];
   for (const x of (out.incarichi || []).slice(0, 12)) {
-    if (!DELEGABILI.includes(x.agente)) continue;
+    if (!DELEGABILI.includes(agId(x.agente))) continue;
     const dip = Number.isInteger(x.dopo) && creati[x.dopo] ? creati[x.dopo] : null;
     const r = await one(env, 'INSERT INTO incarichi (agente, cliente_id, titolo, brief, dipende_da, creato, aggiornato) VALUES (?,?,?,?,?,?,?) RETURNING id',
       x.agente, cid, String(x.titolo || '').slice(0, 200), String(x.brief || '') + (origine ? '\n\n' + origine : ''), dip, ora(), ora());
@@ -370,14 +381,14 @@ export async function apiAgenzia(req, env, p, m, json) {
   if (p === '/api/incarichi' && m === 'GET') {
     const u = new URL(req.url);
     const ag = u.searchParams.get('agente'), uf = u.searchParams.get('ufficio');
-    const ids = ag ? [ag] : uf ? Object.keys(SQUADRA).filter((k) => SQUADRA[k].u === uf) : null;
+    const ids = ag ? [agId(ag)] : uf ? Object.keys(SQUADRA).filter((k) => SQUADRA[k].u === uf) : null;
     const r = await all(env, `SELECT i.id, i.agente, i.titolo, i.stato, i.errore, i.creato, i.aggiornato, i.padre_id, k.nome AS cliente FROM incarichi i LEFT JOIN clienti k ON k.id=i.cliente_id
       ${ids ? `WHERE i.agente IN (${ids.map(() => '?').join(',')})` : ''} ORDER BY i.id DESC LIMIT 80`, ...(ids || []));
     return json(r);
   }
   if (p === '/api/incarichi' && m === 'POST') {
     const d = await corpo();
-    if (!DELEGABILI.includes(d.agente)) return json({ errore: 'scegli un agente' }, 400);
+    if (!DELEGABILI.includes(agId(d.agente))) return json({ errore: 'scegli un agente' }, 400);
     if (String(d.titolo || '').trim().length < 3) return json({ errore: 'scrivi cosa deve fare' }, 400);
     const r = await one(env, 'INSERT INTO incarichi (agente, cliente_id, titolo, brief, creato, aggiornato) VALUES (?,?,?,?,?,?) RETURNING id',
       d.agente, Number(d.cliente_id) || null, String(d.titolo).trim().slice(0, 200), String(d.brief || '').slice(0, 8000), ora(), ora());
