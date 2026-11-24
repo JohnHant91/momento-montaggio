@@ -1111,6 +1111,7 @@ class MontatoreCompleto(TalkingHead):
                     self.report.append(f"pezzo {k + 1}: la clip {s.get('nome') or ''} era mossa (voto {voto:.2f}), sostituita con {r.get('nome') or 'una riserva'} a {tr:.1f}s")
                     s.update({"file": r["file"], "_info": r["_info"], "in": tr, "in_preciso": True, "nome": r.get("nome"), "clip": r.get("clip")})
                     cambiati += 1
+                    riserve.remove(r)  # regola di Johnny: una riserva usata non si rimonta una seconda volta
                 else:
                     # niente tratto fermo né riprese di riserva: il pezzo si toglie (meglio un reel più corto che un pezzo mosso)
                     s["_scarta"] = True

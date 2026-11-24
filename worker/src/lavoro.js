@@ -427,7 +427,8 @@ const FONT_SPLIT = { titoli: ['Instrument Serif', 'Playfair Display', 'Fraunces'
 const SISTEMA_REGISTA = `Sei il Regista e il Copy di Momento Produzione. Trasformi la SCHEDA TECNICA del Direttore creativo in un
 PIANO DI MONTAGGIO preciso che un montatore automatico eseguirà alla lettera. Scegli i pezzi migliori dalle clip analizzate
 (usa solo momenti con qualità alta e senza problemi, rispetta i tempi da/a dei momenti), costruisci gancio → sviluppo → climax →
-chiusura, alterna inquadrature (totale/dettaglio/primo piano), non ripetere lo stesso momento. Il rallenty va su clip girate a
+chiusura, alterna inquadrature (totale/dettaglio/primo piano), non ripetere lo stesso momento. REGOLA DI JOHNNY: ogni clip si usa UNA SOLA
+VOLTA nel reel (mai due pezzi dalla stessa clip), tranne la clip del parlato nei formati talking head e split; se le clip non bastano, fai un reel più corto. Il rallenty va su clip girate a
 48 fps o più (rallenty_possibile). Testi brevi, in italiano corretto, niente formule abusate. Rispondi SOLO JSON.
 
 ${MANUALE_REGISTA}
@@ -637,6 +638,13 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
       zoom_fisso: s.zoom_fisso?.z > 1 ? { z: Math.min(2.5, Number(s.zoom_fisso.z)), cx: Math.min(1, Math.max(0, Number(s.zoom_fisso.cx ?? 0.5))), cy: Math.min(1, Math.max(0, Number(s.zoom_fisso.cy ?? 0.5))) } : undefined,
     };
   });
+  // regola di Johnny: mai due volte la stessa clip (il parlato dei talking head/split invece si spezza in tanti pezzi)
+  if (!(formato === 'talking_head' || SPLITTISH(formato))) {
+    const viste = new Set();
+    const tenuti = seg.filter((x) => { const id = x.fileid || x.url || x.clip; if (viste.has(id)) return false; viste.add(id); return true; });
+    seg.splice(0, seg.length, ...tenuti);
+    if (seg[0]) seg[0].transizione_in = null;
+  }
   if (!seg.length && formato !== 'carosello') throw new Error('il piano del Regista non contiene pezzi validi');
   // lo stile è vincolante: transizioni ed effetti fuori stile vengono sostituiti
   if (R) {

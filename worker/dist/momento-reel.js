@@ -3025,7 +3025,8 @@ var FONT_SPLIT = { titoli: ["Instrument Serif", "Playfair Display", "Fraunces", 
 var SISTEMA_REGISTA = `Sei il Regista e il Copy di Momento Produzione. Trasformi la SCHEDA TECNICA del Direttore creativo in un
 PIANO DI MONTAGGIO preciso che un montatore automatico eseguir\xE0 alla lettera. Scegli i pezzi migliori dalle clip analizzate
 (usa solo momenti con qualit\xE0 alta e senza problemi, rispetta i tempi da/a dei momenti), costruisci gancio \u2192 sviluppo \u2192 climax \u2192
-chiusura, alterna inquadrature (totale/dettaglio/primo piano), non ripetere lo stesso momento. Il rallenty va su clip girate a
+chiusura, alterna inquadrature (totale/dettaglio/primo piano), non ripetere lo stesso momento. REGOLA DI JOHNNY: ogni clip si usa UNA SOLA
+VOLTA nel reel (mai due pezzi dalla stessa clip), tranne la clip del parlato nei formati talking head e split; se le clip non bastano, fai un reel pi\xF9 corto. Il rallenty va su clip girate a
 48 fps o pi\xF9 (rallenty_possibile). Testi brevi, in italiano corretto, niente formule abusate. Rispondi SOLO JSON.
 
 ${MANUALE_REGISTA}
@@ -3269,6 +3270,17 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
       zoom_fisso: s.zoom_fisso?.z > 1 ? { z: Math.min(2.5, Number(s.zoom_fisso.z)), cx: Math.min(1, Math.max(0, Number(s.zoom_fisso.cx ?? 0.5))), cy: Math.min(1, Math.max(0, Number(s.zoom_fisso.cy ?? 0.5))) } : void 0
     };
   });
+  if (!(formato === "talking_head" || SPLITTISH(formato))) {
+    const viste = /* @__PURE__ */ new Set();
+    const tenuti = seg.filter((x) => {
+      const id = x.fileid || x.url || x.clip;
+      if (viste.has(id)) return false;
+      viste.add(id);
+      return true;
+    });
+    seg.splice(0, seg.length, ...tenuti);
+    if (seg[0]) seg[0].transizione_in = null;
+  }
   if (!seg.length && formato !== "carosello") throw new Error("il piano del Regista non contiene pezzi validi");
   if (R) {
     for (const s of seg) {
