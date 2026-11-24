@@ -40,7 +40,7 @@ r = await chiama('/api/incarichi'); ok(r.j.length === 0, 'nessun incarico parte 
 r = await chiama('/api/riunioni'); ok(r.j[0]?.in_sala && r.j[0].partecipanti.length === 7, 'i 7 capireparto sono in sala');
 await cron();
 r = await chiama('/api/riunioni/' + rid); ok(r.j.stato === 'proposte' && r.j.proposte.length === 2 && r.j.verbale.length >= 4, 'dopo la riunione: proposte e verbale');
-ok(r.j.nomi?.direttore?.startsWith('Leo'), 'i nomi dei capi arrivano alla pagina');
+ok(r.j.nomi?.regista?.startsWith('Rocco'), 'i nomi dei capi arrivano alla pagina');
 r = await chiama('/api/chat/capo'); ok(r.j.some((c) => c.testo.includes('#/riunione/' + rid)), 'Alba scrive in chat con il link alle proposte');
 r = await chiama('/api/riunioni/' + rid + '/scegli', { method: 'POST', body: { indice: 0 } });
 ok(r.status === 200 && r.j.incarichi.length === 3, 'scelta la prima: partono 3 incarichi (agente inesistente scartato)');
