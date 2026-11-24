@@ -2756,9 +2756,9 @@ Sii sintetico: al massimo 8 momenti e 5 problemi, frasi brevi.
 Se \xE8 una FOTO o una SLIDE (tecnico.tipo = immagine): niente momenti n\xE9 problemi di tempo; descrivi cosa mostra e trascrivi
 il testo che contiene (se \xE8 una slide di carosello) in "testo_nell_immagine".
 
-VERSO DELL'IMMAGINE ("rotazione"): le CLIP VIDEO orizzontali le gira sempre il montatore (regola fissa di Johnny): per loro
-scrivi 0. Per le clip verticali: 180 se capovolte, altrimenti 0. Per le FOTO: 90 (orario), -90 (antiorario) o 180 solo se si
-vedono coricate o capovolte, altrimenti 0.
+VERSO DELL'IMMAGINE ("rotazione"): 90 (orario), -90 (antiorario) o 180 SOLO se l'immagine \xE8 chiaramente coricata o capovolta
+(persone sdraiate di lato, orizzonte verticale, scritte girate). Una ripresa orizzontale DRITTA non si gira mai: 0
+(regola di Johnny: le orizzontali restano orizzontali, il montatore le ritaglia in 9:16 sul soggetto). Nel dubbio 0.
 
 Contesto del lavoro: ${contesto2}
 
@@ -2961,8 +2961,6 @@ async function avvisoMotore(env, L) {
 }
 var chiaveRif = (v) => `rif2:${v.piattaforma}:${v.id}`;
 var ruotaDi = (c) => {
-  const video = !(c?.tipo === "immagine" || c?.tecnico?.tipo === "immagine" || c?.tecnico?.tipo === "musica");
-  if (video && c?.tecnico?.orientamento === "orizzontale") return { ruota: -90 };
   const r = Number(c?.analisi?.rotazione);
   return [90, -90, 180].includes(r) ? { ruota: r } : {};
 };

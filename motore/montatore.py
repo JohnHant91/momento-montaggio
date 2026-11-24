@@ -351,7 +351,7 @@ class Montatore:
         # reframe 9:16 che segue il soggetto (panoramica lineare dentro il pezzo)
         sw, sh = info["w"] or W, info["h"] or H
         if sw / sh > W / H + 0.02:
-            centri = self.centro_soggetto(quadri) if quadri else [0.5]
+            centri = [float(s["centro_x"])] if s.get("centro_x") is not None else (self.centro_soggetto(quadri) if quadri else [0.5])  # centro_x: oggetto su cui va l'attenzione
             c0, c1 = float(np.mean(centri[: max(1, len(centri) // 2)])), float(np.mean(centri[len(centri) // 2:] or centri))
             if abs(c1 - c0) < 0.06:
                 c0 = c1 = (c0 + c1) / 2

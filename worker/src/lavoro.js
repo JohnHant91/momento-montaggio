@@ -95,9 +95,9 @@ Sii sintetico: al massimo 8 momenti e 5 problemi, frasi brevi.
 Se è una FOTO o una SLIDE (tecnico.tipo = immagine): niente momenti né problemi di tempo; descrivi cosa mostra e trascrivi
 il testo che contiene (se è una slide di carosello) in "testo_nell_immagine".
 
-VERSO DELL'IMMAGINE ("rotazione"): le CLIP VIDEO orizzontali le gira sempre il montatore (regola fissa di Johnny): per loro
-scrivi 0. Per le clip verticali: 180 se capovolte, altrimenti 0. Per le FOTO: 90 (orario), -90 (antiorario) o 180 solo se si
-vedono coricate o capovolte, altrimenti 0.
+VERSO DELL'IMMAGINE ("rotazione"): 90 (orario), -90 (antiorario) o 180 SOLO se l'immagine è chiaramente coricata o capovolta
+(persone sdraiate di lato, orizzonte verticale, scritte girate). Una ripresa orizzontale DRITTA non si gira mai: 0
+(regola di Johnny: le orizzontali restano orizzontali, il montatore le ritaglia in 9:16 sul soggetto). Nel dubbio 0.
 
 Contesto del lavoro: ${contesto}
 
@@ -322,12 +322,9 @@ export const chiaveRif = (v) => `rif2:${v.piattaforma}:${v.id}`;
 // basta aggiungere una voce qui e il download corrispondente nel motore (motore/analizza.py → scarica).
 // dove il motore prende un file: pCloud (fileid), link diretto (url) o archivio interno ("archivio:percorso", firmato quando parte il motore)
 // "ruota": gradi in senso orario per raddrizzare il girato coricato (lo vede Iris sui fotogrammi, lo applica il montatore)
-// regola fissa di Johnny: ogni clip VIDEO orizzontale si gira di 90° in senso ANTIORARIO e si allarga fino a riempire il 9:16;
-// per foto e clip verticali vale il verso visto da Iris (coricate o capovolte)
-const ruotaDi = (c) => {
-  const video = !(c?.tipo === 'immagine' || c?.tecnico?.tipo === 'immagine' || c?.tecnico?.tipo === 'musica');
-  if (video && c?.tecnico?.orientamento === 'orizzontale') return { ruota: -90 };
-  const r = Number(c?.analisi?.rotazione); return [90, -90, 180].includes(r) ? { ruota: r } : {}; };
+// regola di Johnny: le clip orizzontali restano orizzontali (il montatore ritaglia il 9:16 sul soggetto); si gira solo
+// il girato che Iris vede davvero coricato o capovolto
+const ruotaDi = (c) => { const r = Number(c?.analisi?.rotazione); return [90, -90, 180].includes(r) ? { ruota: r } : {}; };
 export const rifSorgente = (c) => ({ ...(c?.sorgente?.tipo === 'url' ? { fileid: null, url: c.sorgente.url }
   : c?.sorgente?.tipo === 'archivio' ? { fileid: null, url: 'archivio:' + c.sorgente.percorso } : { fileid: c?.fileid, url: null }), ...ruotaDi(c) });
 

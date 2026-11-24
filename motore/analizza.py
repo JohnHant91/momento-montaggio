@@ -136,8 +136,8 @@ def raddrizza(path, ruota, avvisa=None):
         if taglio:
             filtri.append(taglio)
         W, H = (int(v) for v in t["risoluzione"].split("x"))
-        if ruota == "auto":  # vecchi piani: regola di Johnny, video orizzontale → 90° antiorario
-            r = -90 if (not immagine and W > H) else 0
+        if ruota == "auto":  # piani vecchi: le orizzontali restano orizzontali
+            r = 0
         else:
             try:
                 r = int(ruota or 0)
@@ -163,27 +163,31 @@ def raddrizza(path, ruota, avvisa=None):
 
 
 def inquadra_su(lavoro, path, t, oggetto):
-    """Zoom e centro (zoom_fisso del montatore) per tenere l'oggetto in mezzo al 9:16: l'oggetto lo trova Claude sul fotogramma
-    del pezzo così come uscirà (già girato e allargato a 9:16)."""
-    W, H = 1080, 1920
+    """Dove tagliare il 9:16 perché l'oggetto (es. "la scatola") stia al centro: Claude lo trova sul fotogramma INTERO
+    (l'orizzontale resta orizzontale), il montatore sposta lì il ritaglio e, se l'oggetto è piccolo, stringe un po'."""
     p = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{max(0, t):.2f}", "-i", path, "-frames:v", "1",
-                        "-vf", f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},scale=540:960", "-q:v", "4", "-f", "image2", "-"],
+                        "-vf", "scale=960:960:force_original_aspect_ratio=decrease", "-q:v", "4", "-f", "image2", "-"],
                        capture_output=True, timeout=120)
     if not p.stdout:
         return None
     r = regia(lavoro, "fuoco", corpo={"jpeg": base64.b64encode(p.stdout).decode(), "oggetto": oggetto}, timeout=120)
     if not r.get("trovato"):
         return None
-    # l'oggetto deve occupare circa metà dello schermo: zoom tra 1,2x (solo spostare) e 2,2x
-    z = max(1.2, min(2.2, 0.5 / max(0.05, r["w"], r["h"] * 0.9)))
-    # zoom_fisso lavora sul girato: centro in frazioni del girato a pieno quadro (con un 9:16 pieno coincide con il fotogramma)
     tt = tecnico(path)
     sw, sh = (int(v) for v in tt["risoluzione"].split("x"))
-    vis_w = min(1.0, (sh * W / H) / sw)  # parte di larghezza del girato visibile nel 9:16
-    vis_h = min(1.0, (sw * H / W) / sh)
-    cx = 0.5 + (r["x"] - 0.5) * vis_w
-    cy = 0.5 + (r["y"] - 0.5) * vis_h
-    return {"z": round(z, 2), "cx": round(cx, 3), "cy": round(cy, 3)}
+    W, H = 1080, 1920
+    out = {}
+    if sw / sh > W / H + 0.02:  # orizzontale: il ritaglio 9:16 si sposta sull'oggetto
+        cw = sh * W / H
+        x0 = min(max(0, r["x"] * sw - cw / 2), sw - cw)
+        out["centro_x"] = round(r["x"], 3)
+        wx, ww = (r["x"] * sw - x0) / cw, r["w"] * sw / cw
+    else:
+        wx, ww = r["x"], r["w"]
+    z = min(2.2, 0.5 / max(0.05, ww, r["h"] * 0.9))  # stringo solo se l'oggetto è piccolo (deve prendere ~metà schermo)
+    if z > 1.1:
+        out["zoom_fisso"] = {"z": round(z, 2), "cx": round(min(1, max(0, wx)), 3), "cy": round(r["y"], 3)}
+    return out or None
 
 
 def scarica(lavoro, el, cartella):
@@ -566,8 +570,8 @@ def monta(lavoro):
                 try:
                     inq = inquadra_su(lavoro, s["file"], float(s.get("in", 0)) + float(s.get("durata", 1)) / 2, s["fuoco"])
                     if inq:
-                        s["zoom_fisso"] = inq
-                        avvisa("editor", f"{s.get('nome') or 'pezzo'}: inquadratura spostata su {s['fuoco']} ({inq['z']:.1f}x)")
+                        s.update(inq)
+                        avvisa("editor", f"{s.get('nome') or 'pezzo'}: inquadratura spostata su {s['fuoco']}" + (f" e stretta {inq['zoom_fisso']['z']:.1f}x" if inq.get("zoom_fisso") else ""))
                     else:
                         avvisa("editor", f"{s.get('nome') or 'pezzo'}: {s['fuoco']} non trovato nell'immagine, lascio l'inquadratura piena", "warn")
                 except Exception as e:
