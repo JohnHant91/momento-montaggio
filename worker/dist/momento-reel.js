@@ -7408,7 +7408,8 @@ function datiSala(R) {
   const reelImg = (a) => { const L = R.reel.find((x) => (FASE_AGENTI[x.fase] || []).includes(a)); return L && L.fase === 'fatto' ? '/api/lavori/' + L.id + '/anteprima.jpg' : null; };
   for (const [u] of PIANTA) for (const a of agentiUfficio(R, u)) { const A = AGENTI[a]; if (A) agenti.push({ id: a, n: A.n, i: A.i, r: A.r, c: A.c || '#888888', u, stato: st[a] || '', msg: cosa[a]?.ora || cosa[a]?.testo || ultimo[a]?.messaggio || '', lavoro: cosa[a]?.testo || '', log: registro[a] || [], img: reelImg(a) }); }
   const riunioni = (R.riunioni || []).filter((x) => x.in_sala).map((x) => ({ id: x.id, stanza: x.tipo === 'settimanale' ? 'direzione' : 'meeting', partecipanti: x.partecipanti, titolo: x.titolo }));
-  return { uffici: PIANTA.map(([id, nome, x, y, w, h, col]) => ({ id, nome, x, y, w, h, col })), agenti, riunioni };
+  const reelTv = (R.reel || []).map((l) => { const i = FASI.findIndex((f) => f[0] === l.fase); return { t: '#' + l.id + ' ' + (l.titolo || 'reel'), f: (FASI[i] || [, l.fase])[1] || l.fase, p: Math.max(6, Math.round(((i < 0 ? 0 : i) + 0.5) / FASI.length * 100)) }; });
+  return { uffici: PIANTA.map(([id, nome, x, y, w, h, col]) => ({ id, nome, x, y, w, h, col })), agenti, riunioni, reelTv };
 }
 let SALA3D = null;
 function vaiAgente(a) { if (SALA3D) SALA3D.vaiAgente(a); }
@@ -8218,6 +8219,23 @@ const texTv = () => canvasTex(512, 288, (g, w, h) => {
   g.fillStyle = '#fff'; g.font = '700 54px Inter, system-ui, sans-serif'; g.fillText('momento', 40, 130);
   g.font = '500 26px Inter, system-ui, sans-serif'; g.globalAlpha = 0.8; g.fillText('agenzia AI \xB7 in diretta', 42, 180); g.globalAlpha = 1;
 });
+function disegnaTvVideo(dati) {
+  const T = S.tvVideo; if (!T) return;
+  const cv = T.tex.image, g = cv.getContext('2d'), w = cv.width, h = cv.height;
+  const reel = (dati.reelTv || []).slice(0, 4);
+  const gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, '#0b3b3a'); gr.addColorStop(1, '#07171a'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#2cc4bc'; g.font = '700 30px Inter, system-ui, sans-serif'; g.fillText('momento', 24, 44);
+  g.fillStyle = '#ff4d4f'; g.beginPath(); g.arc(w - 60, 34, 7, 0, Math.PI * 2); g.fill(); g.fillStyle = '#fff'; g.font = '600 15px Inter, system-ui'; g.fillText('LIVE', w - 48, 40);
+  if (!reel.length) { g.fillStyle = 'rgba(255,255,255,.7)'; g.font = '500 22px Inter, system-ui'; g.fillText('Comparto video \xB7 nessun reel in lavorazione', 24, 150); T.tex.needsUpdate = true; return; }
+  reel.forEach((r, k) => {
+    const y = 74 + k * 52;
+    g.fillStyle = 'rgba(255,255,255,.08)'; g.fillRect(20, y, w - 40, 44);
+    g.fillStyle = '#fff'; g.font = '600 18px Inter, system-ui'; g.fillText(String(r.t || '').slice(0, 34), 32, y + 20);
+    g.fillStyle = 'rgba(255,255,255,.6)'; g.font = '14px Inter, system-ui'; g.fillText(String(r.f || '').slice(0, 44), 32, y + 38);
+    g.fillStyle = 'rgba(255,255,255,.15)'; g.fillRect(w - 150, y + 16, 110, 8); g.fillStyle = '#2cc4bc'; g.fillRect(w - 150, y + 16, 110 * Math.min(1, (r.p || 0) / 100), 8);
+  });
+  T.tex.needsUpdate = true;
+}
 const texQuadro = (a, b) => canvasTex(128, 160, (g, w, h) => {
   const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, a); gr.addColorStop(1, b); g.fillStyle = gr; g.fillRect(0, 0, w, h);
   g.fillStyle = 'rgba(255,255,255,.35)'; g.beginPath(); g.arc(64, 70, 26, 0, Math.PI * 2); g.fill();
@@ -8453,8 +8471,8 @@ function monitor(mat, A, tipo) {
   const corpo = box(0.78, 0.46, 0.035, mat.nero, 0.012); corpo.position.set(0, 0.45, 0); g.add(corpo);
   const cv = document.createElement('canvas'); cv.width = 512; cv.height = 300;
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
-  const sm = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, roughness: 0.3, emissive: 0xffffff, emissiveIntensity: 0.25 });
-  const schermo = new THREE.Mesh(new THREE.PlaneGeometry(0.74, 0.42), sm); schermo.position.set(0, 0.45, 0.019); g.add(schermo);
+  const sm = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, roughness: 0.3, emissive: 0xffffff, emissiveIntensity: 0.25, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const schermo = new THREE.Mesh(new THREE.PlaneGeometry(0.74, 0.42), sm); schermo.position.set(0, 0.45, 0.024); g.add(schermo);
   return { g, sm, tex, ctx: cv.getContext('2d') };
 }
 
@@ -8503,8 +8521,8 @@ function arredaMeeting(R) {
   const tv = box(2.4, 1.38, 0.06, mat.nero, 0.02); tv.position.set(xt, 1.45, zt); scena.add(tv);
   const piede = box(0.08, 0.85, 0.08, mat.metallo, 0.01); piede.position.set(xt, 0.42, zt); scena.add(piede);
   const base = box(0.8, 0.04, 0.45, mat.metallo, 0.01); base.position.set(xt, 0.02, zt); scena.add(base);
-  const sc = new THREE.Mesh(new THREE.PlaneGeometry(2.28, 1.28), new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.6 }));
-  sc.position.set(xt, 1.45, zt + 0.035); scena.add(sc);
+  const sc = new THREE.Mesh(new THREE.PlaneGeometry(2.28, 1.28), new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.6, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+  sc.position.set(xt, 1.45, zt + 0.045); scena.add(sc);
   S.schermoMeeting = { cv, tex };
   disegnaSchermoMeeting(null);
 }
@@ -8516,6 +8534,63 @@ function disegnaSchermoMeeting(Q) {
   if (Q) { g.font = '600 24px Inter, system-ui'; g.fillStyle = '#c9d4ff'; righeTesto(g, Q.titolo || '', 24, 100, w - 48, 32, 5); }
   else { g.font = '20px Inter, system-ui'; g.fillStyle = '#7d8290'; g.fillText('libera', 24, 90); }
   M.tex.needsUpdate = true;
+}
+
+// arredi d'agenzia per ogni ufficio: quadri sulla parete di fondo, pianta alta, libreria con libri colorati, tappeto, lampade sopra le scrivanie
+const QUADRI = [['#ffd6a5', '#e76f51'], ['#bde0fe', '#3a86ff'], ['#caffbf', '#2a9d8f'], ['#ffc8dd', '#e5383b'], ['#e9d8a6', '#bb3e03'], ['#cdb4db', '#6d597a'], ['#a8dadc', '#1d3557']];
+const texPoster = (a, b, k) => canvasTex(256, 320, (g, w, h) => {
+  g.fillStyle = a; g.fillRect(0, 0, w, h);
+  g.fillStyle = b;
+  if (k % 3 === 0) { g.beginPath(); g.arc(w * 0.5, h * 0.42, 70, 0, Math.PI * 2); g.fill(); g.fillRect(40, h - 70, w - 80, 14); }
+  else if (k % 3 === 1) { for (let i = 0; i < 5; i++) g.fillRect(30 + i * 40, h - 60 - i * 38, 28, 40 + i * 38); }
+  else { g.beginPath(); g.moveTo(30, h - 40); g.lineTo(w / 2, 60); g.lineTo(w - 30, h - 40); g.closePath(); g.fill(); }
+});
+function arredaUfficio(R) {
+  const { scena, mat } = S;
+  if (!['marketing', 'social', 'video', 'foto', 'web', 'booking', 'gestionale', 'contabilita'].includes(R.id)) return;
+  const nord = R.lato === 'n';
+  const zMuro = nord ? 0.09 : R.z + 0.09; // parete alta: in fondo per la fila nord, sul corridoio per la fila sud
+  const yQ = nord ? 1.45 : 1.15;
+  const idx = STANZE.indexOf(R);
+  // quadri (due, ai lati: al centro ci sono lavagna o TV)
+  const xs = R.w > 7 ? [R.x + 1.0, R.x + R.w - 1.0] : [R.x + R.w - 1.1];
+  xs.forEach((x, k) => {
+    const [a, b] = QUADRI[(idx * 2 + k) % QUADRI.length];
+    const c = box(0.72, 0.9, 0.04, mat.nero, 0.01); c.position.set(x, yQ, zMuro); scena.add(c);
+    const im = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.8), new THREE.MeshStandardMaterial({ map: texPoster(a, b, idx + k), polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    im.position.set(x, yQ, zMuro + 0.03); scena.add(im);
+  });
+  // libreria bassa contro la parete laterale sinistra con libri colorati
+  if (R.w >= 5.4) {
+    const lx = R.x + 0.35, lz = nord ? 1.6 : R.z + R.d - 1.4;
+    const mob = box(0.36, 1.1, 1.5, mat.bianco, 0.02); mob.position.set(lx, 0.55, lz); scena.add(mob);
+    const colori = [0xe76f51, 0x2a9d8f, 0xe9c46a, 0x264653, 0xf4a261, 0x8ecae6, 0xd62828];
+    for (let ripiano = 0; ripiano < 2; ripiano++) for (let i = 0; i < 9; i++) {
+      if ((i + ripiano + idx) % 5 === 0) continue;
+      const lib = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.26 + ((i * 7) % 5) * 0.02, 0.07), new THREE.MeshStandardMaterial({ color: colori[(i + ripiano * 3 + idx) % colori.length], roughness: 0.8 }));
+      lib.position.set(lx + 0.04, 0.32 + ripiano * 0.46, lz - 0.6 + i * 0.15); scena.add(lib);
+    }
+  }
+  // pianta alta (ficus) nell'angolo opposto
+  const fic = new THREE.Group();
+  const vaso = ombra(new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.19, 0.42, 20), mat.vaso)); vaso.position.y = 0.21; fic.add(vaso);
+  const tronco = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 1.0, 8), new THREE.MeshStandardMaterial({ color: 0x7a5a3a })); tronco.position.y = 0.9; fic.add(tronco);
+  const verde = new THREE.MeshStandardMaterial({ color: 0x4f8a4b, roughness: 0.8 });
+  for (let i = 0; i < 6; i++) { const f = ombra(new THREE.Mesh(new THREE.IcosahedronGeometry(0.22 + (i % 3) * 0.05, 0), verde)); f.position.set(Math.cos(i * 1.1) * 0.18, 1.3 + (i % 3) * 0.17, Math.sin(i * 1.1) * 0.18); fic.add(f); }
+  fic.position.set(R.x + 0.55, 0.05, nord ? 0.6 : R.z + 0.6); scena.add(fic);
+  // tappeto sotto le scrivanie
+  const tap = new THREE.Mesh(new RoundedBoxGeometry(Math.min(R.w - 1.2, R.col * POSTO + 1.2), 0.01, Math.min(R.d - 1.6, 3.2), 2, 0.004),
+    new THREE.MeshStandardMaterial({ color: new THREE.Color(TINTE[R.id] || '#eeeeee').offsetHSL(0, 0.1, -0.12), roughness: 0.95 }));
+  tap.position.set(R.x + R.w / 2, 0.052, nord ? (R.scrivanie != null ? R.scrivanie : R.d / 2) + 0.5 : R.z + R.d / 2); tap.receiveShadow = true; scena.add(tap);
+  // lampade a sospensione sopra le scrivanie
+  const lm = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.4, metalness: 0.5 }), luce = new THREE.MeshStandardMaterial({ color: 0xfff3d6, emissive: 0xffe3a3, emissiveIntensity: 0.9 });
+  const n = Math.max(1, Math.round(R.w / 4));
+  for (let i = 0; i < n; i++) {
+    const x = R.x + (R.w * (i + 0.5)) / n, z = nord ? R.d * 0.42 : R.z + R.d * 0.5;
+    const cav = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.6, 4), lm); cav.position.set(x, 2.5, z); scena.add(cav);
+    const par = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.2, 20, 1, true), lm); par.position.set(x, 2.15, z); scena.add(par);
+    const lp = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 8), luce); lp.position.set(x, 2.08, z); scena.add(lp);
+  }
 }
 
 function arredaDirezione(R) {
@@ -8640,6 +8715,7 @@ function costruisci(dati) {
         S.agenti[A.id] = { A, U, ...sg, x, z: zDesk + 0.62, casa: new THREE.Vector3(x, 0, zDesk + 0.62), sm: mon.sm, tex: mon.tex, ctx: mon.ctx, tipo: R.id === 'video' ? 'video' : '', stanza: R, seduto: true };
       }
     }
+    arredaUfficio(R);
     // una pianta per stanza
     const pi = agave(mat, 0.85); pi.position.set(R.x + R.w - 0.45, 0.05, R.lato === 'n' ? R.z + 0.5 : R.z + R.d - 0.5); scena.add(pi);
   }
@@ -8648,7 +8724,7 @@ function costruisci(dati) {
   const cornice = box(2.7, 1.3, 0.04, mat.metallo, 0.01); cornice.position.set(ST('marketing').x + ST('marketing').w / 2, 1.25, 0.06); scena.add(cornice);
   const tv = box(3.0, 1.6, 0.08, mat.nero, 0.02); tv.position.set(ST('video').x + ST('video').w / 2, 1.35, 0.1); scena.add(tv);
   const tvT = texTv();
-  const tvS = new THREE.Mesh(new THREE.PlaneGeometry(2.86, 1.48), new THREE.MeshStandardMaterial({ map: tvT, emissive: 0xffffff, emissiveMap: tvT, emissiveIntensity: 0.55 })); tvS.position.set(ST('video').x + ST('video').w / 2, 1.35, 0.145); scena.add(tvS);
+  const tvS = new THREE.Mesh(new THREE.PlaneGeometry(2.86, 1.48), new THREE.MeshStandardMaterial({ map: tvT, emissive: 0xffffff, emissiveMap: tvT, emissiveIntensity: 0.55, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })); tvS.position.set(ST('video').x + ST('video').w / 2, 1.35, 0.16); scena.add(tvS); S.tvVideo = { tex: tvT };
   [['#f6c1a0', '#d97757', ST('direzione').x + 1.0], ['#b8c9ff', '#5a74d6', ST('direzione').x + 1.9], ['#f3d9a6', '#c98a2b', ST('direzione').x + 10.4], ['#c7e6c0', '#5f9a5c', ST('social').x + ST('social').w / 2]].forEach(([a, b, x]) => {
     const q = box(0.6, 0.76, 0.04, mat.nero, 0.01); q.position.set(x, 1.4, 0.08); scena.add(q);
     const im = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.68), new THREE.MeshStandardMaterial({ map: texQuadro(a, b) })); im.position.set(x, 1.4, 0.105); scena.add(im);
@@ -8677,6 +8753,7 @@ export function aggiorna(dati) {
   }
   aggiornaRiunioni(dati);
   disegnaEtichette();
+  disegnaTvVideo(dati);
 }
 
 // segno di chi lavora: una gemma luminosa che gira e fluttua sopra la testa e un anello che pulsa sul pavimento
@@ -8884,7 +8961,7 @@ function adatta(t) {
   A.n++;
   if (t - A.t0 < 2000) return;
   const fps = A.n * 1000 / (t - A.t0); A.t0 = t; A.n = 0;
-  const max = Math.min(devicePixelRatio, 2);
+  const max = Math.min(devicePixelRatio, 1.5);
   let pr = A.pr;
   if (fps < 24 && pr > 0.55) pr = Math.max(0.55, pr - 0.15);
   else if (fps > 50 && pr < max) pr = Math.min(max, pr + 0.1);
@@ -8896,6 +8973,9 @@ function anima(t) {
   if (!S) return;
   if (!document.body.contains(S.renderer.domElement)) { ferma(); return; }
   S.raf = requestAnimationFrame(anima);
+  const muovendo = S.volo || S.zoomD != null || S.spostaZ || S.trascina;
+  if (!muovendo && t - (S.ultimoFrame || 0) < 31) return; // a riposo 30 fps bastano e il telefono respira
+  S.ultimoFrame = t;
   if (S.volo) {
     const v = S.volo, k = Math.min(1, (t - v.t0) / v.ms), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
     S.controls.target.lerpVectors(v.da, v.a, e);
@@ -8948,7 +9028,7 @@ function ridimensiona() {
 export function avvia(cont, dati, cb) {
   if (S) ferma();
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -8973,6 +9053,8 @@ export function avvia(cont, dati, cb) {
   controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
   controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
   const etichette = document.createElement('div'); etichette.className = 'etichette'; cont.appendChild(etichette);
+  controls.addEventListener('start', () => { if (S) { S.trascina = true; clearTimeout(S.tFine); } });
+  controls.addEventListener('end', () => { if (S) S.tFine = setTimeout(() => { if (S) S.trascina = false; }, 700); });
   S = { renderer, scena, camera, controls, cont, cb: cb || {}, etichette, mat: materiali() };
   S.ridim = () => { if (S) ridimensiona(); }; addEventListener('resize', S.ridim);
   ridimensiona();

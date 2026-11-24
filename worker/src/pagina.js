@@ -880,7 +880,8 @@ function datiSala(R) {
   const reelImg = (a) => { const L = R.reel.find((x) => (FASE_AGENTI[x.fase] || []).includes(a)); return L && L.fase === 'fatto' ? '/api/lavori/' + L.id + '/anteprima.jpg' : null; };
   for (const [u] of PIANTA) for (const a of agentiUfficio(R, u)) { const A = AGENTI[a]; if (A) agenti.push({ id: a, n: A.n, i: A.i, r: A.r, c: A.c || '#888888', u, stato: st[a] || '', msg: cosa[a]?.ora || cosa[a]?.testo || ultimo[a]?.messaggio || '', lavoro: cosa[a]?.testo || '', log: registro[a] || [], img: reelImg(a) }); }
   const riunioni = (R.riunioni || []).filter((x) => x.in_sala).map((x) => ({ id: x.id, stanza: x.tipo === 'settimanale' ? 'direzione' : 'meeting', partecipanti: x.partecipanti, titolo: x.titolo }));
-  return { uffici: PIANTA.map(([id, nome, x, y, w, h, col]) => ({ id, nome, x, y, w, h, col })), agenti, riunioni };
+  const reelTv = (R.reel || []).map((l) => { const i = FASI.findIndex((f) => f[0] === l.fase); return { t: '#' + l.id + ' ' + (l.titolo || 'reel'), f: (FASI[i] || [, l.fase])[1] || l.fase, p: Math.max(6, Math.round(((i < 0 ? 0 : i) + 0.5) / FASI.length * 100)) }; });
+  return { uffici: PIANTA.map(([id, nome, x, y, w, h, col]) => ({ id, nome, x, y, w, h, col })), agenti, riunioni, reelTv };
 }
 let SALA3D = null;
 function vaiAgente(a) { if (SALA3D) SALA3D.vaiAgente(a); }
