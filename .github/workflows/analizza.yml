@@ -60,6 +60,13 @@ jobs:
           path: ~/.cache/huggingface
           key: whisper-small-v1
 
+      - name: Modello per scontornare le copertine (in cache)
+        if: steps.coda.outputs.lavoro == 'si'
+        uses: actions/cache@v4
+        with:
+          path: ~/.u2net
+          key: rembg-isnet-v1
+
       - name: Cache LUT
         uses: actions/cache@v4
         with:

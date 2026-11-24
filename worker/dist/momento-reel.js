@@ -2714,7 +2714,7 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
                "passi": ["solo per steps, 2-5 frasi brevi"], "unita": "\u20AC|%|...", "badge": "risultato chiave breve, es. 6x", "sulla_parola": "parola detta su cui entra", "tema": "dark|light"} oppure null,
   "ganci_alternativi": [{"testo": "...", "meccanismo": "..."}],
   "loop": "come il finale si ricollega al primo pezzo",
-  "copertina": {"clip": indice, "secondo": n, "testo": "testo grande della copertina (2-5 parole)"},
+  "copertina": {"clip": indice, "secondo": n (un momento con il viso nitido e un'espressione forte, se c'\xE8 una persona), "testo": "titolo della copertina stile miniatura YouTube: 2-5 parole forti, curiosit\xE0 o promessa, niente dati inventati", "evidenzia": "LA parola del titolo da mettere nel riquadro colorato", "colore": "#hex del riquadro (giallo #FFD60A di base, o un colore del brand che contrasti)"},
   "parola_chiave": "...",
   "caption": "caption finale: prima riga con la parola chiave, corpo, UNA call to action",
   "hashtag": ["3-5 etichette specifiche"],
@@ -2904,7 +2904,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
     durata: Math.min(7, Math.max(1.5, Number(s.durata) || 2.6))
   }));
   const lookVoluto = indicazioni?.look && LOOKS.includes(indicazioni.look) ? indicazioni.look : null;
-  const cop = p.copertina && tutte[p.copertina.clip]?.stato === "fatto" ? { ...rifSorgente(tutte[p.copertina.clip]), secondo: Math.max(0, Number(p.copertina.secondo) || 0), testo: String(p.copertina.testo || "").slice(0, 60) } : null;
+  const cop = p.copertina && tutte[p.copertina.clip]?.stato === "fatto" ? { ...rifSorgente(tutte[p.copertina.clip]), secondo: Math.max(0, Number(p.copertina.secondo) || 0), testo: String(p.copertina.testo || "").slice(0, 60), evidenzia: String(p.copertina.evidenzia || "").slice(0, 30) || null, colore: /^#[0-9a-f]{6}$/i.test(p.copertina.colore || "") ? p.copertina.colore : null } : null;
   let pannello = null;
   const pn = p.pannello;
   if (formato === "talking_head" && pn?.titolo && ["line", "bar", "steps"].includes(pn.tipo)) {

@@ -3,3 +3,4 @@ pillow
 faster-whisper
 yt-dlp
 opencv-python-headless
+rembg[cpu]

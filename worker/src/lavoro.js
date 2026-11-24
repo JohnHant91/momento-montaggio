@@ -482,7 +482,7 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
                "passi": ["solo per steps, 2-5 frasi brevi"], "unita": "€|%|...", "badge": "risultato chiave breve, es. 6x", "sulla_parola": "parola detta su cui entra", "tema": "dark|light"} oppure null,
   "ganci_alternativi": [{"testo": "...", "meccanismo": "..."}],
   "loop": "come il finale si ricollega al primo pezzo",
-  "copertina": {"clip": indice, "secondo": n, "testo": "testo grande della copertina (2-5 parole)"},
+  "copertina": {"clip": indice, "secondo": n (un momento con il viso nitido e un'espressione forte, se c'è una persona), "testo": "titolo della copertina stile miniatura YouTube: 2-5 parole forti, curiosità o promessa, niente dati inventati", "evidenzia": "LA parola del titolo da mettere nel riquadro colorato", "colore": "#hex del riquadro (giallo #FFD60A di base, o un colore del brand che contrasti)"},
   "parola_chiave": "...",
   "caption": "caption finale: prima riga con la parola chiave, corpo, UNA call to action",
   "hashtag": ["3-5 etichette specifiche"],
@@ -628,7 +628,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
   const schede = formato !== 'talking_head' ? [] : (p.schede || []).filter((s) => tutte[s?.clip]?.stato === 'fatto' && eImm(tutte[s.clip]) && s.sulla_parola).slice(0, 8).map((s) => ({
     clip: s.clip, ...sorg(tutte[s.clip]), sulla_parola: String(s.sulla_parola).slice(0, 40), etichetta: String(s.etichetta || '').slice(0, 16), lato: s.lato === 'sx' ? 'sx' : 'dx', durata: Math.min(7, Math.max(1.5, Number(s.durata) || 2.6)) }));
   const lookVoluto = indicazioni?.look && LOOKS.includes(indicazioni.look) ? indicazioni.look : null;
-  const cop = p.copertina && tutte[p.copertina.clip]?.stato === 'fatto' ? { ...rifSorgente(tutte[p.copertina.clip]), secondo: Math.max(0, Number(p.copertina.secondo) || 0), testo: String(p.copertina.testo || '').slice(0, 60) } : null;
+  const cop = p.copertina && tutte[p.copertina.clip]?.stato === 'fatto' ? { ...rifSorgente(tutte[p.copertina.clip]), secondo: Math.max(0, Number(p.copertina.secondo) || 0), testo: String(p.copertina.testo || '').slice(0, 60), evidenzia: String(p.copertina.evidenzia || '').slice(0, 30) || null, colore: /^#[0-9a-f]{6}$/i.test(p.copertina.colore || '') ? p.copertina.colore : null } : null;
   let pannello = null;
   const pn = p.pannello;
   if (formato === 'talking_head' && pn?.titolo && ['line', 'bar', 'steps'].includes(pn.tipo)) {

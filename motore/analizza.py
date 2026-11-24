@@ -486,7 +486,13 @@ def monta(lavoro):
                 sorg, immagine = piano["slide"][0]["file"], True
             sorg = sorg or out
             sec = 0 if immagine else (float(cop.get("secondo", 0.6)) if sorg != out else 0.6)
-            c = copertina(sorg, sec, cop.get("testo") or "", os.path.join(cartella, "copertina.jpg"), m.fontdir)
+            try:  # copertina moderna (soggetto scontornato, titolo con parola chiave); se qualcosa va storto quella semplice
+                from copertina import copertina_moderna
+                c = copertina_moderna(sorg, sec, cop.get("testo") or "", os.path.join(cartella, "copertina.jpg"), font_dir=m.fontdir,
+                                      evidenzia=cop.get("evidenzia"), accento=cop.get("colore") or "#FFD60A", secondario=(piano.get("look_reel") or {}).get("tinta") or "#12A3A4", immagine=immagine)
+            except Exception as e:
+                avvisa("vfx", f"copertina moderna non riuscita ({str(e)[:80]}): uso quella semplice", "warn")
+                c = copertina(sorg, sec, cop.get("testo") or "", os.path.join(cartella, "copertina.jpg"), m.fontdir)
             invia_file(lavoro, "copertina", c, "image/jpeg")
             cop_ok = True
             avvisa("vfx", f"copertina pronta{': ' + cop['testo'] if cop.get('testo') else ''}")
