@@ -125,28 +125,6 @@ def bande_nere(path, durata, immagine):
     return f"crop={w}:{h}:{x}:{y}"
 
 
-def verso_auto(path, durata):
-    """90 o -90: da che parte va girato un video coricato. Conto i volti dritti nelle due rotazioni; senza volti 90."""
-    try:
-        import cv2, numpy as np
-        cas = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
-        punti = {90: 0, -90: 0}
-        for f in (0.2, 0.5, 0.8):
-            p = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{durata * f:.2f}", "-i", path, "-frames:v", "1", "-vf", "scale=480:-2,format=gray",
-                                "-f", "rawvideo", "-"], capture_output=True, timeout=120)
-            t = tecnico(path)
-            W, H = (int(v) for v in t["risoluzione"].split("x"))
-            h = int(round(480 * H / max(1, W) / 2) * 2)
-            if not p.stdout or len(p.stdout) != 480 * h:
-                continue
-            g = np.frombuffer(p.stdout, dtype=np.uint8).reshape(h, 480)
-            for r, k in ((90, -1), (-90, 1)):  # np.rot90 k=-1 = orario
-                punti[r] += len(cas.detectMultiScale(np.ascontiguousarray(np.rot90(g, k)), 1.15, 5, minSize=(24, 24)))
-        return -90 if punti[-90] > punti[90] else 90
-    except Exception:
-        return 90
-
-
 def raddrizza(path, ruota, avvisa=None):
     """Gira il girato nel verso giusto (se Iris l'ha visto storto) e toglie le bande nere zoomando dentro l'immagine.
     Il file corretto sostituisce quello scaricato, così tutto il montaggio lavora già sul girato dritto."""
@@ -158,8 +136,8 @@ def raddrizza(path, ruota, avvisa=None):
         if taglio:
             filtri.append(taglio)
         W, H = (int(v) for v in t["risoluzione"].split("x"))
-        if ruota == "auto":  # regola di Johnny: video orizzontale = girato in verticale e coricato, il verso lo scelgo dai volti
-            r = verso_auto(path, t.get("durata_sec") or 0) if (not immagine and W > H) else 0
+        if ruota == "auto":  # vecchi piani: regola di Johnny, video orizzontale → 90° antiorario
+            r = -90 if (not immagine and W > H) else 0
         else:
             try:
                 r = int(ruota or 0)
@@ -177,7 +155,7 @@ def raddrizza(path, ruota, avvisa=None):
             return path
         os.replace(out, path)
         if avvisa:
-            cosa = ([f"girata di {r}°"] if r in TRASP else []) + (["tolte le bande nere"] if taglio else [])
+            cosa = ([{90: "girata di 90° in senso orario", -90: "girata di 90° in senso antiorario", 270: "girata di 90° in senso antiorario", 180: "capovolta"}[r]] if r in TRASP else []) + (["tolte le bande nere"] if taglio else [])
             avvisa("motore", f"{os.path.basename(path)[-24:]}: " + " e ".join(cosa))
         return path
     except Exception:
