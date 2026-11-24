@@ -559,10 +559,13 @@ async function impostazioni() {
   $('#app').innerHTML = '<h1>Impostazioni</h1><p class="mut">Le chiavi API stanno solo nei segreti di Cloudflare, mai nel database.</p>' +
     Object.entries(d.segreti).map(([k, v]) => '<label>' + (NOMI[k] || [k])[0] + ' ' + (v.impostata ? '<span class="pill pronto">impostata ' + e(v.anteprima) + '</span>' : '<span class="pill errore">manca</span>') + '</label>' +
       '<div class="aiuto">' + (v.da_cloudflare ? 'Impostata come segreto su Cloudflare.' : (NOMI[k] || ['', ''])[1] + ' · Per sicurezza non si incolla qui: chiedi a Claude in chat di metterla come segreto su Cloudflare.') + '</div>').join('') +
+    '<h2>📏 Regole fisse dei reel</h2><div class="aiuto">Rocco le legge in ogni montaggio e valgono più di ogni altra indicazione. Scrivi una regola per riga: così non devi ripeterle e i reel sbagliano meno.</div><textarea id="rr" style="min-height:150px"></textarea><div class="riga" style="margin-top:8px"><button id="rr_sv" style="width:auto">Salva le regole</button><span id="rr_ok" class="mut"></span></div>' +
     '<h2>Avanzate</h2>' + Object.entries(d.opzioni).map(([k, v]) => '<label>' + k + '</label><input data-k="' + k + '" data-o="1" value="' + e(v) + '">').join('') +
     '<div class="riga" style="margin-top:18px"><button id="sv">Salva</button><button class="sec" id="out">Esci</button></div><div id="er" class="err"></div>' +
     '<h2>Password dell’agenzia</h2><div class="card"><label>Password attuale</label><input id="pa" type="password" autocomplete="current-password"><label>Nuova password</label><input id="pn" type="password" autocomplete="new-password" placeholder="almeno 8 caratteri"><label>Ripeti la nuova password</label><input id="pn2" type="password" autocomplete="new-password">' +
     '<div class="aiuto">Cambiandola ricevi anche un codice di recupero nuovo (quello vecchio non vale più).</div><div style="margin-top:12px"><button id="cpw">Cambia password</button></div><div id="erp" class="err"></div></div>';
+  chiama('/api/regole-reel').then((R) => { $('#rr').value = R.testo || ''; }).catch(() => {});
+  $('#rr_sv').onclick = async () => { try { await chiama('/api/regole-reel', { method: 'POST', body: { testo: $('#rr').value } }); $('#rr_ok').textContent = '✓ Salvate: valgono dal prossimo reel'; } catch (x) { $('#rr_ok').textContent = x.message; } };
   $('#sv').onclick = async () => {
     const body = {};
     document.querySelectorAll('[data-k]').forEach((i) => { if (i.dataset.o || i.value.trim()) body[i.dataset.k] = i.value; });

@@ -1,3 +1,4 @@
+import { REGOLE_REEL_BASE } from './lavoro.js';
 import { persone } from './persone.js';
 // Momento Reel · Worker Cloudflare: pagina regia + API + cron che fa lavorare gli agenti.
 import { CHIAVI_OPZIONI, CHIAVI_SEGRETE, J, all, configurazione, log, one, ora, run, schema } from './db.js';
@@ -144,6 +145,9 @@ async function api(req, env, url) {
   if (!(await autorizzato(req, env))) return json({ errore: 'accesso richiesto' }, 401);
   { const n = await apiNotifiche(req, env, p, m); if (n) return n; }
 
+  // regole fisse dei reel scritte da Johnny: Rocco le legge in ogni piano di montaggio
+  if (p === '/api/regole-reel' && m === 'GET') return json({ testo: (await imp(env, 'REGOLE_REEL')) || REGOLE_REEL_BASE });
+  if (p === '/api/regole-reel' && m === 'POST') { const d = await req.json().catch(() => ({})); await salva(env, 'REGOLE_REEL', String(d.testo || '').slice(0, 6000)); return json({ ok: true }); }
   if (p === '/api/impostazioni' && m === 'GET') {
     const cfg = await configurazione(env);
     const segreti = Object.fromEntries(CHIAVI_SEGRETE.map((k) => {

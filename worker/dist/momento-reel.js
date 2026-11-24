@@ -783,136 +783,6 @@ var init_servizi = __esm({
   }
 });
 
-// src/persone.js
-var P = 20 * 1024 * 1024;
-var CORS = { "access-control-allow-origin": "*", "access-control-allow-methods": "GET,POST,OPTIONS", "access-control-allow-headers": "content-type" };
-var j = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { "content-type": "application/json", ...CORS } });
-async function salva(env, chiave, buf, tipo) {
-  const tot = buf.byteLength, n = Math.max(1, Math.ceil(tot / P));
-  for (let k = 0; k < n; k++) await env.VIDEO.put(k ? chiave + "#" + k : chiave, new Uint8Array(buf, k * P, Math.min(P, tot - k * P)), { metadata: { parti: n, totale: tot, tipo } });
-  return tot;
-}
-async function leggi(env, chiave) {
-  const { value, metadata } = await env.VIDEO.getWithMetadata(chiave, "arrayBuffer");
-  if (!value) return null;
-  const n = metadata?.parti || 1;
-  if (n === 1) return { buf: value, tipo: metadata?.tipo };
-  const out = new Uint8Array(metadata.totale);
-  out.set(new Uint8Array(value), 0);
-  for (let k = 1; k < n; k++) out.set(new Uint8Array(await env.VIDEO.get(chiave + "#" + k, "arrayBuffer")), k * P);
-  return { buf: out.buffer, tipo: metadata?.tipo };
-}
-async function persone(req, env, url) {
-  if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
-  const m = url.pathname.match(/^\/persone\/([A-Za-z0-9_]+)\.glb$/);
-  if (m && req.method === "GET") {
-    const r = await leggi(env, "persone/glb/" + m[1]);
-    if (!r) return new Response("non trovato", { status: 404, headers: CORS });
-    return new Response(r.buf, { headers: { "content-type": "model/gltf-binary", "cache-control": "public, max-age=86400", ...CORS } });
-  }
-  if (url.pathname === "/persone/elenco.json") return j(JSON.parse(await env.VIDEO.get("persone/pronti") || "[]"));
-  const t = await env.VIDEO.get("persone/token");
-  if (!t || url.searchParams.get("t") !== t) return j({ errore: "gettone non valido" }, 403);
-  if (url.pathname === "/persone/prendi" && req.method === "POST") {
-    const { nome, url: sorgente } = JSON.parse(await req.text());
-    if (!/^[A-Za-z0-9_]+$/.test(nome) || !/^https:\/\/mixamo-storage-prod\.s3[.-][a-z0-9.-]*amazonaws\.com\//.test(sorgente)) return j({ errore: "dati non validi" }, 400);
-    const r = await fetch(sorgente);
-    if (!r.ok) return j({ errore: "S3 " + r.status + " " + (await r.text()).slice(0, 200) }, 502);
-    const tot = await salva(env, "persone/fbx/" + nome, await r.arrayBuffer(), "application/octet-stream");
-    const el = new Set(JSON.parse(await env.VIDEO.get("persone/fbx-elenco") || "[]"));
-    el.add(nome);
-    await env.VIDEO.put("persone/fbx-elenco", JSON.stringify([...el]));
-    return j({ ok: true, nome, byte: tot });
-  }
-  if (url.pathname === "/persone/fbx-elenco") return j(JSON.parse(await env.VIDEO.get("persone/fbx-elenco") || "[]"));
-  const f = url.pathname.match(/^\/persone\/fbx\/([A-Za-z0-9_]+)$/);
-  if (f) {
-    const r = await leggi(env, "persone/fbx/" + f[1]);
-    return r ? new Response(r.buf, { headers: CORS }) : j({ errore: "manca" }, 404);
-  }
-  const g = url.pathname.match(/^\/persone\/glb\/([A-Za-z0-9_]+)$/);
-  if (g && req.method === "POST") {
-    const tot = await salva(env, "persone/glb/" + g[1], await req.arrayBuffer(), "model/gltf-binary");
-    const el = new Set(JSON.parse(await env.VIDEO.get("persone/pronti") || "[]"));
-    el.add(g[1]);
-    await env.VIDEO.put("persone/pronti", JSON.stringify([...el]));
-    return j({ ok: true, byte: tot });
-  }
-  if (url.pathname === "/persone/log" && req.method === "POST") {
-    await env.VIDEO.put("persone/log", await req.text());
-    return j({ ok: true });
-  }
-  if (url.pathname === "/persone/log") return new Response(await env.VIDEO.get("persone/log") || "", { headers: CORS });
-  if (url.pathname === "/persone/ricevi") return new Response(PAGINA_RICEVI, { headers: { "content-type": "text/html; charset=utf-8" } });
-  if (url.pathname === "/persone/converti") return new Response(PAGINA_CONVERTI, { headers: { "content-type": "text/html; charset=utf-8" } });
-  return j({ errore: "non trovato" }, 404);
-}
-var PAGINA_RICEVI = `<!doctype html><html><head><meta charset="utf-8"><title>Ricevo i personaggi</title><style>body{font:15px system-ui;padding:24px}</style></head><body>
-<h2>Ricevo i personaggi da Mixamo\u2026</h2><ul id="l"></ul>
-<script>
-const t = new URLSearchParams(location.search).get('t');
-const ul = document.getElementById('l');
-const scrivi = (s) => { const li = document.createElement('li'); li.textContent = s; ul.appendChild(li); };
-let fatto = false;
-window.addEventListener('message', async (e) => {
-  if (fatto || e.origin !== 'https://www.mixamo.com' || !e.data || !e.data.mixamo) return;
-  fatto = true; e.source.postMessage({ ricevuto: true }, e.origin);
-  for (const [nome, u] of Object.entries(e.data.mixamo)) {
-    try { const rr = await fetch('/persone/prendi?t=' + t, { method: 'POST', body: JSON.stringify({ nome, url: u }) }); const tx = await rr.text(); let j; try { j = JSON.parse(tx); } catch (_) { j = { errore: rr.status + ' ' + tx.slice(0, 150) }; } scrivi(nome + ': ' + (j.ok ? (j.byte / 1e6).toFixed(1) + ' MB' : j.errore)); }
-    catch (x) { scrivi(nome + ': ' + x.message); }
-  }
-  scrivi('Ricevuti. Passo alla conversione\u2026');
-  if (new URLSearchParams(location.search).get('poi') !== 'no') setTimeout(() => { location.href = '/persone/converti?t=' + t; }, 1500);
-});
-if (window.opener) window.opener.postMessage({ pronto: true }, 'https://www.mixamo.com');
-<\/script></body></html>`;
-var PAGINA_CONVERTI = `<!doctype html><html><head><meta charset="utf-8"><title>Conversione personaggi</title>
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}<\/script>
-<style>body{font:15px system-ui;padding:24px;max-width:760px}li{margin:4px 0}</style></head><body>
-<h2>Sto preparando i personaggi della sala 3D\u2026</h2><p>Lascia aperta questa scheda finch\xE9 non compare <b>FINITO</b>.</p><ul id="l"></ul>
-<script type="module">
-import * as THREE from 'three';
-import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
-import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
-const t = new URLSearchParams(location.search).get('t');
-const ul = document.getElementById('l'), log = [];
-const scrivi = (s) => { log.push(s); const li = document.createElement('li'); li.textContent = s; ul.appendChild(li); fetch('/persone/log?t=' + t, { method: 'POST', body: log.join('\\n') }); };
-const tutti = await (await fetch('/persone/fbx-elenco?t=' + t)).json();
-const solo = new URLSearchParams(location.search).get('solo');
-const elenco = solo ? solo.split(',').filter((n) => tutti.includes(n)) : tutti;
-for (const nome of elenco) {
-  try {
-    const anim = nome.startsWith('anim_');
-    scrivi('\u2026 ' + nome);
-    await new Promise((r) => setTimeout(r, 50));
-    const buf = await (await fetch('/persone/fbx/' + nome + '?t=' + t)).arrayBuffer();
-    const o = new FBXLoader().parse(buf, '');
-    // aspetto le texture incorporate
-    await new Promise((r) => setTimeout(r, 1500));
-    const togli = [];
-    o.traverse((m) => {
-      if (!m.isMesh) return;
-      if (anim) { togli.push(m); return; }
-      const mats = Array.isArray(m.material) ? m.material : [m.material];
-      const nuovi = mats.map((p) => {
-        const s = new THREE.MeshStandardMaterial({ name: p.name, color: p.color, map: p.map || null, roughness: 0.8, metalness: 0, transparent: !!p.transparent, alphaTest: p.alphaTest || 0, side: p.side });
-        if (s.map) s.map.userData.mimeType = 'image/jpeg';
-        return s;
-      });
-      m.material = Array.isArray(m.material) ? nuovi : nuovi[0];
-    });
-    togli.forEach((m) => m.parent.remove(m));
-    const glb = await new GLTFExporter().parseAsync(o, { binary: true, maxTextureSize: 512, animations: o.animations, onlyVisible: false });
-    const r = await (await fetch('/persone/glb/' + nome + '?t=' + t, { method: 'POST', body: glb })).json();
-    scrivi('\u2713 ' + nome + ': ' + (buf.byteLength / 1e6).toFixed(1) + ' MB FBX \u2192 ' + (glb.byteLength / 1e6).toFixed(1) + ' MB GLB, animazioni ' + o.animations.map((a) => a.name + ' ' + a.duration.toFixed(1) + 's').join(', ') + (r.ok ? '' : ' ERRORE ' + JSON.stringify(r)));
-  } catch (e) { scrivi('\u2717 ' + nome + ': ' + e.message); }
-}
-scrivi('FINITO');
-<\/script></body></html>`;
-
-// src/index.js
-init_db();
-
 // src/lavoro.js
 init_db();
 
@@ -3245,6 +3115,10 @@ Rispondi SOLO JSON: {"correzioni": [{"id": n, "testo": "testo corretto, oppure "
     await log(env, L.id, "copy", `correttore non disponibile (${String(e.message).slice(0, 100)}): testi lasciati come sono`, "warn");
   }
 }
+var REGOLE_REEL_BASE = `- Le clip orizzontali restano orizzontali: si ritaglia il 9:16 sul soggetto, non si girano mai.
+- Mai due volte la stessa clip nello stesso reel.
+- Quando chiedo dove deve stare l'attenzione (es. "nel finale l'attenzione sulla scatola"), quell'oggetto deve stare al centro del 9:16 nei pezzi dove compare (campo "fuoco").
+- Niente emoji nei testi a schermo.`;
 async function faseRegia(env, cfg, L) {
   const scheda2 = J(L.scheda, {});
   const tutteC = J(L.clip, []) || [];
@@ -3315,7 +3189,12 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
   const lineaCl = Ccl ? await lineaCliente(env, cfg, Ccl).catch(() => null) : null;
   const extraLinea = lineaCl ? "\n\n" + testoLinea(lineaCl) + "\nTitoli, testi a schermo, copertina e caption devono rispettare questa linea." : "";
   if (lineaCl) await log(env, L.id, "smm", `\u{1F4E3} Chiara passa a Rocco la linea editoriale di ${Ccl.nome}`);
-  const p = await claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda2, clip) + extraMusica + extraStile + extraLinea + extra, { maxTokens: 12e3 });
+  const regole = (await one(env, "SELECT valore FROM impostazioni WHERE chiave='REGOLE_REEL'"))?.valore || REGOLE_REEL_BASE;
+  const extraRegole = `
+
+REGOLE FISSE DI JOHNNY PER TUTTI I REEL (vincolanti, valgono pi\xF9 di ogni altra indicazione):
+${regole}`;
+  const p = await claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda2, clip) + extraMusica + extraStile + extraLinea + extra + extraRegole, { maxTokens: 12e3 });
   const tutte = J(L.clip, []);
   const eImm = (c) => c?.tipo === "immagine" || c?.tecnico?.tipo === "immagine";
   const sorg = (c) => ({ ...rifSorgente(c), nome: c.nome });
@@ -3370,6 +3249,14 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
     });
     seg.splice(0, seg.length, ...tenuti);
     if (seg[0]) seg[0].transizione_in = null;
+  }
+  const attenz = String((indicazioni?.testo || "") + " " + (L.prompt || "")).match(/attenzione\s+(?:deve\s+(?:essere|stare)\s+|va\s+|sempre\s+)?(?:sul|sulla|sullo|sui|sulle|sugli|su)\s+(?:l'|la\s+|il\s+|lo\s+|le\s+|i\s+|gli\s+)?([^.,;:\n]{2,30})/i);
+  if (attenz && seg.length && !seg.some((x) => x.fuoco)) {
+    const ogg = attenz[1].trim().split(/\s+/).slice(0, 4).join(" ");
+    seg.slice(-2).forEach((x) => {
+      x.fuoco = ogg;
+    });
+    await log(env, L.id, "regista", `\u{1F3AF} attenzione su "${ogg}" nei pezzi finali`);
   }
   if (!seg.length && formato !== "carosello") throw new Error("il piano del Regista non contiene pezzi validi");
   if (R) {
@@ -3598,6 +3485,136 @@ async function avanza(env) {
   };
   await Promise.all([corsia(), corsia(), corsia()]);
 }
+
+// src/persone.js
+var P = 20 * 1024 * 1024;
+var CORS = { "access-control-allow-origin": "*", "access-control-allow-methods": "GET,POST,OPTIONS", "access-control-allow-headers": "content-type" };
+var j = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { "content-type": "application/json", ...CORS } });
+async function salva(env, chiave, buf, tipo) {
+  const tot = buf.byteLength, n = Math.max(1, Math.ceil(tot / P));
+  for (let k = 0; k < n; k++) await env.VIDEO.put(k ? chiave + "#" + k : chiave, new Uint8Array(buf, k * P, Math.min(P, tot - k * P)), { metadata: { parti: n, totale: tot, tipo } });
+  return tot;
+}
+async function leggi(env, chiave) {
+  const { value, metadata } = await env.VIDEO.getWithMetadata(chiave, "arrayBuffer");
+  if (!value) return null;
+  const n = metadata?.parti || 1;
+  if (n === 1) return { buf: value, tipo: metadata?.tipo };
+  const out = new Uint8Array(metadata.totale);
+  out.set(new Uint8Array(value), 0);
+  for (let k = 1; k < n; k++) out.set(new Uint8Array(await env.VIDEO.get(chiave + "#" + k, "arrayBuffer")), k * P);
+  return { buf: out.buffer, tipo: metadata?.tipo };
+}
+async function persone(req, env, url) {
+  if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+  const m = url.pathname.match(/^\/persone\/([A-Za-z0-9_]+)\.glb$/);
+  if (m && req.method === "GET") {
+    const r = await leggi(env, "persone/glb/" + m[1]);
+    if (!r) return new Response("non trovato", { status: 404, headers: CORS });
+    return new Response(r.buf, { headers: { "content-type": "model/gltf-binary", "cache-control": "public, max-age=86400", ...CORS } });
+  }
+  if (url.pathname === "/persone/elenco.json") return j(JSON.parse(await env.VIDEO.get("persone/pronti") || "[]"));
+  const t = await env.VIDEO.get("persone/token");
+  if (!t || url.searchParams.get("t") !== t) return j({ errore: "gettone non valido" }, 403);
+  if (url.pathname === "/persone/prendi" && req.method === "POST") {
+    const { nome, url: sorgente } = JSON.parse(await req.text());
+    if (!/^[A-Za-z0-9_]+$/.test(nome) || !/^https:\/\/mixamo-storage-prod\.s3[.-][a-z0-9.-]*amazonaws\.com\//.test(sorgente)) return j({ errore: "dati non validi" }, 400);
+    const r = await fetch(sorgente);
+    if (!r.ok) return j({ errore: "S3 " + r.status + " " + (await r.text()).slice(0, 200) }, 502);
+    const tot = await salva(env, "persone/fbx/" + nome, await r.arrayBuffer(), "application/octet-stream");
+    const el = new Set(JSON.parse(await env.VIDEO.get("persone/fbx-elenco") || "[]"));
+    el.add(nome);
+    await env.VIDEO.put("persone/fbx-elenco", JSON.stringify([...el]));
+    return j({ ok: true, nome, byte: tot });
+  }
+  if (url.pathname === "/persone/fbx-elenco") return j(JSON.parse(await env.VIDEO.get("persone/fbx-elenco") || "[]"));
+  const f = url.pathname.match(/^\/persone\/fbx\/([A-Za-z0-9_]+)$/);
+  if (f) {
+    const r = await leggi(env, "persone/fbx/" + f[1]);
+    return r ? new Response(r.buf, { headers: CORS }) : j({ errore: "manca" }, 404);
+  }
+  const g = url.pathname.match(/^\/persone\/glb\/([A-Za-z0-9_]+)$/);
+  if (g && req.method === "POST") {
+    const tot = await salva(env, "persone/glb/" + g[1], await req.arrayBuffer(), "model/gltf-binary");
+    const el = new Set(JSON.parse(await env.VIDEO.get("persone/pronti") || "[]"));
+    el.add(g[1]);
+    await env.VIDEO.put("persone/pronti", JSON.stringify([...el]));
+    return j({ ok: true, byte: tot });
+  }
+  if (url.pathname === "/persone/log" && req.method === "POST") {
+    await env.VIDEO.put("persone/log", await req.text());
+    return j({ ok: true });
+  }
+  if (url.pathname === "/persone/log") return new Response(await env.VIDEO.get("persone/log") || "", { headers: CORS });
+  if (url.pathname === "/persone/ricevi") return new Response(PAGINA_RICEVI, { headers: { "content-type": "text/html; charset=utf-8" } });
+  if (url.pathname === "/persone/converti") return new Response(PAGINA_CONVERTI, { headers: { "content-type": "text/html; charset=utf-8" } });
+  return j({ errore: "non trovato" }, 404);
+}
+var PAGINA_RICEVI = `<!doctype html><html><head><meta charset="utf-8"><title>Ricevo i personaggi</title><style>body{font:15px system-ui;padding:24px}</style></head><body>
+<h2>Ricevo i personaggi da Mixamo\u2026</h2><ul id="l"></ul>
+<script>
+const t = new URLSearchParams(location.search).get('t');
+const ul = document.getElementById('l');
+const scrivi = (s) => { const li = document.createElement('li'); li.textContent = s; ul.appendChild(li); };
+let fatto = false;
+window.addEventListener('message', async (e) => {
+  if (fatto || e.origin !== 'https://www.mixamo.com' || !e.data || !e.data.mixamo) return;
+  fatto = true; e.source.postMessage({ ricevuto: true }, e.origin);
+  for (const [nome, u] of Object.entries(e.data.mixamo)) {
+    try { const rr = await fetch('/persone/prendi?t=' + t, { method: 'POST', body: JSON.stringify({ nome, url: u }) }); const tx = await rr.text(); let j; try { j = JSON.parse(tx); } catch (_) { j = { errore: rr.status + ' ' + tx.slice(0, 150) }; } scrivi(nome + ': ' + (j.ok ? (j.byte / 1e6).toFixed(1) + ' MB' : j.errore)); }
+    catch (x) { scrivi(nome + ': ' + x.message); }
+  }
+  scrivi('Ricevuti. Passo alla conversione\u2026');
+  if (new URLSearchParams(location.search).get('poi') !== 'no') setTimeout(() => { location.href = '/persone/converti?t=' + t; }, 1500);
+});
+if (window.opener) window.opener.postMessage({ pronto: true }, 'https://www.mixamo.com');
+<\/script></body></html>`;
+var PAGINA_CONVERTI = `<!doctype html><html><head><meta charset="utf-8"><title>Conversione personaggi</title>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}<\/script>
+<style>body{font:15px system-ui;padding:24px;max-width:760px}li{margin:4px 0}</style></head><body>
+<h2>Sto preparando i personaggi della sala 3D\u2026</h2><p>Lascia aperta questa scheda finch\xE9 non compare <b>FINITO</b>.</p><ul id="l"></ul>
+<script type="module">
+import * as THREE from 'three';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+const t = new URLSearchParams(location.search).get('t');
+const ul = document.getElementById('l'), log = [];
+const scrivi = (s) => { log.push(s); const li = document.createElement('li'); li.textContent = s; ul.appendChild(li); fetch('/persone/log?t=' + t, { method: 'POST', body: log.join('\\n') }); };
+const tutti = await (await fetch('/persone/fbx-elenco?t=' + t)).json();
+const solo = new URLSearchParams(location.search).get('solo');
+const elenco = solo ? solo.split(',').filter((n) => tutti.includes(n)) : tutti;
+for (const nome of elenco) {
+  try {
+    const anim = nome.startsWith('anim_');
+    scrivi('\u2026 ' + nome);
+    await new Promise((r) => setTimeout(r, 50));
+    const buf = await (await fetch('/persone/fbx/' + nome + '?t=' + t)).arrayBuffer();
+    const o = new FBXLoader().parse(buf, '');
+    // aspetto le texture incorporate
+    await new Promise((r) => setTimeout(r, 1500));
+    const togli = [];
+    o.traverse((m) => {
+      if (!m.isMesh) return;
+      if (anim) { togli.push(m); return; }
+      const mats = Array.isArray(m.material) ? m.material : [m.material];
+      const nuovi = mats.map((p) => {
+        const s = new THREE.MeshStandardMaterial({ name: p.name, color: p.color, map: p.map || null, roughness: 0.8, metalness: 0, transparent: !!p.transparent, alphaTest: p.alphaTest || 0, side: p.side });
+        if (s.map) s.map.userData.mimeType = 'image/jpeg';
+        return s;
+      });
+      m.material = Array.isArray(m.material) ? nuovi : nuovi[0];
+    });
+    togli.forEach((m) => m.parent.remove(m));
+    const glb = await new GLTFExporter().parseAsync(o, { binary: true, maxTextureSize: 512, animations: o.animations, onlyVisible: false });
+    const r = await (await fetch('/persone/glb/' + nome + '?t=' + t, { method: 'POST', body: glb })).json();
+    scrivi('\u2713 ' + nome + ': ' + (buf.byteLength / 1e6).toFixed(1) + ' MB FBX \u2192 ' + (glb.byteLength / 1e6).toFixed(1) + ' MB GLB, animazioni ' + o.animations.map((a) => a.name + ' ' + a.duration.toFixed(1) + 's').join(', ') + (r.ok ? '' : ' ERRORE ' + JSON.stringify(r)));
+  } catch (e) { scrivi('\u2717 ' + nome + ': ' + e.message); }
+}
+scrivi('FINITO');
+<\/script></body></html>`;
+
+// src/index.js
+init_db();
 
 // src/copioni.js
 init_db();
@@ -7251,10 +7268,13 @@ async function impostazioni() {
   $('#app').innerHTML = '<h1>Impostazioni</h1><p class="mut">Le chiavi API stanno solo nei segreti di Cloudflare, mai nel database.</p>' +
     Object.entries(d.segreti).map(([k, v]) => '<label>' + (NOMI[k] || [k])[0] + ' ' + (v.impostata ? '<span class="pill pronto">impostata ' + e(v.anteprima) + '</span>' : '<span class="pill errore">manca</span>') + '</label>' +
       '<div class="aiuto">' + (v.da_cloudflare ? 'Impostata come segreto su Cloudflare.' : (NOMI[k] || ['', ''])[1] + ' \xB7 Per sicurezza non si incolla qui: chiedi a Claude in chat di metterla come segreto su Cloudflare.') + '</div>').join('') +
+    '<h2>\u{1F4CF} Regole fisse dei reel</h2><div class="aiuto">Rocco le legge in ogni montaggio e valgono pi\xF9 di ogni altra indicazione. Scrivi una regola per riga: cos\xEC non devi ripeterle e i reel sbagliano meno.</div><textarea id="rr" style="min-height:150px"></textarea><div class="riga" style="margin-top:8px"><button id="rr_sv" style="width:auto">Salva le regole</button><span id="rr_ok" class="mut"></span></div>' +
     '<h2>Avanzate</h2>' + Object.entries(d.opzioni).map(([k, v]) => '<label>' + k + '</label><input data-k="' + k + '" data-o="1" value="' + e(v) + '">').join('') +
     '<div class="riga" style="margin-top:18px"><button id="sv">Salva</button><button class="sec" id="out">Esci</button></div><div id="er" class="err"></div>' +
     '<h2>Password dell\u2019agenzia</h2><div class="card"><label>Password attuale</label><input id="pa" type="password" autocomplete="current-password"><label>Nuova password</label><input id="pn" type="password" autocomplete="new-password" placeholder="almeno 8 caratteri"><label>Ripeti la nuova password</label><input id="pn2" type="password" autocomplete="new-password">' +
     '<div class="aiuto">Cambiandola ricevi anche un codice di recupero nuovo (quello vecchio non vale pi\xF9).</div><div style="margin-top:12px"><button id="cpw">Cambia password</button></div><div id="erp" class="err"></div></div>';
+  chiama('/api/regole-reel').then((R) => { $('#rr').value = R.testo || ''; }).catch(() => {});
+  $('#rr_sv').onclick = async () => { try { await chiama('/api/regole-reel', { method: 'POST', body: { testo: $('#rr').value } }); $('#rr_ok').textContent = '\u2713 Salvate: valgono dal prossimo reel'; } catch (x) { $('#rr_ok').textContent = x.message; } };
   $('#sv').onclick = async () => {
     const body = {};
     document.querySelectorAll('[data-k]').forEach((i) => { if (i.dataset.o || i.value.trim()) body[i.dataset.k] = i.value; });
@@ -9693,6 +9713,12 @@ async function api(req, env, url) {
   {
     const n = await apiNotifiche(req, env, p, m);
     if (n) return n;
+  }
+  if (p === "/api/regole-reel" && m === "GET") return json2({ testo: await imp(env, "REGOLE_REEL") || REGOLE_REEL_BASE });
+  if (p === "/api/regole-reel" && m === "POST") {
+    const d = await req.json().catch(() => ({}));
+    await salva2(env, "REGOLE_REEL", String(d.testo || "").slice(0, 6e3));
+    return json2({ ok: true });
   }
   if (p === "/api/impostazioni" && m === "GET") {
     const cfg = await configurazione(env);

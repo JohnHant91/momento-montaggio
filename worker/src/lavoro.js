@@ -546,6 +546,12 @@ Rispondi SOLO JSON: {"correzioni": [{"id": n, "testo": "testo corretto, oppure \
   } catch (e) { await log(env, L.id, 'copy', `correttore non disponibile (${String(e.message).slice(0, 100)}): testi lasciati come sono`, 'warn'); }
 }
 
+// regole fisse di Johnny per tutti i reel (modificabili in Impostazioni): Rocco le legge in ogni piano
+export const REGOLE_REEL_BASE = `- Le clip orizzontali restano orizzontali: si ritaglia il 9:16 sul soggetto, non si girano mai.
+- Mai due volte la stessa clip nello stesso reel.
+- Quando chiedo dove deve stare l'attenzione (es. "nel finale l'attenzione sulla scatola"), quell'oggetto deve stare al centro del 9:16 nei pezzi dove compare (campo "fuoco").
+- Niente emoji nei testi a schermo.`;
+
 async function faseRegia(env, cfg, L) {
   const scheda = J(L.scheda, {});
   const tutteC = J(L.clip, []) || [];
@@ -600,7 +606,9 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
   const lineaCl = Ccl ? await lineaCliente(env, cfg, Ccl).catch(() => null) : null;
   const extraLinea = lineaCl ? '\n\n' + testoLinea(lineaCl) + '\nTitoli, testi a schermo, copertina e caption devono rispettare questa linea.' : '';
   if (lineaCl) await log(env, L.id, 'smm', `📣 Chiara passa a Rocco la linea editoriale di ${Ccl.nome}`);
-  const p = await S.claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda, clip) + extraMusica + extraStile + extraLinea + extra, { maxTokens: 12000 });
+  const regole = (await one(env, "SELECT valore FROM impostazioni WHERE chiave='REGOLE_REEL'"))?.valore || REGOLE_REEL_BASE;
+  const extraRegole = `\n\nREGOLE FISSE DI JOHNNY PER TUTTI I REEL (vincolanti, valgono più di ogni altra indicazione):\n${regole}`;
+  const p = await S.claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda, clip) + extraMusica + extraStile + extraLinea + extra + extraRegole, { maxTokens: 12000 });
   // controllo del piano: valori ammessi, clip esistenti, tempi dentro le clip
   const tutte = J(L.clip, []);
   const eImm = (c) => c?.tipo === 'immagine' || c?.tecnico?.tipo === 'immagine';
@@ -648,6 +656,9 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
     seg.splice(0, seg.length, ...tenuti);
     if (seg[0]) seg[0].transizione_in = null;
   }
+  // rete di sicurezza (gratis): se Johnny ha chiesto dove va l'attenzione e il piano non l'ha segnato, lo segno sui pezzi finali
+  const attenz = String((indicazioni?.testo || '') + ' ' + (L.prompt || '')).match(/attenzione\s+(?:deve\s+(?:essere|stare)\s+|va\s+|sempre\s+)?(?:sul|sulla|sullo|sui|sulle|sugli|su)\s+(?:l'|la\s+|il\s+|lo\s+|le\s+|i\s+|gli\s+)?([^.,;:\n]{2,30})/i);
+  if (attenz && seg.length && !seg.some((x) => x.fuoco)) { const ogg = attenz[1].trim().split(/\s+/).slice(0, 4).join(' '); seg.slice(-2).forEach((x) => { x.fuoco = ogg; }); await log(env, L.id, 'regista', `🎯 attenzione su "${ogg}" nei pezzi finali`); }
   if (!seg.length && formato !== 'carosello') throw new Error('il piano del Regista non contiene pezzi validi');
   // lo stile è vincolante: transizioni ed effetti fuori stile vengono sostituiti
   if (R) {
