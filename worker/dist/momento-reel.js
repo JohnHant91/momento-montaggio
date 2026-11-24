@@ -7850,7 +7850,7 @@ async function archivioPagina(cart) {
   $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Archivio</h1><span class="mut">' + A.totale.file + ' file \xB7 ' + String(A.totale.gb).replace('.', ',') + ' GB \xB7 ' + (A.totale.euro_mese ? '\u2248 \u20AC ' + A.totale.euro_mese.toFixed(2).replace('.', ',') + ' al mese' : 'gratis fino a 10 GB') + '</span></div>' +
     (A.collegato ? '' : '<div class="card" style="border-color:var(--warn)">\u26A0\uFE0E Cloudflare R2 non \xE8 ancora attivo: puoi creare le cartelle, ma per caricare i file attiva R2 nella dashboard di Cloudflare (R2 \u2192 Attiva).</div>') +
     briciole + base +
-    '<div class="riga" style="gap:8px;margin:12px 0;flex-wrap:wrap"><input id="ar_nome" placeholder="Nuova cartella' + (c ? ' dentro ' + e(pezzi[pezzi.length - 1]) : '') + '" style="flex:1;min-width:180px"><button class="sec" id="ar_crea" style="width:auto">\u{1F4C1} Crea</button>' +
+    '<div class="riga" style="gap:8px;margin:12px 0;flex-wrap:wrap"><input id="ar_nome" placeholder="Nuova cartella' + (c ? ' dentro ' + e(pezzi[pezzi.length - 1]) : '') + '" style="flex:1;min-width:180px"><button class="sec" id="ar_crea" style="width:auto">\u{1F4C1} Crea cartella</button>' +
     (c ? '<label class="btn" style="margin:0">\u2B06\uFE0E Carica file<input type="file" id="ar_file" multiple hidden></label><label class="btn sec" style="margin:0">\u2B06\uFE0E Carica una cartella intera<input type="file" id="ar_dir" webkitdirectory multiple hidden></label>' : '') +
     (progetto ? '<button id="ar_reel" style="width:auto">\u{1F3AC} Fai un reel con queste clip</button>' : '') + '</div>' +
     (c ? '<details class="card" id="ar_imp_box"' + (location.hash.includes('importa') ? ' open' : '') + '><summary><b>\u21E9 Importa da pCloud in questa cartella</b> <span class="mut">\xB7 la copia la fa GitHub, non usa la tua connessione</span></summary>' +
@@ -7897,7 +7897,14 @@ async function archivioPagina(cart) {
       if (!r.partito) $('#ar_imp_er').textContent = 'GitHub non \xE8 partito: controlla il token GitHub in Impostazioni.';
       mostraImp(); setTimeout(() => { b.disabled = false; b.textContent = 'Importa'; }, 4000);
     } catch (x) { $('#ar_imp_er').textContent = x.message; b.disabled = false; b.textContent = 'Importa'; } };
-  $('#ar_crea').onclick = async () => { const n = $('#ar_nome').value.trim(); if (!n) return; try { await crea((c ? c + '/' : '') + n); rotta(); } catch (x) { alert(x.message); } };
+  // se il campo \xE8 vuoto chiede il nome (prima il pulsante non faceva nulla); funziona anche con Invio
+  $('#ar_crea').onclick = async () => {
+    const b = $('#ar_crea'); let n = $('#ar_nome').value.trim();
+    if (!n) n = (prompt('Nome della nuova cartella' + (c ? ' dentro \u201C' + pezzi[pezzi.length - 1] + '\u201D' : '') + ':') || '').trim();
+    if (!n) { $('#ar_nome').focus(); return; }
+    b.disabled = true; b.textContent = 'Creo\u2026';
+    try { await crea((c ? c + '/' : '') + n); rotta(); } catch (x) { alert(x.message); b.disabled = false; b.textContent = '\u{1F4C1} Crea cartella'; } };
+  $('#ar_nome').onkeydown = (ev) => { if (ev.key === 'Enter') $('#ar_crea').click(); };
   if ($('#ar_base')) $('#ar_base').onclick = async () => { for (const q of ['Clienti', 'Musica/Allegra', 'Musica/Emozionante', 'Musica/Natalizia', 'Musica/Latina', 'Musica/Chill', 'Grafiche']) await crea(q); rotta(); };
   if ($('#ar_reel')) $('#ar_reel').onclick = () => { ARCH_PREFILL = c; PREFILL = 'Reel per ' + pezzi[1] + ' \xB7 ' + pezzi.slice(2).join(' ') + ': '; location.hash = '#/nuovo'; };
   document.querySelectorAll('.ar_del').forEach((b) => b.onclick = async () => {
