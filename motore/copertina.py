@@ -55,6 +55,14 @@ def _scontorna(im):
         m = remove(im, session=sess, only_mask=True, post_process_mask=True)
         m = m.convert("L")
         a = np.array(m)
+        # tengo solo il soggetto principale (via i pezzetti staccati che allargano il ritaglio)
+        import cv2
+        n, lab, st, _ = cv2.connectedComponentsWithStats((a > 128).astype(np.uint8), 8)
+        if n > 2:
+            grande = st[1:, cv2.CC_STAT_AREA].max()
+            tieni = [k for k in range(1, n) if st[k, cv2.CC_STAT_AREA] >= 0.08 * grande]
+            a = np.where(np.isin(lab, tieni), a, 0).astype(np.uint8)
+            m = Image.fromarray(a)
         if (a > 128).mean() < 0.04 or (a > 128).mean() > 0.85:  # niente soggetto chiaro: meglio non scontornare
             return None
         return m
@@ -151,25 +159,26 @@ def copertina_moderna(sorgente, secondo, testo, dest, font_dir="/tmp/font_cop", 
         chiave = (evidenzia or "").upper().strip() or (max(parole, key=len) if parole else "")
         y = SICURO_ALTO + 20
         for r in righe:
-            larg = d.textlength(" ".join(r), font=f)
+            larg = d.textlength(" ".join(r), font=f) + (d.textlength(" ", font=f) * 0.6 if chiave and any(w.strip(".,!?:") == chiave.strip(".,!?:") for w in r) else 0)
             x = (W - larg) / 2
             for w in r:
                 lw = d.textlength(w, font=f)
                 if chiave and w.strip(".,!?:") == chiave.strip(".,!?:"):
-                    # parola chiave: riquadro colorato inclinato con testo scuro
-                    pad = int(dim * 0.14)
-                    tag = Image.new("RGBA", (int(lw + pad * 2), int(alt + pad * 0.9)), A + (255,))
-                    dt = ImageDraw.Draw(tag)
-                    dt.text((pad, int(pad * 0.15)), w, font=f, fill=(12, 12, 12))
-                    tag = tag.rotate(-3.5, expand=True, resample=Image.BICUBIC)
-                    om = Image.new("RGBA", tag.size, (0, 0, 0, 0)); om.putalpha(tag.getchannel("A").point(lambda v: int(v * 0.55)))
-                    tela.paste((0, 0, 0), (int(x - pad + 10), int(y - pad * 0.3 + 14)), om.getchannel("A").filter(ImageFilter.GaussianBlur(8)))
-                    tela.paste(tag, (int(x - pad), int(y - pad * 0.3)), tag)
+                    # parola chiave: riquadro colorato inclinato con testo scuro, misurato sul disegno vero delle lettere
+                    pad = int(dim * 0.12)
+                    bx = f.getbbox(w)
+                    tw, th = bx[2] - bx[0], bx[3] - bx[1]
+                    tag = Image.new("RGBA", (tw + pad * 2, th + pad * 2), A + (255,))
+                    ImageDraw.Draw(tag).text((pad - bx[0], pad - bx[1]), w, font=f, fill=(12, 12, 12))
+                    tag = tag.rotate(-3, expand=True, resample=Image.BICUBIC)
+                    tx, ty = int(x + bx[0] - pad - (tag.width - tw - pad * 2) / 2), int(y + bx[1] - pad - (tag.height - th - pad * 2) / 2)
+                    tela.paste((0, 0, 0), (tx + 10, ty + 14), tag.getchannel("A").point(lambda v: int(v * 0.5)).filter(ImageFilter.GaussianBlur(8)))
+                    tela.paste(tag, (tx, ty), tag)
                     d = ImageDraw.Draw(tela)
                 else:
                     d.text((x + 8, y + 10), w, font=f, fill=(0, 0, 0))  # ombra netta
                     d.text((x, y), w, font=f, fill=(255, 255, 255), stroke_width=max(6, dim // 18), stroke_fill=(0, 0, 0))
-                x += lw + d.textlength(" ", font=f)
+                x += lw + d.textlength(" ", font=f) * (1.6 if chiave and w.strip(".,!?:") == chiave.strip(".,!?:") else 1)
             y += alt
     # vignetta finale
     vig = Image.new("L", (W, H), 0)
