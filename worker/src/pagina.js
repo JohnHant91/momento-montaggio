@@ -1226,9 +1226,9 @@ async function archivioPagina(cart) {
     (A.collegato ? '' : '<div class="card" style="border-color:var(--warn)">⚠︎ Cloudflare R2 non è ancora attivo: puoi creare le cartelle, ma per caricare i file attiva R2 nella dashboard di Cloudflare (R2 → Attiva).</div>') +
     briciole + base +
     '<div class="riga" style="gap:8px;margin:12px 0;flex-wrap:wrap"><input id="ar_nome" placeholder="Nuova cartella' + (c ? ' dentro ' + e(pezzi[pezzi.length - 1]) : '') + '" style="flex:1;min-width:180px"><button class="sec" id="ar_crea" style="width:auto">📁 Crea</button>' +
-    (c ? '<label class="btn" style="margin:0">⬆︎ Carica file<input type="file" id="ar_file" multiple hidden></label>' : '') +
+    (c ? '<label class="btn" style="margin:0">⬆︎ Carica file<input type="file" id="ar_file" multiple hidden></label><label class="btn sec" style="margin:0">⬆︎ Carica una cartella intera<input type="file" id="ar_dir" webkitdirectory multiple hidden></label>' : '') +
     (progetto ? '<button id="ar_reel" style="width:auto">🎬 Fai un reel con queste clip</button>' : '') + '</div>' +
-    (c ? '<div id="ar_drop" class="ar-drop">Trascina qui i file (clip, foto, musica, grafiche)</div><div id="ar_prog"></div>' : '') +
+    (c ? '<div id="ar_drop" class="ar-drop">Trascina qui i file o le cartelle intere (clip, foto, musica, grafiche): le sottocartelle restano come sono</div><div id="ar_prog"></div>' : '') +
     (cartelle.length ? '<div class="ar-griglia">' + cartelle.map((v) => '<a class="ar-car" href="' + link(v.percorso) + '"><span>📁</span><b>' + e(v.nome) + '</b><small class="mut">' + v.file + ' file · ' + pesoTesto(v.dimensione) + '</small></a>').join('') + '</div>' : '') +
     (file.length ? '<div class="ar-griglia">' + file.map((f) => '<div class="ar-file"><a href="/api/archivio/file?p=' + encodeURIComponent(f.percorso) + '" target="_blank" class="ar-ant">' + anteprima(f) + '</a><b title="' + e(f.nome) + '">' + e(f.nome) + '</b><small class="mut">' + pesoTesto(f.dimensione) + (/^logo/i.test(f.nome) ? ' · logo del cliente' : '') + '</small>' +
       '<button class="sec ar_del" data-p="' + e(f.percorso) + '" style="width:auto;padding:4px 10px;font-size:12px">Elimina</button></div>').join('') + '</div>' : (c && !cartelle.length ? '<div class="vuoto">Cartella vuota: carica i file qui sopra.</div>' : '')) +
@@ -1242,41 +1242,69 @@ async function archivioPagina(cart) {
     if (!confirm(cart ? 'Elimino la cartella “' + b.dataset.p + '” con TUTTO quello che contiene? Non si può annullare.' : 'Elimino “' + b.dataset.p.split('/').pop() + '”? Non si può annullare.')) return;
     try { await chiama('/api/archivio?p=' + encodeURIComponent(b.dataset.p), { method: 'DELETE' }); location.hash = cart ? link(pezzi.slice(0, -1).join('/')) : location.hash; if (!cart) rotta(); } catch (x) { alert(x.message); }
   });
+  // caricamento veloce: 2 file alla volta, ogni file grande a pezzi da 50 MB inviati 4 in parallelo (8 flussi insieme
+  // per sfruttare tutta la banda); le cartelle trascinate o scelte mantengono le sottocartelle
   const carica = async (lista) => {
-    const box = $('#ar_prog'); let fatti = 0;
-    const righe = [...lista].map((f, k) => { const d = document.createElement('div'); d.className = 'ar-riga'; d.innerHTML = '<span>' + e(f.name) + '</span><span class="ar-bar"><i id="ab' + k + '"></i></span><small id="at' + k + '">in coda</small>'; box.appendChild(d); return f; });
+    const box = $('#ar_prog');
+    const voci = [...lista].filter((x) => x.f.size > 0 && !/^\./.test(x.f.name));
+    if (!voci.length) return;
+    const totale = voci.reduce((t, x) => t + x.f.size, 0); let inviati = 0, t0 = Date.now(), fatti = 0, errori = 0;
+    box.innerHTML = '<div class="card" style="margin-top:10px"><div class="riga"><b style="flex:1" id="ag_t">0 di ' + voci.length + ' file</b><span id="ag_v" class="mut"></span></div><span class="ar-bar" style="display:block;margin-top:6px"><i id="ag_b"></i></span>' +
+      '<div class="mut" style="margin-top:6px">Tieni aperta questa pagina finché finisce (puoi usare il telefono per altro). Se si interrompe, ricarica gli stessi file: quelli già caricati si saltano.</div></div><div id="ag_l"></div>';
+    const generale = () => { const sec = (Date.now() - t0) / 1000, mbs = inviati / 1048576 / Math.max(1, sec), resta = (totale - inviati) / 1048576 / Math.max(0.1, mbs);
+      $('#ag_b').style.width = Math.round(inviati / totale * 100) + '%'; $('#ag_t').textContent = fatti + ' di ' + voci.length + ' file · ' + pesoTesto(inviati) + ' di ' + pesoTesto(totale);
+      $('#ag_v').textContent = mbs.toFixed(1).replace('.', ',') + ' MB/s · ' + (resta > 3600 ? Math.round(resta / 360) / 10 + ' h' : Math.ceil(resta / 60) + ' min') + ' alla fine'; };
+    const giaCi = new Set((await chiama('/api/archivio?cartella=' + encodeURIComponent(c)).catch(() => ({ voci: [] }))).voci.filter((v) => v.tipo !== 'cartella').map((v) => v.nome + '|' + v.dimensione));
     const invia = (metodo, u, blob, avanz) => new Promise((ok, ko) => { const x = new XMLHttpRequest(); x.open(metodo, u); x.setRequestHeader('content-type', blob.type || 'application/octet-stream');
-      x.upload.onprogress = (ev) => avanz(ev.loaded); x.onload = () => { let d = {}; try { d = JSON.parse(x.responseText); } catch (_) {} x.status < 300 ? ok(d) : ko(new Error(d.errore || 'HTTP ' + x.status)); }; x.onerror = () => ko(new Error('rete')); x.send(blob); });
-    const uno = async (f, k) => {
-      const p = c + '/' + f.name, bar = $('#ab' + k), tx = $('#at' + k);
-      const segna = (b) => { bar.style.width = Math.round(b / f.size * 100) + '%'; tx.textContent = Math.round(b / f.size * 100) + '%'; };
+      let prima = 0; x.upload.onprogress = (ev) => { avanz(ev.loaded - prima); prima = ev.loaded; };
+      x.onload = () => { let d = {}; try { d = JSON.parse(x.responseText); } catch (_) {} if (x.status < 300) ok(d); else { avanz(-prima); ko(new Error(d.errore || 'HTTP ' + x.status)); } };
+      x.onerror = () => { avanz(-prima); ko(new Error('rete')); }; x.send(blob); });
+    const riprova = async (fn) => { for (let t = 0; ; t++) { try { return await fn(); } catch (x) { if (t >= 4) throw x; await new Promise((r) => setTimeout(r, 1500 * (t + 1))); } } };
+    const riga = (nome) => { const d = document.createElement('div'); d.className = 'ar-riga'; d.innerHTML = '<span>' + e(nome) + '</span><span class="ar-bar"><i></i></span><small>…</small>'; $('#ag_l').prepend(d); return d; };
+    const uno = async ({ f, rel }) => {
+      const dest = c + '/' + rel, nomeF = rel.split('/').pop();
+      if (!rel.includes('/') && giaCi.has(nomeF + '|' + f.size)) { inviati += f.size; fatti++; generale(); return; } // già caricato
+      const d = riga(rel), bar = d.querySelector('i'), tx = d.querySelector('small'); let mio = 0;
+      const avanz = (n) => { mio += n; inviati += n; bar.style.width = Math.round(mio / f.size * 100) + '%'; tx.textContent = Math.round(mio / f.size * 100) + '%'; generale(); };
       try {
-        if (f.size <= 90 * 1048576) await invia('PUT', '/api/archivio/carica?p=' + encodeURIComponent(p), f, segna);
+        if (f.size <= 60 * 1048576) await riprova(() => invia('PUT', '/api/archivio/carica?p=' + encodeURIComponent(dest), f, avanz));
         else {
-          const I = await chiama('/api/archivio/carica/inizio', { method: 'POST', body: { percorso: p, mime: f.type } });
-          const passo = I.parte_mb * 1048576, parti = [];
+          const I = await riprova(() => chiama('/api/archivio/carica/inizio', { method: 'POST', body: { percorso: dest, mime: f.type } }));
+          const passo = I.parte_mb * 1048576, n = Math.ceil(f.size / passo), parti = new Array(n); let prossimo = 0;
           try {
-            for (let n = 1, da = 0; da < f.size; n++, da += passo) {
-              let r, tent = 0;
-              while (true) { try { r = await invia('PUT', '/api/archivio/carica/parte?p=' + encodeURIComponent(I.percorso) + '&u=' + encodeURIComponent(I.upload) + '&n=' + n, f.slice(da, da + passo), (b) => segna(da + b)); break; } catch (x) { if (++tent >= 3) throw x; } }
-              parti.push(r);
-            }
-            await chiama('/api/archivio/carica/fine', { method: 'POST', body: { percorso: I.percorso, upload: I.upload, parti, mime: f.type } });
+            await Promise.all([0, 1, 2, 3].map(async () => { while (prossimo < n) { const k = prossimo++;
+              parti[k] = await riprova(() => invia('PUT', '/api/archivio/carica/parte?p=' + encodeURIComponent(I.percorso) + '&u=' + encodeURIComponent(I.upload) + '&n=' + (k + 1), f.slice(k * passo, (k + 1) * passo), avanz)); } }));
+            await riprova(() => chiama('/api/archivio/carica/fine', { method: 'POST', body: { percorso: I.percorso, upload: I.upload, parti, mime: f.type } }));
           } catch (x) { chiama('/api/archivio/carica/annulla', { method: 'POST', body: { percorso: I.percorso, upload: I.upload } }).catch(() => {}); throw x; }
         }
-        tx.textContent = '✓'; bar.style.width = '100%';
-      } catch (x) { tx.textContent = '⚠︎ ' + x.message; bar.style.background = 'var(--warn)'; }
-      fatti++;
+        tx.textContent = '✓'; d.remove();
+      } catch (x) { tx.textContent = '⚠︎ ' + x.message; bar.style.background = 'var(--warn)'; errori++; inviati -= mio; }
+      fatti++; generale();
     };
-    // 3 file alla volta
-    const coda = righe.map((f, k) => [f, k]);
-    await Promise.all([0, 1, 2].map(async () => { while (coda.length) { const [f, k] = coda.shift(); await uno(f, k); } }));
-    if (fatti) setTimeout(rotta, 600);
+    // i file piccoli (foto, musica) prima, così compaiono subito; poi i video grandi
+    const coda = voci.sort((a, b) => a.f.size - b.f.size);
+    const lancia = () => { const k = coda.shift(); return k ? uno(k).then(lancia) : null; };
+    const avvia = Date.now(); try { navigator.wakeLock?.request('screen').catch(() => {}); } catch (_) {}
+    await Promise.all([lancia(), lancia(), coda.length > 6 ? lancia() : null]);
+    $('#ag_t').textContent = (errori ? '⚠︎ ' + errori + ' file non caricati (riprova con gli stessi file)' : '✓ Caricati ' + voci.length + ' file') + ' · ' + pesoTesto(totale) + ' in ' + Math.max(1, Math.round((Date.now() - avvia) / 60000)) + ' min';
+    if (!errori) setTimeout(rotta, 1200);
   };
-  if ($('#ar_file')) $('#ar_file').onchange = (ev) => carica(ev.target.files);
+  // file scelti, cartella scelta (con sottocartelle) o trascinati (anche cartelle intere)
+  const daInput = (files) => [...files].map((f) => ({ f, rel: (f.webkitRelativePath || f.name) }));
+  if ($('#ar_file')) $('#ar_file').onchange = (ev) => carica(daInput(ev.target.files));
+  if ($('#ar_dir')) $('#ar_dir').onchange = (ev) => carica(daInput(ev.target.files));
+  const leggi = async (ent, base, out) => {
+    if (ent.isFile) { out.push({ f: await new Promise((ok, ko) => ent.file(ok, ko)), rel: base + ent.name }); return; }
+    const r = ent.createReader(); let blocco;
+    do { blocco = await new Promise((ok, ko) => r.readEntries(ok, ko)); for (const x of blocco) await leggi(x, base + ent.name + '/', out); } while (blocco.length);
+  };
   const dz = $('#ar_drop');
   if (dz) { dz.ondragover = (ev) => { ev.preventDefault(); dz.classList.add('su'); }; dz.ondragleave = () => dz.classList.remove('su');
-    dz.ondrop = (ev) => { ev.preventDefault(); dz.classList.remove('su'); carica(ev.dataTransfer.files); }; dz.onclick = () => $('#ar_file').click(); }
+    dz.ondrop = async (ev) => { ev.preventDefault(); dz.classList.remove('su');
+      const items = [...(ev.dataTransfer.items || [])].map((i) => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+      if (!items.length) return carica(daInput(ev.dataTransfer.files));
+      const out = []; for (const it of items) await leggi(it, '', out); carica(out); };
+    dz.onclick = () => $('#ar_file').click(); }
 }
 
 async function clientiPagina() {
