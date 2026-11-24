@@ -15,8 +15,8 @@ jobs:
       - run: pip install -q pillow numpy opencv-python-headless "rembg[cpu]"
       - name: Copertina di prova
         run: |
-          curl -sL -A "Mozilla/5.0" -o foto.jpg "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Pierre-Auguste_Renoir%2C_Le_D%C3%A9jeuner_des_canotiers.jpg/1024px-Pierre-Auguste_Renoir%2C_Le_D%C3%A9jeuner_des_canotiers.jpg" || true
-          curl -sL -A "Mozilla/5.0" -o persona.jpg "https://upload.wikimedia.org/wikipedia/commons/thumb/1/14/Abraham_Lincoln_O-77_matte_collodion_print.jpg/800px-Abraham_Lincoln_O-77_matte_collodion_print.jpg"
+          curl -fsSL -o persona.jpg "https://raw.githubusercontent.com/danielgatis/rembg/main/examples/girl-1.jpg"
+          file persona.jpg
           cd motore && time python3 -c "
           import copertina as C
           C.copertina_moderna('../persona.jpg', 0, 'Il segreto della VERA colazione', '../cop_persona.jpg', immagine=True, evidenzia='vera')
