@@ -495,13 +495,13 @@ def monta(lavoro):
                   c = copertina_moderna(sorg, sec, cop.get("testo") or "", os.path.join(cartella, "copertina.jpg"), font_dir=m.fontdir,
                                         evidenzia=cop.get("evidenzia"), accento=cop.get("colore") or "#FFD60A", secondario=(piano.get("look_reel") or {}).get("tinta") or "#12A3A4", immagine=immagine)
             except Exception as e:
-                avvisa("vfx", f"copertina moderna non riuscita ({str(e)[:80]}): uso quella semplice", "warn")
+                avvisa("caroselli", f"copertina moderna non riuscita ({str(e)[:80]}): uso quella semplice", "warn")
                 c = copertina(sorg, sec, cop.get("testo") or "", os.path.join(cartella, "copertina.jpg"), m.fontdir)
             invia_file(lavoro, "copertina", c, "image/jpeg")
             cop_ok = True
-            avvisa("vfx", f"copertina pronta{': ' + cop['testo'] if cop.get('testo') else ''}")
+            avvisa("caroselli", f"🎨 Pietro: copertina pronta{': ' + cop['testo'] if cop.get('testo') else ''}")
         except Exception as e:
-            avvisa("vfx", f"copertina non riuscita: {str(e)[:120]}", "warn")
+            avvisa("caroselli", f"copertina non riuscita: {str(e)[:120]}", "warn")
         regia(lavoro, "esito", corpo={"revisore": rep, "copertina": cop_ok})
         avvisa("motore", f"🎬 reel consegnato: {rep['durata']} s, {rep['mb']} MB")
     except Exception as e:

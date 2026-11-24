@@ -157,6 +157,8 @@ export async function apiArchivio(req, env, p, m, json) {
  "descrizione": "2 frasi su com'è lo stile, per Johnny"}`, immagini, 1500);
     const nome = pz[1];
     await run(env, 'INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES (?, ?)', 'COPERTINA:' + nome.toLowerCase(), JSON.stringify({ ...out, esempi: immagini.length, quando: ora() }));
+    const { log } = await import('./db.js');
+    await log(env, null, 'caroselli', `🎨 Pietro ha studiato ${immagini.length} copertine di esempio di ${nome}: ${String(out.descrizione || '').slice(0, 160)}`).catch(() => {});
     return json({ ok: true, cliente: nome, ricetta: out });
   }
   if (p === '/api/archivio/cartelle' && m === 'GET') { // tutte le cartelle, per il menu a tendina dei reel

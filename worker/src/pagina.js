@@ -259,7 +259,7 @@ const VECCHI = { 'Direttore creativo': 'direttore', 'Occhi (Gemini)': 'occhi', '
 const ACCORPATI_VIDEO = { stella: 'direttore', scout_yt: 'scout', scout_tt: 'scout', scout_ig: 'scout', analista: 'occhi', copy: 'regista', editor: 'motore', vfx: 'motore', color: 'motore', audio: 'motore', sottotitoli: 'motore', revisore: 'motore' };
 const AGID = (a) => ACCORPATI_VIDEO[a] || (AGENTI[a] ? a : VECCHI[a] || 'regia');
 const STANZE = [['direzione', 'Direzione creativa'], ['scouting', 'Scouting · ricerca di settore'], ['visione', 'Sala visione'], ['post', 'Post-produzione']];
-const FASE_AGENTI = { piano: ['direttore'], ricerca: ['scout'], riferimenti: ['motore', 'occhi'], clip: ['motore', 'occhi'], scheda: ['direttore'], regia: ['regista'], montaggio: ['motore'] };
+const FASE_AGENTI = { piano: ['direttore'], ricerca: ['scout'], riferimenti: ['motore', 'occhi'], clip: ['motore', 'occhi'], scheda: ['direttore'], regia: ['regista'], montaggio: ['motore', 'caroselli'] };
 const fa = (q) => { const s = (Date.now() - new Date(q)) / 1000; return s < 60 ? 'ora' : s < 3600 ? Math.round(s / 60) + ' min fa' : s < 86400 ? Math.round(s / 3600) + ' h fa' : new Date(q).toLocaleDateString('it-IT'); };
 
 async function chiama(path, opts = {}) {

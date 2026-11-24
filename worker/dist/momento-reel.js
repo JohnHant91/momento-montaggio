@@ -1125,6 +1125,9 @@ async function apiArchivio(req, env, p, m, json3) {
     );
     const nome = pz[1];
     await run(env, "INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES (?, ?)", "COPERTINA:" + nome.toLowerCase(), JSON.stringify({ ...out, esempi: immagini.length, quando: ora() }));
+    const { log: log2 } = await Promise.resolve().then(() => (init_db(), db_exports));
+    await log2(env, null, "caroselli", `\u{1F3A8} Pietro ha studiato ${immagini.length} copertine di esempio di ${nome}: ${String(out.descrizione || "").slice(0, 160)}`).catch(() => {
+    });
     return json3({ ok: true, cliente: nome, ricetta: out });
   }
   if (p === "/api/archivio/cartelle" && m === "GET") {
@@ -4790,7 +4793,7 @@ var SQUADRA = {
   stratega: { n: "Marco", r: "Stratega \xB7 brand, strategia, campagne e report", u: "marketing", i: "\u265F\uFE0F", c: "#7aa2ff", skill: ["brand-profile", "social-strategy", "content-pillars", "goals-and-kpis", "content-audit", "competitor-analysis", "campaign-and-launch-planning", "seasonal-and-moment-marketing", "analytics-and-reporting"], d: "Fa tutto il marketing di un cliente in una persona sola: scheda cliente (chi \xE8, a chi parla, come parla, cosa non dire; tutti gli altri la leggono), strategia, obiettivi e pilastri, audit del profilo e dei concorrenti, campagne e ricorrenze, report mensile dai numeri che gli dai. Non inventa numeri." },
   ricerca: { n: "Sofia", r: "Ricerca, trend e virali", u: "marketing", i: "\u{1F4DA}", c: "#5aa9e6", skill: ["audience-research", "trend-jacking", "viral-reverse-engineering"], d: "Si documenta sul web su ogni argomento (fatti verificati con le fonti, numeri, errori comuni, domande della gente) e trova i trend e i video virali del settore. Una ricerca vale per 10 contenuti. Non inventa nulla." },
   copywriter: { n: "Giulia", r: "Copy, calendario e community", u: "social", i: "\u270D\uFE0F", c: "#f0b44c", skill: ["caption-writer", "hook-writer", "hashtag-strategy", "content-calendar", "reply-and-comment-writer"], d: "Caption, ganci, hashtag e parole chiave nella voce del cliente; costruisce il calendario editoriale e programma i contenuti che approvi; prepara le risposte a commenti e recensioni (tu approvi prima che escano)." },
-  caroselli: { n: "Pietro", r: "Caroselli e grafiche", u: "social", i: "\u{1F5C2}\uFE0F", c: "#e58bd0", skill: ["carousel-writer", "quote-cards-and-text-graphics", "design-and-templates"], d: "Caroselli slide per slide e grafiche: testi, impaginazione e indicazioni per Canva." },
+  caroselli: { n: "Pietro", r: "Grafico \xB7 post, caroselli e copertine", u: "social", i: "\u{1F3A8}", c: "#e58bd0", skill: ["carousel-writer", "quote-cards-and-text-graphics", "design-and-templates", "thumbnail-design"], d: "Il grafico dell\u2019agenzia: scrive e impagina post e caroselli con i 14 modelli dell\u2019agenzia (colori, font e logo del cliente), disegna le copertine dei reel (stile YouTube per il profilo di Johnny, stile del cliente imparato dai suoi esempi) e studia le copertine di esempio dei clienti." },
   ritocco: { n: "Teo", r: "Fotoritocco \xB7 maestro di Photoshop e Lightroom", u: "foto", i: "\u{1FA84}", c: "#9bf6ff", skill: ["ai-image-editing", "image-prompt"], d: "Il reparto foto in una persona: carichi su pCloud la cartella dello shooting e lui sviluppa i RAW (o i JPG) con un look uniforme come un preset Lightroom, fa un ritocco leggero e naturale della pelle, scarta le foto mosse, a occhi chiusi e i doppioni, e ti consegna lo ZIP. Prepara anche i brief degli shooting e, quando non c\u2019\xE8 una foto vera, i prompt per le immagini AI. Mai falsare prodotti e luoghi." },
   web: { n: "Walter", r: "Sito, SEO ed e-commerce", u: "web", i: "\u{1F310}", c: "#8ecae6", skill: ["ai-search-optimization", "social-seo", "social-proof-and-testimonials", "email-and-newsletter"], d: "Testi del sito, SEO e visibilit\xE0 su Google e sulle AI, link in bio; schede prodotto, recensioni, newsletter e funnel per vendere online." },
   booking: { n: "Bea", r: "Booking e WhatsApp", u: "booking", i: "\u{1F6CE}\uFE0F", c: "#caffbf", skill: ["social-selling-and-dm", "reply-and-comment-writer"], d: "Risponde alle richieste di prenotazione e ai messaggi WhatsApp/DM. Per ora prepara le risposte; la risposta automatica arriva quando colleghiamo WhatsApp." },
@@ -6080,7 +6083,7 @@ async function motoreApi(req, env, url) {
   const nome = (x) => tipo === "riferimenti" ? `${x.video.piattaforma} ${x.video.id}` : x.nome;
   if (mm[2] === "log" && m === "POST") {
     const d = await req.json().catch(() => ({}));
-    const ag = ["editor", "vfx", "color", "audio", "sottotitoli", "revisore", "motore"].includes(d.agente) ? d.agente : "motore";
+    const ag = ["editor", "vfx", "color", "audio", "sottotitoli", "revisore", "motore", "caroselli"].includes(d.agente) ? d.agente : "motore";
     await log(env, id, ag, String(d.messaggio || "").slice(0, 300), d.livello === "warn" ? "warn" : "info");
     await run(env, "UPDATE lavori SET motore_visto=? WHERE id=?", ora(), id);
     return json({ ok: true });
@@ -6583,7 +6586,7 @@ const VECCHI = { 'Direttore creativo': 'direttore', 'Occhi (Gemini)': 'occhi', '
 const ACCORPATI_VIDEO = { stella: 'direttore', scout_yt: 'scout', scout_tt: 'scout', scout_ig: 'scout', analista: 'occhi', copy: 'regista', editor: 'motore', vfx: 'motore', color: 'motore', audio: 'motore', sottotitoli: 'motore', revisore: 'motore' };
 const AGID = (a) => ACCORPATI_VIDEO[a] || (AGENTI[a] ? a : VECCHI[a] || 'regia');
 const STANZE = [['direzione', 'Direzione creativa'], ['scouting', 'Scouting \xB7 ricerca di settore'], ['visione', 'Sala visione'], ['post', 'Post-produzione']];
-const FASE_AGENTI = { piano: ['direttore'], ricerca: ['scout'], riferimenti: ['motore', 'occhi'], clip: ['motore', 'occhi'], scheda: ['direttore'], regia: ['regista'], montaggio: ['motore'] };
+const FASE_AGENTI = { piano: ['direttore'], ricerca: ['scout'], riferimenti: ['motore', 'occhi'], clip: ['motore', 'occhi'], scheda: ['direttore'], regia: ['regista'], montaggio: ['motore', 'caroselli'] };
 const fa = (q) => { const s = (Date.now() - new Date(q)) / 1000; return s < 60 ? 'ora' : s < 3600 ? Math.round(s / 60) + ' min fa' : s < 86400 ? Math.round(s / 3600) + ' h fa' : new Date(q).toLocaleDateString('it-IT'); };
 
 async function chiama(path, opts = {}) {

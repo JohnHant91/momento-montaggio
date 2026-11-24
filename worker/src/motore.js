@@ -100,7 +100,7 @@ export async function motoreApi(req, env, url) {
   // ---- montaggio: avanzamento dei reparti, video, anteprima, esito del revisore
   if (mm[2] === 'log' && m === 'POST') {
     const d = await req.json().catch(() => ({}));
-    const ag = ['editor', 'vfx', 'color', 'audio', 'sottotitoli', 'revisore', 'motore'].includes(d.agente) ? d.agente : 'motore';
+    const ag = ['editor', 'vfx', 'color', 'audio', 'sottotitoli', 'revisore', 'motore', 'caroselli'].includes(d.agente) ? d.agente : 'motore';
     await log(env, id, ag, String(d.messaggio || '').slice(0, 300), d.livello === 'warn' ? 'warn' : 'info');
     await run(env, 'UPDATE lavori SET motore_visto=? WHERE id=?', ora(), id);
     return json({ ok: true });
