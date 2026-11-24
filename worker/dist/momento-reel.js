@@ -6560,7 +6560,7 @@ async function apiCalendario(req, env, p, m, json3) {
 // src/pagina.js
 var PAGINA = `<!DOCTYPE html>
 <html lang="it"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#F5F7F6" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0C1414" media="(prefers-color-scheme: dark)"><meta name="color-scheme" content="light dark"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400..700&display=swap" rel="stylesheet">
 <title>MOMENTO AGENCY AI</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=1"><link rel="apple-touch-icon" href="/icona-192.png"><link rel="manifest" href="/manifest.webmanifest"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Momento AI">
@@ -6667,7 +6667,7 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 .cal-g.oggi{border:2px solid var(--teal);background:var(--card)}.cal-g.passato{opacity:.55}.cal-g.su{background:var(--tealbg);border-color:var(--teal)}
 .cal-gt{display:flex;align-items:baseline;gap:6px;margin-bottom:6px}.cal-gt span{font-size:11px;color:var(--mut);text-transform:lowercase}.cal-gt b{font-size:18px}.cal-gt em{font-style:normal;font-size:10.5px;font-weight:700;color:var(--teal2);margin-left:auto}
 .cal-vuoto{color:var(--mut);font-size:12px;text-align:center;padding:18px 4px;opacity:.7}.cal-scegli{position:fixed;left:12px;right:12px;bottom:12px;z-index:50;max-width:520px;margin:auto}
-@media(max-width:900px){.cal{grid-template-columns:1fr}.cal-lato{position:static;max-height:none}.cal-sett{grid-template-columns:repeat(7,minmax(118px,1fr));overflow-x:auto;padding-bottom:6px}}
+@media(max-width:900px){.cal{grid-template-columns:minmax(0,1fr)}.cal>*{min-width:0}.cal-lato{position:static;max-height:none}.cal-sett{grid-template-columns:repeat(7,minmax(118px,1fr));overflow-x:auto;padding-bottom:6px}}
 .ap-h{display:flex;align-items:center;gap:8px;margin-top:26px}.ap{margin-bottom:12px}.ap-voce{border-top:1px solid var(--line);padding:10px 0}.ap-voce:first-of-type{border-top:0}.ap-voce.consigliata{background:var(--card)bea;border-radius:10px;padding:10px}.ap summary{cursor:pointer}
 .lavorazioni{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin:12px 0}.lz{display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px;color:inherit;text-decoration:none}.lz .ic{font-size:22px}.lz .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}.lz b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lz small{font-size:12px;color:var(--mut)}
 .avanz{height:6px;border-radius:9px;background:var(--s2);overflow:hidden}.avanz i{display:block;height:100%;background:linear-gradient(90deg,#12a3a4,#3fd0c9);border-radius:9px;transition:width .6s}
@@ -6747,6 +6747,11 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 @media(prefers-color-scheme:dark){:root{--bg:#0C1414;--card:#121D1C;--s2:#182625;--line:#22322F;--txt:#E6EFEC;--mut:#8DA09C;--teal:#2CC4BC;--teal2:#5ED8D1;--tealbg:#123A37;--evid:#2E2A16;
   --ombra:0 1px 0 rgba(255,255,255,.03) inset,0 10px 30px -20px rgba(0,0,0,.8);--nero:#E6EFEC;--ink:#2CC4BC;--ok:#3DD68C;--warn:#F5A524;--err:#FF6B6E}}
 html{background:var(--bg)}
+/* come un'app su telefono e tablet: niente zoom, niente pagina che si allarga o rimbalza di lato */
+html,body{max-width:100%;overflow-x:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%;overscroll-behavior-x:none}
+body{touch-action:pan-x pan-y}
+img,video,canvas,iframe,table,pre{max-width:100%}
+@media(pointer:coarse){input,textarea,select{font-size:16px!important}*{-webkit-tap-highlight-color:transparent}}
 body{font-family:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.5;letter-spacing:-.005em;font-feature-settings:"tnum" 1,"cv11" 1}
 h1{font-size:clamp(26px,3vw,34px);font-weight:650;letter-spacing:-.03em;line-height:1.1;margin:4px 0 6px}
 h2{text-transform:none;letter-spacing:-.015em;font-size:18px;font-weight:620;color:var(--txt);margin:30px 0 10px}
@@ -6812,6 +6817,10 @@ td,th{border-bottom-color:var(--line)}
 <div class="barra"><button class="vm ham" id="ham" aria-label="Menu" hidden><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><a class="logo" href="#/" aria-label="MOMENTO AGENCY AI"><b>momento</b><small>agency AI</small></a><span class="tit" id="sez"></span></div><header id="testa"><a class="logo" href="#/" aria-label="MOMENTO AGENCY AI"><b>momento</b><small>agency AI</small></a><nav id="nav"></nav></header><div class="velo-menu" id="velo_menu"></div>
 <main id="app"><div class="vuoto">Carico\u2026</div></main>
 <script>
+// iPhone/iPad ignorano user-scalable=no: blocco il pizzico e il doppio tocco sulla pagina (la sala 3D usa i suoi gesti e non ne risente)
+['gesturestart','gesturechange','gestureend'].forEach((t) => document.addEventListener(t, (ev) => ev.preventDefault(), { passive: false }));
+document.addEventListener('touchmove', (ev) => { if (ev.touches.length > 1 && !ev.target.closest('canvas')) ev.preventDefault(); }, { passive: false });
+let tocco0 = 0; document.addEventListener('touchend', (ev) => { const t = Date.now(); if (t - tocco0 < 300 && !ev.target.closest('input,textarea,select,canvas,video,a,button,label')) ev.preventDefault(); tocco0 = t; }, { passive: false });
 const $ = (s) => document.querySelector(s);
 const e = (s) => String(s ?? '\u2014').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const n = (x) => (Number(x) || 0).toLocaleString('it-IT');
