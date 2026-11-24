@@ -1305,12 +1305,20 @@ async function archivioPagina(cart) {
     (c ? '<details class="card" id="ar_imp_box"' + (location.hash.includes('importa') ? ' open' : '') + '><summary><b>⇩ Importa da pCloud in questa cartella</b> <span class="mut">· la copia la fa GitHub, non usa la tua connessione</span></summary>' +
       '<div class="riga" style="gap:8px;margin-top:10px;flex-wrap:wrap"><input id="ar_imp" placeholder="https://e.pcloud.link/publink/show?code=…" style="flex:1;min-width:220px"><button id="ar_imp_go" style="width:auto">Importa</button></div>' +
       '<div class="aiuto">Le sottocartelle di pCloud restano come sono. I file già presenti si saltano. Puoi chiudere l\u2019app: ti ritrovi tutto qui.</div><div id="ar_imp_er" class="err"></div></details><div id="ar_imps"></div>' : '') +
+    (/^Clienti\\/[^/]+\\/Copertine$/.test(c) ? '<div class="card" id="ar_stile"><b>🎨 Stile delle copertine di ' + e(pezzi[1]) + '</b><div class="mut" id="ar_stile_t" style="margin:6px 0 10px">Carica qui 3-6 copertine di esempio (jpg o png), poi premi il pulsante: i reel di questo cliente avranno copertine in questo stile.</div><button id="ar_stile_go" style="width:auto">Impara lo stile da questi esempi</button></div>' : '') +
+    (/^Clienti\\/[^/]+$/.test(c) && !cartelle.some((x) => x.nome === 'Copertine') ? '<div class="aiuto" style="margin:8px 0">Per le copertine dei reel di ' + e(pezzi[1]) + ' crea la cartella <b>Copertine</b> e mettici gli esempi che ti piacciono. Il logo va qui, con nome che inizia per “logo”.</div>' : '') +
     (c ? '<div id="ar_drop" class="ar-drop">Trascina qui i file o le cartelle intere (clip, foto, musica, grafiche): le sottocartelle restano come sono</div><div id="ar_prog"></div>' : '') +
     (cartelle.length ? '<div class="ar-griglia">' + cartelle.map((v) => '<a class="ar-car" href="' + link(v.percorso) + '"><span>📁</span><b>' + e(v.nome) + '</b><small class="mut">' + v.file + (v.file ? ' file · ' + pesoTesto(v.dimensione) : ' file') + '</small></a>').join('') + '</div>' : '') +
     (file.length ? '<div class="ar-griglia">' + file.map((f) => '<div class="ar-file"><a href="/api/archivio/file?p=' + encodeURIComponent(f.percorso) + '" target="_blank" class="ar-ant">' + anteprima(f) + '</a><b title="' + e(f.nome) + '">' + e(f.nome) + '</b><small class="mut">' + pesoTesto(f.dimensione) + (/^logo/i.test(f.nome) ? ' · logo del cliente' : '') + '</small>' +
       '<button class="sec ar_del" data-p="' + e(f.percorso) + '" style="width:auto;padding:4px 10px;font-size:12px">Elimina</button></div>').join('') + '</div>' : (c && !cartelle.length ? '<div class="vuoto">Cartella vuota: carica i file qui sopra.</div>' : '')) +
     (c ? '<div style="margin-top:22px"><button class="rosso ar_del" data-p="' + e(c) + '" data-cartella="1" style="width:auto">Elimina questa cartella</button></div>' : '');
   const crea = async (q) => { await chiama('/api/archivio/cartella', { method: 'POST', body: { percorso: q } }); };
+  if ($('#ar_stile')) {
+    chiama('/api/archivio/stile-copertina?cliente=' + encodeURIComponent(pezzi[1])).then((r) => { if (r.ricetta) $('#ar_stile_t').innerHTML = '<b>Stile attuale</b> (da ' + (r.ricetta.esempi || '?') + ' esempi): ' + e(r.ricetta.descrizione || '') + '<br>Se cambi gli esempi, premi di nuovo il pulsante.'; }).catch(() => {});
+    $('#ar_stile_go').onclick = async () => { const b = $('#ar_stile_go'); b.disabled = true; b.textContent = 'Studio gli esempi…';
+      try { const r = await chiama('/api/archivio/stile-copertina', { method: 'POST', body: { cartella: c } }); $('#ar_stile_t').innerHTML = '<b>Stile salvato:</b> ' + e(r.ricetta.descrizione || '') + '<br>Dal prossimo reel di ' + e(r.cliente) + ' la copertina sarà così.'; b.textContent = 'Impara di nuovo'; }
+      catch (x) { $('#ar_stile_t').textContent = x.message; b.textContent = 'Impara lo stile da questi esempi'; } b.disabled = false; };
+  }
   // importazioni da pCloud in corso in questa cartella: avanzamento che si aggiorna da solo
   const mostraImp = async () => {
     const box = $('#ar_imps'); if (!box || !c) return;

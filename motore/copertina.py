@@ -15,9 +15,19 @@ def _font(cartella, famiglia="Anton", peso=400):
     if os.path.exists(dest):
         return dest
     try:
-        css = urllib.request.urlopen(urllib.request.Request("https://fonts.googleapis.com/css2?family=" + urllib.parse.quote(famiglia) + (f":wght@{peso}" if peso != 400 else ""),
-                                                            headers={"user-agent": "Mozilla/4.0"}), timeout=30).read().decode()
-        u = re.search(r"url\((https://[^)]+\.ttf)\)", css).group(1)
+        u = None
+        for suff in ([f":wght@{peso}"] if peso != 400 else []) + [":wght@800", ":wght@700", ""]:  # non tutti i font hanno tutti i pesi
+            try:
+                css = urllib.request.urlopen(urllib.request.Request("https://fonts.googleapis.com/css2?family=" + urllib.parse.quote(famiglia) + suff,
+                                                                    headers={"user-agent": "Mozilla/4.0"}), timeout=30).read().decode()
+            except Exception:
+                continue
+            m = re.search(r"url\((https://[^)]+\.ttf)\)", css)
+            if m:
+                u = m.group(1)
+                break
+        if not u:
+            raise RuntimeError("font non trovato")
         with urllib.request.urlopen(u, timeout=60) as r, open(dest, "wb") as f:
             f.write(r.read())
         return dest
@@ -184,5 +194,122 @@ def copertina_moderna(sorgente, secondo, testo, dest, font_dir="/tmp/font_cop", 
     vig = Image.new("L", (W, H), 0)
     ImageDraw.Draw(vig).ellipse((-260, -200, W + 260, H + 200), fill=255)
     tela = Image.composite(tela, ImageEnhance.Brightness(tela).enhance(0.7), vig.filter(ImageFilter.GaussianBlur(180)))
+    tela.save(dest, "JPEG", quality=92)
+    return dest
+
+
+# ------------------------------------------------------------------ copertine dei CLIENTI: stile ricavato dai loro esempi
+RICETTA_BASE = {"posizione_testo": "basso", "allineamento": "sinistra", "font": "Montserrat", "peso": 800, "maiuscolo": False, "colore_testo": "#FFFFFF",
+                "contorno": False, "riquadro": "nessuno", "colore_riquadro": "#FFFFFF", "colore_testo_riquadro": "#111111", "sfondo": "foto", "overlay": "gradiente_basso",
+                "scontorno": False, "cornice": "nessuna", "logo": "alto_sinistra", "dimensione_testo": "grande", "barra_accento": True, "colore_accento": "#12A3A4"}
+
+
+def copertina_ricetta(sorgente, secondo, testo, dest, ricetta=None, logo=None, font_dir="/tmp/font_cop", evidenzia=None, immagine=False):
+    R = {**RICETTA_BASE, **{k: v for k, v in (ricetta or {}).items() if v not in (None, "")}}
+    base = Image.open(sorgente).convert("RGB") if immagine else _fotogramma(sorgente, secondo)
+    if immagine:
+        r = max(W / base.width, H / base.height)
+        base = base.resize((int(base.width * r + 1), int(base.height * r + 1)), Image.LANCZOS)
+        base = base.crop(((base.width - W) // 2, (base.height - H) // 2, (base.width - W) // 2 + W, (base.height - H) // 2 + H))
+    acc = _hex(R["colore_accento"], (18, 163, 164))
+    # sfondo
+    if R["sfondo"] == "colore":
+        tela = Image.new("RGB", (W, H), acc)
+    elif R["sfondo"] == "foto_sfocata":
+        tela = ImageEnhance.Brightness(base.filter(ImageFilter.GaussianBlur(30))).enhance(0.6)
+    else:
+        tela = base.copy()
+    ov = R["overlay"]
+    if ov in ("gradiente_basso", "gradiente_alto", "scuro"):
+        g = Image.linear_gradient("L").resize((W, H))
+        if ov == "gradiente_alto":
+            g = ImageChops.invert(g)
+        if ov == "scuro":
+            g = Image.new("L", (W, H), 120)
+        else:
+            g = g.point(lambda v: int(max(0, v - 90) * 1.5) if v > 90 else 0)
+        tela = Image.composite(Image.new("RGB", (W, H), (0, 0, 0)), tela, g.point(lambda v: min(200, v)))
+    d = ImageDraw.Draw(tela)
+    righe, y0, blocco = [], SICURO_ALTO, 0
+    if testo:
+        fp = _font(font_dir, R["font"], int(R.get("peso") or 800))
+        t = testo.upper() if R["maiuscolo"] else testo
+        parole = t.split()
+        base_dim = {"piccolo": 84, "medio": 112, "grande": 144}.get(R["dimensione_testo"], 130)
+        dim = base_dim
+        while dim > 60:
+            f = ImageFont.truetype(fp, dim) if fp else ImageFont.load_default()
+            righe = _a_capo(d, parole, f, 900)
+            if len(righe) <= 4:
+                break
+            dim -= 8
+        alt = int(dim * 1.12)
+        blocco = alt * len(righe)
+        y0 = {"alto": SICURO_ALTO + 40, "centro": (H - blocco) // 2}.get(R["posizione_testo"], SICURO_BASSO - blocco - 30)
+    # soggetto scontornato o foto in cornice (quando lo sfondo non è già la foto)
+    if R["sfondo"] != "foto":
+        m = _scontorna(base) if R["scontorno"] else None
+        if m is not None:
+            box = m.getbbox() or (0, 0, W, H)
+            sog, msk = base.crop(box), m.crop(box)
+            s = min(H * 0.62 / sog.height, 1000 / sog.width, 1.7)
+            sog, msk = sog.resize((int(sog.width * s), int(sog.height * s)), Image.LANCZOS), msk.resize((int(sog.width * s), int(sog.height * s)), Image.LANCZOS)
+            x, y = (W - sog.width) // 2, H - sog.height
+            tela.paste(sog, (x, y), msk)
+        else:
+            # la foto sta dove non c'è il testo
+            if R["posizione_testo"] == "alto":
+                top, fine = y0 + blocco + 40, SICURO_BASSO + 120
+            else:
+                top, fine = SICURO_ALTO - 40, (y0 - 70 if R["posizione_testo"] == "basso" else H - 200)
+            hq = max(500, fine - top)
+            q = base.resize((900, int(900 * H / W)), Image.LANCZOS)
+            q = q.crop((0, min(200, max(0, q.height - hq)), 900, min(200, max(0, q.height - hq)) + hq))
+            if R["cornice"] == "arrotondata":
+                mk = Image.new("L", q.size, 0); ImageDraw.Draw(mk).rounded_rectangle((0, 0, q.width, q.height), 60, fill=255)
+                tela.paste(q, ((W - q.width) // 2, top), mk)
+            else:
+                if R["cornice"] == "bianca":
+                    ImageDraw.Draw(tela).rectangle(((W - q.width) // 2 - 14, top - 14, (W + q.width) // 2 + 14, top + q.height + 14), fill=(255, 255, 255))
+                tela.paste(q, ((W - q.width) // 2, top))
+    d = ImageDraw.Draw(tela)
+    if testo:
+        if R.get("barra_accento") and R["riquadro"] == "nessuno":
+            bx = 90 if R["allineamento"] == "sinistra" else W // 2 - 50
+            d.rounded_rectangle((bx, y0 - 46, bx + 100, y0 - 32), 7, fill=acc)
+        ct, cr, ctr = _hex(R["colore_testo"], (255, 255, 255)), _hex(R["colore_riquadro"], (255, 255, 255)), _hex(R["colore_testo_riquadro"], (17, 17, 17))
+        chiave = (evidenzia or "").strip().upper()
+        y = y0
+        for r in righe:
+            riga = " ".join(r)
+            lw = d.textlength(riga, font=f)
+            x = 90 if R["allineamento"] == "sinistra" else (W - lw) / 2
+            if R["riquadro"] == "pieno":
+                bb = f.getbbox(riga); pad = int(dim * 0.18)
+                d.rounded_rectangle((x + bb[0] - pad, y + bb[1] - pad * 0.7, x + bb[2] + pad, y + bb[3] + pad * 0.7), int(dim * 0.18), fill=cr)
+                d.text((x, y), riga, font=f, fill=ctr)
+            else:
+                xx = x
+                for w in r:
+                    ww = d.textlength(w, font=f)
+                    if R["riquadro"] == "evidenzia" and chiave and w.upper().strip(".,!?:") == chiave.strip(".,!?:"):
+                        bb = f.getbbox(w); pad = int(dim * 0.12)
+                        d.rectangle((xx + bb[0] - pad, y + bb[1] - pad * 0.6, xx + bb[2] + pad, y + bb[3] + pad * 0.6), fill=cr)
+                        d.text((xx, y), w, font=f, fill=ctr)
+                    else:
+                        kw = {"stroke_width": max(4, dim // 20), "stroke_fill": (0, 0, 0)} if R["contorno"] else {}
+                        d.text((xx, y), w, font=f, fill=ct, **kw)
+                    xx += ww + d.textlength(" ", font=f)
+            y += alt
+    if logo and os.path.exists(logo) and R["logo"] != "nessuno":
+        try:
+            lg = Image.open(logo).convert("RGBA")
+            s = min(260 / lg.width, 120 / lg.height)
+            lg = lg.resize((max(1, int(lg.width * s)), max(1, int(lg.height * s))), Image.LANCZOS)
+            pos = {"alto_centro": ((W - lg.width) // 2, SICURO_ALTO), "basso_centro": ((W - lg.width) // 2, SICURO_BASSO - lg.height),
+                   "alto_destra": (W - 90 - lg.width, SICURO_ALTO)}.get(R["logo"], (90, SICURO_ALTO))
+            tela.paste(lg, pos, lg)
+        except Exception:
+            pass
     tela.save(dest, "JPEG", quality=92)
     return dest

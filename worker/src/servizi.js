@@ -94,7 +94,7 @@ export async function claudeVisione(cfg, modello, sistema, testo, immagini, maxT
   const content = [];
   for (const im of immagini) {
     content.push({ type: 'text', text: `Immagine: ${im.cosa}` });
-    content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: im.jpeg } });
+    content.push({ type: 'image', source: { type: 'base64', media_type: im.tipo || 'image/jpeg', data: im.jpeg } });
   }
   content.push({ type: 'text', text: testo });
   const r = await richiesta('https://api.anthropic.com/v1/messages', {

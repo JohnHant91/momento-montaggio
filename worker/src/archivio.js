@@ -126,6 +126,39 @@ export async function apiArchivio(req, env, p, m, json) {
     const gb = tot.b / 1073741824;
     return json({ cartella: c, voci, collegato: !!env.ARCHIVIO, totale: { file: tot.n, gb: Math.round(gb * 100) / 100, euro_mese: Math.round(Math.max(0, gb - 10) * 0.015 * 0.86 * 100) / 100 } });
   }
+  if (p === '/api/archivio/stile-copertina' && m === 'GET') {
+    const cl = pulisci(url.searchParams.get('cliente')).toLowerCase();
+    const r = await one(env, 'SELECT valore FROM impostazioni WHERE chiave=?', 'COPERTINA:' + cl);
+    return json({ ricetta: r ? J(r.valore, null) : null });
+  }
+  if (p === '/api/archivio/stile-copertina' && m === 'POST') {
+    const d = await corpo();
+    const c = pulisci(d.cartella); // es. Clienti/Torretta/Copertine
+    const pz = c.split('/');
+    if (pz[0] !== 'Clienti' || pz.length < 2) return json({ errore: 'metti gli esempi in Clienti/<cliente>/Copertine' }, 400);
+    if (!env.ARCHIVIO) return json({ errore: 'archivio non collegato' }, 503);
+    const es = (await fileSotto(env, c)).filter((f) => /\.(jpe?g|png|webp)$/i.test(f.nome) && f.dimensione <= 3.5 * 1048576).slice(0, 6);
+    if (!es.length) return json({ errore: 'in questa cartella non ci sono immagini di esempio (jpg/png sotto i 3,5 MB)' }, 400);
+    const immagini = [];
+    for (const f of es) {
+      const o = await env.ARCHIVIO.get(f.percorso); if (!o) continue;
+      const u8 = new Uint8Array(await o.arrayBuffer()); let bin = ''; for (let k = 0; k < u8.length; k += 32768) bin += String.fromCharCode(...u8.subarray(k, k + 32768));
+      immagini.push({ cosa: f.nome, jpeg: btoa(bin), tipo: /png$/i.test(f.nome) ? 'image/png' : /webp$/i.test(f.nome) ? 'image/webp' : 'image/jpeg' });
+    }
+    const { configurazione } = await import('./db.js');
+    const S = await import('./servizi.js');
+    const cfg = await configurazione(env);
+    const out = await S.claudeVisione(cfg, cfg.CLAUDE_MODEL, 'Sei un art director. Ricavi dalle copertine di esempio di un cliente le regole grafiche per rifarle uguali in automatico.',
+      `Queste sono copertine di reel che il cliente vuole come modello. Ricava lo stile comune e rispondi SOLO JSON con questi campi (valori ammessi tra |):
+{"posizione_testo": "alto|centro|basso", "allineamento": "sinistra|centro", "font": "nome del Google Font più simile (es. Montserrat, Anton, Bebas Neue, Playfair Display, Poppins, Archivo Black, DM Serif Display, Inter)", "peso": 400|600|700|800|900,
+ "maiuscolo": true|false, "colore_testo": "#hex", "contorno": true|false, "riquadro": "nessuno|pieno|evidenzia", "colore_riquadro": "#hex", "colore_testo_riquadro": "#hex",
+ "sfondo": "foto|foto_sfocata|colore", "overlay": "nessuno|gradiente_basso|gradiente_alto|scuro", "scontorno": true|false, "cornice": "nessuna|bianca|arrotondata",
+ "logo": "nessuno|alto_sinistra|alto_centro|alto_destra|basso_centro", "dimensione_testo": "piccolo|medio|grande", "barra_accento": true|false, "colore_accento": "#hex",
+ "descrizione": "2 frasi su com'è lo stile, per Johnny"}`, immagini, 1500);
+    const nome = pz[1];
+    await run(env, 'INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES (?, ?)', 'COPERTINA:' + nome.toLowerCase(), JSON.stringify({ ...out, esempi: immagini.length, quando: ora() }));
+    return json({ ok: true, cliente: nome, ricetta: out });
+  }
   if (p === '/api/archivio/cartelle' && m === 'GET') { // tutte le cartelle, per il menu a tendina dei reel
     return json(await all(env, "SELECT percorso FROM archivio WHERE tipo='cartella' ORDER BY percorso COLLATE NOCASE"));
   }
@@ -203,6 +236,13 @@ export async function branoArchivio(env, scegli) {
   const b = brani[Number.isInteger(k) && brani[k] ? k : Math.floor(Math.random() * brani.length)];
   return { fileid: 'a:' + b.percorso, nome: b.nome, cartella: b.cartella, dimensione: b.dimensione, hash: String(b.etag || b.percorso), tipo: 'musica', tecnico: { tipo: 'musica' },
     sorgente: { tipo: 'archivio', percorso: b.percorso }, dalla_libreria: true };
+}
+
+// il cliente nominato nel testo, se ha una cartella in Clienti/
+export async function clienteDalTesto(env, testo) {
+  const t = String(testo || '').toLowerCase();
+  const C = await all(env, "SELECT nome FROM archivio WHERE tipo='cartella' AND cartella='Clienti'");
+  return C.map((c) => c.nome).find((n) => n.length > 2 && t.includes(n.toLowerCase())) || null;
 }
 
 export { J };

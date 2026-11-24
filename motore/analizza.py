@@ -487,9 +487,13 @@ def monta(lavoro):
             sorg = sorg or out
             sec = 0 if immagine else (float(cop.get("secondo", 0.6)) if sorg != out else 0.6)
             try:  # copertina moderna (soggetto scontornato, titolo con parola chiave); se qualcosa va storto quella semplice
-                from copertina import copertina_moderna
-                c = copertina_moderna(sorg, sec, cop.get("testo") or "", os.path.join(cartella, "copertina.jpg"), font_dir=m.fontdir,
-                                      evidenzia=cop.get("evidenzia"), accento=cop.get("colore") or "#FFD60A", secondario=(piano.get("look_reel") or {}).get("tinta") or "#12A3A4", immagine=immagine)
+                from copertina import copertina_moderna, copertina_ricetta
+                if cop.get("stile") == "cliente":  # clienti: lo stile ricavato dai loro esempi (o quello pulito di base)
+                    c = copertina_ricetta(sorg, sec, cop.get("testo") or "", os.path.join(cartella, "copertina.jpg"), cop.get("ricetta"),
+                                          logo=(piano.get("logo") or {}).get("file"), font_dir=m.fontdir, evidenzia=cop.get("evidenzia"), immagine=immagine)
+                else:
+                  c = copertina_moderna(sorg, sec, cop.get("testo") or "", os.path.join(cartella, "copertina.jpg"), font_dir=m.fontdir,
+                                        evidenzia=cop.get("evidenzia"), accento=cop.get("colore") or "#FFD60A", secondario=(piano.get("look_reel") or {}).get("tinta") or "#12A3A4", immagine=immagine)
             except Exception as e:
                 avvisa("vfx", f"copertina moderna non riuscita ({str(e)[:80]}): uso quella semplice", "warn")
                 c = copertina(sorg, sec, cop.get("testo") or "", os.path.join(cartella, "copertina.jpg"), m.fontdir)

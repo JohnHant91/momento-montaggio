@@ -682,7 +682,19 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
   const usate = new Set(seg.map((x) => x.clip));
   const riserve = motore !== 'montatore' ? [] : tutte.map((c, i) => ({ c, i })).filter(({ c, i }) => c?.stato === 'fatto' && !eImm(c) && !usate.has(i) && (Number(c.tecnico?.durata_sec) || 0) >= 1.5)
     .slice(0, 14).map(({ c, i }) => ({ clip: i, ...sorg(c), nome: c.nome, durata_clip: Number(c.tecnico?.durata_sec) || null }));
-  const logoArch = L.fonte === 'archivio' ? await A.logoCliente(env, L.pcloud).catch(() => null) : null;
+  let logoArch = L.fonte === 'archivio' ? await A.logoCliente(env, L.pcloud).catch(() => null) : null;
+  // copertina: stile YouTube per il profilo di Johnny, stile del cliente (ricavato dai suoi esempi) per i clienti
+  if (cop) {
+    const profilo = avatar || /profilo instagram|mio profilo|per il mio profilo/i.test(L.prompt || '');
+    if (profilo) cop.stile = 'youtube';
+    else {
+      const nomeCl = L.fonte === 'archivio' && /^Clienti\//.test(L.pcloud || '') ? L.pcloud.split('/')[1] : (await A.clienteDalTesto(env, L.prompt).catch(() => null));
+      cop.stile = 'cliente';
+      cop.cliente = nomeCl || null;
+      if (!logoArch && nomeCl) logoArch = await A.logoCliente(env, 'Clienti/' + nomeCl).catch(() => null);
+      cop.ricetta = nomeCl ? J((await one(env, 'SELECT valore FROM impostazioni WHERE chiave=?', 'COPERTINA:' + nomeCl.toLowerCase()))?.valore, null) : null;
+    }
+  }
   const piano = {
     ...p, formato: motore, titoli, riserve, look_reel: lookReel, font_reel: fontReel, pannello, cartelli, schede, grafiche, palette, font_split, tracker, adesivi,
     ...(avatar ? { taglia_silenzi: false } : {}),
