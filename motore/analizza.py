@@ -577,7 +577,8 @@ def monta(lavoro):
         # verso del girato: le clip orizzontali girate con la camera in verticale escono coricate. Claude guarda un
         # fotogramma di ognuna (una sola chiamata) e dice di quanto girarle; quelle dritte restano orizzontali
         try:
-            versi = verso_clip(lavoro, {k: f for k, f in file_per_id.items() if voci[k] is not piano.get("musica")})
+            # le clip con il verso già deciso (anche 0) non si ricontrollano: rimontare con lo stesso piano non costa niente
+            versi = verso_clip(lavoro, {k: f for k, f in file_per_id.items() if voci[k] is not piano.get("musica") and "ruota" not in voci[k]})
         except Exception as e:
             versi = {}
             avvisa("motore", f"controllo del verso non riuscito: {str(e)[:100]}", "warn")
