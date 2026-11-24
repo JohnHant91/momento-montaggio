@@ -55,15 +55,20 @@ export async function richiesta(url, opts = {}, tentativi = 4) {
 import { registra, daUsage } from './consumi.js';
 export async function claude(cfg, sistema, messaggio, { maxTokens = 8000, json = true } = {}) {
   if (!cfg.ANTHROPIC_API_KEY) throw new Error('manca la chiave Claude (Impostazioni)');
-  // in streaming (le risposte lunghe non vanno in timeout); se non ci sta, riprovo una volta con il doppio dello spazio
-  for (const budget of [maxTokens, Math.min(64000, maxTokens * 2)]) {
+  // in streaming (le risposte lunghe non vanno in timeout). Se la risposta non ci sta NON si ricomincia da capo
+  // (si ripagava tutto lo scritto): Claude continua da dove si era fermato, fino a 2 volte.
+  let testo = '';
+  for (let giro = 0; giro < 3; giro++) {
+    const messages = [{ role: 'user', content: messaggio }];
+    if (testo) messages.push({ role: 'assistant', content: testo.replace(/\s+$/, '') });
     const r = await richiesta('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'x-api-key': cfg.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({ model: cfg.CLAUDE_MODEL, max_tokens: budget, stream: true, system: sistema, messages: [{ role: 'user', content: messaggio }] }),
+      body: JSON.stringify({ model: cfg.CLAUDE_MODEL, max_tokens: maxTokens, stream: true, system: sistema, messages }),
     });
     if (r.status !== 200) throw new Error(`Claude ${r.status}: ${(await r.text()).slice(0, 400)}`);
-    let testo = '', stop = null, resto = '';
+    if (testo) testo = testo.replace(/\s+$/, '');
+    let stop = null, resto = '';
     const uso = { in: 0, out: 0, cache_r: 0, cache_w: 0, ricerche: 0 };
     const dec = new TextDecoder();
     for await (const chunk of r.body) {
@@ -83,9 +88,8 @@ export async function claude(cfg, sistema, messaggio, { maxTokens = 8000, json =
     }
     await registra(cfg, 'claude', cfg.CLAUDE_MODEL, uso);
     if (stop !== 'max_tokens') return json ? estraiJson(testo) : testo;
-    if (budget >= 64000) break;
   }
-  throw new Error('risposta di Claude troncata (troppo lunga anche col doppio dello spazio)');
+  throw new Error('risposta di Claude troncata (troppo lunga anche continuando)');
 }
 
 // Claude con immagini (tavole di fotogrammi preparate dal motore GitHub)

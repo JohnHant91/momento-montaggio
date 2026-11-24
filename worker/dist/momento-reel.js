@@ -312,14 +312,18 @@ async function richiesta(url, opts = {}, tentativi = 4) {
 }
 async function claude(cfg, sistema, messaggio, { maxTokens = 8e3, json: json3 = true } = {}) {
   if (!cfg.ANTHROPIC_API_KEY) throw new Error("manca la chiave Claude (Impostazioni)");
-  for (const budget of [maxTokens, Math.min(64e3, maxTokens * 2)]) {
+  let testo = "";
+  for (let giro = 0; giro < 3; giro++) {
+    const messages = [{ role: "user", content: messaggio }];
+    if (testo) messages.push({ role: "assistant", content: testo.replace(/\s+$/, "") });
     const r = await richiesta("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": cfg.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: cfg.CLAUDE_MODEL, max_tokens: budget, stream: true, system: sistema, messages: [{ role: "user", content: messaggio }] })
+      body: JSON.stringify({ model: cfg.CLAUDE_MODEL, max_tokens: maxTokens, stream: true, system: sistema, messages })
     });
     if (r.status !== 200) throw new Error(`Claude ${r.status}: ${(await r.text()).slice(0, 400)}`);
-    let testo = "", stop = null, resto = "";
+    if (testo) testo = testo.replace(/\s+$/, "");
+    let stop = null, resto = "";
     const uso = { in: 0, out: 0, cache_r: 0, cache_w: 0, ricerche: 0 };
     const dec = new TextDecoder();
     for await (const chunk of r.body) {
@@ -346,9 +350,8 @@ async function claude(cfg, sistema, messaggio, { maxTokens = 8e3, json: json3 = 
     }
     await registra(cfg, "claude", cfg.CLAUDE_MODEL, uso);
     if (stop !== "max_tokens") return json3 ? estraiJson(testo) : testo;
-    if (budget >= 64e3) break;
   }
-  throw new Error("risposta di Claude troncata (troppo lunga anche col doppio dello spazio)");
+  throw new Error("risposta di Claude troncata (troppo lunga anche continuando)");
 }
 async function claudeVisione(cfg, modello, sistema, testo, immagini, maxTokens = 4e3) {
   if (!cfg.ANTHROPIC_API_KEY) throw new Error("manca la chiave Claude (Impostazioni)");
@@ -3109,7 +3112,8 @@ PIANO DI MONTAGGIO preciso che un montatore automatico eseguir\xE0 alla lettera.
 (usa solo momenti con qualit\xE0 alta e senza problemi, rispetta i tempi da/a dei momenti), costruisci gancio \u2192 sviluppo \u2192 climax \u2192
 chiusura, alterna inquadrature (totale/dettaglio/primo piano), non ripetere lo stesso momento. REGOLA DI JOHNNY: ogni clip si usa UNA SOLA
 VOLTA nel reel (mai due pezzi dalla stessa clip), tranne la clip del parlato nei formati talking head e split; se le clip non bastano, fai un reel pi\xF9 corto. Il rallenty va su clip girate a
-48 fps o pi\xF9 (rallenty_possibile). Testi brevi, in italiano corretto, niente formule abusate. Rispondi SOLO JSON.
+48 fps o pi\xF9 (rallenty_possibile). Testi brevi, in italiano corretto, niente formule abusate. Rispondi SOLO JSON COMPATTO
+(niente a capo n\xE9 spazi superflui; ogni "motivo" al massimo 8 parole; ometti i campi null): ogni parola scritta costa.
 
 ${MANUALE_REGISTA}
 
@@ -3253,10 +3257,10 @@ async function faseRegia(env, cfg, L) {
     tipo: c.tipo === "immagine" || c.tecnico?.tipo === "immagine" ? "immagine" : "video",
     tecnico: c.tecnico,
     descrizione: c.analisi?.descrizione,
-    momenti: c.analisi?.momenti,
+    momenti: (c.analisi?.momenti || []).slice(0, 8),
     problemi: c.analisi?.problemi,
     parlato: c.analisi?.parlato,
-    trascrizione: (c.analisi?.misure?.parlato?.trascrizione || []).slice(0, 60),
+    trascrizione: (c.analisi?.misure?.parlato?.trascrizione || []).slice(0, 40),
     testo_nell_immagine: c.analisi?.testo_nell_immagine || void 0,
     verticale: c.analisi?.adatta_al_verticale
   }));

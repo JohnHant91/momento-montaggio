@@ -427,7 +427,8 @@ PIANO DI MONTAGGIO preciso che un montatore automatico eseguirà alla lettera. S
 (usa solo momenti con qualità alta e senza problemi, rispetta i tempi da/a dei momenti), costruisci gancio → sviluppo → climax →
 chiusura, alterna inquadrature (totale/dettaglio/primo piano), non ripetere lo stesso momento. REGOLA DI JOHNNY: ogni clip si usa UNA SOLA
 VOLTA nel reel (mai due pezzi dalla stessa clip), tranne la clip del parlato nei formati talking head e split; se le clip non bastano, fai un reel più corto. Il rallenty va su clip girate a
-48 fps o più (rallenty_possibile). Testi brevi, in italiano corretto, niente formule abusate. Rispondi SOLO JSON.
+48 fps o più (rallenty_possibile). Testi brevi, in italiano corretto, niente formule abusate. Rispondi SOLO JSON COMPATTO
+(niente a capo né spazi superflui; ogni "motivo" al massimo 8 parole; ometti i campi null): ogni parola scritta costa.
 
 ${MANUALE_REGISTA}
 
@@ -553,8 +554,8 @@ async function faseRegia(env, cfg, L) {
   const brano = brani.length ? brani[brani.length - 1] : null; // l'ultimo brano messo nella cartella
   const clip = tutteC.map((c, i) => ({ c, i })).filter(({ c }) => c.stato === 'fatto' && !eMus(c)).map(({ c, i }) => ({
     indice: i, file: c.nome, tipo: c.tipo === 'immagine' || c.tecnico?.tipo === 'immagine' ? 'immagine' : 'video', tecnico: c.tecnico,
-    descrizione: c.analisi?.descrizione, momenti: c.analisi?.momenti, problemi: c.analisi?.problemi, parlato: c.analisi?.parlato,
-    trascrizione: (c.analisi?.misure?.parlato?.trascrizione || []).slice(0, 60), testo_nell_immagine: c.analisi?.testo_nell_immagine || undefined,
+    descrizione: c.analisi?.descrizione, momenti: (c.analisi?.momenti || []).slice(0, 8), problemi: c.analisi?.problemi, parlato: c.analisi?.parlato,
+    trascrizione: (c.analisi?.misure?.parlato?.trascrizione || []).slice(0, 40), testo_nell_immagine: c.analisi?.testo_nell_immagine || undefined,
     verticale: c.analisi?.adatta_al_verticale,
   }));
   const prima = J(L.montaggio, null);
