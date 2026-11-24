@@ -98,6 +98,20 @@ export async function motoreApi(req, env, url) {
   const nome = (x) => (tipo === 'riferimenti' ? `${x.video.piattaforma} ${x.video.id}` : x.nome);
 
   // ---- montaggio: avanzamento dei reparti, video, anteprima, esito del revisore
+  // il montatore chiede dove sta nell'immagine l'oggetto su cui va l'attenzione (es. "la scatola")
+  if (mm[2] === 'fuoco' && m === 'POST') {
+    const d = await req.json().catch(() => ({}));
+    if (!d.jpeg || !d.oggetto) return json({ errore: 'dati mancanti' }, 400);
+    const cfg = chi(await configurazione(env), { area: 'reel', lavoro_id: Number(id) || null, agente: 'editor' });
+    try {
+      const out = await S.claudeVisione(cfg, cfg.CLAUDE_MODEL_LIGHT, `Trovi un oggetto in un fotogramma di un video verticale. Rispondi SOLO JSON:
+{"trovato": bool, "x": centro orizzontale 0-1, "y": centro verticale 0-1, "w": larghezza 0-1, "h": altezza 0-1}
+Le misure sono frazioni dell'immagine (0,0 = in alto a sinistra). Se l'oggetto non c'è: {"trovato": false}.`,
+        `Oggetto da trovare: ${String(d.oggetto).slice(0, 60)}`, [{ cosa: 'fotogramma', jpeg: d.jpeg }], 300);
+      const n = (v) => Math.min(1, Math.max(0, Number(v)));
+      return json(out?.trovato ? { trovato: true, x: n(out.x), y: n(out.y), w: n(out.w), h: n(out.h) } : { trovato: false });
+    } catch (e) { return json({ trovato: false, errore: String(e?.message || e).slice(0, 200) }); }
+  }
   if (mm[2] === 'log' && m === 'POST') {
     const d = await req.json().catch(() => ({}));
     const ag = ['editor', 'vfx', 'color', 'audio', 'sottotitoli', 'revisore', 'motore', 'caroselli'].includes(d.agente) ? d.agente : 'motore';

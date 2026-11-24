@@ -162,6 +162,30 @@ def raddrizza(path, ruota, avvisa=None):
         return path
 
 
+def inquadra_su(lavoro, path, t, oggetto):
+    """Zoom e centro (zoom_fisso del montatore) per tenere l'oggetto in mezzo al 9:16: l'oggetto lo trova Claude sul fotogramma
+    del pezzo così come uscirà (già girato e allargato a 9:16)."""
+    W, H = 1080, 1920
+    p = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{max(0, t):.2f}", "-i", path, "-frames:v", "1",
+                        "-vf", f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},scale=540:960", "-q:v", "4", "-f", "image2", "-"],
+                       capture_output=True, timeout=120)
+    if not p.stdout:
+        return None
+    r = regia(lavoro, "fuoco", corpo={"jpeg": base64.b64encode(p.stdout).decode(), "oggetto": oggetto}, timeout=120)
+    if not r.get("trovato"):
+        return None
+    # l'oggetto deve occupare circa metà dello schermo: zoom tra 1,2x (solo spostare) e 2,2x
+    z = max(1.2, min(2.2, 0.5 / max(0.05, r["w"], r["h"] * 0.9)))
+    # zoom_fisso lavora sul girato: centro in frazioni del girato a pieno quadro (con un 9:16 pieno coincide con il fotogramma)
+    tt = tecnico(path)
+    sw, sh = (int(v) for v in tt["risoluzione"].split("x"))
+    vis_w = min(1.0, (sh * W / H) / sw)  # parte di larghezza del girato visibile nel 9:16
+    vis_h = min(1.0, (sw * H / W) / sh)
+    cx = 0.5 + (r["x"] - 0.5) * vis_w
+    cy = 0.5 + (r["y"] - 0.5) * vis_h
+    return {"z": round(z, 2), "cx": round(cx, 3), "cy": round(cy, 3)}
+
+
 def scarica(lavoro, el, cartella):
     dest = os.path.join(cartella, f"v_{el['indice']}")
     if el.get("fileid"):
@@ -536,6 +560,18 @@ def monta(lavoro):
         for campo in ("segmenti", "broll", "slide", "schede", "riserve"):
             if piano.get(campo):
                 piano[campo] = [dict(s, file=file_per_id[chiave(s)]) for s in piano[campo] if chiave(s) in file_per_id]
+        # attenzione su un oggetto (es. "la scatola"): lo cerco nel pezzo già raddrizzato e ci sposto e stringo l'inquadratura
+        for s in piano.get("segmenti") or []:
+            if s.get("fuoco") and s.get("file") and not s.get("zoom_fisso"):
+                try:
+                    inq = inquadra_su(lavoro, s["file"], float(s.get("in", 0)) + float(s.get("durata", 1)) / 2, s["fuoco"])
+                    if inq:
+                        s["zoom_fisso"] = inq
+                        avvisa("editor", f"{s.get('nome') or 'pezzo'}: inquadratura spostata su {s['fuoco']} ({inq['z']:.1f}x)")
+                    else:
+                        avvisa("editor", f"{s.get('nome') or 'pezzo'}: {s['fuoco']} non trovato nell'immagine, lascio l'inquadratura piena", "warn")
+                except Exception as e:
+                    avvisa("editor", f"fuoco su {s['fuoco']} non riuscito: {str(e)[:80]}", "warn")
         out = os.path.join(cartella, "reel.mp4")
         piano["_lavoro"] = lavoro.get("id") if isinstance(lavoro, dict) else lavoro
         Classe = montatore_per(piano)

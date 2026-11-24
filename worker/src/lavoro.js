@@ -481,6 +481,9 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
                 "transizione_in": "...", "audio": 0-1 (suono originale), "motivo": "perché questo pezzo qui",
                 "testo": {"testo": "...", "stile": "...", "posizione": "...", "evidenzia": "parola"} oppure null,
                 "zoom_fisso": {"z": 1.2-2.5, "cx": 0-1, "cy": 0-1} oppure null (avvicina su un dettaglio dell'inquadratura),
+                "fuoco": "l'oggetto su cui deve stare l'attenzione in questo pezzo, in 1-4 parole (es. \"la scatola\", \"le mani\") oppure null:
+                          il montatore lo trova nell'immagine e sposta/stringe l'inquadratura su di lui. Mettilo SEMPRE quando la richiesta
+                          dice dove deve stare l'attenzione (es. \"nel finale l'attenzione sulla scatola\") nei pezzi dove quell'oggetto c'è",
                 "in_preciso": true se il momento esatto conta (il montatore altrimenti può spostare l'inizio di ±0,8 s sul tratto più fermo)}],
   "sottotitoli": {"usare": bool, "stile": "parola_per_parola|karaoke_evidenziato|sottotitolo_classico|piccoli_alto (solo talking_head: sottotitoli piccoli in alto, i concetti li portano i cartelli)", "posizione": "terzo_inferiore"},
   "titoli": [{"testo": "1-6 parole", "da": secondi sul reel, "a": secondi, "stile": "...", "posizione": "alto|sx|dx|basso|centro", "sotto": "riga piccola facoltativa", "numero": {"valore": n, "prima": "€", "dopo": " ore"} (solo stile numero), "parole": ["solo stile rotazione"]}] (solo montaggio: 3-8 titoli in motion graphics sui momenti forti, mai sulla faccia),
@@ -636,6 +639,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
       transizione_in: k === 0 ? null : (TRANSIZIONI.includes(s.transizione_in) ? s.transizione_in : 'taglio_netto'),
       audio: Math.min(1, Math.max(0, Number(s.audio ?? 0.8))), motivo: s.motivo, testo: s.testo?.testo ? s.testo : null,
       in_preciso: s.in_preciso === true || undefined,
+      fuoco: typeof s.fuoco === 'string' && s.fuoco.trim() ? s.fuoco.trim().slice(0, 40) : undefined,
       zoom_fisso: s.zoom_fisso?.z > 1 ? { z: Math.min(2.5, Number(s.zoom_fisso.z)), cx: Math.min(1, Math.max(0, Number(s.zoom_fisso.cx ?? 0.5))), cy: Math.min(1, Math.max(0, Number(s.zoom_fisso.cy ?? 0.5))) } : undefined,
     };
   });

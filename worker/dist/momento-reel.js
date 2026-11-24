@@ -3076,6 +3076,9 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
                 "transizione_in": "...", "audio": 0-1 (suono originale), "motivo": "perch\xE9 questo pezzo qui",
                 "testo": {"testo": "...", "stile": "...", "posizione": "...", "evidenzia": "parola"} oppure null,
                 "zoom_fisso": {"z": 1.2-2.5, "cx": 0-1, "cy": 0-1} oppure null (avvicina su un dettaglio dell'inquadratura),
+                "fuoco": "l'oggetto su cui deve stare l'attenzione in questo pezzo, in 1-4 parole (es. "la scatola", "le mani") oppure null:
+                          il montatore lo trova nell'immagine e sposta/stringe l'inquadratura su di lui. Mettilo SEMPRE quando la richiesta
+                          dice dove deve stare l'attenzione (es. "nel finale l'attenzione sulla scatola") nei pezzi dove quell'oggetto c'\xE8",
                 "in_preciso": true se il momento esatto conta (il montatore altrimenti pu\xF2 spostare l'inizio di \xB10,8 s sul tratto pi\xF9 fermo)}],
   "sottotitoli": {"usare": bool, "stile": "parola_per_parola|karaoke_evidenziato|sottotitolo_classico|piccoli_alto (solo talking_head: sottotitoli piccoli in alto, i concetti li portano i cartelli)", "posizione": "terzo_inferiore"},
   "titoli": [{"testo": "1-6 parole", "da": secondi sul reel, "a": secondi, "stile": "...", "posizione": "alto|sx|dx|basso|centro", "sotto": "riga piccola facoltativa", "numero": {"valore": n, "prima": "\u20AC", "dopo": " ore"} (solo stile numero), "parole": ["solo stile rotazione"]}] (solo montaggio: 3-8 titoli in motion graphics sui momenti forti, mai sulla faccia),
@@ -3266,6 +3269,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
       motivo: s.motivo,
       testo: s.testo?.testo ? s.testo : null,
       in_preciso: s.in_preciso === true || void 0,
+      fuoco: typeof s.fuoco === "string" && s.fuoco.trim() ? s.fuoco.trim().slice(0, 40) : void 0,
       zoom_fisso: s.zoom_fisso?.z > 1 ? { z: Math.min(2.5, Number(s.zoom_fisso.z)), cx: Math.min(1, Math.max(0, Number(s.zoom_fisso.cx ?? 0.5))), cy: Math.min(1, Math.max(0, Number(s.zoom_fisso.cy ?? 0.5))) } : void 0
     };
   });
@@ -6252,6 +6256,27 @@ async function motoreApi(req, env, url) {
   const indice = Number(url.searchParams.get("i"));
   const el = elenco[indice];
   const nome = (x) => tipo === "riferimenti" ? `${x.video.piattaforma} ${x.video.id}` : x.nome;
+  if (mm[2] === "fuoco" && m === "POST") {
+    const d = await req.json().catch(() => ({}));
+    if (!d.jpeg || !d.oggetto) return json({ errore: "dati mancanti" }, 400);
+    const cfg = chi(await configurazione(env), { area: "reel", lavoro_id: Number(id) || null, agente: "editor" });
+    try {
+      const out = await claudeVisione(
+        cfg,
+        cfg.CLAUDE_MODEL_LIGHT,
+        `Trovi un oggetto in un fotogramma di un video verticale. Rispondi SOLO JSON:
+{"trovato": bool, "x": centro orizzontale 0-1, "y": centro verticale 0-1, "w": larghezza 0-1, "h": altezza 0-1}
+Le misure sono frazioni dell'immagine (0,0 = in alto a sinistra). Se l'oggetto non c'\xE8: {"trovato": false}.`,
+        `Oggetto da trovare: ${String(d.oggetto).slice(0, 60)}`,
+        [{ cosa: "fotogramma", jpeg: d.jpeg }],
+        300
+      );
+      const n = (v) => Math.min(1, Math.max(0, Number(v)));
+      return json(out?.trovato ? { trovato: true, x: n(out.x), y: n(out.y), w: n(out.w), h: n(out.h) } : { trovato: false });
+    } catch (e) {
+      return json({ trovato: false, errore: String(e?.message || e).slice(0, 200) });
+    }
+  }
   if (mm[2] === "log" && m === "POST") {
     const d = await req.json().catch(() => ({}));
     const ag = ["editor", "vfx", "color", "audio", "sottotitoli", "revisore", "motore", "caroselli"].includes(d.agente) ? d.agente : "motore";
