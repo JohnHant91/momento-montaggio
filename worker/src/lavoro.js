@@ -95,10 +95,10 @@ Sii sintetico: al massimo 8 momenti e 5 problemi, frasi brevi.
 Se è una FOTO o una SLIDE (tecnico.tipo = immagine): niente momenti né problemi di tempo; descrivi cosa mostra e trascrivi
 il testo che contiene (se è una slide di carosello) in "testo_nell_immagine".
 
-VERSO DELL'IMMAGINE ("rotazione"): guarda se i fotogrammi sono dritti (persone e oggetti in piedi, tavoli e orizzonte
-orizzontali, scritte leggibili). Se la camera era girata e l'immagine esce coricata o capovolta, scrivi di quanti gradi in
-senso ORARIO va girata per tornare dritta: 90, -90 (cioè antiorario) o 180. Se è già dritta scrivi 0. Nel dubbio 0.
-Un'inquadratura orizzontale dritta NON va girata: la ritaglia il montatore.
+VERSO DELL'IMMAGINE ("rotazione"): Johnny gira SEMPRE con la camera in verticale. Quindi una CLIP VIDEO con fotogrammi più
+larghi che alti è coricata e va SEMPRE girata: scegli 90 (orario) o -90 (antiorario) guardando da che parte sta il "sopra"
+(teste delle persone, cielo, piano del tavolo in basso, scritte). Per le clip verticali: 180 se capovolte, altrimenti 0.
+Per le FOTO: 90, -90 o 180 solo se si vedono coricate o capovolte, altrimenti 0.
 
 Contesto del lavoro: ${contesto}
 
@@ -323,7 +323,10 @@ export const chiaveRif = (v) => `rif2:${v.piattaforma}:${v.id}`;
 // basta aggiungere una voce qui e il download corrispondente nel motore (motore/analizza.py → scarica).
 // dove il motore prende un file: pCloud (fileid), link diretto (url) o archivio interno ("archivio:percorso", firmato quando parte il motore)
 // "ruota": gradi in senso orario per raddrizzare il girato coricato (lo vede Iris sui fotogrammi, lo applica il montatore)
-const ruotaDi = (c) => { const r = Number(c?.analisi?.rotazione); return [90, -90, 180].includes(r) ? { ruota: r } : {}; };
+// regola di Johnny: le clip video orizzontali si girano SEMPRE (gira in verticale); se Iris non ha detto il verso lo sceglie il montatore
+const ruotaDi = (c) => { const r = Number(c?.analisi?.rotazione); if ([90, -90, 180].includes(r)) return { ruota: r };
+  const video = !(c?.tipo === 'immagine' || c?.tecnico?.tipo === 'immagine' || c?.tecnico?.tipo === 'musica');
+  return video && c?.tecnico?.orientamento === 'orizzontale' ? { ruota: 'auto' } : {}; };
 export const rifSorgente = (c) => ({ ...(c?.sorgente?.tipo === 'url' ? { fileid: null, url: c.sorgente.url }
   : c?.sorgente?.tipo === 'archivio' ? { fileid: null, url: 'archivio:' + c.sorgente.percorso } : { fileid: c?.fileid, url: null }), ...ruotaDi(c) });
 

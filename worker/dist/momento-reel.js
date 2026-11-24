@@ -2671,10 +2671,10 @@ Sii sintetico: al massimo 8 momenti e 5 problemi, frasi brevi.
 Se \xE8 una FOTO o una SLIDE (tecnico.tipo = immagine): niente momenti n\xE9 problemi di tempo; descrivi cosa mostra e trascrivi
 il testo che contiene (se \xE8 una slide di carosello) in "testo_nell_immagine".
 
-VERSO DELL'IMMAGINE ("rotazione"): guarda se i fotogrammi sono dritti (persone e oggetti in piedi, tavoli e orizzonte
-orizzontali, scritte leggibili). Se la camera era girata e l'immagine esce coricata o capovolta, scrivi di quanti gradi in
-senso ORARIO va girata per tornare dritta: 90, -90 (cio\xE8 antiorario) o 180. Se \xE8 gi\xE0 dritta scrivi 0. Nel dubbio 0.
-Un'inquadratura orizzontale dritta NON va girata: la ritaglia il montatore.
+VERSO DELL'IMMAGINE ("rotazione"): Johnny gira SEMPRE con la camera in verticale. Quindi una CLIP VIDEO con fotogrammi pi\xF9
+larghi che alti \xE8 coricata e va SEMPRE girata: scegli 90 (orario) o -90 (antiorario) guardando da che parte sta il "sopra"
+(teste delle persone, cielo, piano del tavolo in basso, scritte). Per le clip verticali: 180 se capovolte, altrimenti 0.
+Per le FOTO: 90, -90 o 180 solo se si vedono coricate o capovolte, altrimenti 0.
 
 Contesto del lavoro: ${contesto2}
 
@@ -2878,7 +2878,9 @@ async function avvisoMotore(env, L) {
 var chiaveRif = (v) => `rif2:${v.piattaforma}:${v.id}`;
 var ruotaDi = (c) => {
   const r = Number(c?.analisi?.rotazione);
-  return [90, -90, 180].includes(r) ? { ruota: r } : {};
+  if ([90, -90, 180].includes(r)) return { ruota: r };
+  const video = !(c?.tipo === "immagine" || c?.tecnico?.tipo === "immagine" || c?.tecnico?.tipo === "musica");
+  return video && c?.tecnico?.orientamento === "orizzontale" ? { ruota: "auto" } : {};
 };
 var rifSorgente = (c) => ({ ...c?.sorgente?.tipo === "url" ? { fileid: null, url: c.sorgente.url } : c?.sorgente?.tipo === "archivio" ? { fileid: null, url: "archivio:" + c.sorgente.percorso } : { fileid: c?.fileid, url: null }, ...ruotaDi(c) });
 var FONTI = {
