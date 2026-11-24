@@ -14,7 +14,7 @@ on:
 
 permissions:
   id-token: write
-  contents: read
+  contents: write
   actions: write
 
 concurrency:
@@ -63,7 +63,7 @@ jobs:
       - uses: actions/setup-node@v4
         if: steps.coda.outputs.lavoro == 'si'
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Motore grafico (in cache)
         if: steps.coda.outputs.lavoro == 'si'
@@ -86,3 +86,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: python motore/analizza.py
+
+      - name: Tavole di controllo (cifrate)
+        if: always() && steps.coda.outputs.lavoro == 'si'
+        run: |
+          ls /tmp/tavole/*.jpg >/dev/null 2>&1 || exit 0
+          mkdir -p /tmp/out && cd /tmp/tavole && tar czf /tmp/t.tgz *.jpg
+          openssl rand -out /tmp/k.bin 32
+          openssl enc -aes-256-cbc -pbkdf2 -in /tmp/t.tgz -out /tmp/out/tavole.enc -pass file:/tmp/k.bin
+          openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/motore/chiave_studio.pem" -in /tmp/k.bin -out /tmp/out/k.enc
+          cd /tmp/out && git init -q && git checkout -q -b tavole && git add . \
+          && git -c user.name=motore -c user.email=motore@momento commit -qm "tavole" \
+          && git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" tavole

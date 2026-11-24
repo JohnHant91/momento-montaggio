@@ -951,7 +951,48 @@ class ParoleDietro(SplitGrafico):
     NOME = "parole_dietro"
 
 
-FORMATI = {"talking_head": TalkingHead, "carosello": Carosello, "split_grafico": SplitGrafico, "parole_dietro": ParoleDietro}
+class HyperTalking(TalkingHead):
+    """Talking-head col motore HyperFrames (catalogo HeyGen): la persona a tutto schermo con punch zoom a ogni frase e grade,
+    il gancio che sbatte sopra la testa, sottotitoli a pillola karaoke sotto il mento, numeri che scorrono, grana e
+    vignettatura, CTA e dissolvenza al bianco. Ricetta della skill talking-head-reel, pezzi presi dal catalogo."""
+    NOME = "hf_talking"
+
+    def monta(self, out_finale):
+        import hyperframes_reel as HF
+        t0, P, segmenti, righe, tratti, totale, video, voce, lut = self.parlato()
+        parole, rr = [], []
+        for r in righe:
+            idx = []
+            for w in r:
+                parole.append({"t": w["testo"], "da": w["t0"], "a": w["t1"]})
+                idx.append(len(parole) - 1)
+            rr.append(idx)
+        volto = segmenti[0].get("_volto") or {"cx": 0.5, "cy": 0.32}
+        progetto = os.path.join(self.tmp, "hf")
+        dati = HF.costruisci(progetto, video, totale, parole, rr, volto, P)
+        self.avvisa("vfx", f"gancio, sottotitoli karaoke, {len(dati['numeri'])} numeri, grana, CTA e dissolvenza al bianco (HyperFrames)")
+        anim = os.path.join(self.tmp, "hf.mp4")
+        HF.renderizza(progetto, anim, self.avvisa)
+        # tavola di controllo: gancio, un sottotitolo, ogni numero, la CTA
+        tempi = [min(1.0, dati["fineGancio"] - 0.2), dati["fineGancio"] + 1.5] + [n["da"] + 1.3 for n in dati["numeri"][:3]] + [totale * 0.6, totale - 1.6]
+        os.makedirs("/tmp/tavole", exist_ok=True)
+        HF.tavola(anim, f"/tmp/tavole/tavola_{self.p.get('_lavoro', 'reel')}.jpg", [t for t in tempi if 0 < t < totale])
+        eventi_sfx = [("boom", 0.05, 0.8)] + [("pop", n["da"] + 0.05, 0.6) for n in dati["numeri"]] + [("whoosh", max(0, totale - 2.7), 0.5)]
+        mixwav = self.mix_sfx(voce, eventi_sfx, totale, os.path.join(self.tmp, "mix.wav"))
+        ass = os.path.join(self.tmp, "vuoto.ass")
+        with open(ass, "w", encoding="utf-8") as f:
+            f.write(self.intestazione_ass(["Vuoto,Arial,20,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1"]))
+        self.avvisa("audio", "voce pulita, boom sul gancio, pop sui numeri, whoosh sulla chiusura, volume a −14 LUFS")
+        self.fine_nero = 0.8
+        self.finale(anim, ass, mixwav, totale, out_finale)
+        rep = self.revisiona(out_finale)
+        rep["secondi_di_lavoro"] = round(time.time() - t0)
+        rep["formato"] = self.NOME
+        self.avvisa("revisore", f"controllo: {rep['durata']}s · {rep['lufs']} LUFS" + (" · ⚠ " + "; ".join(rep["problemi"]) if rep["problemi"] else " · tutto ok"))
+        return rep
+
+
+FORMATI = {"talking_head": TalkingHead, "carosello": Carosello, "split_grafico": SplitGrafico, "parole_dietro": ParoleDietro, "hf_talking": HyperTalking}
 
 
 def montatore_per(piano):

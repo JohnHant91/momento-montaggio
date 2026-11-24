@@ -468,6 +468,7 @@ def monta(lavoro):
             if piano.get(campo):
                 piano[campo] = [dict(s, file=file_per_id[chiave(s)]) for s in piano[campo] if chiave(s) in file_per_id]
         out = os.path.join(cartella, "reel.mp4")
+        piano["_lavoro"] = lavoro.get("id") if isinstance(lavoro, dict) else lavoro
         Classe = montatore_per(piano)
         avvisa("motore", f"formato: {piano.get('formato') or 'montaggio'}")
         m = Classe(piano, os.path.join(cartella, "lavoro"), avvisa=avvisa)
