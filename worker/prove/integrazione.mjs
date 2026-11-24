@@ -272,5 +272,17 @@ console.log('\nArchivio interno (R2)');
   a = await chiama('/api/archivio?p=' + encodeURIComponent('Clienti/Torretta/Panettoni'), { method: 'DELETE' });
   ok(a.j.eliminati === 3 && !env.ARCHIVIO._m.has('Clienti/Torretta/Panettoni/C0001.MP4'), 'cartella eliminata con i suoi file');
 }
+console.log('\nImportazione da pCloud');
+{ let a = await chiama('/api/archivio/importa', { method: 'POST', body: { link: 'https://e.pcloud.link/publink/show?code=XYZ', cartella: 'Clienti/Torretta/Caffè' } });
+  ok(a.status === 200 && a.j.file >= 2, 'la cartella pCloud viene letta (' + a.j.file + ' file)');
+  const iid = a.j.id; const pass = 'p'.repeat(40);
+  env.DB._db.prepare("UPDATE importazioni SET pass=?, stato='in_corso' WHERE id=?").run(pass, iid);
+  const mot = (az, i, body, extra = '', metodo = 'POST') => W.fetch(new Request('https://x/api/motore/importa/' + iid + '/' + az + '?i=' + i + extra, { method: metodo, headers: { 'x-pass': pass, 'content-type': 'application/json' }, body: typeof body === 'string' ? body : JSON.stringify(body || {}) }), env).then((r) => r.json());
+  const F = JSON.parse(env.DB._db.prepare('SELECT file FROM importazioni WHERE id=?').get(iid).file);
+  for (let i = 0; i < F.length; i++) { const I = await mot('inizio', i); const pz = await mot('parte', i, 'contenuto' + i, '&u=' + I.upload + '&n=1', 'PUT'); await mot('fine', i, { upload: I.upload, parti: [pz] }); }
+  a = await chiama('/api/archivio/importazioni?cartella=Clienti/Torretta/Caffè'); ok(a.j[0]?.stato === 'fatto' && a.j[0].fatti === F.length, 'importazione completata, file nell\'archivio');
+  a = await chiama('/api/archivio?cartella=' + encodeURIComponent('Clienti/Torretta/Caffè')); ok(a.j.voci.length >= 1, 'i file importati si vedono nella cartella');
+  const x = await W.fetch(new Request('https://x/api/motore/importa/' + iid + '/inizio?i=0', { method: 'POST', headers: { 'x-pass': 'sbagliato'.repeat(5) } }), env); ok(x.status === 403, 'senza lasciapassare il motore non scrive');
+}
 console.log('\n' + (errori.length ? '❌ ' + errori.length + ' problemi:\n - ' + errori.join('\n - ') : '✅ tutto ok') + '\n');
 process.exit(errori.length ? 1 : 0);

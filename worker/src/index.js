@@ -13,6 +13,7 @@ import { apiPost, avanzaPost } from './post.js';
 import { motoreApi } from './motore.js';
 import { apiNotifiche, controllaApprovazioni, schemaNotifiche, SW, MANIFEST } from './notifiche.js';
 import { ICONA_192, ICONA_512 } from './icone.js';
+import { apiImporta } from './importa.js';
 import { apiArchivio, linkValido, pulisci, servi, trovaCartella } from './archivio.js';
 import { PAGINA } from './pagina.js';
 import SALA3D_JS from './sala3d.txt';
@@ -311,6 +312,10 @@ async function api(req, env, url) {
   if (p.startsWith('/api/post')) { const r = await apiPost(req, env, p, m, json); if (r) return r; }
   if (p.startsWith('/api/avatar')) {
     const r = await apiAvatar(req, env, p, m, json);
+    if (r) return r;
+  }
+  if (p.startsWith('/api/archivio/importa')) {
+    const r = await apiImporta(req, env, p, m, json);
     if (r) return r;
   }
   if (p.startsWith('/api/archivio')) {

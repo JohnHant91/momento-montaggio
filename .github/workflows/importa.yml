@@ -1,0 +1,36 @@
+# Importazione pCloud -> Archivio dell'agenzia (Cloudflare R2), lanciata dall'app.
+# Si presenta con l'identità firmata da GitHub (OIDC): nessuna chiave salvata qui. Nel log solo numeri.
+name: importa
+
+on:
+  workflow_dispatch:
+    inputs:
+      importazione:
+        description: "id dell'importazione"
+        required: false
+        default: ""
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: importa-${{ github.event.inputs.importazione || 'giro' }}
+  cancel-in-progress: false
+
+env:
+  REGIA: https://momento-reel.gestionalelcl.workers.dev
+
+jobs:
+  importa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: motore/importa.py
+          sparse-checkout-cone-mode: false
+      - name: Copia da pCloud all'archivio
+        env:
+          IMPORTAZIONE: ${{ github.event.inputs.importazione }}
+        run: python3 motore/importa.py

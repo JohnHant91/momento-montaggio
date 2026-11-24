@@ -5263,6 +5263,214 @@ INDICAZIONI DI JOHNNY PER LA NUOVA RIUNIONE: ${String(d.nota).slice(0, 2e3)}` : 
   return null;
 }
 
+// src/importa.js
+var UTILI = /\.(mp4|mov|m4v|mxf|avi|mkv|webm|mts|jpe?g|png|webp|heic|heif|tiff?|dng|cr2|cr3|nef|arw|raf|orf|rw2|mp3|m4a|wav|aac|flac|ogg|psd|ai|svg|pdf|cube|lut|aep|prproj|zip)$/i;
+async function schemaImporta(env) {
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS importazioni (id INTEGER PRIMARY KEY AUTOINCREMENT, link TEXT, cartella TEXT, stato TEXT DEFAULT 'da_fare',
+    file TEXT, totale INTEGER DEFAULT 0, errore TEXT, pass TEXT, fino TEXT, creato TEXT, aggiornato TEXT)`).run();
+}
+async function sveglia(env, id) {
+  const cfg = await configurazione(env);
+  if (!cfg.GITHUB_TOKEN) return false;
+  const r = await fetch("https://api.github.com/repos/JohnHant91/momento-montaggio/actions/workflows/importa.yml/dispatches", {
+    method: "POST",
+    body: JSON.stringify({ ref: "main", inputs: { importazione: String(id) } }),
+    headers: { authorization: `Bearer ${cfg.GITHUB_TOKEN}`, accept: "application/vnd.github+json", "content-type": "application/json", "user-agent": "momento-reel", "x-github-api-version": "2022-11-28" }
+  });
+  return r.status === 204;
+}
+var riassunto = (I) => {
+  const F = J(I.file, []);
+  const fatti = F.filter((f) => f.stato === "fatto");
+  return {
+    id: I.id,
+    cartella: I.cartella,
+    stato: I.stato,
+    errore: I.errore,
+    creato: I.creato,
+    aggiornato: I.aggiornato,
+    file: F.length,
+    fatti: fatti.length,
+    saltati: F.filter((f) => f.stato === "saltato").length,
+    errori: F.filter((f) => f.stato === "errore").length,
+    totale: I.totale,
+    copiati: fatti.reduce((s, f) => s + (f.dimensione || 0), 0)
+  };
+};
+async function apiImporta(req, env, p, m, json3) {
+  if (!p.startsWith("/api/archivio/importa")) return null;
+  await schemaArchivio(env);
+  await schemaImporta(env);
+  const url = new URL(req.url);
+  if (p === "/api/archivio/importa" && m === "POST") {
+    if (!env.ARCHIVIO) return json3({ errore: "archivio non collegato" }, 503);
+    const d = await req.json().catch(() => ({}));
+    const link = String(d.link || "").trim(), cartella = pulisci(d.cartella);
+    if (!/code=/.test(link)) return json3({ errore: 'serve il link pubblico della cartella pCloud (contiene "code=")' }, 400);
+    if (!cartella) return json3({ errore: "scegli la cartella dell\u2019archivio in cui copiare" }, 400);
+    const meta = (await pcloudApi(link, "showpublink", {})).metadata;
+    const file = [];
+    const visita = (x, rel) => {
+      if (x.isfolder) {
+        (x.contents || []).forEach((c) => visita(c, rel === null ? "" : (rel ? rel + "/" : "") + x.name));
+        return;
+      }
+      if (!UTILI.test(x.name) || /^\./.test(x.name)) return;
+      file.push({ fileid: x.fileid, nome: x.name, rel: (rel ? rel + "/" : "") + x.name, dimensione: x.size || 0 });
+    };
+    if (meta.isfolder) visita(meta, null);
+    else visita(meta, "");
+    if (!file.length) return json3({ errore: "nella cartella pCloud non ci sono clip, foto, musica o grafiche" }, 400);
+    for (const f of file) {
+      const g = await one(env, "SELECT dimensione FROM archivio WHERE percorso=?", pulisci(cartella + "/" + f.rel));
+      f.stato = g && Number(g.dimensione) === Number(f.dimensione) ? "saltato" : "da_fare";
+    }
+    const totale = file.reduce((s, f) => s + f.dimensione, 0);
+    const r = await one(
+      env,
+      "INSERT INTO importazioni (link, cartella, stato, file, totale, creato, aggiornato) VALUES (?,?,?,?,?,?,?) RETURNING id",
+      link,
+      cartella,
+      file.some((f) => f.stato === "da_fare") ? "da_fare" : "fatto",
+      JSON.stringify(file),
+      totale,
+      ora(),
+      ora()
+    );
+    const partito = file.some((f) => f.stato === "da_fare") ? await sveglia(env, r.id) : true;
+    return json3({ id: r.id, file: file.length, saltati: file.filter((f) => f.stato === "saltato").length, gb: Math.round(totale / 1073741824 * 10) / 10, partito });
+  }
+  if (p === "/api/archivio/importazioni" && m === "GET") {
+    const c = pulisci(url.searchParams.get("cartella"));
+    const L = await all(env, "SELECT * FROM importazioni WHERE (? = '' OR cartella = ? OR cartella LIKE ?) ORDER BY id DESC LIMIT 10", c, c, c + "/%");
+    return json3(L.map(riassunto));
+  }
+  const ri = p.match(/^\/api\/archivio\/importa\/(\d+)\/(riprova|annulla)$/);
+  if (ri && m === "POST") {
+    const I = await one(env, "SELECT * FROM importazioni WHERE id=?", ri[1]);
+    if (!I) return json3({ errore: "non trovata" }, 404);
+    if (ri[2] === "annulla") {
+      await run(env, "UPDATE importazioni SET stato='annullata', aggiornato=? WHERE id=?", ora(), I.id);
+      return json3({ ok: true });
+    }
+    const F = J(I.file, []).map((f) => f.stato === "errore" || f.stato === "in_corso" ? { ...f, stato: "da_fare", errore: null } : f);
+    await run(env, "UPDATE importazioni SET file=?, stato='da_fare', errore=NULL, fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(F), ora(), I.id);
+    return json3({ ok: true, partito: await sveglia(env, I.id) });
+  }
+  return null;
+}
+async function motoreImporta(req, env, p, m, json3, identitaGitHub2) {
+  if (!p.startsWith("/api/motore/importa")) return null;
+  await schemaImporta(env);
+  const url = new URL(req.url);
+  if (p === "/api/motore/importa/prendi" && m === "POST") {
+    if (!await identitaGitHub2(req.headers.get("authorization"))) return json3({ errore: "motore non riconosciuto" }, 401);
+    const id = Number(url.searchParams.get("id")) || 0;
+    const pass2 = [...crypto.getRandomValues(new Uint8Array(24))].map((b) => b.toString(16).padStart(2, "0")).join("");
+    const I2 = await one(env, `UPDATE importazioni SET stato='in_corso', pass=?, fino=?, aggiornato=? WHERE id = (SELECT id FROM importazioni
+      WHERE stato IN ('da_fare','in_corso') AND (fino IS NULL OR fino < ?) AND (?=0 OR id=?) ORDER BY id LIMIT 1) RETURNING *`, pass2, new Date(Date.now() + 30 * 6e4).toISOString(), ora(), ora(), id, id);
+    if (!I2) return new Response(null, { status: 204 });
+    const code = new URL(I2.link).searchParams.get("code");
+    return json3({ id: I2.id, pass: pass2, pcloud_code: code, pcloud_eu: /(^|\/\/)e\.|eapi/.test(I2.link), file: J(I2.file, []).map((f2, i2) => ({ i: i2, ...f2 })).filter((f2) => f2.stato !== "fatto" && f2.stato !== "saltato") });
+  }
+  const mm = p.match(/^\/api\/motore\/importa\/(\d+)\/(inizio|parte|fine|esito|vivo)$/);
+  if (!mm) return json3({ errore: "non trovato" }, 404);
+  const I = await one(env, "SELECT * FROM importazioni WHERE id=?", mm[1]);
+  const pass = req.headers.get("x-pass") || "";
+  if (!I || !I.pass || pass.length < 32 || pass !== I.pass) return json3({ errore: "lasciapassare non valido" }, 403);
+  if (I.stato === "annullata") return json3({ errore: "annullata", stop: true }, 409);
+  const F = J(I.file, []);
+  const i = Number(url.searchParams.get("i"));
+  const f = F[i];
+  const dest = f ? pulisci(I.cartella + "/" + f.rel) : null;
+  const segna = async (cambi) => {
+    const ora_ = await one(env, "SELECT file FROM importazioni WHERE id=?", I.id);
+    const G = J(ora_.file, []);
+    Object.assign(G[i], cambi);
+    const fine = G.every((x) => ["fatto", "saltato", "errore"].includes(x.stato));
+    await run(
+      env,
+      "UPDATE importazioni SET file=?, stato=?, fino=?, aggiornato=? WHERE id=?",
+      JSON.stringify(G),
+      fine ? G.some((x) => x.stato === "errore") ? "errore" : "fatto" : "in_corso",
+      fine ? null : new Date(Date.now() + 30 * 6e4).toISOString(),
+      ora(),
+      I.id
+    );
+  };
+  if (mm[2] === "vivo" && m === "POST") {
+    await run(env, "UPDATE importazioni SET fino=?, aggiornato=? WHERE id=?", new Date(Date.now() + 30 * 6e4).toISOString(), ora(), I.id);
+    return json3({ ok: true });
+  }
+  if (!f) return json3({ errore: "file non trovato" }, 404);
+  if (mm[2] === "inizio" && m === "POST") {
+    const u = await env.ARCHIVIO.createMultipartUpload(dest, { httpMetadata: { contentType: mimeDi(f.nome) } });
+    await segna({ stato: "in_corso" });
+    return json3({ upload: u.uploadId, parte_mb: 50 });
+  }
+  if (mm[2] === "parte" && m === "PUT") {
+    const parte = await env.ARCHIVIO.resumeMultipartUpload(dest, url.searchParams.get("u")).uploadPart(Number(url.searchParams.get("n")), req.body);
+    return json3({ n: parte.partNumber, etag: parte.etag });
+  }
+  if (mm[2] === "fine" && m === "POST") {
+    const d = await req.json().catch(() => ({}));
+    const o = await env.ARCHIVIO.resumeMultipartUpload(dest, d.upload).complete((d.parti || []).map((x) => ({ partNumber: Number(x.n), etag: String(x.etag) })));
+    const pezzi = dest.split("/");
+    for (let k = 1; k < pezzi.length; k++) {
+      const q = pezzi.slice(0, k).join("/");
+      await run(env, "INSERT OR IGNORE INTO archivio (percorso, cartella, nome, tipo, creato) VALUES (?,?,?,'cartella',?)", q, pezzi.slice(0, k - 1).join("/"), pezzi[k - 1], ora());
+    }
+    await run(
+      env,
+      `INSERT INTO archivio (percorso, cartella, nome, tipo, dimensione, etag, mime, creato) VALUES (?,?,?,?,?,?,?,?)
+      ON CONFLICT(percorso) DO UPDATE SET dimensione=excluded.dimensione, etag=excluded.etag, mime=excluded.mime, creato=excluded.creato`,
+      dest,
+      pezzi.slice(0, -1).join("/"),
+      pezzi[pezzi.length - 1],
+      tipoFile(dest),
+      o.size || f.dimensione,
+      o.etag || "",
+      mimeDi(f.nome),
+      ora()
+    );
+    await segna({ stato: "fatto", errore: null });
+    return json3({ ok: true });
+  }
+  if (mm[2] === "esito" && m === "POST") {
+    const d = await req.json().catch(() => ({}));
+    if (d.upload) {
+      try {
+        await env.ARCHIVIO.resumeMultipartUpload(dest, d.upload).abort();
+      } catch (_) {
+      }
+    }
+    await segna({ stato: "errore", errore: String(d.errore || "errore").slice(0, 200) });
+    return json3({ ok: true });
+  }
+  return json3({ errore: "non trovato" }, 404);
+}
+var MIME = {
+  mp4: "video/mp4",
+  m4v: "video/mp4",
+  mov: "video/quicktime",
+  webm: "video/webm",
+  mkv: "video/x-matroska",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  heic: "image/heic",
+  mp3: "audio/mpeg",
+  m4a: "audio/mp4",
+  wav: "audio/wav",
+  aac: "audio/aac",
+  flac: "audio/flac",
+  ogg: "audio/ogg",
+  pdf: "application/pdf",
+  svg: "image/svg+xml"
+};
+var mimeDi = (n) => MIME[(n.split(".").pop() || "").toLowerCase()] || "application/octet-stream";
+
 // src/motore.js
 var REPO = "johnhant91/momento-montaggio";
 var AUD = "momento-reel";
@@ -5303,6 +5511,7 @@ async function aggiorna(env, id, colonna, indice, el) {
 var PENDENTE = (col) => `EXISTS (SELECT 1 FROM json_each(lavori.${col}) WHERE json_extract(value, '$.stato')='da_guardare')`;
 async function motoreApi(req, env, url) {
   const p = url.pathname, m = req.method;
+  if (p.startsWith("/api/motore/importa")) return motoreImporta(req, env, p, m, json, identitaGitHub);
   if (p === "/api/motore/coda" && m === "GET") {
     const solo = Number(url.searchParams.get("lavoro")) || 0;
     const r = await one(env, `SELECT COUNT(*) AS n FROM lavori WHERE stato='in_corso' AND (?=0 OR id=?) AND (
@@ -6824,12 +7033,42 @@ async function archivioPagina(cart) {
     '<div class="riga" style="gap:8px;margin:12px 0;flex-wrap:wrap"><input id="ar_nome" placeholder="Nuova cartella' + (c ? ' dentro ' + e(pezzi[pezzi.length - 1]) : '') + '" style="flex:1;min-width:180px"><button class="sec" id="ar_crea" style="width:auto">\u{1F4C1} Crea</button>' +
     (c ? '<label class="btn" style="margin:0">\u2B06\uFE0E Carica file<input type="file" id="ar_file" multiple hidden></label><label class="btn sec" style="margin:0">\u2B06\uFE0E Carica una cartella intera<input type="file" id="ar_dir" webkitdirectory multiple hidden></label>' : '') +
     (progetto ? '<button id="ar_reel" style="width:auto">\u{1F3AC} Fai un reel con queste clip</button>' : '') + '</div>' +
+    (c ? '<details class="card" id="ar_imp_box"' + (location.hash.includes('importa') ? ' open' : '') + '><summary><b>\u21E9 Importa da pCloud in questa cartella</b> <span class="mut">\xB7 la copia la fa GitHub, non usa la tua connessione</span></summary>' +
+      '<div class="riga" style="gap:8px;margin-top:10px;flex-wrap:wrap"><input id="ar_imp" placeholder="https://e.pcloud.link/publink/show?code=\u2026" style="flex:1;min-width:220px"><button id="ar_imp_go" style="width:auto">Importa</button></div>' +
+      '<div class="aiuto">Le sottocartelle di pCloud restano come sono. I file gi\xE0 presenti si saltano. Puoi chiudere l\u2019app: ti ritrovi tutto qui.</div><div id="ar_imp_er" class="err"></div></details><div id="ar_imps"></div>' : '') +
     (c ? '<div id="ar_drop" class="ar-drop">Trascina qui i file o le cartelle intere (clip, foto, musica, grafiche): le sottocartelle restano come sono</div><div id="ar_prog"></div>' : '') +
     (cartelle.length ? '<div class="ar-griglia">' + cartelle.map((v) => '<a class="ar-car" href="' + link(v.percorso) + '"><span>\u{1F4C1}</span><b>' + e(v.nome) + '</b><small class="mut">' + v.file + ' file \xB7 ' + pesoTesto(v.dimensione) + '</small></a>').join('') + '</div>' : '') +
     (file.length ? '<div class="ar-griglia">' + file.map((f) => '<div class="ar-file"><a href="/api/archivio/file?p=' + encodeURIComponent(f.percorso) + '" target="_blank" class="ar-ant">' + anteprima(f) + '</a><b title="' + e(f.nome) + '">' + e(f.nome) + '</b><small class="mut">' + pesoTesto(f.dimensione) + (/^logo/i.test(f.nome) ? ' \xB7 logo del cliente' : '') + '</small>' +
       '<button class="sec ar_del" data-p="' + e(f.percorso) + '" style="width:auto;padding:4px 10px;font-size:12px">Elimina</button></div>').join('') + '</div>' : (c && !cartelle.length ? '<div class="vuoto">Cartella vuota: carica i file qui sopra.</div>' : '')) +
     (c ? '<div style="margin-top:22px"><button class="rosso ar_del" data-p="' + e(c) + '" data-cartella="1" style="width:auto">Elimina questa cartella</button></div>' : '');
   const crea = async (q) => { await chiama('/api/archivio/cartella', { method: 'POST', body: { percorso: q } }); };
+  // importazioni da pCloud in corso in questa cartella: avanzamento che si aggiorna da solo
+  const mostraImp = async () => {
+    const box = $('#ar_imps'); if (!box || !c) return;
+    const L = await chiama('/api/archivio/importazioni?cartella=' + encodeURIComponent(c)).catch(() => []);
+    box.innerHTML = L.filter((x) => x.stato !== 'annullata').slice(0, 4).map((x) => { const perc = x.totale ? Math.round(x.copiati / x.totale * 100) : 0;
+      const st = x.stato === 'fatto' ? '\u2713 copiati ' + (x.fatti + x.saltati) + ' file' + (x.saltati ? ' (' + x.saltati + ' c\u2019erano gi\xE0)' : '') : x.stato === 'errore' ? '\u26A0\uFE0E ' + x.errori + ' file non copiati' : x.stato === 'da_fare' ? '\u23F3 GitHub sta partendo\u2026' : '\u21E9 ' + x.fatti + ' di ' + (x.file - x.saltati) + ' file \xB7 ' + pesoTesto(x.copiati) + ' di ' + pesoTesto(x.totale);
+      return '<div class="card" style="margin-top:8px"><div class="riga"><b style="flex:1">pCloud \u2192 ' + e(x.cartella) + '</b><span class="mut">' + st + '</span></div>' +
+        (x.stato === 'fatto' ? '' : '<span class="ar-bar" style="display:block;margin-top:6px"><i style="width:' + perc + '%"></i></span>') +
+        (x.stato === 'errore' || x.stato === 'in_corso' && Date.now() - new Date(x.aggiornato) > 40 * 60e3 ? '<button class="sec imp_rip" data-id="' + x.id + '" style="width:auto;margin-top:8px">Riprova i mancanti</button>' : '') +
+        (['in_corso', 'da_fare'].includes(x.stato) ? '<button class="sec imp_ann" data-id="' + x.id + '" style="width:auto;margin-top:8px;margin-left:6px">Ferma</button>' : '') + '</div>'; }).join('');
+    box.querySelectorAll('.imp_rip').forEach((b) => b.onclick = async () => { await chiama('/api/archivio/importa/' + b.dataset.id + '/riprova', { method: 'POST', body: {} }); mostraImp(); });
+    box.querySelectorAll('.imp_ann').forEach((b) => b.onclick = async () => { if (!confirm('Fermo l\u2019importazione? I file gi\xE0 copiati restano.')) return; await chiama('/api/archivio/importa/' + b.dataset.id + '/annulla', { method: 'POST', body: {} }); mostraImp(); });
+    const attiva = L.some((x) => ['in_corso', 'da_fare'].includes(x.stato));
+    if (attiva) setTimeout(() => { if ($('#ar_imps') && location.hash === h0) mostraImp().then(() => { if (!L.some((x) => ['in_corso', 'da_fare'].includes(x.stato))) rotta(); }); }, 8000);
+    else if (L[0] && L[0].stato === 'fatto' && mostraImp.prima === 'attiva') rotta();
+    mostraImp.prima = attiva ? 'attiva' : '';
+  };
+  const h0 = location.hash;
+  mostraImp();
+  if ($('#ar_imp_go')) $('#ar_imp_go').onclick = async () => {
+    const b = $('#ar_imp_go'); b.disabled = true; b.textContent = 'Leggo la cartella\u2026'; $('#ar_imp_er').textContent = '';
+    try { const r = await chiama('/api/archivio/importa', { method: 'POST', body: { link: $('#ar_imp').value, cartella: c } });
+      $('#ar_imp').value = ''; $('#ar_imp_er').textContent = '';
+      b.textContent = r.file - r.saltati ? 'Partita: ' + (r.file - r.saltati) + ' file, ' + String(r.gb).replace('.', ',') + ' GB' : 'C\u2019era gi\xE0 tutto';
+      if (!r.partito) $('#ar_imp_er').textContent = 'GitHub non \xE8 partito: controlla il token GitHub in Impostazioni.';
+      mostraImp(); setTimeout(() => { b.disabled = false; b.textContent = 'Importa'; }, 4000);
+    } catch (x) { $('#ar_imp_er').textContent = x.message; b.disabled = false; b.textContent = 'Importa'; } };
   $('#ar_crea').onclick = async () => { const n = $('#ar_nome').value.trim(); if (!n) return; try { await crea((c ? c + '/' : '') + n); rotta(); } catch (x) { alert(x.message); } };
   if ($('#ar_base')) $('#ar_base').onclick = async () => { for (const q of ['Clienti', 'Musica/Allegra', 'Musica/Emozionante', 'Musica/Natalizia', 'Musica/Latina', 'Musica/Chill', 'Grafiche']) await crea(q); rotta(); };
   if ($('#ar_reel')) $('#ar_reel').onclick = () => { ARCH_PREFILL = c; PREFILL = 'Reel per ' + pezzi[1] + ' \xB7 ' + pezzi.slice(2).join(' ') + ': '; location.hash = '#/nuovo'; };
@@ -8199,6 +8438,10 @@ async function api(req, env, url) {
   }
   if (p.startsWith("/api/avatar")) {
     const r = await apiAvatar(req, env, p, m, json2);
+    if (r) return r;
+  }
+  if (p.startsWith("/api/archivio/importa")) {
+    const r = await apiImporta(req, env, p, m, json2);
     if (r) return r;
   }
   if (p.startsWith("/api/archivio")) {

@@ -1228,12 +1228,42 @@ async function archivioPagina(cart) {
     '<div class="riga" style="gap:8px;margin:12px 0;flex-wrap:wrap"><input id="ar_nome" placeholder="Nuova cartella' + (c ? ' dentro ' + e(pezzi[pezzi.length - 1]) : '') + '" style="flex:1;min-width:180px"><button class="sec" id="ar_crea" style="width:auto">📁 Crea</button>' +
     (c ? '<label class="btn" style="margin:0">⬆︎ Carica file<input type="file" id="ar_file" multiple hidden></label><label class="btn sec" style="margin:0">⬆︎ Carica una cartella intera<input type="file" id="ar_dir" webkitdirectory multiple hidden></label>' : '') +
     (progetto ? '<button id="ar_reel" style="width:auto">🎬 Fai un reel con queste clip</button>' : '') + '</div>' +
+    (c ? '<details class="card" id="ar_imp_box"' + (location.hash.includes('importa') ? ' open' : '') + '><summary><b>⇩ Importa da pCloud in questa cartella</b> <span class="mut">· la copia la fa GitHub, non usa la tua connessione</span></summary>' +
+      '<div class="riga" style="gap:8px;margin-top:10px;flex-wrap:wrap"><input id="ar_imp" placeholder="https://e.pcloud.link/publink/show?code=…" style="flex:1;min-width:220px"><button id="ar_imp_go" style="width:auto">Importa</button></div>' +
+      '<div class="aiuto">Le sottocartelle di pCloud restano come sono. I file già presenti si saltano. Puoi chiudere l\u2019app: ti ritrovi tutto qui.</div><div id="ar_imp_er" class="err"></div></details><div id="ar_imps"></div>' : '') +
     (c ? '<div id="ar_drop" class="ar-drop">Trascina qui i file o le cartelle intere (clip, foto, musica, grafiche): le sottocartelle restano come sono</div><div id="ar_prog"></div>' : '') +
     (cartelle.length ? '<div class="ar-griglia">' + cartelle.map((v) => '<a class="ar-car" href="' + link(v.percorso) + '"><span>📁</span><b>' + e(v.nome) + '</b><small class="mut">' + v.file + ' file · ' + pesoTesto(v.dimensione) + '</small></a>').join('') + '</div>' : '') +
     (file.length ? '<div class="ar-griglia">' + file.map((f) => '<div class="ar-file"><a href="/api/archivio/file?p=' + encodeURIComponent(f.percorso) + '" target="_blank" class="ar-ant">' + anteprima(f) + '</a><b title="' + e(f.nome) + '">' + e(f.nome) + '</b><small class="mut">' + pesoTesto(f.dimensione) + (/^logo/i.test(f.nome) ? ' · logo del cliente' : '') + '</small>' +
       '<button class="sec ar_del" data-p="' + e(f.percorso) + '" style="width:auto;padding:4px 10px;font-size:12px">Elimina</button></div>').join('') + '</div>' : (c && !cartelle.length ? '<div class="vuoto">Cartella vuota: carica i file qui sopra.</div>' : '')) +
     (c ? '<div style="margin-top:22px"><button class="rosso ar_del" data-p="' + e(c) + '" data-cartella="1" style="width:auto">Elimina questa cartella</button></div>' : '');
   const crea = async (q) => { await chiama('/api/archivio/cartella', { method: 'POST', body: { percorso: q } }); };
+  // importazioni da pCloud in corso in questa cartella: avanzamento che si aggiorna da solo
+  const mostraImp = async () => {
+    const box = $('#ar_imps'); if (!box || !c) return;
+    const L = await chiama('/api/archivio/importazioni?cartella=' + encodeURIComponent(c)).catch(() => []);
+    box.innerHTML = L.filter((x) => x.stato !== 'annullata').slice(0, 4).map((x) => { const perc = x.totale ? Math.round(x.copiati / x.totale * 100) : 0;
+      const st = x.stato === 'fatto' ? '✓ copiati ' + (x.fatti + x.saltati) + ' file' + (x.saltati ? ' (' + x.saltati + ' c’erano già)' : '') : x.stato === 'errore' ? '⚠︎ ' + x.errori + ' file non copiati' : x.stato === 'da_fare' ? '⏳ GitHub sta partendo…' : '⇩ ' + x.fatti + ' di ' + (x.file - x.saltati) + ' file · ' + pesoTesto(x.copiati) + ' di ' + pesoTesto(x.totale);
+      return '<div class="card" style="margin-top:8px"><div class="riga"><b style="flex:1">pCloud → ' + e(x.cartella) + '</b><span class="mut">' + st + '</span></div>' +
+        (x.stato === 'fatto' ? '' : '<span class="ar-bar" style="display:block;margin-top:6px"><i style="width:' + perc + '%"></i></span>') +
+        (x.stato === 'errore' || x.stato === 'in_corso' && Date.now() - new Date(x.aggiornato) > 40 * 60e3 ? '<button class="sec imp_rip" data-id="' + x.id + '" style="width:auto;margin-top:8px">Riprova i mancanti</button>' : '') +
+        (['in_corso', 'da_fare'].includes(x.stato) ? '<button class="sec imp_ann" data-id="' + x.id + '" style="width:auto;margin-top:8px;margin-left:6px">Ferma</button>' : '') + '</div>'; }).join('');
+    box.querySelectorAll('.imp_rip').forEach((b) => b.onclick = async () => { await chiama('/api/archivio/importa/' + b.dataset.id + '/riprova', { method: 'POST', body: {} }); mostraImp(); });
+    box.querySelectorAll('.imp_ann').forEach((b) => b.onclick = async () => { if (!confirm('Fermo l’importazione? I file già copiati restano.')) return; await chiama('/api/archivio/importa/' + b.dataset.id + '/annulla', { method: 'POST', body: {} }); mostraImp(); });
+    const attiva = L.some((x) => ['in_corso', 'da_fare'].includes(x.stato));
+    if (attiva) setTimeout(() => { if ($('#ar_imps') && location.hash === h0) mostraImp().then(() => { if (!L.some((x) => ['in_corso', 'da_fare'].includes(x.stato))) rotta(); }); }, 8000);
+    else if (L[0] && L[0].stato === 'fatto' && mostraImp.prima === 'attiva') rotta();
+    mostraImp.prima = attiva ? 'attiva' : '';
+  };
+  const h0 = location.hash;
+  mostraImp();
+  if ($('#ar_imp_go')) $('#ar_imp_go').onclick = async () => {
+    const b = $('#ar_imp_go'); b.disabled = true; b.textContent = 'Leggo la cartella…'; $('#ar_imp_er').textContent = '';
+    try { const r = await chiama('/api/archivio/importa', { method: 'POST', body: { link: $('#ar_imp').value, cartella: c } });
+      $('#ar_imp').value = ''; $('#ar_imp_er').textContent = '';
+      b.textContent = r.file - r.saltati ? 'Partita: ' + (r.file - r.saltati) + ' file, ' + String(r.gb).replace('.', ',') + ' GB' : 'C’era già tutto';
+      if (!r.partito) $('#ar_imp_er').textContent = 'GitHub non è partito: controlla il token GitHub in Impostazioni.';
+      mostraImp(); setTimeout(() => { b.disabled = false; b.textContent = 'Importa'; }, 4000);
+    } catch (x) { $('#ar_imp_er').textContent = x.message; b.disabled = false; b.textContent = 'Importa'; } };
   $('#ar_crea').onclick = async () => { const n = $('#ar_nome').value.trim(); if (!n) return; try { await crea((c ? c + '/' : '') + n); rotta(); } catch (x) { alert(x.message); } };
   if ($('#ar_base')) $('#ar_base').onclick = async () => { for (const q of ['Clienti', 'Musica/Allegra', 'Musica/Emozionante', 'Musica/Natalizia', 'Musica/Latina', 'Musica/Chill', 'Grafiche']) await crea(q); rotta(); };
   if ($('#ar_reel')) $('#ar_reel').onclick = () => { ARCH_PREFILL = c; PREFILL = 'Reel per ' + pezzi[1] + ' · ' + pezzi.slice(2).join(' ') + ': '; location.hash = '#/nuovo'; };
