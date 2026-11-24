@@ -35,6 +35,25 @@ function kv() {
   };
 }
 
+// ---------------------------------------------------------------- R2 finto (archivio)
+function r2() {
+  const m = new Map(), up = new Map();
+  const bytes = async (v) => v instanceof ReadableStream ? new Uint8Array(await new Response(v).arrayBuffer()) : v instanceof Blob ? new Uint8Array(await v.arrayBuffer()) : ArrayBuffer.isView(v) ? new Uint8Array(v.buffer.slice(v.byteOffset, v.byteOffset + v.byteLength)) : v instanceof ArrayBuffer ? new Uint8Array(v) : new TextEncoder().encode(String(v ?? ''));
+  const ogg = (k, b, md) => ({ key: k, size: b.length, etag: 'e' + b.length + '_' + k.length, httpEtag: '"e"', httpMetadata: md || {} });
+  return {
+    put: async (k, v, o) => { const b = await bytes(v); m.set(k, { b, md: o?.httpMetadata }); return ogg(k, b, o?.httpMetadata); },
+    get: async (k, o) => { const e = m.get(k); if (!e) return null; let b = e.b; if (o?.range) b = b.slice(o.range.offset, o.range.length ? o.range.offset + o.range.length : undefined); return { ...ogg(k, e.b, e.md), size: e.b.length, body: new Response(b).body }; },
+    delete: async (ks) => { for (const k of [].concat(ks)) m.delete(k); },
+    createMultipartUpload: async (k, o) => { const id = 'u' + up.size; up.set(id, { k, parti: new Map(), md: o?.httpMetadata }); return { uploadId: id, key: k }; },
+    resumeMultipartUpload: (k, id) => ({
+      uploadPart: async (n, v) => { up.get(id).parti.set(n, await bytes(v)); return { partNumber: n, etag: 'p' + n }; },
+      complete: async (parti) => { const u = up.get(id); const b = new Uint8Array(parti.reduce((s, x) => s + u.parti.get(x.partNumber).length, 0)); let o = 0; for (const x of parti) { b.set(u.parti.get(x.partNumber), o); o += u.parti.get(x.partNumber).length; } m.set(k, { b, md: u.md }); up.delete(id); return ogg(k, b, u.md); },
+      abort: async () => { up.delete(id); },
+    }),
+    _m: m,
+  };
+}
+
 // ---------------------------------------------------------------- Claude finto
 const chiamateClaude = [];
 export const stato = { modoClaude: 'ok', heygen: [] };
@@ -42,6 +61,7 @@ function rispostaClaude(body) {
   const sys = typeof body.system === 'string' ? body.system : JSON.stringify(body.system);
   const msg = JSON.stringify(body.messages);
   chiamateClaude.push(sys.slice(0, 60));
+  if (sys.includes('Scegli la musica per un reel')) { const k = msg.match(/i\\":(\d+),\\"umore\\":\\"Natal/); return { i: k ? Number(k[1]) : 0 }; }
   if (sys.includes('Prepari le ricerche')) return { youtube: ['reel ristoranti errori', 'restaurant reels mistakes'], tiktok: ['reel ristorante'], hashtag: ['ristoranti'] };
   if (sys.startsWith('Sei Zoe')) return { ganci_che_funzionano: ['Il motivo per cui… non è quello che pensi'], strutture: ['problema-tensione-soluzione'], angoli_scoperti: ['il menu'], durata_ideale_sec: 55, da_evitare: ['elenchi'], nota: 'ok' };
   if (sys.includes('correttore di bozze')) { const m = msg.match(/\\"id\\":(\d+),\\"testo\\":\\"([^\\]*)/); return { correzioni: m ? [{ id: Number(m[1]), testo: m[2] + ' (corretto)', motivo: 'prova' }] : [] }; }
@@ -119,7 +139,7 @@ export const W = m.default;
 export const GEST = d1();
 GEST._db.exec(`CREATE TABLE records (store TEXT, id TEXT, data TEXT, updated TEXT, by_user TEXT); CREATE TABLE log (ts TEXT, user_id TEXT, nome TEXT, azione TEXT, store TEXT, rec_id TEXT, titolo TEXT);
   CREATE TABLE users (id TEXT, nome TEXT, username TEXT, ruolo TEXT, attivo INTEGER); INSERT INTO users VALUES ('u1','Johnny','johnny','admin',1);`);
-export const env = { DB: d1(), GEST, VIDEO: kv(), ADMIN_PASSWORD: 'provaprova', ANTHROPIC_API_KEY: 'sk-finto', CLAUDE_MODEL: 'claude-test' };
+export const env = { DB: d1(), GEST, VIDEO: kv(), ARCHIVIO: r2(), ADMIN_PASSWORD: 'provaprova', ANTHROPIC_API_KEY: 'sk-finto', CLAUDE_MODEL: 'claude-test' };
 const ctx = { waitUntil: (p) => attese.push(p), passThroughOnException() {} };
 let attese = [];
 let biscotto = '';

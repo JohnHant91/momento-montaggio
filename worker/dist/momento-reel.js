@@ -810,6 +810,226 @@ async function pcloudClip(link) {
   return out;
 }
 
+// src/archivio.js
+var VIDEO = /\.(mp4|mov|m4v|mxf|avi|mkv|webm|mts)$/i;
+var FOTO = /\.(jpe?g|png|webp|heic|heif|tiff?|dng|cr2|cr3|nef|arw|raf|orf|rw2)$/i;
+var AUDIO = /\.(mp3|m4a|wav|aac|flac|ogg)$/i;
+var tipoFile = (nome) => VIDEO.test(nome) ? "video" : AUDIO.test(nome) ? "musica" : FOTO.test(nome) ? "immagine" : "altro";
+var PARTE_MB = 50;
+function pulisci(p) {
+  const pezzi = String(p || "").normalize("NFC").split("/").map((x) => x.trim().replace(/[\u0000-\u001f\\]/g, "")).filter((x) => x && x !== "." && x !== "..");
+  return pezzi.join("/").slice(0, 500);
+}
+var padre = (p) => p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "";
+var nomeDi = (p) => p.slice(p.lastIndexOf("/") + 1);
+async function schemaArchivio(env) {
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS archivio (percorso TEXT PRIMARY KEY, cartella TEXT NOT NULL, nome TEXT NOT NULL, tipo TEXT NOT NULL,
+    dimensione INTEGER DEFAULT 0, etag TEXT, mime TEXT, creato TEXT)`).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS archivio_cartella ON archivio(cartella)").run();
+}
+async function creaCartella(env, p) {
+  const pezzi = p.split("/");
+  for (let k = 1; k <= pezzi.length; k++) {
+    const q = pezzi.slice(0, k).join("/");
+    await run(env, "INSERT OR IGNORE INTO archivio (percorso, cartella, nome, tipo, creato) VALUES (?,?,?,'cartella',?)", q, padre(q), nomeDi(q), ora());
+  }
+}
+async function registraFile(env, p, oggetto, mime) {
+  if (padre(p)) await creaCartella(env, padre(p));
+  await run(
+    env,
+    `INSERT INTO archivio (percorso, cartella, nome, tipo, dimensione, etag, mime, creato) VALUES (?,?,?,?,?,?,?,?)
+    ON CONFLICT(percorso) DO UPDATE SET dimensione=excluded.dimensione, etag=excluded.etag, mime=excluded.mime, creato=excluded.creato`,
+    p,
+    padre(p),
+    nomeDi(p),
+    tipoFile(p),
+    oggetto.size || 0,
+    oggetto.etag || oggetto.httpEtag || "",
+    mime || "",
+    ora()
+  );
+}
+async function fileSotto(env, cartella) {
+  const c = pulisci(cartella);
+  return all(env, "SELECT * FROM archivio WHERE tipo != 'cartella' AND (cartella = ? OR cartella LIKE ? ESCAPE '\\') ORDER BY percorso", c, c.replace(/[%_\\]/g, "\\$&") + "/%");
+}
+async function firma(env, p, scade) {
+  const k = await crypto.subtle.importKey("raw", new TextEncoder().encode((env.IG_INTERNO_KEY || "") + "|" + (env.ADMIN_PASSWORD || "") + "|archivio"), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return [...new Uint8Array(await crypto.subtle.sign("HMAC", k, new TextEncoder().encode(`${p}|${scade}`)))].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 40);
+}
+async function linkFirmato(env, origine, p) {
+  const g = 864e5, scade = (Math.floor(Date.now() / g) + 3) * g;
+  return `${origine}/archivio-file?p=${encodeURIComponent(p)}&s=${scade}&f=${await firma(env, p, scade)}`;
+}
+async function linkValido(env, p, s, f) {
+  return Number(s) > Date.now() && f === await firma(env, p, Number(s));
+}
+async function firmaSorgenti(env, origine, x) {
+  if (Array.isArray(x)) {
+    for (let i = 0; i < x.length; i++) x[i] = await firmaSorgenti(env, origine, x[i]);
+    return x;
+  }
+  if (x && typeof x === "object") {
+    for (const k of Object.keys(x)) x[k] = await firmaSorgenti(env, origine, x[k]);
+    return x;
+  }
+  if (typeof x === "string" && x.startsWith("archivio:")) return linkFirmato(env, origine, x.slice(9));
+  return x;
+}
+async function servi(env, req, p) {
+  if (!env.ARCHIVIO) return new Response("archivio non collegato", { status: 503 });
+  const range = req.headers.get("range");
+  const m = range && /bytes=(\d+)-(\d*)/.exec(range);
+  const o = await env.ARCHIVIO.get(p, m ? { range: { offset: Number(m[1]), ...m[2] ? { length: Number(m[2]) - Number(m[1]) + 1 } : {} } } : {});
+  if (!o) return new Response("file non trovato", { status: 404 });
+  const h = new Headers({ "content-type": o.httpMetadata?.contentType || "application/octet-stream", "accept-ranges": "bytes", "cache-control": "private, max-age=3600" });
+  if (m) {
+    const inizio = Number(m[1]), fine = m[2] ? Number(m[2]) : o.size - 1;
+    h.set("content-range", `bytes ${inizio}-${fine}/${o.size}`);
+    h.set("content-length", String(fine - inizio + 1));
+    return new Response(o.body, { status: 206, headers: h });
+  }
+  h.set("content-length", String(o.size));
+  return new Response(o.body, { headers: h });
+}
+async function trovaCartella(env, testo) {
+  const parole = new Set(String(testo || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").match(/[a-z0-9]{3,}/g) || []);
+  const radice = (w) => w.replace(/(i|e|a|o)$/, "");
+  const radici = new Set([...parole].map(radice));
+  const cartelle = await all(env, "SELECT percorso FROM archivio WHERE tipo='cartella' AND percorso LIKE 'Clienti/%'");
+  let meglio = null, voto = 0;
+  for (const { percorso } of cartelle) {
+    const pezzi = percorso.split("/").slice(1).map((x) => x.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""));
+    const presi = pezzi.filter((x) => (x.match(/[a-z0-9]{3,}/g) || []).some((w) => parole.has(w) || radici.has(radice(w))));
+    if (presi.length !== pezzi.length) continue;
+    const v = presi.length;
+    if (v > voto) {
+      voto = v;
+      meglio = percorso;
+    }
+  }
+  if (!meglio) return null;
+  const n = await one(env, "SELECT COUNT(*) AS n FROM archivio WHERE tipo IN ('video','immagine') AND (cartella = ? OR cartella LIKE ?)", meglio, meglio + "/%");
+  return n.n ? meglio : null;
+}
+async function logoCliente(env, cartella) {
+  const c = pulisci(cartella).split("/").slice(0, 2).join("/");
+  if (!c.startsWith("Clienti/")) return null;
+  const r = await one(env, "SELECT percorso FROM archivio WHERE cartella = ? AND tipo = 'immagine' AND lower(nome) LIKE 'logo%' ORDER BY (lower(nome) LIKE '%.png') DESC LIMIT 1", c);
+  return r?.percorso || null;
+}
+async function apiArchivio(req, env, p, m, json3) {
+  if (!p.startsWith("/api/archivio")) return null;
+  const url = new URL(req.url);
+  const corpo = async () => req.json().catch(() => ({}));
+  await schemaArchivio(env);
+  if (p === "/api/archivio" && m === "GET") {
+    const c = pulisci(url.searchParams.get("cartella"));
+    const voci = await all(env, "SELECT percorso, nome, tipo, dimensione, creato FROM archivio WHERE cartella = ? ORDER BY tipo != 'cartella', nome COLLATE NOCASE", c);
+    for (const v of voci.filter((x) => x.tipo === "cartella")) {
+      const s = await one(env, "SELECT COUNT(*) AS n, COALESCE(SUM(dimensione),0) AS b FROM archivio WHERE tipo != 'cartella' AND (cartella = ? OR cartella LIKE ?)", v.percorso, v.percorso + "/%");
+      Object.assign(v, { file: s.n, dimensione: s.b });
+    }
+    const tot = await one(env, "SELECT COALESCE(SUM(dimensione),0) AS b, COUNT(*) AS n FROM archivio WHERE tipo != 'cartella'");
+    const gb = tot.b / 1073741824;
+    return json3({ cartella: c, voci, collegato: !!env.ARCHIVIO, totale: { file: tot.n, gb: Math.round(gb * 100) / 100, euro_mese: Math.round(Math.max(0, gb - 10) * 0.015 * 0.86 * 100) / 100 } });
+  }
+  if (p === "/api/archivio/cartelle" && m === "GET") {
+    return json3(await all(env, "SELECT percorso FROM archivio WHERE tipo='cartella' ORDER BY percorso COLLATE NOCASE"));
+  }
+  if (p === "/api/archivio/cartella" && m === "POST") {
+    const d = await corpo();
+    const c = pulisci(d.percorso);
+    if (!c) return json3({ errore: "scrivi il nome della cartella" }, 400);
+    await creaCartella(env, c);
+    return json3({ ok: true, percorso: c });
+  }
+  if (!env.ARCHIVIO) return json3({ errore: "Archivio non ancora collegato: attiva R2 nella dashboard di Cloudflare" }, 503);
+  if (p === "/api/archivio/carica" && m === "PUT") {
+    const c = pulisci(url.searchParams.get("p"));
+    if (!c || !padre(c)) return json3({ errore: "il file va messo dentro una cartella" }, 400);
+    const mime = req.headers.get("content-type") || "application/octet-stream";
+    const o = await env.ARCHIVIO.put(c, req.body, { httpMetadata: { contentType: mime } });
+    await registraFile(env, c, o, mime);
+    return json3({ ok: true, percorso: c });
+  }
+  if (p === "/api/archivio/carica/inizio" && m === "POST") {
+    const d = await corpo();
+    const c = pulisci(d.percorso);
+    if (!c || !padre(c)) return json3({ errore: "il file va messo dentro una cartella" }, 400);
+    const u = await env.ARCHIVIO.createMultipartUpload(c, { httpMetadata: { contentType: d.mime || "application/octet-stream" } });
+    return json3({ percorso: c, upload: u.uploadId, parte_mb: PARTE_MB });
+  }
+  if (p === "/api/archivio/carica/parte" && m === "PUT") {
+    const c = pulisci(url.searchParams.get("p"));
+    const u = env.ARCHIVIO.resumeMultipartUpload(c, url.searchParams.get("u"));
+    const parte = await u.uploadPart(Number(url.searchParams.get("n")), req.body);
+    return json3({ n: parte.partNumber, etag: parte.etag });
+  }
+  if (p === "/api/archivio/carica/fine" && m === "POST") {
+    const d = await corpo();
+    const c = pulisci(d.percorso);
+    const u = env.ARCHIVIO.resumeMultipartUpload(c, d.upload);
+    const o = await u.complete((d.parti || []).map((x) => ({ partNumber: Number(x.n), etag: String(x.etag) })));
+    await registraFile(env, c, o, d.mime);
+    return json3({ ok: true, percorso: c });
+  }
+  if (p === "/api/archivio/carica/annulla" && m === "POST") {
+    const d = await corpo();
+    try {
+      await env.ARCHIVIO.resumeMultipartUpload(pulisci(d.percorso), d.upload).abort();
+    } catch (_) {
+    }
+    return json3({ ok: true });
+  }
+  if (p === "/api/archivio/file" && m === "GET") return servi(env, req, pulisci(url.searchParams.get("p")));
+  if (p === "/api/archivio" && m === "DELETE") {
+    const c = pulisci(url.searchParams.get("p"));
+    if (!c) return json3({ errore: "cosa elimino?" }, 400);
+    const v = await one(env, "SELECT tipo FROM archivio WHERE percorso=?", c);
+    if (!v) return json3({ errore: "non trovato" }, 404);
+    const file = v.tipo === "cartella" ? (await fileSotto(env, c)).map((x) => x.percorso) : [c];
+    for (let i = 0; i < file.length; i += 500) await env.ARCHIVIO.delete(file.slice(i, i + 500));
+    await run(env, "DELETE FROM archivio WHERE percorso = ? OR percorso LIKE ?", c, c.replace(/[%_]/g, "\\$&") + "/%");
+    return json3({ ok: true, eliminati: file.length });
+  }
+  return json3({ errore: "non trovato" }, 404);
+}
+async function clipArchivio(env, cartella) {
+  return (await fileSotto(env, cartella)).filter((f) => ["video", "immagine", "musica"].includes(f.tipo) && !/^logo/i.test(f.nome)).map((f) => ({
+    fileid: "a:" + f.percorso,
+    nome: f.nome,
+    cartella: f.cartella,
+    dimensione: f.dimensione,
+    hash: String(f.etag || f.percorso),
+    ...f.tipo === "musica" ? { tipo: "musica", tecnico: { tipo: "musica" } } : f.tipo === "immagine" ? { tipo: "immagine", tecnico: { tipo: "immagine", durata_sec: 0 } } : { tecnico: {} },
+    sorgente: { tipo: "archivio", percorso: f.percorso }
+  }));
+}
+async function branoArchivio(env, scegli2) {
+  const brani = (await fileSotto(env, "Musica")).filter((f) => f.tipo === "musica");
+  if (!brani.length) return null;
+  const lista = brani.slice(0, 120).map((b2, i) => ({ i, umore: b2.cartella.split("/").slice(1).join(" / ") || "varie", brano: b2.nome.replace(/\.[^.]+$/, "") }));
+  let k = null;
+  try {
+    k = await scegli2(lista);
+  } catch (_) {
+  }
+  const b = brani[Number.isInteger(k) && brani[k] ? k : Math.floor(Math.random() * brani.length)];
+  return {
+    fileid: "a:" + b.percorso,
+    nome: b.nome,
+    cartella: b.cartella,
+    dimensione: b.dimensione,
+    hash: String(b.etag || b.percorso),
+    tipo: "musica",
+    tecnico: { tipo: "musica" },
+    sorgente: { tipo: "archivio", percorso: b.percorso },
+    dalla_libreria: true
+  };
+}
+
 // src/stili.js
 var GENERI = {
   split: {
@@ -2287,7 +2507,9 @@ async function avvisoMotore(env, L) {
   return false;
 }
 var chiaveRif = (v) => `rif2:${v.piattaforma}:${v.id}`;
+var rifSorgente = (c) => c?.sorgente?.tipo === "url" ? { fileid: null, url: c.sorgente.url } : c?.sorgente?.tipo === "archivio" ? { fileid: null, url: "archivio:" + c.sorgente.percorso } : { fileid: c?.fileid, url: null };
 var FONTI = {
+  archivio: { nome: "Archivio dell\u2019agenzia", pronta: (L) => !!L.pcloud, elenca: async (L, env) => clipArchivio(env, L.pcloud) },
   pcloud: { nome: "Cartella pCloud", pronta: (L) => !!L.pcloud, elenca: async (L) => (await pcloudClip(L.pcloud)).map((c) => ({ ...c, sorgente: { tipo: "pcloud", fileid: c.fileid } })) },
   // video da link diretti (es. il video del tuo avatar HeyGen): in "pcloud" c'è l'elenco JSON [{nome, url, durata}]
   url: { nome: "Video da link", pronta: (L) => !!L.pcloud, elenca: async (L) => [
@@ -2315,8 +2537,28 @@ async function faseClip(env, cfg, L) {
   }
   let clip = J(L.clip, null);
   if (!clip) {
-    const lista = await fonte.elenca(L);
-    if (!lista.length) throw new Error("nella cartella pCloud non ci sono n\xE9 video n\xE9 foto");
+    const lista = await fonte.elenca(L, env);
+    if (!lista.filter((c) => c.tipo !== "musica").length) throw new Error(L.fonte === "archivio" ? `nella cartella ${L.pcloud} dell'archivio non ci sono n\xE9 video n\xE9 foto` : "nella cartella pCloud non ci sono n\xE9 video n\xE9 foto");
+    if (env.ARCHIVIO && !lista.some((c) => c.tipo === "musica") && !/senza musica|musica.{0,30}(instagram|edits|la metto io)/i.test(L.prompt || "")) {
+      const st = J(L.stile, null);
+      const b = await branoArchivio(env, async (brani) => {
+        const r = await claude(
+          { ...cfg, CLAUDE_MODEL: cfg.CLAUDE_MODEL_LIGHT || cfg.CLAUDE_MODEL },
+          'Scegli la musica per un reel. Rispondi solo JSON {"i": numero}.',
+          `REEL: ${L.prompt}
+STILE: ${st?.nome || st?.genere || "-"} ${(st?.mood || []).join(", ")}
+BRANI (umore = sottocartella):
+${JSON.stringify(brani)}
+Scegli il brano pi\xF9 adatto all'umore del reel.`,
+          { maxTokens: 60 }
+        );
+        return Number(r?.i);
+      }).catch(() => null);
+      if (b) {
+        lista.push(b);
+        await log(env, L.id, "regista", `\u{1F3B5} musica dall'archivio: ${b.cartella.split("/").slice(1).join(" / ") || "Musica"} \xB7 ${b.nome}`);
+      }
+    }
     clip = lista.map((c) => ({ ...c, stato: "da_guardare" }));
     let gia = 0;
     for (const c of clip) {
@@ -2592,7 +2834,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
   const p = await claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda2, clip) + extraMusica + extraStile + extra, { maxTokens: 12e3 });
   const tutte = J(L.clip, []);
   const eImm = (c) => c?.tipo === "immagine" || c?.tecnico?.tipo === "immagine";
-  const sorg = (c) => ({ fileid: c.sorgente?.tipo === "url" ? null : c.fileid, url: c.sorgente?.tipo === "url" ? c.sorgente.url : null, nome: c.nome });
+  const sorg = (c) => ({ ...rifSorgente(c), nome: c.nome });
   let formato = FORMATI_REEL.includes(indicazioni?.formato) ? indicazioni.formato : FORMATI_REEL.includes(R?.formato) ? R.formato : FORMATI_REEL.includes(p.formato) ? p.formato : "montaggio";
   const slide = (p.slide || []).filter((s) => tutte[s.clip]?.stato === "fatto" && eImm(tutte[s.clip])).slice(0, 20).map((s) => ({ clip: s.clip, ...sorg(tutte[s.clip]), durata: Math.min(Math.max(Number(s.durata) || 2.2, 1.8), 8) }));
   if (formato === "carosello" && slide.length < 2) {
@@ -2619,8 +2861,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
     }
     return {
       clip: s.clip,
-      fileid: c.sorgente?.tipo === "url" ? null : c.fileid,
-      url: c.sorgente?.tipo === "url" ? c.sorgente.url : null,
+      ...rifSorgente(c),
       nome: c.nome,
       in: inizio,
       durata,
@@ -2663,7 +2904,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
     durata: Math.min(7, Math.max(1.5, Number(s.durata) || 2.6))
   }));
   const lookVoluto = indicazioni?.look && LOOKS.includes(indicazioni.look) ? indicazioni.look : null;
-  const cop = p.copertina && tutte[p.copertina.clip]?.stato === "fatto" ? { fileid: tutte[p.copertina.clip].sorgente?.tipo === "url" ? null : tutte[p.copertina.clip].fileid, url: tutte[p.copertina.clip].sorgente?.tipo === "url" ? tutte[p.copertina.clip].sorgente.url : null, secondo: Math.max(0, Number(p.copertina.secondo) || 0), testo: String(p.copertina.testo || "").slice(0, 60) } : null;
+  const cop = p.copertina && tutte[p.copertina.clip]?.stato === "fatto" ? { ...rifSorgente(tutte[p.copertina.clip]), secondo: Math.max(0, Number(p.copertina.secondo) || 0), testo: String(p.copertina.testo || "").slice(0, 60) } : null;
   let pannello = null;
   const pn = p.pannello;
   if (formato === "talking_head" && pn?.titolo && ["line", "bar", "steps"].includes(pn.tipo)) {
@@ -2730,6 +2971,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
   if (motore === "montatore" && p.sottotitoli) p.sottotitoli = { ...p.sottotitoli, stile: STILI_SOTT.includes(p.sottotitoli.stile) ? p.sottotitoli.stile : "box" };
   const usate = new Set(seg.map((x) => x.clip));
   const riserve = motore !== "montatore" ? [] : tutte.map((c, i) => ({ c, i })).filter(({ c, i }) => c?.stato === "fatto" && !eImm(c) && !usate.has(i) && (Number(c.tecnico?.durata_sec) || 0) >= 1.5).slice(0, 14).map(({ c, i }) => ({ clip: i, ...sorg(c), nome: c.nome, durata_clip: Number(c.tecnico?.durata_sec) || null }));
+  const logoArch = L.fonte === "archivio" ? await logoCliente(env, L.pcloud).catch(() => null) : null;
   const piano2 = {
     ...p,
     formato: motore,
@@ -2746,14 +2988,14 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
     tracker,
     adesivi,
     ...avatar ? { taglia_silenzi: false } : {},
-    logo: prima?.logo || null,
+    logo: prima?.logo || (logoArch ? { archivio: logoArch } : null),
     stabilizza_tutto: !!(indicazioni?.stabilizza_tutto || prima?.piano?.stabilizza_tutto || p.stabilizza_tutto || R?.camera === "morbida"),
     camera_ferma: R?.camera === "a_mano" ? false : !!(indicazioni?.camera_ferma || prima?.piano?.camera_ferma || p.camera_ferma || R?.camera === "ferma"),
     camera_a_mano: R?.camera === "a_mano" || void 0,
     stile: R ? R.nome : void 0,
     apertura: ["nero", "bianco"].includes(indicazioni?.apertura) ? indicazioni.apertura : ["nero", "bianco"].includes(p.apertura) ? p.apertura : R?.apertura || null,
     finale: ["nero", "bianco"].includes(indicazioni?.finale) ? indicazioni.finale : ["nero", "bianco"].includes(p.finale) ? p.finale : R?.finale || null,
-    musica: brano ? { fileid: brano.c.fileid, nome: brano.c.nome, durata: brano.c.tecnico?.durata_sec, bpm: mu?.bpm, battuta: mu?.battuta_sec, primo_battito: mu?.primo_battito, volume: 0.9 } : null,
+    musica: brano ? { ...rifSorgente(brano.c), nome: brano.c.nome, durata: brano.c.tecnico?.durata_sec, bpm: mu?.bpm, battuta: mu?.battuta_sec, primo_battito: mu?.primo_battito, volume: 0.9 } : null,
     sfx: brano ? false : p.sfx,
     segmenti: formato === "carosello" ? [] : seg,
     broll,
@@ -5085,16 +5327,16 @@ async function motoreApi(req, env, url) {
     if (tipo2 === "montaggio") {
       const m2 = J(L2.montaggio, {});
       await log(env, L2.id, "motore", `\u2699\uFE0F motore GitHub al lavoro: scarico ${new Set([...m2.piano.segmenti || [], ...m2.piano.broll || [], ...m2.piano.slide || []].map((s) => s.fileid || s.url)).size} file e monto il reel (${m2.piano.formato || "montaggio"})`);
-      return json({ id: L2.id, tipo: tipo2, pass: pass2, pcloud_code: codice(L2.pcloud), pcloud_eu: /(^|\/\/)e\.|eapi/.test(L2.pcloud || ""), piano: m2.piano });
+      return json({ id: L2.id, tipo: tipo2, pass: pass2, pcloud_code: codice(L2.pcloud), pcloud_eu: /(^|\/\/)e\.|eapi/.test(L2.pcloud || ""), piano: await firmaSorgenti(env, url.origin, m2.piano) });
     }
     const elenco2 = J(tipo2 === "riferimenti" ? L2.riferimenti : L2.clip, []);
-    const elementi = elenco2.map((x, i) => [x, i]).filter(([x]) => x.stato === "da_guardare").map(([x, i]) => tipo2 === "riferimenti" ? {
+    const elementi = await Promise.all(elenco2.map((x, i) => [x, i]).filter(([x]) => x.stato === "da_guardare").map(async ([x, i]) => tipo2 === "riferimenti" ? {
       indice: i,
       nome: `${x.video.piattaforma} \xB7 ${(x.video.titolo || x.video.url || "").slice(0, 60)}`,
       url: x.video.url,
       // i file di Apify li scarica la regia (ha il token), il motore passa da qui
       video_url: x.video.video_url ? x.video.video_url.includes("api.apify.com") ? `${url.origin}/api/motore/${L2.id}/scarica?i=${i}&tipo=riferimenti&pass=${pass2}` : x.video.video_url : null
-    } : { indice: i, nome: x.nome, tipo: x.tipo || x.tecnico?.tipo || "video", fileid: x.sorgente?.tipo === "pcloud" || !x.sorgente ? x.fileid : null, video_url: x.sorgente?.tipo === "url" ? x.sorgente.url : null, dimensione: x.dimensione });
+    } : { indice: i, nome: x.nome, tipo: x.tipo || x.tecnico?.tipo || "video", fileid: x.sorgente?.tipo === "pcloud" || !x.sorgente ? x.fileid : null, video_url: x.sorgente?.tipo === "url" ? x.sorgente.url : x.sorgente?.tipo === "archivio" ? await linkFirmato(env, url.origin, x.sorgente.percorso) : null, dimensione: x.dimensione }));
     await log(env, L2.id, "motore", `\u2699\uFE0F motore GitHub al lavoro: ${elementi.length} ${tipo2 === "riferimenti" ? "reel da scaricare e misurare" : "clip da scaricare e misurare"}`);
     return json({ id: L2.id, tipo: tipo2, pass: pass2, pcloud_code: codice(L2.pcloud), pcloud_eu: /(^|\/\/)e\.|eapi/.test(L2.pcloud || ""), elementi });
   }
@@ -5143,7 +5385,9 @@ async function motoreApi(req, env, url) {
     return json({ ok: true });
   }
   if (mm[2] === "logo" && m === "GET") {
-    const chiave = J(L.montaggio, {})?.piano?.logo?.kv;
+    const lg = J(L.montaggio, {})?.piano?.logo || {};
+    if (lg.archivio && env.ARCHIVIO) return servi(env, req, lg.archivio);
+    const chiave = lg.kv;
     const dati = chiave ? await env.VIDEO.get(chiave, "arrayBuffer") : null;
     if (!dati) return json({ errore: "logo non trovato" }, 404);
     return new Response(dati, { headers: { "content-type": "image/png" } });
@@ -5258,8 +5502,8 @@ async function chiavi(env) {
 async function jwtVapid(env, aud, k) {
   const intest = b64u2(new TextEncoder().encode(JSON.stringify({ typ: "JWT", alg: "ES256" })));
   const corpo = b64u2(new TextEncoder().encode(JSON.stringify({ aud, exp: Math.floor(Date.now() / 1e3) + 12 * 3600, sub: "mailto:info@momentoproduzione.it" })));
-  const firma2 = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, k.priv, new TextEncoder().encode(intest + "." + corpo));
-  return intest + "." + corpo + "." + b64u2(firma2);
+  const firma3 = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, k.priv, new TextEncoder().encode(intest + "." + corpo));
+  return intest + "." + corpo + "." + b64u2(firma3);
 }
 async function inviaPush(env, titolo, testo, link = "#/approvazioni") {
   const k = await chiavi(env);
@@ -5445,6 +5689,10 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 .etichette:not(.vicino) .et-ag.pillola{display:none}
 .reelc{display:flex;gap:14px;align-items:flex-start}.reelc .reel-cop{flex:0 0 72px;height:128px;border-radius:10px;background:#f1efe9;display:grid;place-items:center;font-size:26px;overflow:hidden}.reelc .reel-cop img{width:100%;height:100%;object-fit:cover}.reelc .reel-tit{color:inherit;text-decoration:none}.reelc.pausa{opacity:.75}.reelc.errore{border-color:var(--err)}.reelc .r_az{padding:6px 10px;font-size:13px;width:auto}
 .chip{width:auto;padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:#fff;color:inherit;font-size:13px;font-weight:600;text-decoration:none;cursor:pointer}.chip.att{background:var(--ink,#16302f);color:#fff;border-color:transparent}
+.ar-griglia{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:12px 0}.ar-car,.ar-file{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:4px;text-decoration:none;color:inherit;min-width:0}.ar-car span{font-size:30px}.ar-file b,.ar-car b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.ar-ant{display:flex;align-items:center;justify-content:center;aspect-ratio:1;background:#f3f1ec;border-radius:10px;overflow:hidden;font-size:34px}.ar-ant img{width:100%;height:100%;object-fit:cover}
+.ar-drop{border:2px dashed var(--line);border-radius:14px;padding:22px;text-align:center;color:var(--mut,#777);cursor:pointer}.ar-drop.su{border-color:var(--teal,#12a3a4);background:#eefafa}
+.ar-riga{display:grid;grid-template-columns:1fr 120px 70px;gap:8px;align-items:center;font-size:13px;margin-top:6px}.ar-riga span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ar-bar{height:6px;background:#eee;border-radius:4px;overflow:hidden}.ar-bar i{display:block;height:100%;width:0;background:var(--teal,#12a3a4)}
 .ap-h{display:flex;align-items:center;gap:8px;margin-top:26px}.ap{margin-bottom:12px}.ap-voce{border-top:1px solid var(--line);padding:10px 0}.ap-voce:first-of-type{border-top:0}.ap-voce.consigliata{background:#fffbea;border-radius:10px;padding:10px}.ap summary{cursor:pointer}
 .lavorazioni{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin:12px 0}.lz{display:flex;gap:10px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 12px;color:inherit;text-decoration:none}.lz .ic{font-size:22px}.lz .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}.lz b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lz small{font-size:12px;color:var(--mut)}
 .avanz{height:6px;border-radius:9px;background:#ece9e1;overflow:hidden}.avanz i{display:block;height:100%;background:linear-gradient(90deg,#12a3a4,#3fd0c9);border-radius:9px;transition:width .6s}
@@ -5557,6 +5805,7 @@ const ICO = {
   riunioni: '<circle cx="12" cy="8" r="3"/><path d="M5 20c.8-3.5 3.6-5.5 7-5.5s6.2 2 7 5.5M4.5 10.5a2.3 2.3 0 1 0 0-.1M19.5 10.5a2.3 2.3 0 1 0 0-.1"/>',
   profilo: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".6"/>',
   approvazioni: '<path d="M20 6 9 17l-5-5"/>',
+  archivio: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
   clienti: '<path d="M16 20v-1.5a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4V20M9.5 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M21 20v-1.5a4 4 0 0 0-3-3.9M15.5 3.6a3.5 3.5 0 0 1 0 6.8"/>',
   post: '<rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 21h12a2 2 0 0 0 2-2V7M3 13l4-4 4 4 3-3 3 3"/>',
   costi: '<path d="M12 2v20M17 6.5c0-1.9-2.2-3-5-3s-5 1.3-5 3.3c0 4.7 10 2.4 10 7.2 0 2-2.2 3.5-5 3.5s-5-1.2-5-3.2"/>',
@@ -5565,7 +5814,7 @@ const ICO = {
   gestionale: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   impostazioni: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'
 };
-const VOCI = [['agenzia', 'Agenzia', '#/'], ['riunioni', 'Riunioni', '#/riunioni'], ['approvazioni', 'Approvazioni', '#/approvazioni'], ['profilo', 'Profilo IG', '#/profilo'], ['clienti', 'Clienti', '#/clienti']];
+const VOCI = [['agenzia', 'Agenzia', '#/'], ['riunioni', 'Riunioni', '#/riunioni'], ['approvazioni', 'Approvazioni', '#/approvazioni'], ['profilo', 'Profilo IG', '#/profilo'], ['clienti', 'Clienti', '#/clienti'], ['archivio', 'Archivio', '#/archivio']];
 const STRUMENTI = [ ['gestionale', 'Gestionale', '#/gestionale'], ['costi', 'Costi', '#/costi']];
 const voce = (v) => '<a class="vm" href="' + v[2] + '" data-k="' + v[0] + '"><svg viewBox="0 0 24 24">' + ICO[v[0]] + '</svg><span class="tx">' + v[1] + '</span>' + (v[0] === 'costi' ? '<span class="num" id="num_costi"></span>' : '') + '</a>';
 function menu(on) {
@@ -5585,7 +5834,7 @@ async function aggiornaNumCosti() {
 const soldi = (usd, cambio) => '\u20AC ' + (usd * (cambio || 0.86)).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 function evidenzia() {
   const h = location.hash || '#/';
-  const k = h === '#/' || h.startsWith('#/agente') || h.startsWith('#/ufficio') || h.startsWith('#/incarico') || h === '#/chat/capo' ? 'agenzia' : h.startsWith('#/riunion') ? 'riunioni' : h.startsWith('#/profilo') ? 'profilo' : h.startsWith('#/approvazion') ? 'approvazioni' : h.startsWith('#/client') ? 'clienti' :
+  const k = h === '#/' || h.startsWith('#/agente') || h.startsWith('#/ufficio') || h.startsWith('#/incarico') || h === '#/chat/capo' ? 'agenzia' : h.startsWith('#/riunion') ? 'riunioni' : h.startsWith('#/profilo') ? 'profilo' : h.startsWith('#/archivio') ? 'archivio' : h.startsWith('#/approvazion') ? 'approvazioni' : h.startsWith('#/client') ? 'clienti' :
     h.startsWith('#/reel') || h.startsWith('#/lavoro') || h.startsWith('#/nuovo') || h.startsWith('#/post') || h.startsWith('#/copion') || h.startsWith('#/piano') ? 'approvazioni' : h.startsWith('#/chat/gestionale') || h.startsWith('#/chat/contabile') || h === '#/gestionale' ? 'gestionale' : h.startsWith('#/costi') ? 'costi' : h.startsWith('#/impostazioni') ? 'impostazioni' : '';
   document.querySelectorAll('#nav .vm[data-k]').forEach((a) => a.classList.toggle('att', a.dataset.k === k));
   const tutte = VOCI.concat(STRUMENTI, [['impostazioni', 'Impostazioni']]).find((v) => v[0] === k);
@@ -5675,12 +5924,13 @@ const stato = (l) => l.stato === 'pronto' ? 'pronto' : l.stato === 'errore' ? 'e
 const STILI_UI = ${JSON.stringify(ELENCO_STILI)};
 const LUT_UI = ${JSON.stringify(Object.fromEntries(Object.entries(LUT).map(([k, v]) => [k, v[1].split(":")[0]])))};
 const GENERI_UI = STILI_UI.generi, MOOD_UI = STILI_UI.mood;
+let ARCH_PREFILL = '';
 function nuovo() {
   $('#app').innerHTML = '<h1>Nuovo reel</h1><p class="mut">Il Direttore creativo cerca i video che funzionano nel settore su YouTube, TikTok e Instagram, il motore li misura, Iris li studia, l\\'Analista studia le tue clip e alla fine ricevi la scheda tecnica.</p>' +
     '<label>Cosa deve essere il reel</label><textarea id="pr" placeholder="Es. Reel per la pizzeria Da Gino a Salerno, 30 secondi, clip in cucina e in sala. Deve far venire fame e portare prenotazioni. Target 25-40 anni, tono giovane ma non volgare."></textarea>' +
     '<div class="aiuto">Cliente, settore, obiettivo, durata, tono, a chi parla. Pi\xF9 sei preciso, migliore \xE8 la ricerca.</div>' +
-    '<label>Fonte del girato</label><select id="fo"><option value="pcloud">Le mie clip (cartella pCloud)</option><option disabled>Video stock \u2014 in arrivo</option><option disabled>Generati con AI \u2014 in arrivo</option></select>' +
-    '<label>Cartella delle clip su pCloud (facoltativo)</label><input id="pc" placeholder="https://e.pcloud.link/publink/show?code=\u2026">' +
+    '<label>Clip dall\u2019Archivio</label><select id="ar"><option value="">Scegli da sola dal testo (es. \u201Ctorretta panettoni\u201D \u2192 Clienti/Torretta/Panettoni)</option></select>' +
+    '<label>Oppure: cartella delle clip su pCloud (facoltativo)</label><input id="pc" placeholder="https://e.pcloud.link/publink/show?code=\u2026">' +
     '<label style="display:flex;gap:8px;align-items:center;font-weight:400;margin-top:8px"><input type="checkbox" id="solo" checked style="width:auto"> Usa solo le mie clip: niente ricerca di reel su YouTube/TikTok/Instagram (risparmi). Se metti dei reel modello, studia solo quelli.</label>' +
     '<div class="aiuto">Su pCloud: tasto destro sulla cartella \u2192 Condividi \u2192 Link di condivisione \u2192 copia. Senza clip ottieni scheda e lista delle riprese, e il girato lo aggiungi dopo.</div>' +
     '<label>Reel MODELLO: lo stile che vuoi (facoltativo, ma fa la differenza)</label><textarea id="lr" style="min-height:70px" placeholder="Un link per riga: Instagram, TikTok, Pinterest, YouTube, Vimeo\u2026 La squadra copia il suo linguaggio (look, ritmo, testi s\xEC/no, finale), non i contenuti."></textarea>' +
@@ -5688,9 +5938,11 @@ function nuovo() {
     '<div class="aiuto">Puoi anche solo scriverlo nella richiesta (es. \u201Cstreet emozionale\u201D, \u201Cromantico\u201D, \u201Cnatalizio\u201D): Stella cerca reel montati cos\xEC e la squadra applica quello stile alle tue clip.</div>' +
     '<div style="margin-top:18px"><button id="go">Avvia la squadra</button></div><div id="er" class="err"></div>';
   if (PREFILL) { $('#pr').value = PREFILL; PREFILL = ''; }
+  chiama('/api/archivio/cartelle').then((C) => { const sel = $('#ar'); if (!sel) return; C.forEach((c) => { const o = document.createElement('option'); o.value = c.percorso; o.textContent = '\u{1F5C2}\uFE0F ' + c.percorso; sel.appendChild(o); });
+    if (ARCH_PREFILL) { sel.value = ARCH_PREFILL; ARCH_PREFILL = ''; } }).catch(() => {});
   $('#go').onclick = async () => {
     $('#go').disabled = true;
-    try { const r = await chiama('/api/lavori', { method: 'POST', body: { prompt: $('#pr').value, pcloud: $('#pc').value, link_rif: $('#lr').value, solo_clip: $('#solo').checked, stile: ($('#sg').value || '') + '+' + ($('#sm').value || '') } }); location.hash = '#/lavoro/' + r.id; }
+    try { const r = await chiama('/api/lavori', { method: 'POST', body: { prompt: $('#pr').value, pcloud: $('#pc').value, archivio: $('#ar').value, link_rif: $('#lr').value, solo_clip: $('#solo').checked, stile: ($('#sg').value || '') + '+' + ($('#sm').value || '') } }); location.hash = '#/lavoro/' + r.id; }
     catch (x) { $('#er').textContent = x.message; $('#go').disabled = false; }
   };
 }
@@ -6554,6 +6806,75 @@ async function approvazioni() {
   document.querySelectorAll('.doc_ok').forEach((b) => b.onclick = () => azione(b, () => chiama('/api/incarichi/' + b.dataset.id + '/visto', { method: 'POST', body: {} })));
 }
 
+// ARCHIVIO: le cartelle dell'agenzia su Cloudflare (clienti \u2192 progetti, musica, grafiche\u2026). Si carica da qui, anche file da diversi GB.
+const pesoTesto = (b) => b > 1073741824 ? (b / 1073741824).toFixed(1).replace('.', ',') + ' GB' : b > 1048576 ? Math.round(b / 1048576) + ' MB' : Math.max(1, Math.round((b || 0) / 1024)) + ' KB';
+const ICONA_FILE = { cartella: '\u{1F4C1}', video: '\u{1F3AC}', immagine: '\u{1F5BC}\uFE0F', musica: '\u{1F3B5}', altro: '\u{1F4C4}' };
+async function archivioPagina(cart) {
+  const A = await chiama('/api/archivio?cartella=' + encodeURIComponent(cart || ''));
+  const c = A.cartella, pezzi = c ? c.split('/') : [];
+  const link = (q) => '#/archivio/' + encodeURIComponent(q);
+  const briciole = '<div class="riga" style="gap:4px;flex-wrap:wrap;font-weight:600"><a href="#/archivio">Archivio</a>' + pezzi.map((x, k) => ' / <a href="' + link(pezzi.slice(0, k + 1).join('/')) + '">' + e(x) + '</a>').join('') + '</div>';
+  const cartelle = A.voci.filter((v) => v.tipo === 'cartella'), file = A.voci.filter((v) => v.tipo !== 'cartella');
+  const progetto = c.startsWith('Clienti/') && pezzi.length >= 2 && (file.some((f) => f.tipo === 'video' || f.tipo === 'immagine') || cartelle.some((x) => x.file));
+  const base = !c && !A.voci.length ? '<div class="card">Archivio vuoto. <button class="sec" id="ar_base" style="width:auto;margin-left:8px">Crea le cartelle base</button><div class="mut" style="margin-top:6px">Clienti, Musica (con le sottocartelle per umore), Grafiche. Dentro Clienti metti una cartella per cliente con il suo <b>logo</b> e una sottocartella per ogni lavoro (es. Torretta \u2192 Caff\xE8, Panettoni).</div></div>' : '';
+  const anteprima = (f) => f.tipo === 'immagine' && !/\\.(dng|cr2|cr3|nef|arw|raf|orf|rw2|heic|heif|tiff?)$/i.test(f.nome) ? '<img loading="lazy" src="/api/archivio/file?p=' + encodeURIComponent(f.percorso) + '">' : '<span>' + ICONA_FILE[f.tipo] + '</span>';
+  $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Archivio</h1><span class="mut">' + A.totale.file + ' file \xB7 ' + String(A.totale.gb).replace('.', ',') + ' GB \xB7 ' + (A.totale.euro_mese ? '\u2248 \u20AC ' + A.totale.euro_mese.toFixed(2).replace('.', ',') + ' al mese' : 'gratis fino a 10 GB') + '</span></div>' +
+    (A.collegato ? '' : '<div class="card" style="border-color:var(--warn)">\u26A0\uFE0E Cloudflare R2 non \xE8 ancora attivo: puoi creare le cartelle, ma per caricare i file attiva R2 nella dashboard di Cloudflare (R2 \u2192 Attiva).</div>') +
+    briciole + base +
+    '<div class="riga" style="gap:8px;margin:12px 0;flex-wrap:wrap"><input id="ar_nome" placeholder="Nuova cartella' + (c ? ' dentro ' + e(pezzi[pezzi.length - 1]) : '') + '" style="flex:1;min-width:180px"><button class="sec" id="ar_crea" style="width:auto">\u{1F4C1} Crea</button>' +
+    (c ? '<label class="btn" style="margin:0">\u2B06\uFE0E Carica file<input type="file" id="ar_file" multiple hidden></label>' : '') +
+    (progetto ? '<button id="ar_reel" style="width:auto">\u{1F3AC} Fai un reel con queste clip</button>' : '') + '</div>' +
+    (c ? '<div id="ar_drop" class="ar-drop">Trascina qui i file (clip, foto, musica, grafiche)</div><div id="ar_prog"></div>' : '') +
+    (cartelle.length ? '<div class="ar-griglia">' + cartelle.map((v) => '<a class="ar-car" href="' + link(v.percorso) + '"><span>\u{1F4C1}</span><b>' + e(v.nome) + '</b><small class="mut">' + v.file + ' file \xB7 ' + pesoTesto(v.dimensione) + '</small></a>').join('') + '</div>' : '') +
+    (file.length ? '<div class="ar-griglia">' + file.map((f) => '<div class="ar-file"><a href="/api/archivio/file?p=' + encodeURIComponent(f.percorso) + '" target="_blank" class="ar-ant">' + anteprima(f) + '</a><b title="' + e(f.nome) + '">' + e(f.nome) + '</b><small class="mut">' + pesoTesto(f.dimensione) + (/^logo/i.test(f.nome) ? ' \xB7 logo del cliente' : '') + '</small>' +
+      '<button class="sec ar_del" data-p="' + e(f.percorso) + '" style="width:auto;padding:4px 10px;font-size:12px">Elimina</button></div>').join('') + '</div>' : (c && !cartelle.length ? '<div class="vuoto">Cartella vuota: carica i file qui sopra.</div>' : '')) +
+    (c ? '<div style="margin-top:22px"><button class="rosso ar_del" data-p="' + e(c) + '" data-cartella="1" style="width:auto">Elimina questa cartella</button></div>' : '');
+  const crea = async (q) => { await chiama('/api/archivio/cartella', { method: 'POST', body: { percorso: q } }); };
+  $('#ar_crea').onclick = async () => { const n = $('#ar_nome').value.trim(); if (!n) return; try { await crea((c ? c + '/' : '') + n); rotta(); } catch (x) { alert(x.message); } };
+  if ($('#ar_base')) $('#ar_base').onclick = async () => { for (const q of ['Clienti', 'Musica/Allegra', 'Musica/Emozionante', 'Musica/Natalizia', 'Musica/Latina', 'Musica/Chill', 'Grafiche']) await crea(q); rotta(); };
+  if ($('#ar_reel')) $('#ar_reel').onclick = () => { ARCH_PREFILL = c; PREFILL = 'Reel per ' + pezzi[1] + ' \xB7 ' + pezzi.slice(2).join(' ') + ': '; location.hash = '#/nuovo'; };
+  document.querySelectorAll('.ar_del').forEach((b) => b.onclick = async () => {
+    const cart = !!b.dataset.cartella;
+    if (!confirm(cart ? 'Elimino la cartella \u201C' + b.dataset.p + '\u201D con TUTTO quello che contiene? Non si pu\xF2 annullare.' : 'Elimino \u201C' + b.dataset.p.split('/').pop() + '\u201D? Non si pu\xF2 annullare.')) return;
+    try { await chiama('/api/archivio?p=' + encodeURIComponent(b.dataset.p), { method: 'DELETE' }); location.hash = cart ? link(pezzi.slice(0, -1).join('/')) : location.hash; if (!cart) rotta(); } catch (x) { alert(x.message); }
+  });
+  const carica = async (lista) => {
+    const box = $('#ar_prog'); let fatti = 0;
+    const righe = [...lista].map((f, k) => { const d = document.createElement('div'); d.className = 'ar-riga'; d.innerHTML = '<span>' + e(f.name) + '</span><span class="ar-bar"><i id="ab' + k + '"></i></span><small id="at' + k + '">in coda</small>'; box.appendChild(d); return f; });
+    const invia = (metodo, u, blob, avanz) => new Promise((ok, ko) => { const x = new XMLHttpRequest(); x.open(metodo, u); x.setRequestHeader('content-type', blob.type || 'application/octet-stream');
+      x.upload.onprogress = (ev) => avanz(ev.loaded); x.onload = () => { let d = {}; try { d = JSON.parse(x.responseText); } catch (_) {} x.status < 300 ? ok(d) : ko(new Error(d.errore || 'HTTP ' + x.status)); }; x.onerror = () => ko(new Error('rete')); x.send(blob); });
+    const uno = async (f, k) => {
+      const p = c + '/' + f.name, bar = $('#ab' + k), tx = $('#at' + k);
+      const segna = (b) => { bar.style.width = Math.round(b / f.size * 100) + '%'; tx.textContent = Math.round(b / f.size * 100) + '%'; };
+      try {
+        if (f.size <= 90 * 1048576) await invia('PUT', '/api/archivio/carica?p=' + encodeURIComponent(p), f, segna);
+        else {
+          const I = await chiama('/api/archivio/carica/inizio', { method: 'POST', body: { percorso: p, mime: f.type } });
+          const passo = I.parte_mb * 1048576, parti = [];
+          try {
+            for (let n = 1, da = 0; da < f.size; n++, da += passo) {
+              let r, tent = 0;
+              while (true) { try { r = await invia('PUT', '/api/archivio/carica/parte?p=' + encodeURIComponent(I.percorso) + '&u=' + encodeURIComponent(I.upload) + '&n=' + n, f.slice(da, da + passo), (b) => segna(da + b)); break; } catch (x) { if (++tent >= 3) throw x; } }
+              parti.push(r);
+            }
+            await chiama('/api/archivio/carica/fine', { method: 'POST', body: { percorso: I.percorso, upload: I.upload, parti, mime: f.type } });
+          } catch (x) { chiama('/api/archivio/carica/annulla', { method: 'POST', body: { percorso: I.percorso, upload: I.upload } }).catch(() => {}); throw x; }
+        }
+        tx.textContent = '\u2713'; bar.style.width = '100%';
+      } catch (x) { tx.textContent = '\u26A0\uFE0E ' + x.message; bar.style.background = 'var(--warn)'; }
+      fatti++;
+    };
+    // 3 file alla volta
+    const coda = righe.map((f, k) => [f, k]);
+    await Promise.all([0, 1, 2].map(async () => { while (coda.length) { const [f, k] = coda.shift(); await uno(f, k); } }));
+    if (fatti) setTimeout(rotta, 600);
+  };
+  if ($('#ar_file')) $('#ar_file').onchange = (ev) => carica(ev.target.files);
+  const dz = $('#ar_drop');
+  if (dz) { dz.ondragover = (ev) => { ev.preventDefault(); dz.classList.add('su'); }; dz.ondragleave = () => dz.classList.remove('su');
+    dz.ondrop = (ev) => { ev.preventDefault(); dz.classList.remove('su'); carica(ev.dataTransfer.files); }; dz.onclick = () => $('#ar_file').click(); }
+}
+
 async function clientiPagina() {
   const [L, G] = await Promise.all([chiama('/api/clienti'), chiama('/api/gestionale/clienti')]);
   const liberi = G.filter((g) => !L.some((c) => c.gest_id === g.id));
@@ -6641,6 +6962,7 @@ async function rotta() {
     else if (h.startsWith('#/agente/')) await agentePagina(h.split('/')[2]);
     else if (h.startsWith('#/incarico/')) await incarico(h.split('/')[2]);
     else if (h === '#/approvazioni') await approvazioni();
+    else if (h === '#/archivio' || h.startsWith('#/archivio/')) await archivioPagina(decodeURIComponent(h.slice(11)));
     else if (h === '#/riunioni') await riunioniPagina();
     else if (h === '#/profilo') await profiloPagina();
     else if (h.startsWith('#/profilo/')) await profiloDettaglio(h.split('/')[2]);
@@ -7579,7 +7901,7 @@ var normCodice = (c) => String(c || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 async function hashPassword(env) {
   return await imp(env, "ADMIN_PW") || null;
 }
-async function firma(hash, email) {
+async function firma2(hash, email) {
   const k = await crypto.subtle.importKey("raw", new TextEncoder().encode(hash), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   return hex2(await crypto.subtle.sign("HMAC", k, new TextEncoder().encode("momento-agency-sessione|" + email)));
 }
@@ -7588,7 +7910,7 @@ async function autorizzato(req, env) {
   const h = await hashPassword(env), email = await emailAccesso(env);
   if (!h || !email) return false;
   const c = /(?:^|;\s*)mr_s=([a-f0-9]{64})/.exec(req.headers.get("cookie") || "");
-  return !!c && c[1] === await firma(h, email);
+  return !!c && c[1] === await firma2(h, email);
 }
 var cookie = (v, maxAge) => `mr_s=${v}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
 async function videoAPezzi(env, req, url, chiave, primo2, md, vv) {
@@ -7639,7 +7961,7 @@ async function api(req, env, url) {
     const [salvata, pw] = [await emailAccesso(env), await hashPassword(env)];
     const entra = async (extra = {}) => {
       const h = await hashPassword(env);
-      return json2({ ok: true, ...extra }, 200, { "set-cookie": cookie(await firma(h, email), 60 * 60 * 24 * 60) });
+      return json2({ ok: true, ...extra }, 200, { "set-cookie": cookie(await firma2(h, email), 60 * 60 * 24 * 60) });
     };
     const nuovaPassword = async (testo) => {
       await salva2(env, "ADMIN_PW", await nuovoSegreto(testo));
@@ -7673,7 +7995,7 @@ async function api(req, env, url) {
     const codice2 = codiceRecupero();
     await salva2(env, "RECUPERO", await nuovoSegreto(normCodice(codice2)));
     const email = await emailAccesso(env);
-    return json2({ ok: true, codice_recupero: codice2 }, 200, { "set-cookie": cookie(await firma(await hashPassword(env), email), 60 * 60 * 24 * 60) });
+    return json2({ ok: true, codice_recupero: codice2 }, 200, { "set-cookie": cookie(await firma2(await hashPassword(env), email), 60 * 60 * 24 * 60) });
   }
   if (p === "/api/esci") return json2({ ok: true }, 200, { "set-cookie": cookie("", 0) });
   if (!await autorizzato(req, env)) return json2({ errore: "accesso richiesto" }, 401);
@@ -7736,7 +8058,10 @@ async function api(req, env, url) {
     let stile = rilevaStile(prompt, d.stile);
     if (d.solo_clip && (pcloud || Array.isArray(d.video) && d.video.length)) stile = { ...stile || { genere: null, mood: [] }, solo_clip: true };
     const video = (Array.isArray(d.video) ? d.video : []).filter((v) => /^https:\/\//.test(v?.url || "")).slice(0, 20).map((v) => ({ nome: String(v.nome || "").slice(0, 80), url: v.url, durata: Number(v.durata) || null }));
-    const r = video.length ? await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,?,'url',?,?,?) RETURNING id", prompt, JSON.stringify(video), JSON.stringify(link), stile ? JSON.stringify(stile) : null, ora(), ora()) : await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,?,'pcloud',?,?,?) RETURNING id", prompt, pcloud, JSON.stringify(link), stile ? JSON.stringify(stile) : null, ora(), ora());
+    let arch = !video.length && !pcloud ? pulisci(d.archivio) || await trovaCartella(env, prompt).catch(() => null) : null;
+    if (arch && d.solo_clip) stile = { ...stile || { genere: null, mood: [] }, solo_clip: true };
+    const r = video.length ? await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,?,'url',?,?,?) RETURNING id", prompt, JSON.stringify(video), JSON.stringify(link), stile ? JSON.stringify(stile) : null, ora(), ora()) : await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,?,?,?,?,?) RETURNING id", prompt, arch || pcloud, JSON.stringify(link), arch ? "archivio" : "pcloud", stile ? JSON.stringify(stile) : null, ora(), ora());
+    if (arch) await log(env, r.id, "regia", `\u{1F5C2}\uFE0F clip dall'archivio: ${arch}`);
     await log(env, r.id, "regia", "\u{1F3AC} nuovo lavoro in coda: il Direttore creativo parte entro un minuto");
     return json2({ id: r.id });
   }
@@ -7848,6 +8173,10 @@ async function api(req, env, url) {
     const r = await apiAvatar(req, env, p, m, json2);
     if (r) return r;
   }
+  if (p.startsWith("/api/archivio")) {
+    const r = await apiArchivio(req, env, p, m, json2);
+    if (r) return r;
+  }
   if (/^\/api\/(capo|riunioni)/.test(p)) {
     const r = await apiRiunioni(req, env, p, m, json2);
     if (r) return r;
@@ -7953,6 +8282,11 @@ var index_default = {
     if (url.pathname === "/sw.js") return new Response(SW, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache", "service-worker-allowed": "/" } });
     if (url.pathname === "/icona-192.png" || url.pathname === "/icona-512.png") return new Response(Uint8Array.from(atob(url.pathname.includes("192") ? ICONA_192 : ICONA_512), (c) => c.charCodeAt(0)), { headers: { "content-type": "image/png", "cache-control": "public, max-age=86400" } });
     if (url.pathname === "/sala3d.js") return new Response(sala3d_default, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": url.searchParams.get("v") === VERSIONE_SALA ? "public, max-age=31536000, immutable" : "no-cache" } });
+    if (url.pathname === "/archivio-file") {
+      const pa = pulisci(url.searchParams.get("p"));
+      if (!await linkValido(env, pa, url.searchParams.get("s"), url.searchParams.get("f"))) return json2({ errore: "link non valido o scaduto" }, 403);
+      return servi(env, req, pa);
+    }
     const pubP = url.pathname.match(/^\/pubblico\/post\/(\d+)\/(\d+-\d+)\.jpg$/);
     if (pubP) {
       if (!env.IG_INTERNO_KEY || url.searchParams.get("f") !== await firmaPubblica(env, "post" + pubP[1], pubP[2])) return json2({ errore: "link non valido" }, 403);

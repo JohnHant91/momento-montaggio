@@ -16,3 +16,8 @@ database_id = "bba77d37-c34e-4dd1-9514-5463ca1d9fec"
 [[kv_namespaces]]
 binding = "VIDEO"
 id = "a0a0abcdb7ab4d4c89929628dee137b1"
+
+# archivio interno dell'agenzia (cartelle clienti, clip, musica, grafiche): serve R2 attivo sull'account
+[[r2_buckets]]
+binding = "ARCHIVIO"
+bucket_name = "momento-archivio"

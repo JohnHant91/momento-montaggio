@@ -457,7 +457,7 @@ def monta(lavoro):
         with ThreadPoolExecutor(3) as ex:
             for k, dest in ex.map(prendi, list(voci)):
                 file_per_id[k] = dest
-        if (piano.get("logo") or {}).get("kv"):
+        if (piano.get("logo") or {}).get("kv") or (piano.get("logo") or {}).get("archivio"):
             try:
                 dest = os.path.join(cartella, "logo.png")
                 scarica_url(f"{REGIA}/api/motore/{lavoro['id']}/logo?pass={lavoro['pass']}", dest)

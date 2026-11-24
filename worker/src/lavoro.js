@@ -3,6 +3,7 @@
 import { J, all, log, one, ora, run, configurazione } from './db.js';
 import { libreriaTesto } from './libreria.js';
 import * as S from './servizi.js';
+import * as A from './archivio.js';
 import { rilevaStile, ricetta, ricercaStile } from './stili.js';
 import { LUT, LUT_NOMI, lutPerStile, descriviLut, voceLut } from './lut.js';
 import { MANUALE_AUDIO, MANUALE_COPY, MANUALE_DIRETTORE, MANUALE_FORMATI, MANUALE_IRIS, MANUALE_MODELLO, MANUALE_PUBBLICAZIONE, MANUALE_REGISTA, MANUALE_SPOT } from './manuali.js';
@@ -312,7 +313,12 @@ export const chiaveRif = (v) => `rif2:${v.piattaforma}:${v.id}`;
 // FONTI DEL GIRATO: ognuna restituisce l'elenco delle clip ({nome, dimensione, hash, tecnico, sorgente}).
 // Il resto del sistema (analisi, scheda, regia, montatore) non sa da dove arrivano. Per aggiungere stock/AI/HeyGen
 // basta aggiungere una voce qui e il download corrispondente nel motore (motore/analizza.py → scarica).
+// dove il motore prende un file: pCloud (fileid), link diretto (url) o archivio interno ("archivio:percorso", firmato quando parte il motore)
+export const rifSorgente = (c) => c?.sorgente?.tipo === 'url' ? { fileid: null, url: c.sorgente.url }
+  : c?.sorgente?.tipo === 'archivio' ? { fileid: null, url: 'archivio:' + c.sorgente.percorso } : { fileid: c?.fileid, url: null };
+
 export const FONTI = {
+  archivio: { nome: 'Archivio dell\u2019agenzia', pronta: (L) => !!L.pcloud, elenca: async (L, env) => A.clipArchivio(env, L.pcloud) },
   pcloud: { nome: 'Cartella pCloud', pronta: (L) => !!L.pcloud, elenca: async (L) => (await S.pcloudClip(L.pcloud)).map((c) => ({ ...c, sorgente: { tipo: 'pcloud', fileid: c.fileid } })) },
   // video da link diretti (es. il video del tuo avatar HeyGen): in "pcloud" c'è l'elenco JSON [{nome, url, durata}]
   url: { nome: 'Video da link', pronta: (L) => !!L.pcloud, elenca: async (L) => [...J(L.pcloud, []).filter((v) => /^https:\/\//.test(v?.url || '')).map((v, i) => {
@@ -329,8 +335,18 @@ async function faseClip(env, cfg, L) {
   if (!fonte.pronta(L)) { await log(env, L.id, 'analista', 'nessun girato collegato: preparo scheda e lista delle riprese'); return true; }
   let clip = J(L.clip, null);
   if (!clip) {
-    const lista = await fonte.elenca(L);
-    if (!lista.length) throw new Error('nella cartella pCloud non ci sono né video né foto');
+    const lista = await fonte.elenca(L, env);
+    if (!lista.filter((c) => c.tipo !== 'musica').length) throw new Error(L.fonte === 'archivio' ? `nella cartella ${L.pcloud} dell'archivio non ci sono né video né foto` : 'nella cartella pCloud non ci sono né video né foto');
+    // niente brano nella cartella: Rocco ne prende uno dalla cartella Musica dell'archivio (le sottocartelle sono l'umore)
+    if (env.ARCHIVIO && !lista.some((c) => c.tipo === 'musica') && !/senza musica|musica.{0,30}(instagram|edits|la metto io)/i.test(L.prompt || '')) {
+      const st = J(L.stile, null);
+      const b = await A.branoArchivio(env, async (brani) => {
+        const r = await S.claude({ ...cfg, CLAUDE_MODEL: cfg.CLAUDE_MODEL_LIGHT || cfg.CLAUDE_MODEL }, 'Scegli la musica per un reel. Rispondi solo JSON {"i": numero}.',
+          `REEL: ${L.prompt}\nSTILE: ${st?.nome || st?.genere || '-'} ${(st?.mood || []).join(', ')}\nBRANI (umore = sottocartella):\n${JSON.stringify(brani)}\nScegli il brano più adatto all'umore del reel.`, { maxTokens: 60 });
+        return Number(r?.i);
+      }).catch(() => null);
+      if (b) { lista.push(b); await log(env, L.id, 'regista', `🎵 musica dall'archivio: ${b.cartella.split('/').slice(1).join(' / ') || 'Musica'} · ${b.nome}`); }
+    }
     clip = lista.map((c) => ({ ...c, stato: 'da_guardare' }));
     // le clip già viste in altri lavori non si riguardano (e non si pagano)
     let gia = 0;
@@ -555,7 +571,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
   // controllo del piano: valori ammessi, clip esistenti, tempi dentro le clip
   const tutte = J(L.clip, []);
   const eImm = (c) => c?.tipo === 'immagine' || c?.tecnico?.tipo === 'immagine';
-  const sorg = (c) => ({ fileid: c.sorgente?.tipo === 'url' ? null : c.fileid, url: c.sorgente?.tipo === 'url' ? c.sorgente.url : null, nome: c.nome });
+  const sorg = (c) => ({ ...rifSorgente(c), nome: c.nome });
   let formato = FORMATI_REEL.includes(indicazioni?.formato) ? indicazioni.formato : (FORMATI_REEL.includes(R?.formato) ? R.formato : (FORMATI_REEL.includes(p.formato) ? p.formato : 'montaggio'));
   const slide = (p.slide || []).filter((s) => tutte[s.clip]?.stato === 'fatto' && eImm(tutte[s.clip])).slice(0, 20)
     .map((s) => ({ clip: s.clip, ...sorg(tutte[s.clip]), durata: Math.min(Math.max(Number(s.durata) || 2.2, 1.8), 8) }));
@@ -583,7 +599,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
       inizio = dopo ?? prima ?? inizio;
     }
     return {
-      clip: s.clip, fileid: c.sorgente?.tipo === 'url' ? null : c.fileid, url: c.sorgente?.tipo === 'url' ? c.sorgente.url : null, nome: c.nome, in: inizio, durata, rallenty,
+      clip: s.clip, ...rifSorgente(c), nome: c.nome, in: inizio, durata, rallenty,
       effetto: EFFETTI_PEZZO.includes(s.effetto) ? s.effetto : 'nessuno',
       transizione_in: k === 0 ? null : (TRANSIZIONI.includes(s.transizione_in) ? s.transizione_in : 'taglio_netto'),
       audio: Math.min(1, Math.max(0, Number(s.audio ?? 0.8))), motivo: s.motivo, testo: s.testo?.testo ? s.testo : null,
@@ -612,7 +628,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
   const schede = formato !== 'talking_head' ? [] : (p.schede || []).filter((s) => tutte[s?.clip]?.stato === 'fatto' && eImm(tutte[s.clip]) && s.sulla_parola).slice(0, 8).map((s) => ({
     clip: s.clip, ...sorg(tutte[s.clip]), sulla_parola: String(s.sulla_parola).slice(0, 40), etichetta: String(s.etichetta || '').slice(0, 16), lato: s.lato === 'sx' ? 'sx' : 'dx', durata: Math.min(7, Math.max(1.5, Number(s.durata) || 2.6)) }));
   const lookVoluto = indicazioni?.look && LOOKS.includes(indicazioni.look) ? indicazioni.look : null;
-  const cop = p.copertina && tutte[p.copertina.clip]?.stato === 'fatto' ? { fileid: tutte[p.copertina.clip].sorgente?.tipo === 'url' ? null : tutte[p.copertina.clip].fileid, url: tutte[p.copertina.clip].sorgente?.tipo === 'url' ? tutte[p.copertina.clip].sorgente.url : null, secondo: Math.max(0, Number(p.copertina.secondo) || 0), testo: String(p.copertina.testo || '').slice(0, 60) } : null;
+  const cop = p.copertina && tutte[p.copertina.clip]?.stato === 'fatto' ? { ...rifSorgente(tutte[p.copertina.clip]), secondo: Math.max(0, Number(p.copertina.secondo) || 0), testo: String(p.copertina.testo || '').slice(0, 60) } : null;
   let pannello = null;
   const pn = p.pannello;
   if (formato === 'talking_head' && pn?.titolo && ['line', 'bar', 'steps'].includes(pn.tipo)) {
@@ -666,17 +682,18 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
   const usate = new Set(seg.map((x) => x.clip));
   const riserve = motore !== 'montatore' ? [] : tutte.map((c, i) => ({ c, i })).filter(({ c, i }) => c?.stato === 'fatto' && !eImm(c) && !usate.has(i) && (Number(c.tecnico?.durata_sec) || 0) >= 1.5)
     .slice(0, 14).map(({ c, i }) => ({ clip: i, ...sorg(c), nome: c.nome, durata_clip: Number(c.tecnico?.durata_sec) || null }));
+  const logoArch = L.fonte === 'archivio' ? await A.logoCliente(env, L.pcloud).catch(() => null) : null;
   const piano = {
     ...p, formato: motore, titoli, riserve, look_reel: lookReel, font_reel: fontReel, pannello, cartelli, schede, grafiche, palette, font_split, tracker, adesivi,
     ...(avatar ? { taglia_silenzi: false } : {}),
-    logo: prima?.logo || null,
+    logo: prima?.logo || (logoArch ? { archivio: logoArch } : null),
     stabilizza_tutto: !!(indicazioni?.stabilizza_tutto || prima?.piano?.stabilizza_tutto || p.stabilizza_tutto || R?.camera === 'morbida'),
     camera_ferma: R?.camera === 'a_mano' ? false : !!(indicazioni?.camera_ferma || prima?.piano?.camera_ferma || p.camera_ferma || R?.camera === 'ferma'),
     camera_a_mano: R?.camera === 'a_mano' || undefined,
     stile: R ? R.nome : undefined,
     apertura: ['nero', 'bianco'].includes(indicazioni?.apertura) ? indicazioni.apertura : (['nero', 'bianco'].includes(p.apertura) ? p.apertura : (R?.apertura || null)),
     finale: ['nero', 'bianco'].includes(indicazioni?.finale) ? indicazioni.finale : (['nero', 'bianco'].includes(p.finale) ? p.finale : (R?.finale || null)),
-    musica: brano ? { fileid: brano.c.fileid, nome: brano.c.nome, durata: brano.c.tecnico?.durata_sec, bpm: mu?.bpm, battuta: mu?.battuta_sec, primo_battito: mu?.primo_battito, volume: 0.9 } : null,
+    musica: brano ? { ...rifSorgente(brano.c), nome: brano.c.nome, durata: brano.c.tecnico?.durata_sec, bpm: mu?.bpm, battuta: mu?.battuta_sec, primo_battito: mu?.primo_battito, volume: 0.9 } : null,
     sfx: brano ? false : p.sfx, segmenti: formato === 'carosello' ? [] : seg, broll, slide: formato === 'carosello' ? slide : [],
     chiusura: formato === 'montaggio' ? p.chiusura : null, palette: palette || (p.colori?.accento ? { accento: p.colori.accento } : undefined), look: lookVoluto || (R?.look && LOOKS.includes(R.look) ? R.look : (LOOKS.includes(p.look) ? p.look : (LOOKS.includes(scheda.colore?.look) ? scheda.colore.look : 'naturale_vivace'))),
     effetti_globali: [...new Set([...(p.effetti_globali || []), ...(R?.globali || [])])].filter((e) => EFFETTI_GLOBALI.includes(e)), copertina: cop,

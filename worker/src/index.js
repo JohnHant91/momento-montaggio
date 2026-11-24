@@ -13,6 +13,7 @@ import { apiPost, avanzaPost } from './post.js';
 import { motoreApi } from './motore.js';
 import { apiNotifiche, controllaApprovazioni, schemaNotifiche, SW, MANIFEST } from './notifiche.js';
 import { ICONA_192, ICONA_512 } from './icone.js';
+import { apiArchivio, linkValido, pulisci, servi, trovaCartella } from './archivio.js';
 import { PAGINA } from './pagina.js';
 import SALA3D_JS from './sala3d.txt';
 
@@ -203,9 +204,13 @@ async function api(req, env, url) {
     if (d.solo_clip && (pcloud || (Array.isArray(d.video) && d.video.length))) stile = { ...(stile || { genere: null, mood: [] }), solo_clip: true };
     // in alternativa a pCloud: video da link diretti (es. il video dell'avatar HeyGen)
     const video = (Array.isArray(d.video) ? d.video : []).filter((v) => /^https:\/\//.test(v?.url || '')).slice(0, 20).map((v) => ({ nome: String(v.nome || '').slice(0, 80), url: v.url, durata: Number(v.durata) || null }));
+    // archivio interno: la cartella scelta, oppure quella che il prompt nomina (es. "torretta … panettoni" → Clienti/Torretta/Panettoni)
+    let arch = !video.length && !pcloud ? (pulisci(d.archivio) || await trovaCartella(env, prompt).catch(() => null)) : null;
+    if (arch && d.solo_clip) stile = { ...(stile || { genere: null, mood: [] }), solo_clip: true };
     const r = video.length
       ? await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,?,'url',?,?,?) RETURNING id", prompt, JSON.stringify(video), JSON.stringify(link), stile ? JSON.stringify(stile) : null, ora(), ora())
-      : await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,?,'pcloud',?,?,?) RETURNING id", prompt, pcloud, JSON.stringify(link), stile ? JSON.stringify(stile) : null, ora(), ora());
+      : await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,?,?,?,?,?) RETURNING id", prompt, arch || pcloud, JSON.stringify(link), arch ? 'archivio' : 'pcloud', stile ? JSON.stringify(stile) : null, ora(), ora());
+    if (arch) await log(env, r.id, 'regia', `🗂️ clip dall'archivio: ${arch}`);
     await log(env, r.id, 'regia', '🎬 nuovo lavoro in coda: il Direttore creativo parte entro un minuto');
     return json({ id: r.id });
   }
@@ -308,6 +313,10 @@ async function api(req, env, url) {
     const r = await apiAvatar(req, env, p, m, json);
     if (r) return r;
   }
+  if (p.startsWith('/api/archivio')) {
+    const r = await apiArchivio(req, env, p, m, json);
+    if (r) return r;
+  }
   if (/^\/api\/(capo|riunioni)/.test(p)) {
     const r = await apiRiunioni(req, env, p, m, json);
     if (r) return r;
@@ -400,6 +409,12 @@ export default {
     if (url.pathname === '/sw.js') return new Response(SW, { headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-cache', 'service-worker-allowed': '/' } });
     if (url.pathname === '/icona-192.png' || url.pathname === '/icona-512.png') return new Response(Uint8Array.from(atob(url.pathname.includes('192') ? ICONA_192 : ICONA_512), (c) => c.charCodeAt(0)), { headers: { 'content-type': 'image/png', 'cache-control': 'public, max-age=86400' } });
     if (url.pathname === '/sala3d.js') return new Response(SALA3D_JS, { headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': url.searchParams.get('v') === VERSIONE_SALA ? 'public, max-age=31536000, immutable' : 'no-cache' } });
+    // file dell'archivio per il motore GitHub: link firmato e a scadenza, niente accesso senza firma
+    if (url.pathname === '/archivio-file') {
+      const pa = pulisci(url.searchParams.get('p'));
+      if (!(await linkValido(env, pa, url.searchParams.get('s'), url.searchParams.get('f')))) return json({ errore: 'link non valido o scaduto' }, 403);
+      return servi(env, req, pa);
+    }
     // file dei reel raggiungibili da Instagram (Meta scarica il video da qui): link firmato, niente accesso senza firma
     const pubP = url.pathname.match(/^\/pubblico\/post\/(\d+)\/(\d+-\d+)\.jpg$/); // slide dei caroselli per Instagram
     if (pubP) {

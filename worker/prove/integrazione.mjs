@@ -3,6 +3,7 @@
 import { W, env, GEST, chiama, cron, sblocca, stato } from './finto.mjs';
 import { correggiTesti } from '../src/lavoro.js';
 import { configurazione } from '../src/db.js';
+import { linkFirmato, firmaSorgenti } from '../src/archivio.js';
 const errori = [];
 const ok = (cond, cosa) => { if (cond) console.log('  ✓', cosa); else { console.log('  ✗', cosa); errori.push(cosa); } };
 console.log('\n1) pagina e accesso');
@@ -239,5 +240,37 @@ try { new Function(script[1]); ok(true, 'JavaScript della pagina valido'); } cat
 { const G = [{ tipo: 'titolo', dati: { testo: 'Perche nessuno lo sa' } }, { tipo: 'card', dati: { titolo: 'Ok', testo: 'giusto' } }];
   await correggiTesti(env, await configurazione(env), { id: null, prompt: 'copione' }, [{ trascrizione: [{ testo: 'perché nessuno lo sa' }] }], { grafiche: G });
   ok(G[0].dati.testo === 'Perche nessuno lo sa (corretto)' && G[1].dati.titolo === 'Ok', 'il correttore sistema i testi delle grafiche sbagliati e lascia quelli giusti'); }
+console.log('\nArchivio interno (R2)');
+{ let a = await chiama('/api/archivio/cartella', { method: 'POST', body: { percorso: 'Clienti/Torretta/Panettoni' } }); ok(a.status === 200, 'cartella cliente/progetto creata con le intermedie');
+  await chiama('/api/archivio/cartella', { method: 'POST', body: { percorso: '../Musica/Natalizia/' } });
+  a = await chiama('/api/archivio?cartella=Clienti/Torretta'); ok(a.j.voci.some((v) => v.nome === 'Panettoni' && v.tipo === 'cartella'), 'la sottocartella si vede');
+  a = await chiama('/api/archivio'); ok(a.j.voci.some((v) => v.percorso === 'Musica'), 'percorso ripulito (niente ..)');
+  await chiama('/api/archivio/carica?p=' + encodeURIComponent('Clienti/Torretta/Panettoni/C0001.MP4'), { method: 'PUT', body: 'video finto 1' });
+  await chiama('/api/archivio/carica?p=' + encodeURIComponent('Clienti/Torretta/Panettoni/C0002.MP4'), { method: 'PUT', body: 'video finto 2' });
+  await chiama('/api/archivio/carica?p=' + encodeURIComponent('Clienti/Torretta/logo.png'), { method: 'PUT', body: 'png' });
+  await chiama('/api/archivio/carica?p=' + encodeURIComponent('Musica/Natalizia/Jingle.mp3'), { method: 'PUT', body: 'mp3' });
+  await chiama('/api/archivio/carica?p=' + encodeURIComponent('Musica/Allegra/Sole.mp3'), { method: 'PUT', body: 'mp3' });
+  // file grande a pezzi
+  const I = (await chiama('/api/archivio/carica/inizio', { method: 'POST', body: { percorso: 'Clienti/Torretta/Panettoni/GRANDE.MOV', mime: 'video/quicktime' } })).j;
+  const p1 = (await chiama('/api/archivio/carica/parte?p=' + encodeURIComponent(I.percorso) + '&u=' + I.upload + '&n=1', { method: 'PUT', body: 'aaaa' })).j;
+  const p2 = (await chiama('/api/archivio/carica/parte?p=' + encodeURIComponent(I.percorso) + '&u=' + I.upload + '&n=2', { method: 'PUT', body: 'bb' })).j;
+  a = await chiama('/api/archivio/carica/fine', { method: 'POST', body: { percorso: I.percorso, upload: I.upload, parti: [p1, p2], mime: 'video/quicktime' } });
+  ok(a.status === 200 && /aaaa.*bb/.test(new TextDecoder().decode(env.ARCHIVIO._m.get('Clienti/Torretta/Panettoni/GRANDE.MOV').b)), 'file grande caricato a pezzi e ricomposto');
+  a = await chiama('/api/archivio?cartella=Clienti/Torretta/Panettoni'); ok(a.j.voci.filter((v) => v.tipo === 'video').length === 3, 'i video del progetto sono in elenco');
+  a = await chiama('/api/archivio/file?p=' + encodeURIComponent('Musica/Natalizia/Jingle.mp3')); ok(a.status === 200, 'il file si scarica dall\'app');
+  // reel: la cartella si trova dal testo, la musica arriva da Musica/<umore>, il logo dalla cartella del cliente
+  a = await chiama('/api/lavori', { method: 'POST', body: { prompt: 'Reel natalizio per la Torretta sui panettoni artigianali, 20 secondi', solo_clip: true } });
+  const lid = a.j.id; let Lr = env.DB._db.prepare('SELECT fonte, pcloud FROM lavori WHERE id=?').get(lid);
+  ok(Lr.fonte === 'archivio' && Lr.pcloud === 'Clienti/Torretta/Panettoni', 'il reel prende da solo la cartella Clienti/Torretta/Panettoni');
+  for (let k = 0; k < 6; k++) { sblocca('lavori'); await cron(); Lr = env.DB._db.prepare('SELECT fase, clip FROM lavori WHERE id=?').get(lid); if (Lr.clip) break; }
+  const cl = JSON.parse(Lr.clip || '[]');
+  ok(cl.length === 4 && cl.some((c) => c.tipo === 'musica' && c.nome === 'Jingle.mp3') && !cl.some((c) => /logo/.test(c.nome)), 'clip dall\'archivio + brano natalizio dalla cartella Musica, logo escluso (' + cl.map((c) => c.nome).join(', ') + ')');
+  { const u = await linkFirmato(env, 'https://x', 'Clienti/Torretta/Panettoni/C0001.MP4');
+    const g = await W.fetch(new Request(u), env); ok(g.status === 200 && (await g.text()).includes('video finto 1'), 'il motore scarica con il link firmato');
+    const g2 = await W.fetch(new Request(u.replace(/f=[0-9a-f]/, 'f=z')), env); ok(g2.status === 403, 'link manomesso rifiutato');
+    const P = await firmaSorgenti(env, 'https://x', { segmenti: [{ url: 'archivio:Clienti/Torretta/Panettoni/C0002.MP4' }] }); ok(P.segmenti[0].url.startsWith('https://x/archivio-file?'), 'i pezzi del montaggio dall\'archivio diventano link firmati'); }
+  a = await chiama('/api/archivio?p=' + encodeURIComponent('Clienti/Torretta/Panettoni'), { method: 'DELETE' });
+  ok(a.j.eliminati === 3 && !env.ARCHIVIO._m.has('Clienti/Torretta/Panettoni/C0001.MP4'), 'cartella eliminata con i suoi file');
+}
 console.log('\n' + (errori.length ? '❌ ' + errori.length + ' problemi:\n - ' + errori.join('\n - ') : '✅ tutto ok') + '\n');
 process.exit(errori.length ? 1 : 0);

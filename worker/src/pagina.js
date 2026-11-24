@@ -93,6 +93,10 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 .etichette:not(.vicino) .et-ag.pillola{display:none}
 .reelc{display:flex;gap:14px;align-items:flex-start}.reelc .reel-cop{flex:0 0 72px;height:128px;border-radius:10px;background:#f1efe9;display:grid;place-items:center;font-size:26px;overflow:hidden}.reelc .reel-cop img{width:100%;height:100%;object-fit:cover}.reelc .reel-tit{color:inherit;text-decoration:none}.reelc.pausa{opacity:.75}.reelc.errore{border-color:var(--err)}.reelc .r_az{padding:6px 10px;font-size:13px;width:auto}
 .chip{width:auto;padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:#fff;color:inherit;font-size:13px;font-weight:600;text-decoration:none;cursor:pointer}.chip.att{background:var(--ink,#16302f);color:#fff;border-color:transparent}
+.ar-griglia{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:12px 0}.ar-car,.ar-file{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:4px;text-decoration:none;color:inherit;min-width:0}.ar-car span{font-size:30px}.ar-file b,.ar-car b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.ar-ant{display:flex;align-items:center;justify-content:center;aspect-ratio:1;background:#f3f1ec;border-radius:10px;overflow:hidden;font-size:34px}.ar-ant img{width:100%;height:100%;object-fit:cover}
+.ar-drop{border:2px dashed var(--line);border-radius:14px;padding:22px;text-align:center;color:var(--mut,#777);cursor:pointer}.ar-drop.su{border-color:var(--teal,#12a3a4);background:#eefafa}
+.ar-riga{display:grid;grid-template-columns:1fr 120px 70px;gap:8px;align-items:center;font-size:13px;margin-top:6px}.ar-riga span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ar-bar{height:6px;background:#eee;border-radius:4px;overflow:hidden}.ar-bar i{display:block;height:100%;width:0;background:var(--teal,#12a3a4)}
 .ap-h{display:flex;align-items:center;gap:8px;margin-top:26px}.ap{margin-bottom:12px}.ap-voce{border-top:1px solid var(--line);padding:10px 0}.ap-voce:first-of-type{border-top:0}.ap-voce.consigliata{background:#fffbea;border-radius:10px;padding:10px}.ap summary{cursor:pointer}
 .lavorazioni{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin:12px 0}.lz{display:flex;gap:10px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 12px;color:inherit;text-decoration:none}.lz .ic{font-size:22px}.lz .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}.lz b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lz small{font-size:12px;color:var(--mut)}
 .avanz{height:6px;border-radius:9px;background:#ece9e1;overflow:hidden}.avanz i{display:block;height:100%;background:linear-gradient(90deg,#12a3a4,#3fd0c9);border-radius:9px;transition:width .6s}
@@ -205,6 +209,7 @@ const ICO = {
   riunioni: '<circle cx="12" cy="8" r="3"/><path d="M5 20c.8-3.5 3.6-5.5 7-5.5s6.2 2 7 5.5M4.5 10.5a2.3 2.3 0 1 0 0-.1M19.5 10.5a2.3 2.3 0 1 0 0-.1"/>',
   profilo: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".6"/>',
   approvazioni: '<path d="M20 6 9 17l-5-5"/>',
+  archivio: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
   clienti: '<path d="M16 20v-1.5a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4V20M9.5 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M21 20v-1.5a4 4 0 0 0-3-3.9M15.5 3.6a3.5 3.5 0 0 1 0 6.8"/>',
   post: '<rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 21h12a2 2 0 0 0 2-2V7M3 13l4-4 4 4 3-3 3 3"/>',
   costi: '<path d="M12 2v20M17 6.5c0-1.9-2.2-3-5-3s-5 1.3-5 3.3c0 4.7 10 2.4 10 7.2 0 2-2.2 3.5-5 3.5s-5-1.2-5-3.2"/>',
@@ -213,7 +218,7 @@ const ICO = {
   gestionale: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   impostazioni: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'
 };
-const VOCI = [['agenzia', 'Agenzia', '#/'], ['riunioni', 'Riunioni', '#/riunioni'], ['approvazioni', 'Approvazioni', '#/approvazioni'], ['profilo', 'Profilo IG', '#/profilo'], ['clienti', 'Clienti', '#/clienti']];
+const VOCI = [['agenzia', 'Agenzia', '#/'], ['riunioni', 'Riunioni', '#/riunioni'], ['approvazioni', 'Approvazioni', '#/approvazioni'], ['profilo', 'Profilo IG', '#/profilo'], ['clienti', 'Clienti', '#/clienti'], ['archivio', 'Archivio', '#/archivio']];
 const STRUMENTI = [ ['gestionale', 'Gestionale', '#/gestionale'], ['costi', 'Costi', '#/costi']];
 const voce = (v) => '<a class="vm" href="' + v[2] + '" data-k="' + v[0] + '"><svg viewBox="0 0 24 24">' + ICO[v[0]] + '</svg><span class="tx">' + v[1] + '</span>' + (v[0] === 'costi' ? '<span class="num" id="num_costi"></span>' : '') + '</a>';
 function menu(on) {
@@ -233,7 +238,7 @@ async function aggiornaNumCosti() {
 const soldi = (usd, cambio) => '€ ' + (usd * (cambio || 0.86)).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 function evidenzia() {
   const h = location.hash || '#/';
-  const k = h === '#/' || h.startsWith('#/agente') || h.startsWith('#/ufficio') || h.startsWith('#/incarico') || h === '#/chat/capo' ? 'agenzia' : h.startsWith('#/riunion') ? 'riunioni' : h.startsWith('#/profilo') ? 'profilo' : h.startsWith('#/approvazion') ? 'approvazioni' : h.startsWith('#/client') ? 'clienti' :
+  const k = h === '#/' || h.startsWith('#/agente') || h.startsWith('#/ufficio') || h.startsWith('#/incarico') || h === '#/chat/capo' ? 'agenzia' : h.startsWith('#/riunion') ? 'riunioni' : h.startsWith('#/profilo') ? 'profilo' : h.startsWith('#/archivio') ? 'archivio' : h.startsWith('#/approvazion') ? 'approvazioni' : h.startsWith('#/client') ? 'clienti' :
     h.startsWith('#/reel') || h.startsWith('#/lavoro') || h.startsWith('#/nuovo') || h.startsWith('#/post') || h.startsWith('#/copion') || h.startsWith('#/piano') ? 'approvazioni' : h.startsWith('#/chat/gestionale') || h.startsWith('#/chat/contabile') || h === '#/gestionale' ? 'gestionale' : h.startsWith('#/costi') ? 'costi' : h.startsWith('#/impostazioni') ? 'impostazioni' : '';
   document.querySelectorAll('#nav .vm[data-k]').forEach((a) => a.classList.toggle('att', a.dataset.k === k));
   const tutte = VOCI.concat(STRUMENTI, [['impostazioni', 'Impostazioni']]).find((v) => v[0] === k);
@@ -323,12 +328,13 @@ const stato = (l) => l.stato === 'pronto' ? 'pronto' : l.stato === 'errore' ? 'e
 const STILI_UI = ${JSON.stringify(ELENCO_STILI)};
 const LUT_UI = ${JSON.stringify(Object.fromEntries(Object.entries(LUT).map(([k, v]) => [k, v[1].split(':')[0]])))};
 const GENERI_UI = STILI_UI.generi, MOOD_UI = STILI_UI.mood;
+let ARCH_PREFILL = '';
 function nuovo() {
   $('#app').innerHTML = '<h1>Nuovo reel</h1><p class="mut">Il Direttore creativo cerca i video che funzionano nel settore su YouTube, TikTok e Instagram, il motore li misura, Iris li studia, l\\'Analista studia le tue clip e alla fine ricevi la scheda tecnica.</p>' +
     '<label>Cosa deve essere il reel</label><textarea id="pr" placeholder="Es. Reel per la pizzeria Da Gino a Salerno, 30 secondi, clip in cucina e in sala. Deve far venire fame e portare prenotazioni. Target 25-40 anni, tono giovane ma non volgare."></textarea>' +
     '<div class="aiuto">Cliente, settore, obiettivo, durata, tono, a chi parla. Più sei preciso, migliore è la ricerca.</div>' +
-    '<label>Fonte del girato</label><select id="fo"><option value="pcloud">Le mie clip (cartella pCloud)</option><option disabled>Video stock — in arrivo</option><option disabled>Generati con AI — in arrivo</option></select>' +
-    '<label>Cartella delle clip su pCloud (facoltativo)</label><input id="pc" placeholder="https://e.pcloud.link/publink/show?code=…">' +
+    '<label>Clip dall’Archivio</label><select id="ar"><option value="">Scegli da sola dal testo (es. “torretta panettoni” → Clienti/Torretta/Panettoni)</option></select>' +
+    '<label>Oppure: cartella delle clip su pCloud (facoltativo)</label><input id="pc" placeholder="https://e.pcloud.link/publink/show?code=…">' +
     '<label style="display:flex;gap:8px;align-items:center;font-weight:400;margin-top:8px"><input type="checkbox" id="solo" checked style="width:auto"> Usa solo le mie clip: niente ricerca di reel su YouTube/TikTok/Instagram (risparmi). Se metti dei reel modello, studia solo quelli.</label>' +
     '<div class="aiuto">Su pCloud: tasto destro sulla cartella → Condividi → Link di condivisione → copia. Senza clip ottieni scheda e lista delle riprese, e il girato lo aggiungi dopo.</div>' +
     '<label>Reel MODELLO: lo stile che vuoi (facoltativo, ma fa la differenza)</label><textarea id="lr" style="min-height:70px" placeholder="Un link per riga: Instagram, TikTok, Pinterest, YouTube, Vimeo… La squadra copia il suo linguaggio (look, ritmo, testi sì/no, finale), non i contenuti."></textarea>' +
@@ -336,9 +342,11 @@ function nuovo() {
     '<div class="aiuto">Puoi anche solo scriverlo nella richiesta (es. “street emozionale”, “romantico”, “natalizio”): Stella cerca reel montati così e la squadra applica quello stile alle tue clip.</div>' +
     '<div style="margin-top:18px"><button id="go">Avvia la squadra</button></div><div id="er" class="err"></div>';
   if (PREFILL) { $('#pr').value = PREFILL; PREFILL = ''; }
+  chiama('/api/archivio/cartelle').then((C) => { const sel = $('#ar'); if (!sel) return; C.forEach((c) => { const o = document.createElement('option'); o.value = c.percorso; o.textContent = '🗂️ ' + c.percorso; sel.appendChild(o); });
+    if (ARCH_PREFILL) { sel.value = ARCH_PREFILL; ARCH_PREFILL = ''; } }).catch(() => {});
   $('#go').onclick = async () => {
     $('#go').disabled = true;
-    try { const r = await chiama('/api/lavori', { method: 'POST', body: { prompt: $('#pr').value, pcloud: $('#pc').value, link_rif: $('#lr').value, solo_clip: $('#solo').checked, stile: ($('#sg').value || '') + '+' + ($('#sm').value || '') } }); location.hash = '#/lavoro/' + r.id; }
+    try { const r = await chiama('/api/lavori', { method: 'POST', body: { prompt: $('#pr').value, pcloud: $('#pc').value, archivio: $('#ar').value, link_rif: $('#lr').value, solo_clip: $('#solo').checked, stile: ($('#sg').value || '') + '+' + ($('#sm').value || '') } }); location.hash = '#/lavoro/' + r.id; }
     catch (x) { $('#er').textContent = x.message; $('#go').disabled = false; }
   };
 }
@@ -1202,6 +1210,75 @@ async function approvazioni() {
   document.querySelectorAll('.doc_ok').forEach((b) => b.onclick = () => azione(b, () => chiama('/api/incarichi/' + b.dataset.id + '/visto', { method: 'POST', body: {} })));
 }
 
+// ARCHIVIO: le cartelle dell'agenzia su Cloudflare (clienti → progetti, musica, grafiche…). Si carica da qui, anche file da diversi GB.
+const pesoTesto = (b) => b > 1073741824 ? (b / 1073741824).toFixed(1).replace('.', ',') + ' GB' : b > 1048576 ? Math.round(b / 1048576) + ' MB' : Math.max(1, Math.round((b || 0) / 1024)) + ' KB';
+const ICONA_FILE = { cartella: '📁', video: '🎬', immagine: '🖼️', musica: '🎵', altro: '📄' };
+async function archivioPagina(cart) {
+  const A = await chiama('/api/archivio?cartella=' + encodeURIComponent(cart || ''));
+  const c = A.cartella, pezzi = c ? c.split('/') : [];
+  const link = (q) => '#/archivio/' + encodeURIComponent(q);
+  const briciole = '<div class="riga" style="gap:4px;flex-wrap:wrap;font-weight:600"><a href="#/archivio">Archivio</a>' + pezzi.map((x, k) => ' / <a href="' + link(pezzi.slice(0, k + 1).join('/')) + '">' + e(x) + '</a>').join('') + '</div>';
+  const cartelle = A.voci.filter((v) => v.tipo === 'cartella'), file = A.voci.filter((v) => v.tipo !== 'cartella');
+  const progetto = c.startsWith('Clienti/') && pezzi.length >= 2 && (file.some((f) => f.tipo === 'video' || f.tipo === 'immagine') || cartelle.some((x) => x.file));
+  const base = !c && !A.voci.length ? '<div class="card">Archivio vuoto. <button class="sec" id="ar_base" style="width:auto;margin-left:8px">Crea le cartelle base</button><div class="mut" style="margin-top:6px">Clienti, Musica (con le sottocartelle per umore), Grafiche. Dentro Clienti metti una cartella per cliente con il suo <b>logo</b> e una sottocartella per ogni lavoro (es. Torretta → Caffè, Panettoni).</div></div>' : '';
+  const anteprima = (f) => f.tipo === 'immagine' && !/\\.(dng|cr2|cr3|nef|arw|raf|orf|rw2|heic|heif|tiff?)$/i.test(f.nome) ? '<img loading="lazy" src="/api/archivio/file?p=' + encodeURIComponent(f.percorso) + '">' : '<span>' + ICONA_FILE[f.tipo] + '</span>';
+  $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Archivio</h1><span class="mut">' + A.totale.file + ' file · ' + String(A.totale.gb).replace('.', ',') + ' GB · ' + (A.totale.euro_mese ? '≈ € ' + A.totale.euro_mese.toFixed(2).replace('.', ',') + ' al mese' : 'gratis fino a 10 GB') + '</span></div>' +
+    (A.collegato ? '' : '<div class="card" style="border-color:var(--warn)">⚠︎ Cloudflare R2 non è ancora attivo: puoi creare le cartelle, ma per caricare i file attiva R2 nella dashboard di Cloudflare (R2 → Attiva).</div>') +
+    briciole + base +
+    '<div class="riga" style="gap:8px;margin:12px 0;flex-wrap:wrap"><input id="ar_nome" placeholder="Nuova cartella' + (c ? ' dentro ' + e(pezzi[pezzi.length - 1]) : '') + '" style="flex:1;min-width:180px"><button class="sec" id="ar_crea" style="width:auto">📁 Crea</button>' +
+    (c ? '<label class="btn" style="margin:0">⬆︎ Carica file<input type="file" id="ar_file" multiple hidden></label>' : '') +
+    (progetto ? '<button id="ar_reel" style="width:auto">🎬 Fai un reel con queste clip</button>' : '') + '</div>' +
+    (c ? '<div id="ar_drop" class="ar-drop">Trascina qui i file (clip, foto, musica, grafiche)</div><div id="ar_prog"></div>' : '') +
+    (cartelle.length ? '<div class="ar-griglia">' + cartelle.map((v) => '<a class="ar-car" href="' + link(v.percorso) + '"><span>📁</span><b>' + e(v.nome) + '</b><small class="mut">' + v.file + ' file · ' + pesoTesto(v.dimensione) + '</small></a>').join('') + '</div>' : '') +
+    (file.length ? '<div class="ar-griglia">' + file.map((f) => '<div class="ar-file"><a href="/api/archivio/file?p=' + encodeURIComponent(f.percorso) + '" target="_blank" class="ar-ant">' + anteprima(f) + '</a><b title="' + e(f.nome) + '">' + e(f.nome) + '</b><small class="mut">' + pesoTesto(f.dimensione) + (/^logo/i.test(f.nome) ? ' · logo del cliente' : '') + '</small>' +
+      '<button class="sec ar_del" data-p="' + e(f.percorso) + '" style="width:auto;padding:4px 10px;font-size:12px">Elimina</button></div>').join('') + '</div>' : (c && !cartelle.length ? '<div class="vuoto">Cartella vuota: carica i file qui sopra.</div>' : '')) +
+    (c ? '<div style="margin-top:22px"><button class="rosso ar_del" data-p="' + e(c) + '" data-cartella="1" style="width:auto">Elimina questa cartella</button></div>' : '');
+  const crea = async (q) => { await chiama('/api/archivio/cartella', { method: 'POST', body: { percorso: q } }); };
+  $('#ar_crea').onclick = async () => { const n = $('#ar_nome').value.trim(); if (!n) return; try { await crea((c ? c + '/' : '') + n); rotta(); } catch (x) { alert(x.message); } };
+  if ($('#ar_base')) $('#ar_base').onclick = async () => { for (const q of ['Clienti', 'Musica/Allegra', 'Musica/Emozionante', 'Musica/Natalizia', 'Musica/Latina', 'Musica/Chill', 'Grafiche']) await crea(q); rotta(); };
+  if ($('#ar_reel')) $('#ar_reel').onclick = () => { ARCH_PREFILL = c; PREFILL = 'Reel per ' + pezzi[1] + ' · ' + pezzi.slice(2).join(' ') + ': '; location.hash = '#/nuovo'; };
+  document.querySelectorAll('.ar_del').forEach((b) => b.onclick = async () => {
+    const cart = !!b.dataset.cartella;
+    if (!confirm(cart ? 'Elimino la cartella “' + b.dataset.p + '” con TUTTO quello che contiene? Non si può annullare.' : 'Elimino “' + b.dataset.p.split('/').pop() + '”? Non si può annullare.')) return;
+    try { await chiama('/api/archivio?p=' + encodeURIComponent(b.dataset.p), { method: 'DELETE' }); location.hash = cart ? link(pezzi.slice(0, -1).join('/')) : location.hash; if (!cart) rotta(); } catch (x) { alert(x.message); }
+  });
+  const carica = async (lista) => {
+    const box = $('#ar_prog'); let fatti = 0;
+    const righe = [...lista].map((f, k) => { const d = document.createElement('div'); d.className = 'ar-riga'; d.innerHTML = '<span>' + e(f.name) + '</span><span class="ar-bar"><i id="ab' + k + '"></i></span><small id="at' + k + '">in coda</small>'; box.appendChild(d); return f; });
+    const invia = (metodo, u, blob, avanz) => new Promise((ok, ko) => { const x = new XMLHttpRequest(); x.open(metodo, u); x.setRequestHeader('content-type', blob.type || 'application/octet-stream');
+      x.upload.onprogress = (ev) => avanz(ev.loaded); x.onload = () => { let d = {}; try { d = JSON.parse(x.responseText); } catch (_) {} x.status < 300 ? ok(d) : ko(new Error(d.errore || 'HTTP ' + x.status)); }; x.onerror = () => ko(new Error('rete')); x.send(blob); });
+    const uno = async (f, k) => {
+      const p = c + '/' + f.name, bar = $('#ab' + k), tx = $('#at' + k);
+      const segna = (b) => { bar.style.width = Math.round(b / f.size * 100) + '%'; tx.textContent = Math.round(b / f.size * 100) + '%'; };
+      try {
+        if (f.size <= 90 * 1048576) await invia('PUT', '/api/archivio/carica?p=' + encodeURIComponent(p), f, segna);
+        else {
+          const I = await chiama('/api/archivio/carica/inizio', { method: 'POST', body: { percorso: p, mime: f.type } });
+          const passo = I.parte_mb * 1048576, parti = [];
+          try {
+            for (let n = 1, da = 0; da < f.size; n++, da += passo) {
+              let r, tent = 0;
+              while (true) { try { r = await invia('PUT', '/api/archivio/carica/parte?p=' + encodeURIComponent(I.percorso) + '&u=' + encodeURIComponent(I.upload) + '&n=' + n, f.slice(da, da + passo), (b) => segna(da + b)); break; } catch (x) { if (++tent >= 3) throw x; } }
+              parti.push(r);
+            }
+            await chiama('/api/archivio/carica/fine', { method: 'POST', body: { percorso: I.percorso, upload: I.upload, parti, mime: f.type } });
+          } catch (x) { chiama('/api/archivio/carica/annulla', { method: 'POST', body: { percorso: I.percorso, upload: I.upload } }).catch(() => {}); throw x; }
+        }
+        tx.textContent = '✓'; bar.style.width = '100%';
+      } catch (x) { tx.textContent = '⚠︎ ' + x.message; bar.style.background = 'var(--warn)'; }
+      fatti++;
+    };
+    // 3 file alla volta
+    const coda = righe.map((f, k) => [f, k]);
+    await Promise.all([0, 1, 2].map(async () => { while (coda.length) { const [f, k] = coda.shift(); await uno(f, k); } }));
+    if (fatti) setTimeout(rotta, 600);
+  };
+  if ($('#ar_file')) $('#ar_file').onchange = (ev) => carica(ev.target.files);
+  const dz = $('#ar_drop');
+  if (dz) { dz.ondragover = (ev) => { ev.preventDefault(); dz.classList.add('su'); }; dz.ondragleave = () => dz.classList.remove('su');
+    dz.ondrop = (ev) => { ev.preventDefault(); dz.classList.remove('su'); carica(ev.dataTransfer.files); }; dz.onclick = () => $('#ar_file').click(); }
+}
+
 async function clientiPagina() {
   const [L, G] = await Promise.all([chiama('/api/clienti'), chiama('/api/gestionale/clienti')]);
   const liberi = G.filter((g) => !L.some((c) => c.gest_id === g.id));
@@ -1289,6 +1366,7 @@ async function rotta() {
     else if (h.startsWith('#/agente/')) await agentePagina(h.split('/')[2]);
     else if (h.startsWith('#/incarico/')) await incarico(h.split('/')[2]);
     else if (h === '#/approvazioni') await approvazioni();
+    else if (h === '#/archivio' || h.startsWith('#/archivio/')) await archivioPagina(decodeURIComponent(h.slice(11)));
     else if (h === '#/riunioni') await riunioniPagina();
     else if (h === '#/profilo') await profiloPagina();
     else if (h.startsWith('#/profilo/')) await profiloDettaglio(h.split('/')[2]);
