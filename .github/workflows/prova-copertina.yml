@@ -2,7 +2,7 @@
 name: prova-copertina
 on: workflow_dispatch
 permissions:
-  contents: read
+  contents: write
 jobs:
   prova:
     runs-on: ubuntu-latest
@@ -23,7 +23,8 @@ jobs:
           C.copertina_moderna('../persona.jpg', 0, '3 errori col caffè', '../cop_rossa.jpg', immagine=True, evidenzia='errori', accento='#FF4D4D')
           print('scontorno:', C._scontorna.__name__, getattr(C._scontorna, 'sessione', None) is not None)
           "
-      - uses: actions/upload-artifact@v4
-        with:
-          name: copertine
-          path: cop_*.jpg
+      - name: Risultato sul ramo prove-copertina
+        run: |
+          mkdir /tmp/out && cp cop_*.jpg /tmp/out/ && cd /tmp/out && git init -q && git checkout -q -b prove-copertina
+          git config user.email bot@momento && git config user.name motore && git add . && git commit -qm prova
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" prove-copertina
