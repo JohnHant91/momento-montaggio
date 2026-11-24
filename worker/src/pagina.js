@@ -214,7 +214,7 @@ const ICO = {
   impostazioni: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'
 };
 const VOCI = [['agenzia', 'Agenzia', '#/'], ['riunioni', 'Riunioni', '#/riunioni'], ['approvazioni', 'Approvazioni', '#/approvazioni'], ['profilo', 'Profilo IG', '#/profilo'], ['clienti', 'Clienti', '#/clienti']];
-const STRUMENTI = [['copioni', 'Copioni', '#/copioni'], ['gestionale', 'Gestionale', '#/gestionale'], ['costi', 'Costi', '#/costi']];
+const STRUMENTI = [ ['gestionale', 'Gestionale', '#/gestionale'], ['costi', 'Costi', '#/costi']];
 const voce = (v) => '<a class="vm" href="' + v[2] + '" data-k="' + v[0] + '"><svg viewBox="0 0 24 24">' + ICO[v[0]] + '</svg><span class="tx">' + v[1] + '</span>' + (v[0] === 'costi' ? '<span class="num" id="num_costi"></span>' : '') + '</a>';
 function menu(on) {
   document.body.classList.toggle('dentro', !!on);
@@ -234,7 +234,7 @@ const soldi = (usd, cambio) => '€ ' + (usd * (cambio || 0.86)).toLocaleString(
 function evidenzia() {
   const h = location.hash || '#/';
   const k = h === '#/' || h.startsWith('#/agente') || h.startsWith('#/ufficio') || h.startsWith('#/incarico') || h === '#/chat/capo' ? 'agenzia' : h.startsWith('#/riunion') ? 'riunioni' : h.startsWith('#/profilo') ? 'profilo' : h.startsWith('#/approvazion') ? 'approvazioni' : h.startsWith('#/client') ? 'clienti' :
-    h.startsWith('#/reel') || h.startsWith('#/lavoro') || h.startsWith('#/nuovo') || h.startsWith('#/post') ? 'approvazioni' : h.startsWith('#/copion') || h.startsWith('#/piano') ? 'copioni' : h.startsWith('#/chat/gestionale') || h.startsWith('#/chat/contabile') || h === '#/gestionale' ? 'gestionale' : h.startsWith('#/costi') ? 'costi' : h.startsWith('#/impostazioni') ? 'impostazioni' : '';
+    h.startsWith('#/reel') || h.startsWith('#/lavoro') || h.startsWith('#/nuovo') || h.startsWith('#/post') || h.startsWith('#/copion') || h.startsWith('#/piano') ? 'approvazioni' : h.startsWith('#/chat/gestionale') || h.startsWith('#/chat/contabile') || h === '#/gestionale' ? 'gestionale' : h.startsWith('#/costi') ? 'costi' : h.startsWith('#/impostazioni') ? 'impostazioni' : '';
   document.querySelectorAll('#nav .vm[data-k]').forEach((a) => a.classList.toggle('att', a.dataset.k === k));
   const tutte = VOCI.concat(STRUMENTI, [['impostazioni', 'Impostazioni']]).find((v) => v[0] === k);
   $('#sez').textContent = tutte ? tutte[1] : '';
@@ -304,7 +304,7 @@ async function lista() {
       (g === 'in_corso' || g === 'pausa' ? '<div class="avanz"><i style="width:' + p + '%"></i></div>' : '') +
       '<div class="riga" style="margin-top:8px;gap:6px">' + (g === 'da_vedere' ? '<a class="btn" style="padding:6px 12px" href="#/lavoro/' + l.id + '">▶ Guarda e approva</a>' : '') + azioni + '</div></div></div>';
   };
-  $('#app').innerHTML = '<a class="mut" href="#/approvazioni">← Approvazioni</a><div class="riga"><h1 style="flex:1">Reel in lavorazione</h1><a class="btn sec" href="#/post">Post e caroselli in lavorazione</a><a class="btn" href="#/nuovo">+ Nuovo reel</a></div>' +
+  $('#app').innerHTML = '<a class="mut" href="#/approvazioni">← Approvazioni</a><div class="riga"><h1 style="flex:1">Reel in lavorazione</h1><a class="btn sec" href="#/post">Post e caroselli in lavorazione</a><a class="btn sec" href="#/copioni">Copioni in lavorazione</a><a class="btn" href="#/nuovo">+ Nuovo reel</a></div>' +
     '<div class="filtri">' + Object.keys(nomi).map((g) => '<button class="' + (FILTRO_REEL === g ? 'on' : '') + ' r_f" data-f="' + g + '">' + nomi[g] + ' <span class="mut">' + conta(g) + '</span></button>').join('') + '</div>' +
     (vis.length ? vis.map(carta).join('') : '<div class="vuoto">' + (L.length ? 'Nessun reel in questa lista.' : 'Nessun reel. Scrivi il primo con “+ Nuovo reel”.') + '</div>');
   document.querySelectorAll('.r_f').forEach((b) => b.onclick = () => { FILTRO_REEL = b.dataset.f; lista(); });
@@ -618,7 +618,7 @@ async function costiPagina(giorni) {
 let PREFILL = '';
 async function piani() {
   const P = await chiama('/api/piani');
-  $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Copioni</h1><a class="btn" href="#/copioni/nuovo">+ Nuovo piano</a></div>' +
+  $('#app').innerHTML = '<a class="mut" href="#/approvazioni">← Approvazioni</a><div class="riga"><h1 style="flex:1">Copioni in lavorazione</h1><a class="btn" href="#/copioni/nuovo">+ Nuovo piano</a></div>' +
     '<p class="mut">Nora prende i tuoi argomenti e scrive il piano del contratto: calendario, giornate di ripresa e un copione per ogni reel con le clip da girare.</p>' +
     (P.map((x) => '<a class="card lav" href="#/copioni/' + x.id + '"><div class="riga"><b style="flex:1">#' + x.id + ' · ' + e(x.titolo || x.cliente) + '</b><span class="pill ' + x.stato + '">' + (x.stato === 'pronto' ? 'pronto' : x.stato === 'errore' ? 'errore' : (x.fase === 'strategia' ? 'strategia…' : 'copioni ' + x.scritti + '/' + x.numero)) + '</span></div><div class="mut">' + e(x.cliente) + ' · ' + x.numero + ' reel in ' + x.mesi + ' mesi · ' + fa(x.creato) + '</div></a>').join('') || '<div class="vuoto">Nessun piano ancora. Crea il primo con “+ Nuovo piano”.</div>');
 }
@@ -1175,7 +1175,7 @@ async function approvazioni() {
   const prog = L.filter((c) => ['programmato', 'approvato'].includes(c.stato));
   $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Approvazioni' + (totale ? ' <span class="pill" style="background:var(--warn);color:#fff">' + totale + '</span>' : '') + '</h1><button class="sec" id="notif" style="width:auto">🔔 Notifiche su questo telefono</button></div>' +
     '<div class="riga filtri" id="ap_f" style="flex-wrap:wrap;gap:6px;margin:6px 0 4px">' + [['tutto', 'Tutto'], ['video', '🎬 Video'], ['post', '📱 Post'], ['caroselli', '🗂️ Caroselli'], ['copioni', '✍️ Copioni'], ['altro', '🤝 Proposte e documenti']].map(([k, t]) => '<button class="chip' + (k === (sessionStorage.apf || 'tutto') ? ' att' : '') + '" data-f="' + k + '">' + t + '</button>').join('') +
-      '<span style="flex:1"></span><a class="chip" href="#/reel">⏳ In lavorazione</a><a class="chip" href="#/nuovo">+ Reel</a><a class="chip" href="#/post/nuovo">+ Post o caroselli</a></div><div id="ap_vuoto" class="vuoto" hidden>Niente in questa categoria.</div>' +
+      '<span style="flex:1"></span><a class="chip" href="#/reel">⏳ In lavorazione</a><a class="chip" href="#/nuovo">+ Reel</a><a class="chip" href="#/post/nuovo">+ Post o caroselli</a><a class="chip" href="#/copioni/nuovo">+ Copioni per un cliente</a></div><div id="ap_vuoto" class="vuoto" hidden>Niente in questa categoria.</div>' +
     (totale ? '' : '<div class="vuoto">Niente da approvare: quando qualcosa è pronto ti arriva la notifica sul telefono.</div>') +
     sez('🎬', 'Reel da guardare', reel.length, bReel, 'video') + sez('✍️', 'Copioni del tuo profilo', avD.filter(Boolean).length, bAv, 'copioni') + sez('📝', 'Copioni per i clienti', piD.filter(Boolean).length, bPi, 'copioni') +
     (bPo ? '<h2 class="ap-h apsez" data-cat="post caroselli">🗂️ Post e caroselli</h2>' + bPo : '') + bCont + sez('🤝', 'Proposte delle riunioni da scegliere', riD.filter(Boolean).length, bRi, 'altro') + sez('📄', 'Documenti degli agenti da leggere', Doc.length, bDoc, 'altro') +
