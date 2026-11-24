@@ -3118,7 +3118,7 @@ Rispondi SOLO JSON: {"correzioni": [{"id": n, "testo": "testo corretto, oppure "
 var REGOLE_REEL_BASE = `- Durata massima 1'30" (oltre non \xE8 pi\xF9 un Reel).
 - Testi, sottotitoli, loghi e il soggetto importante stanno nella zona sicura: 220 px liberi in alto, 450 px in basso, 35 px ai lati; in basso a destra, da 1220 px in gi\xF9, ci sono i pulsanti.
 - Copertina: titolo e soggetto dentro il 3:4 centrale (1080x1440, da 240 a 1680 px), perch\xE9 nella griglia del profilo si vede solo quello.
-- Le clip orizzontali restano orizzontali: si ritaglia il 9:16 sul soggetto, non si girano mai.
+- Le clip orizzontali dritte restano orizzontali: si ritaglia il 9:16 sul soggetto. Si raddrizzano solo quelle girate con la camera in verticale (immagine coricata).
 - Mai due volte la stessa clip nello stesso reel.
 - Quando chiedo dove deve stare l'attenzione (es. "nel finale l'attenzione sulla scatola"), quell'oggetto deve stare al centro del 9:16 nei pezzi dove compare (campo "fuoco").
 - Niente emoji nei testi a schermo.`;
@@ -6360,7 +6360,7 @@ async function motoreApi(req, env, url) {
     await log(env, L2.id, "motore", `\u2699\uFE0F motore GitHub al lavoro: ${elementi.length} ${tipo2 === "riferimenti" ? "reel da scaricare e misurare" : "clip da scaricare e misurare"}`);
     return json({ id: L2.id, tipo: tipo2, pass: pass2, pcloud_code: codice(L2.pcloud), pcloud_eu: /(^|\/\/)e\.|eapi/.test(L2.pcloud || ""), elementi });
   }
-  const mm = p.match(/^\/api\/motore\/(\d+)\/(elemento|errore|fine|scarica|log|video|anteprima|copertina|esito|logo)$/);
+  const mm = p.match(/^\/api\/motore\/(\d+)\/(elemento|errore|fine|scarica|log|video|anteprima|copertina|esito|logo|fuoco|verso)$/);
   if (!mm) return json({ errore: "non trovato" }, 404);
   const id = Number(mm[1]);
   const L = await one(env, "SELECT id, prompt, piano, fase, riferimenti, clip, montaggio, motore_pass FROM lavori WHERE id=?", id);
@@ -6371,6 +6371,22 @@ async function motoreApi(req, env, url) {
   const indice = Number(url.searchParams.get("i"));
   const el = elenco[indice];
   const nome = (x) => tipo === "riferimenti" ? `${x.video.piattaforma} ${x.video.id}` : x.nome;
+  if (mm[2] === "verso" && m === "POST") {
+    const d = await req.json().catch(() => ({}));
+    const im = (d.immagini || []).slice(0, 40);
+    if (!im.length) return json({ gradi: [] });
+    const cfg = chi(await configurazione(env), { area: "reel", lavoro_id: Number(id) || null, agente: "occhi" });
+    try {
+      const out = await claudeVisione(cfg, cfg.CLAUDE_MODEL, `Controlli il verso dei fotogrammi di un girato. Per ogni immagine guarda se \xE8 DRITTA: persone in piedi
+con la testa in alto, tavoli e pavimento in basso, scritte leggibili da sinistra a destra. Se la camera era girata l'immagine \xE8 coricata
+(persone sdraiate di lato, scritte in verticale) o capovolta. Rispondi SOLO JSON: {"gradi": [n, n, ...]} uno per immagine nell'ordine:
+0 se \xE8 dritta, 90 se va girata di 90\xB0 in senso ORARIO per diventare dritta, -90 se in senso ANTIORARIO, 180 se \xE8 capovolta.
+Un'inquadratura orizzontale dritta (paesaggio, banco visto di lato) \xE8 0. Nel dubbio 0.`, `Immagini: ${im.length}.`, im.map((j2, k) => ({ cosa: `fotogramma ${k + 1}`, jpeg: j2 })), 600);
+      return json({ gradi: (out?.gradi || []).map((g) => [90, -90, 180].includes(Number(g)) ? Number(g) : 0) });
+    } catch (e) {
+      return json({ gradi: [], errore: String(e?.message || e).slice(0, 200) });
+    }
+  }
   if (mm[2] === "fuoco" && m === "POST") {
     const d = await req.json().catch(() => ({}));
     if (!d.jpeg || !d.oggetto) return json({ errore: "dati mancanti" }, 400);

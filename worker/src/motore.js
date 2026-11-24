@@ -85,7 +85,7 @@ export async function motoreApi(req, env, url) {
     return json({ id: L.id, tipo, pass, pcloud_code: codice(L.pcloud), pcloud_eu: /(^|\/\/)e\.|eapi/.test(L.pcloud || ''), elementi });
   }
 
-  const mm = p.match(/^\/api\/motore\/(\d+)\/(elemento|errore|fine|scarica|log|video|anteprima|copertina|esito|logo)$/);
+  const mm = p.match(/^\/api\/motore\/(\d+)\/(elemento|errore|fine|scarica|log|video|anteprima|copertina|esito|logo|fuoco|verso)$/);
   if (!mm) return json({ errore: 'non trovato' }, 404);
   const id = Number(mm[1]);
   const L = await one(env, 'SELECT id, prompt, piano, fase, riferimenti, clip, montaggio, motore_pass FROM lavori WHERE id=?', id);
@@ -99,6 +99,21 @@ export async function motoreApi(req, env, url) {
 
   // ---- montaggio: avanzamento dei reparti, video, anteprima, esito del revisore
   // il montatore chiede dove sta nell'immagine l'oggetto su cui va l'attenzione (es. "la scatola")
+  // il montatore chiede se il girato è coricato (camera tenuta in verticale): un fotogramma per clip, una sola chiamata
+  if (mm[2] === 'verso' && m === 'POST') {
+    const d = await req.json().catch(() => ({}));
+    const im = (d.immagini || []).slice(0, 40);
+    if (!im.length) return json({ gradi: [] });
+    const cfg = chi(await configurazione(env), { area: 'reel', lavoro_id: Number(id) || null, agente: 'occhi' });
+    try {
+      const out = await S.claudeVisione(cfg, cfg.CLAUDE_MODEL, `Controlli il verso dei fotogrammi di un girato. Per ogni immagine guarda se è DRITTA: persone in piedi
+con la testa in alto, tavoli e pavimento in basso, scritte leggibili da sinistra a destra. Se la camera era girata l'immagine è coricata
+(persone sdraiate di lato, scritte in verticale) o capovolta. Rispondi SOLO JSON: {"gradi": [n, n, ...]} uno per immagine nell'ordine:
+0 se è dritta, 90 se va girata di 90° in senso ORARIO per diventare dritta, -90 se in senso ANTIORARIO, 180 se è capovolta.
+Un'inquadratura orizzontale dritta (paesaggio, banco visto di lato) è 0. Nel dubbio 0.`, `Immagini: ${im.length}.`, im.map((j, k) => ({ cosa: `fotogramma ${k + 1}`, jpeg: j })), 600);
+      return json({ gradi: (out?.gradi || []).map((g) => [90, -90, 180].includes(Number(g)) ? Number(g) : 0) });
+    } catch (e) { return json({ gradi: [], errore: String(e?.message || e).slice(0, 200) }); }
+  }
   if (mm[2] === 'fuoco' && m === 'POST') {
     const d = await req.json().catch(() => ({}));
     if (!d.jpeg || !d.oggetto) return json({ errore: 'dati mancanti' }, 400);

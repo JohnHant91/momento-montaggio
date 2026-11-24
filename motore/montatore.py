@@ -309,7 +309,10 @@ class Montatore:
         rallenty = bool(s.get("rallenty"))
         if rallenty:
             # 50 fps a 0,6x = 30 fps veri (a 0,5x sarebbero 25 fps e il 30 fps duplicherebbe fotogrammi: scatti)
-            vel = min(vel, max(0.5, FPS / info["fps"])) if info["fps"] >= 45 else min(vel, 0.5)
+            # rallenty vero solo sul girato a 48 fps o più; sotto, niente fotogrammi inventati (deformano l'immagine): al massimo 0,8x
+            vel = min(vel, max(0.5, FPS / info["fps"])) if info["fps"] >= 45 else 0.8
+        if info["fps"] < 45 and vel < 0.8:
+            vel = 0.8  # mai fotogrammi inventati sul girato a 24-30 fps
         sorgente = dur * vel  # secondi di girato che servono
         t_in = max(0.0, min(float(s.get("in", 0)), max(0.0, info["dur"] - sorgente - 0.05)))
         out = os.path.join(self.tmp, f"pezzo_{i:02d}.mp4")
@@ -370,8 +373,6 @@ class Montatore:
         filtri.append(f"scale={W}:{H}:force_original_aspect_ratio=increase:flags=lanczos,crop={W}:{H}")
         # velocità: rallenty vero se il girato è a 50/60 fps, altrimenti fotogrammi intermedi ricostruiti
         if abs(vel - 1) > 0.01:
-            if vel < 1 and info["fps"] < 45:
-                filtri.append(f"minterpolate=fps={FPS / vel:.0f}:mi_mode=mci:mc_mode=aobmc:vsbmc=1")
             filtri.append(f"setpts=PTS/{vel:.4f}")
         filtri.append(f"fps={FPS}")
         mov = self.movimento(s.get("effetto", ""), dur)

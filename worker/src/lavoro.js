@@ -550,7 +550,7 @@ Rispondi SOLO JSON: {"correzioni": [{"id": n, "testo": "testo corretto, oppure \
 export const REGOLE_REEL_BASE = `- Durata massima 1'30" (oltre non è più un Reel).
 - Testi, sottotitoli, loghi e il soggetto importante stanno nella zona sicura: 220 px liberi in alto, 450 px in basso, 35 px ai lati; in basso a destra, da 1220 px in giù, ci sono i pulsanti.
 - Copertina: titolo e soggetto dentro il 3:4 centrale (1080x1440, da 240 a 1680 px), perché nella griglia del profilo si vede solo quello.
-- Le clip orizzontali restano orizzontali: si ritaglia il 9:16 sul soggetto, non si girano mai.
+- Le clip orizzontali dritte restano orizzontali: si ritaglia il 9:16 sul soggetto. Si raddrizzano solo quelle girate con la camera in verticale (immagine coricata).
 - Mai due volte la stessa clip nello stesso reel.
 - Quando chiedo dove deve stare l'attenzione (es. "nel finale l'attenzione sulla scatola"), quell'oggetto deve stare al centro del 9:16 nei pezzi dove compare (campo "fuoco").
 - Niente emoji nei testi a schermo.`;

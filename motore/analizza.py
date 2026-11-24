@@ -125,6 +125,27 @@ def bande_nere(path, durata, immagine):
     return f"crop={w}:{h}:{x}:{y}"
 
 
+def verso_clip(lavoro, file_per_k):
+    """{chiave: gradi} per le clip coricate o capovolte. Un fotogramma piccolo per clip, tutte in una chiamata sola."""
+    voci = []
+    for k, f in file_per_k.items():
+        t = tecnico(f)
+        if t.get("codec") in ("mjpeg", "png", "webp") or not t.get("durata_sec"):
+            continue
+        p = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{(t['durata_sec'] or 1) * 0.4:.2f}", "-i", f, "-frames:v", "1",
+                            "-vf", "scale=384:384:force_original_aspect_ratio=decrease", "-q:v", "5", "-f", "image2", "-"], capture_output=True, timeout=120)
+        if p.stdout:
+            voci.append((k, base64.b64encode(p.stdout).decode()))
+    if not voci:
+        return {}
+    r = regia(lavoro, "verso", corpo={"immagini": [j for _, j in voci]}, timeout=300)
+    out = {}
+    for i, g in enumerate(r.get("gradi") or []):
+        if i < len(voci) and g in (90, -90, 180):
+            out[voci[i][0]] = g
+    return out
+
+
 def raddrizza(path, ruota, avvisa=None):
     """Gira il girato nel verso giusto (se Iris l'ha visto storto) e toglie le bande nere zoomando dentro l'immagine.
     Il file corretto sostituisce quello scaricato, così tutto il montaggio lavora già sul girato dritto."""
@@ -546,13 +567,26 @@ def monta(lavoro):
             s = voci[k]
             dest = os.path.join(cartella, "src_" + re.sub(r"\W+", "_", k)[-40:])
             scarica_url(link_pcloud(lavoro, s["fileid"]) if s.get("fileid") else s["url"], dest)
-            if s is not piano.get("musica"):  # girato storto o con bande nere: lo raddrizzo e zoommo prima di montare
-                raddrizza(dest, s.get("ruota"), avvisa)
             return k, dest
         file_per_id = {}
         with ThreadPoolExecutor(3) as ex:
             for k, dest in ex.map(prendi, list(voci)):
                 file_per_id[k] = dest
+        # verso del girato: le clip orizzontali girate con la camera in verticale escono coricate. Claude guarda un
+        # fotogramma di ognuna (una sola chiamata) e dice di quanto girarle; quelle dritte restano orizzontali
+        try:
+            versi = verso_clip(lavoro, {k: f for k, f in file_per_id.items() if voci[k] is not piano.get("musica")})
+        except Exception as e:
+            versi = {}
+            avvisa("motore", f"controllo del verso non riuscito: {str(e)[:100]}", "warn")
+        def sistema(k):
+            s = voci[k]
+            if s is piano.get("musica"):
+                return
+            r = versi.get(k, s.get("ruota"))
+            raddrizza(file_per_id[k], r, avvisa)  # girato storto o con bande nere: lo raddrizzo e zoommo prima di montare
+        with ThreadPoolExecutor(3) as ex:
+            list(ex.map(sistema, list(voci)))
         if (piano.get("logo") or {}).get("kv") or (piano.get("logo") or {}).get("archivio"):
             try:
                 dest = os.path.join(cartella, "logo.png")
