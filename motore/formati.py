@@ -992,7 +992,177 @@ class HyperTalking(TalkingHead):
         return rep
 
 
-FORMATI = {"talking_head": TalkingHead, "carosello": Carosello, "split_grafico": SplitGrafico, "parole_dietro": ParoleDietro, "hf_talking": HyperTalking}
+TRANSIZIONI_REMOTION = ["taglio", "dissolvenza", "zoom_blur", "whip_sx", "whip_dx", "whip_su", "glitch", "rgb_split", "flash_bianco",
+                        "light_leak", "scorri_su", "zoom_in", "spin", "iris", "sfocatura", "flash_nero"]
+# nomi delle transizioni del vecchio montatore → nuove
+VECCHIE_TR = {"taglio_netto": "taglio", "whip_pan": "whip_dx", "zoom": "zoom_blur", "fadenero": "flash_nero", "flash": "flash_bianco"}
+STILI_TITOLO = ["blur", "sale", "rotazione", "numero", "evidenziatore", "macchina", "hyper", "scintille", "aurora", "impatto", "etichetta", "comic", "flip3d", "ombra"]
+STILI_SOTTOTITOLI = ["karaoke", "box", "pop", "grassetto", "minimal", "neon"]
+
+
+class MontatoreCompleto(_Base):
+    """IL MONTATORE: le clip (pCloud, stock o generate) vengono raddrizzate, stabilizzate, rallentate e colorate dal
+    motore (ffmpeg, in parallelo), poi UNA composizione Remotion monta tutto: tagli a tempo di musica, transizioni,
+    movimenti di camera, titoli in motion graphics, sottotitoli animati, look (grana, vignetta, light leak, particelle),
+    finale sfumato. L'audio (suono delle clip, musica, effetti sonori) lo mixa il motore a −14 LUFS.
+    La faccia resta sempre libera: i titoli vanno sopra la testa o ai lati quando nella clip c'è una persona."""
+    NOME = "montatore"
+
+    def monta(self, out_finale):
+        t0 = time.time()
+        P = self.p
+        installa_grafiche(self.avvisa)
+        segmenti = [dict(s) for s in P["segmenti"]]
+        for s in segmenti:
+            s["_info"] = self.probe(s["file"])
+        self.aggancia_ai_battiti(segmenti)
+        self.qc = []
+        self.avvisa("color", f"look {P.get('look', 'naturale_vivace')}: porto i {len(segmenti)} pezzi alla stessa luce")
+        try:
+            self.rif_colore = self.riferimento(segmenti)
+        except Exception:
+            self.rif_colore = None
+        lut = self.crea_lut(P.get("look", "naturale_vivace"), float(P.get("intensita_look", 1.0)))
+        globali = set(P.get("effetti_globali") or [])
+        self.avvisa("editor", f"preparo {len(segmenti)} pezzi in parallelo: reframe sul soggetto, stabilizzazione, rallenty")
+        with ThreadPoolExecutor(PARALLELO) as ex:
+            pezzi = list(ex.map(lambda a: self.pezzo(a[0], a[1], lut, globali), enumerate(segmenti)))
+        with ThreadPoolExecutor(PARALLELO) as ex:
+            volti = list(ex.map(self.volto, [dict(s, file=p, **{"in": 0}) for s, p in zip(segmenti, pezzi)]))
+
+        # timeline: le transizioni sovrappongono le clip (la clip che entra parte prima della fine di quella che esce)
+        pub = os.path.join(GRAFICHE, "public")
+        os.makedirs(pub, exist_ok=True)
+        sigla = f"m{int(time.time())}"
+        clip, inizi, t = [], [], 0.0
+        for k, (s, p, v) in enumerate(zip(segmenti, pezzi, volti)):
+            dur = self.probe(p)["dur"]
+            tr = VECCHIE_TR.get(s.get("transizione_in") or "", s.get("transizione_in") or "taglio") if k else None
+            tr = tr if tr in TRANSIZIONI_REMOTION else "taglio"
+            td = 0.0 if not k or tr == "taglio" else min(0.45 if tr not in ("dissolvenza", "light_leak") else 0.6, dur * 0.35, clip[-1]["durata"] * 0.35)
+            inizio = max(0.0, t - td)
+            nome = f"{sigla}_{k:02d}.mp4"
+            shutil.copy(p, os.path.join(pub, nome))
+            c = {"src": nome, "inizio": round(inizio, 3), "durata": round(dur, 3),
+                 "movimento": s.get("movimento") or ("punch" if s.get("effetto") == "punch_in" else "push_in" if k % 3 == 0 else "ken_burns" if k % 3 == 1 else "push_out"),
+                 "fuoco": {"x": (v or {}).get("cx", 0.5), "y": (v or {}).get("cy", 0.42)}}
+            if k:
+                c["ingresso"] = {"tipo": tr, "durata": round(td, 3)}
+            clip.append(c)
+            inizi.append(inizio)
+            t = inizio + dur
+        totale = round(t, 3)
+
+        # sottotitoli dal parlato (se il regista li vuole) e titoli in motion graphics, lontani dalla faccia
+        parole = []
+        sott = P.get("sottotitoli") or {}
+        if sott.get("usare"):
+            self.avvisa("sottotitoli", "trascrivo il parlato con Whisper")
+            parole = self.trascrivi_tratti(segmenti, inizi)
+        evid = {norm(x) for x in (P.get("evidenzia") or []) if norm(x)}
+        def clip_a(tt):
+            return next((k for k in range(len(clip) - 1, -1, -1) if clip[k]["inizio"] <= tt), 0)
+        titoli = []
+        for x in (P.get("titoli") or P.get("testi") or [])[:14]:
+            if not str(x.get("testo", "")).strip():
+                continue
+            da, a = float(x.get("da", 0)), float(x.get("a", 0)) or float(x.get("da", 0)) + 2.5
+            k = clip_a(da)
+            persona = bool(volti[k])
+            pos = x.get("posizione") if x.get("posizione") in ("alto", "basso", "sx", "dx", "centro") else "alto"
+            if persona and pos == "centro":
+                pos = "alto"  # la faccia resta libera
+            stile = x.get("stile") if x.get("stile") in STILI_TITOLO else "blur"
+            ti = {"da": round(da, 3), "a": round(min(a, totale - 0.1), 3), "testo": str(x["testo"])[:80], "stile": stile, "posizione": pos,
+                  "chiave": [w for w in str(x["testo"]).split() if norm(w) in evid] or x.get("evidenzia") or []}
+            for campo in ("sotto", "parole", "numero"):
+                if x.get(campo):
+                    ti[campo] = x[campo]
+            titoli.append(ti)
+        for k, s in enumerate(segmenti):  # testo legato alla clip
+            if s.get("testo") and s["testo"].get("testo"):
+                x = s["testo"]
+                titoli.append({"da": round(inizi[k] + 0.15, 3), "a": round(inizi[k] + clip[k]["durata"] - 0.1, 3), "testo": str(x["testo"])[:80],
+                               "stile": x.get("stile") if x.get("stile") in STILI_TITOLO else "sale",
+                               "posizione": "alto" if volti[k] else (x.get("posizione") if x.get("posizione") in ("alto", "basso", "centro") else "centro")})
+        # i sottotitoli si nascondono quando un titolo sta in basso
+        nascondi = [{"da": x["da"], "a": x["a"]} for x in titoli if x["posizione"] == "basso"]
+        y_sott = 1330
+        if any(volti):
+            cy = max(v["cy"] for v in volti if v)
+            y_sott = min(1430, max(1250, int((cy + 0.2) * 1920)))
+        chiusura = P.get("chiusura") or {}
+        if chiusura.get("testo"):
+            titoli.append({"da": round(max(0, totale - 2.4), 3), "a": round(totale - 0.05, 3), "testo": chiusura["testo"][:60], "stile": "impatto", "posizione": "centro" if not volti[-1] else "alto",
+                           "sotto": chiusura.get("sottotesto") or None})
+        stile_look = P.get("look_reel") or {}
+        props = {
+            "fps": FPS, "durata": totale, "clip": clip, "titoli": titoli,
+            "sottotitoli": {"stile": sott.get("stile") if sott.get("stile") in STILI_SOTTOTITOLI else "box", "y": y_sott, "nascondi": nascondi,
+                            "parole": [{"t": w["testo"], "da": round(w["t0"], 3), "a": round(w["t1"], 3), "k": norm(w["testo"]) in evid} for w in parole]} if parole else None,
+            "look": {"grana": float(stile_look.get("grana", 0.06)), "vignetta": float(stile_look.get("vignetta", 0.32)), "bande": "bande_cinema" in globali,
+                     "particelle": stile_look.get("particelle") if stile_look.get("particelle") in ("neve", "polvere", "coriandoli", "bokeh") else None,
+                     "tinta": stile_look.get("tinta"), "tinta_forza": float(stile_look.get("tinta_forza", 0.2)),
+                     "light_leaks": [round(inizi[k] - 0.3, 2) for k in range(1, len(clip)) if "light_leak" in globali and k % 3 == 1][:4]},
+            "palette": {"accento": (P.get("palette") or {}).get("accento") or "#FFD43B"},
+            "font": {"titoli": (P.get("font_reel") or {}).get("titoli") or "montserrat", "testo": (P.get("font_reel") or {}).get("testo") or "montserrat"},
+            "finale": {"tipo": "bianco" if (P.get("finale") or "").lower() == "bianco" else "nero", "durata": 0.8},
+        }
+        # chiusura col logo del cliente: dopo il bianco il logo entra piano al centro (2,2 s in più)
+        logo = (P.get("logo") or {}).get("file")
+        if logo and os.path.exists(logo):
+            nome_logo = f"{sigla}_logo{os.path.splitext(logo)[1] or '.png'}"
+            shutil.copy(logo, os.path.join(pub, nome_logo))
+            props["finale"] = {"tipo": "bianco", "durata": 0.8, "logo": nome_logo, "coda": 2.2}
+            totale = round(totale + 2.2, 3)
+            props["durata"] = totale
+            self.report.append("chiusura: sfumato al bianco con il logo")
+        pj = os.path.join(self.tmp, "montaggio.json")
+        with open(pj, "w") as f:
+            json.dump(props, f, ensure_ascii=False)
+        self.avvisa("vfx", f"monto con Remotion: {len(clip)} clip, {sum(1 for c in clip if c.get('ingresso', {}).get('tipo', 'taglio') != 'taglio')} transizioni, "
+                           f"{len(titoli)} titoli animati" + (f", sottotitoli {props['sottotitoli']['stile']}" if parole else ""))
+        anim = os.path.join(self.tmp, "montaggio.mp4")
+        try:
+            p = subprocess.run(["npx", "remotion", "render", "src/index.ts", "Montaggio", anim, f"--props={pj}", "--codec=h264", "--crf=16", "--muted",
+                                "--concurrency=4", "--log=error"], cwd=GRAFICHE, capture_output=True, text=True, timeout=3000)
+            if p.returncode != 0 or not os.path.exists(anim):
+                raise RuntimeError("render del montaggio non riuscito: " + (p.stderr or p.stdout)[-600:])
+        finally:
+            for x in os.listdir(pub):
+                if x.startswith(sigla):
+                    os.remove(os.path.join(pub, x))
+        # tavola di controllo cifrata (per vederla prima di consegnare)
+        os.makedirs("/tmp/tavole", exist_ok=True)
+        tempi = [min(totale - 0.2, c["inizio"] + c["durata"] * 0.5) for c in clip][:8]
+        try:
+            import hyperframes_reel as HF
+            HF.tavola(anim, f"/tmp/tavole/tavola_{P.get('_lavoro', 'reel')}.jpg", tempi)
+        except Exception:
+            pass
+        segmenti_mix = segmenti
+        for s, pz in zip(segmenti_mix, pezzi):
+            s.setdefault("_vel", float(s.get("velocita", 1) or 1) if not s.get("rallenty") else 0.5)
+            s.setdefault("_in", float(s.get("in", 0)))
+        tagli = [(inizi[k], (clip[k].get("ingresso") or {}).get("tipo", "taglio_netto")) for k in range(1, len(clip))]
+        punch = [inizi[k] for k, s in enumerate(segmenti) if s.get("effetto") == "punch_in"]
+        ass = os.path.join(self.tmp, "vuoto.ass")
+        with open(ass, "w", encoding="utf-8") as f:
+            f.write(self.intestazione_ass(["Vuoto,Arial,20,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1"]))
+        if not (P.get("musica") or {}).get("file"):
+            self.report.append("senza musica: la aggiungo in pubblicazione dalla libreria di Instagram (o mettila nella cartella Musica)")
+        self.avvisa("audio", "mix: suono delle clip, " + ("musica a tempo, " if (P.get("musica") or {}).get("file") else "") + "whoosh sulle transizioni, −14 LUFS")
+        self.fine_nero = 0.8
+        self.mixa(anim, ass, totale, segmenti_mix, inizi, tagli, punch, out_finale)
+        rep = self.revisiona(out_finale)
+        rep["secondi_di_lavoro"] = round(time.time() - t0)
+        rep["formato"] = self.NOME
+        self.avvisa("revisore", f"controllo: {rep['durata']}s · {len(titoli)} titoli · {rep['lufs']} LUFS" + (" · ⚠ " + "; ".join(rep["problemi"]) if rep["problemi"] else " · tutto ok"))
+        return rep
+
+
+FORMATI = {"talking_head": TalkingHead, "carosello": Carosello, "split_grafico": SplitGrafico, "parole_dietro": ParoleDietro, "hf_talking": HyperTalking,
+           "montatore": MontatoreCompleto}
 
 
 def montatore_per(piano):

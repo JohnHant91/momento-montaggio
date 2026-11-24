@@ -369,7 +369,14 @@ async function faseScheda(env, cfg, L) {
 // ------------------------------------------------------------------ motore
 // ------------------------------------------------------------------ Regista: dalla scheda al piano di montaggio
 const LOOKS = ['neon_notte', 'estate_luminosa', 'autunno_caldo', 'inverno_freddo', 'street_urbano', 'emozionale_film', 'romantico_soft', 'amichevole_solare', 'natalizio_caldo', 'spot_contrasto', 'moody_caldo', 'caldo_cinematico', 'pulito_commerciale', 'teal_orange', 'moody_scuro', 'naturale_vivace', 'bn_contrasto', 'pastello_soft', 'vintage_film'];
-const TRANSIZIONI = ['taglio_netto', 'dissolvenza', 'flash_bianco', 'whip_pan', 'zoom', 'glitch', 'slide', 'fadenero'];
+const TRANSIZIONI = ['taglio_netto', 'dissolvenza', 'flash_bianco', 'whip_pan', 'zoom', 'glitch', 'slide', 'fadenero',
+  // transizioni del montatore nuovo (Remotion)
+  'zoom_blur', 'whip_sx', 'whip_dx', 'whip_su', 'rgb_split', 'light_leak', 'scorri_su', 'zoom_in', 'spin', 'iris', 'sfocatura', 'flash_nero'];
+// famiglie: lo stile che permette "whip_pan" permette anche whip_sx/dx/su, e così via
+const FAMIGLIA_TR = { whip_sx: 'whip_pan', whip_dx: 'whip_pan', whip_su: 'whip_pan', zoom_blur: 'zoom', zoom_in: 'zoom', spin: 'zoom', rgb_split: 'glitch', light_leak: 'dissolvenza', sfocatura: 'dissolvenza', iris: 'dissolvenza', scorri_su: 'slide', flash_nero: 'fadenero' };
+const STILI_TITOLO = ['blur', 'sale', 'rotazione', 'numero', 'evidenziatore', 'macchina', 'hyper', 'scintille', 'aurora', 'impatto', 'etichetta', 'comic', 'flip3d', 'ombra'];
+const STILI_SOTT = ['karaoke', 'box', 'pop', 'grassetto', 'minimal', 'neon'];
+const FONT_REEL = ['montserrat', 'inter', 'bebas', 'playfair', 'pacifico'];
 const EFFETTI_PEZZO = ['dolly_in', 'slider_dx', 'slider_sx', 'punch_in', 'zoom_lento', 'zoom_out', 'shake', 'nessuno'];
 const EFFETTI_GLOBALI = ['grana', 'vignettatura', 'bande_cinema', 'light_leak', 'glow', 'vhs'];
 const FORMATI_REEL = ['montaggio', 'talking_head', 'carosello', 'split_grafico', 'parole_dietro'];
@@ -412,6 +419,7 @@ VALORI AMMESSI
 - effetti_globali: ${EFFETTI_GLOBALI.join(', ')}
 - lut (facoltativa, LUT vere di pellicole e colorist; se la scegli, comanda lei il colore): ${LUT_NOMI.join(', ')}
 - stile testi: titolo_grande_centrale, etichetta_box, sottotitolo_classico; posizione: alto, centro, terzo_inferiore
+- MONTATORE (formato montaggio): "titoli" in motion graphics, stile ${STILI_TITOLO.join(', ')}; posizione alto (sopra la testa), sx / dx (ai lati del viso), basso, centro (SOLO su clip senza persone: la faccia deve restare sempre libera); sottotitoli.stile: ${STILI_SOTT.join(', ')}; font_reel: ${FONT_REEL.join(', ')}; look_reel.particelle: neve, polvere, coriandoli, bokeh (es. neve per lo spot di Natale)
 - formato: montaggio, talking_head, carosello, split_grafico, parole_dietro (vedi FORMATI DEL MONTATORE)
 - adesivi (solo parole_dietro): ${ADESIVI.join(', ')}
 - grafiche (solo split_grafico): ${TIPI_GRAFICA.join(', ')}; effetti delle grafiche: ${EFFETTI_SPLIT.join(', ')}; font_split.titoli: ${FONT_SPLIT.titoli.join(', ')}; testo: ${FONT_SPLIT.testo.join(', ')}; mono: ${FONT_SPLIT.mono.join(', ')}
@@ -433,6 +441,9 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
                 "zoom_fisso": {"z": 1.2-2.5, "cx": 0-1, "cy": 0-1} oppure null (avvicina su un dettaglio dell'inquadratura),
                 "in_preciso": true se il momento esatto conta (il montatore altrimenti può spostare l'inizio di ±0,8 s sul tratto più fermo)}],
   "sottotitoli": {"usare": bool, "stile": "parola_per_parola|karaoke_evidenziato|sottotitolo_classico|piccoli_alto (solo talking_head: sottotitoli piccoli in alto, i concetti li portano i cartelli)", "posizione": "terzo_inferiore"},
+  "titoli": [{"testo": "1-6 parole", "da": secondi sul reel, "a": secondi, "stile": "...", "posizione": "alto|sx|dx|basso|centro", "sotto": "riga piccola facoltativa", "numero": {"valore": n, "prima": "€", "dopo": " ore"} (solo stile numero), "parole": ["solo stile rotazione"]}] (solo montaggio: 3-8 titoli in motion graphics sui momenti forti, mai sulla faccia),
+  "look_reel": {"grana": 0-0.15, "vignetta": 0-0.6, "particelle": "neve|polvere|coriandoli|bokeh|null", "tinta": "#hex o null", "tinta_forza": 0-0.4} (solo montaggio),
+  "font_reel": {"titoli": "...", "testo": "..."} (solo montaggio),
   "chiusura": {"testo": "...", "sottotesto": "cta breve", "evidenzia": "parola", "durata": 2-3, "colore": "#hex"} oppure null (non per talking_head/carosello),
   "finale": "nero (l'ultima immagine scende al nero) | bianco (sfuma al bianco e compare il logo del cliente, se c'è) | null",
   "gancio": {"testo": "solo carosello: frase breve sulla prima slide; talking_head: lascia null (usa la prima frase detta)", "evidenzia": ["parole del gancio da colorare"]},
@@ -581,7 +592,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
   // lo stile è vincolante: transizioni ed effetti fuori stile vengono sostituiti
   if (R) {
     for (const s of seg) {
-      if (s.transizione_in && !R.transizioni.includes(s.transizione_in)) s.transizione_in = R.transizioni.includes('taglio_netto') ? 'taglio_netto' : R.transizioni[0];
+      if (s.transizione_in && !R.transizioni.includes(s.transizione_in) && !R.transizioni.includes(FAMIGLIA_TR[s.transizione_in])) s.transizione_in = R.transizioni.includes('taglio_netto') ? 'taglio_netto' : R.transizioni[0];
       if (R.effetti && !R.effetti.includes(s.effetto)) s.effetto = 'nessuno';
       if (R.rallenty === 'mai') s.rallenty = false;
     }
@@ -622,8 +633,20 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
   const adesivi = formato === 'parole_dietro' ? (p.adesivi || []).filter((a) => a && a.sulla_parola && ADESIVI.includes(a.tipo)).slice(0, 8).map((a) => ({ sulla_parola: String(a.sulla_parola).slice(0, 40), tipo: a.tipo })) : [];
   const avatar = !!J(L.stile, null)?.avatar; // video HeyGen: niente tempi morti da tagliare, parlato intero
   await correggiTesti(env, cfg, L, clip, { grafiche, cartelli, schede, copertina: cop, pannello });
+  // il montaggio delle clip lo fa il montatore nuovo (Remotion): titoli in motion graphics, sottotitoli animati, look
+  const motore = formato === 'montaggio' ? 'montatore' : formato;
+  const titoli = motore !== 'montatore' ? [] : (p.titoli || []).filter((x) => x?.testo).slice(0, 12).map((x) => ({
+    testo: String(x.testo).slice(0, 80), da: Math.max(0, Number(x.da) || 0), a: Math.max(Number(x.a) || 0, (Number(x.da) || 0) + 1.2),
+    stile: STILI_TITOLO.includes(x.stile) ? x.stile : 'blur', posizione: ['alto', 'basso', 'sx', 'dx', 'centro'].includes(x.posizione) ? x.posizione : 'alto',
+    sotto: x.sotto ? String(x.sotto).slice(0, 50) : undefined, parole: Array.isArray(x.parole) ? x.parole.slice(0, 6).map((w) => String(w).slice(0, 24)) : undefined,
+    numero: x.numero && Number.isFinite(Number(x.numero.valore)) ? { valore: Number(x.numero.valore), prima: String(x.numero.prima || '').slice(0, 4), dopo: String(x.numero.dopo || '').slice(0, 10), decimali: Number(x.numero.decimali) || 0 } : undefined }));
+  const lookReel = motore !== 'montatore' ? null : { grana: Math.min(0.15, Math.max(0, Number(p.look_reel?.grana ?? 0.06))), vignetta: Math.min(0.6, Math.max(0, Number(p.look_reel?.vignetta ?? 0.32))),
+    particelle: ['neve', 'polvere', 'coriandoli', 'bokeh'].includes(p.look_reel?.particelle) ? p.look_reel.particelle : null,
+    tinta: /^#[0-9a-f]{6}$/i.test(p.look_reel?.tinta || '') ? p.look_reel.tinta : null, tinta_forza: Math.min(0.4, Math.max(0, Number(p.look_reel?.tinta_forza ?? 0.18))) };
+  const fontReel = motore !== 'montatore' ? null : { titoli: FONT_REEL.includes(p.font_reel?.titoli) ? p.font_reel.titoli : 'montserrat', testo: FONT_REEL.includes(p.font_reel?.testo) ? p.font_reel.testo : 'montserrat' };
+  if (motore === 'montatore' && p.sottotitoli) p.sottotitoli = { ...p.sottotitoli, stile: STILI_SOTT.includes(p.sottotitoli.stile) ? p.sottotitoli.stile : 'box' };
   const piano = {
-    ...p, formato, pannello, cartelli, schede, grafiche, palette, font_split, tracker, adesivi,
+    ...p, formato: motore, titoli, look_reel: lookReel, font_reel: fontReel, pannello, cartelli, schede, grafiche, palette, font_split, tracker, adesivi,
     ...(avatar ? { taglia_silenzi: false } : {}),
     logo: prima?.logo || null,
     stabilizza_tutto: !!(indicazioni?.stabilizza_tutto || prima?.piano?.stabilizza_tutto || p.stabilizza_tutto || R?.camera === 'morbida'),
@@ -634,7 +657,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
     finale: ['nero', 'bianco'].includes(indicazioni?.finale) ? indicazioni.finale : (['nero', 'bianco'].includes(p.finale) ? p.finale : (R?.finale || null)),
     musica: brano ? { fileid: brano.c.fileid, nome: brano.c.nome, durata: brano.c.tecnico?.durata_sec, bpm: mu?.bpm, battuta: mu?.battuta_sec, primo_battito: mu?.primo_battito, volume: 0.9 } : null,
     sfx: brano ? false : p.sfx, segmenti: formato === 'carosello' ? [] : seg, broll, slide: formato === 'carosello' ? slide : [],
-    chiusura: formato === 'montaggio' ? p.chiusura : null, look: lookVoluto || (R?.look && LOOKS.includes(R.look) ? R.look : (LOOKS.includes(p.look) ? p.look : (LOOKS.includes(scheda.colore?.look) ? scheda.colore.look : 'naturale_vivace'))),
+    chiusura: formato === 'montaggio' ? p.chiusura : null, palette: palette || (p.colori?.accento ? { accento: p.colori.accento } : undefined), look: lookVoluto || (R?.look && LOOKS.includes(R.look) ? R.look : (LOOKS.includes(p.look) ? p.look : (LOOKS.includes(scheda.colore?.look) ? scheda.colore.look : 'naturale_vivace'))),
     effetti_globali: [...new Set([...(p.effetti_globali || []), ...(R?.globali || [])])].filter((e) => EFFETTI_GLOBALI.includes(e)), copertina: cop,
     // LUT: quella chiesta da Johnny nel rimontaggio, poi quella del Regista, poi la prima consigliata dallo stile
     lut: indicazioni?.lut === 'nessuna' ? null : voceLut(LUT[indicazioni?.lut] ? indicazioni.lut : (LUT[p.lut?.nome] ? p.lut.nome : (lookVoluto ? null : lutPerStile(J(L.stile, null))[0])), indicazioni?.lut ? null : p.lut?.intensita),

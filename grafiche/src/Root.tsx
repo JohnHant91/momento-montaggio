@@ -4,6 +4,7 @@ import { Pannello, PannelloProps } from "./Pannello";
 import { FPS } from "./theme";
 import { Split, SplitProps } from "./Split";
 import { Dietro, DietroProps } from "./Dietro";
+import { Montaggio, MontaggioProps } from "./Montaggio";
 
 const esempio: PannelloProps = {
   chip: "TIP",
@@ -53,6 +54,16 @@ export const Root: React.FC = () => (
     durationInFrames={FPS * 6}
     defaultProps={{ ...esempioSplit, adesivi: [] } as DietroProps}
     calculateMetadata={({ props }) => ({ fps: props.fps || FPS, durationInFrames: Math.max(30, Math.ceil((props.durata || 6) * (props.fps || FPS))) })}
+  />
+  <Composition
+    id="Montaggio"
+    component={Montaggio}
+    width={1080}
+    height={1920}
+    fps={FPS}
+    durationInFrames={FPS * 6}
+    defaultProps={{ fps: 30, durata: 6, clip: [] } as MontaggioProps}
+    calculateMetadata={({ props }) => ({ fps: props.fps || FPS, width: props.larghezza || 1080, height: props.altezza || 1920, durationInFrames: Math.max(30, Math.ceil((props.durata || 6) * (props.fps || FPS))) })}
   />
   <Composition
     id="Pannello"
