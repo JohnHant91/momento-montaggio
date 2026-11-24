@@ -4,6 +4,7 @@ import { J, all, log, one, ora, run, configurazione } from './db.js';
 import { libreriaTesto } from './libreria.js';
 import * as S from './servizi.js';
 import * as A from './archivio.js';
+import { SKILL as SKILL_V } from './skill_testi.js';
 import { clientePerNome, lineaCliente, testoLinea, ripassoChiara } from './chiara.js';
 import { rilevaStile, ricetta, ricercaStile } from './stili.js';
 import { LUT, LUT_NOMI, lutPerStile, descriviLut, voceLut } from './lut.js';
@@ -360,7 +361,16 @@ async function faseClip(env, cfg, L) {
     await log(env, L.id, 'analista', `${clip.length} clip trovate (${fonte.nome}, ${peso} GB)${gia ? `, ${gia} già viste in passato` : ''}`);
     if (clip.some((c) => c.stato === 'da_guardare')) await log(env, L.id, 'motore', 'chiamo il motore GitHub: scarico e misuro le clip per Ada');
   }
-  if (!clip.some((c) => c.stato === 'da_guardare')) return true;
+  if (!clip.some((c) => c.stato === 'da_guardare')) {
+    // Dario guarda i problemi trovati da Iris e dice cosa rifare la prossima volta (senza costi: legge le analisi)
+    const brutte = clip.filter((c) => c.stato === 'fatto' && (c.analisi?.problemi || []).length);
+    if (brutte.length && !J(L.montaggio, null)?.consigli_dario) {
+      const tipi = {}; for (const c of brutte) for (const pr of [].concat(c.analisi.problemi)) { const k = String(pr.tipo || pr).toLowerCase().split(/[ :,(]/)[0]; tipi[k] = (tipi[k] || 0) + 1; }
+      const top = Object.entries(tipi).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, n]) => `${k} (${n})`).join(', ');
+      await log(env, L.id, 'videomaker', `📱 Dario: ${brutte.length} clip su ${clip.length} hanno problemi (${top}). Rocco userà i tratti buoni; alla prossima ripresa: camera ferma o gimbal, più luce, 2-3 secondi di margine prima e dopo ogni azione.`);
+    }
+    return true;
+  }
   return avvisoMotore(env, L);
 }
 
@@ -536,16 +546,18 @@ async function faseRegia(env, cfg, L) {
   }));
   const prima = J(L.montaggio, null);
   if (!clip.length) {
-    // senza girato: Rocco scrive la lista delle riprese da fare/trovare; il montaggio parte quando arriva il girato
-    await log(env, L.id, 'regista', 'nessun girato: scrivo la lista delle inquadrature da girare o da trovare');
-    const lr = await S.claude(cfg, SISTEMA_REGISTA, `SCHEDA TECNICA:
+    // senza girato: Dario (videomaker social) prepara le riprese; il montaggio parte quando arriva il girato
+    await log(env, L.id, 'videomaker', '📱 Dario: non c\'è ancora girato, preparo le riprese per i social');
+    const lr = await S.claude(cfg, `Sei Dario, videomaker social di AGENZIA MOMENTO AI. Prepari le riprese di reel verticali 9:16 per Instagram e TikTok: il primo secondo deve agganciare,
+inquadrature pensate per il verticale (soggetto al centro, spazio sopra per i testi), movimento e luce semplici da fare con telefono o mirrorless, audio pulito.
+${(SKILL_V['scripting-and-storyboarding'] || '').slice(0, 3000)}`, `SCHEDA TECNICA:
 ${JSON.stringify(scheda)}
 
 Non c'è ancora girato. Scrivi la LISTA DELLE RIPRESE necessarie per montare questo reel, nell'ordine del montaggio.
 JSON: {"riprese": [{"n": 1, "fase": "gancio|sviluppo|climax|chiusura", "inquadratura": "totale|piano_medio|primo_piano|dettaglio|macro", "cosa": "...", "movimento": "...", "durata_utile_sec": n, "fps_consigliati": 25|50|60, "note": "luce, angolo, cosa evitare"}],
  "consigli_ripresa": ["..."], "ganci_alternativi": [{"testo": "...", "meccanismo": "..."}], "caption": "...", "hashtag": ["..."]}`, { maxTokens: 6000 });
     await run(env, 'UPDATE lavori SET montaggio=? WHERE id=?', JSON.stringify({ stato: 'senza_girato', lista_riprese: lr, creato: ora() }), L.id);
-    await log(env, L.id, 'regista', `lista pronta: ${(lr.riprese || []).length} inquadrature. Aggiungi il girato dalla pagina del lavoro e monto.`);
+    await log(env, L.id, 'videomaker', `📱 Dario: lista pronta, ${(lr.riprese || []).length} inquadrature in verticale con consigli di ripresa. Aggiungi il girato (Archivio o pCloud) e Rocco monta.`);
     return 'salta';
   }
   const indicazioni = prima?.indicazioni_rimonta;

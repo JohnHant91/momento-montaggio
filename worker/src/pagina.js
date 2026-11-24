@@ -822,7 +822,7 @@ const PIANTA = [
 ];
 const FASE_PROFILO = { ricerca: ['ricerca'], virali: ['trend'], copioni: ['idee'], avatar: ['avatar'], montaggio: ['avatar'] };
 const FASE_POST_AG = { ricerca: ['scout'], studio: ['occhi'], foto: ['occhi'], contenuti: ['caroselli'], scarica: ['caroselli'] };
-const VIDEO_TEAM = ['idee', 'direttore', 'scout', 'occhi', 'regista', 'motore', 'avatar'];
+const VIDEO_TEAM = ['idee', 'direttore', 'videomaker', 'scout', 'occhi', 'regista', 'motore', 'avatar'];
 let SALA = { s: 1, x: 0, y: 0, dati: null, sel: null, ufficio: null };
 
 function statiAgenti(R) {
