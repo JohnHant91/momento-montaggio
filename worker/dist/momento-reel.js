@@ -3157,9 +3157,6 @@ JSON: {"riprese": [{"n": 1, "fase": "gancio|sviluppo|climax|chiusura", "inquadra
     return "salta";
   }
   const indicazioni = prima?.indicazioni_rimonta;
-  if (!brano && !/senza musica|suono originale|audio originale|solo audio|voce|parlat|talking/i.test((L.prompt || "") + " " + (indicazioni?.testo || ""))) {
-    throw new Error("manca la musica: metti un brano in Archivio \u2192 Musica (o nella cartella delle clip) e poi premi Riprova. Il piano non \xE8 stato pagato.");
-  }
   await log(env, L.id, "regista", indicazioni ? `rimonto con le tue indicazioni: ${indicazioni.testo || ""}` : `scrivo il piano di montaggio da ${clip.length} clip`);
   const extra = indicazioni ? `
 
