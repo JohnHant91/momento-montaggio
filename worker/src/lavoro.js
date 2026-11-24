@@ -271,14 +271,16 @@ async function faseRiferimenti(env, cfg, L) {
 
 // Avvia subito il motore su GitHub (workflow_dispatch) invece di aspettare il giro programmato.
 // Al massimo una richiesta ogni 3 minuti, e non se il motore sta già lavorando a questo lavoro.
-export async function svegliaMotore(env, perche = '') {
+// Con l'id del lavoro parte un motore SOLO per quel reel, in parallelo agli altri (5 reel insieme = il tempo di uno).
+export async function svegliaMotore(env, perche = '', lavoroId = 0) {
   const cfg = await configurazione(env);
   if (!cfg.GITHUB_TOKEN) return false;
-  const ultimo = (await one(env, "SELECT valore FROM impostazioni WHERE chiave='MOTORE_SVEGLIATO'"))?.valore;
+  const chiave = 'MOTORE_SVEGLIATO' + (lavoroId ? '_' + lavoroId : '');
+  const ultimo = (await one(env, 'SELECT valore FROM impostazioni WHERE chiave=?', chiave))?.valore;
   if (ultimo && Date.now() - Number(ultimo) < 3 * 60e3) return true;
-  await run(env, "INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES ('MOTORE_SVEGLIATO', ?)", String(Date.now()));
+  await run(env, 'INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES (?, ?)', chiave, String(Date.now()));
   const r = await fetch('https://api.github.com/repos/JohnHant91/momento-montaggio/actions/workflows/analizza.yml/dispatches', {
-    method: 'POST', body: JSON.stringify({ ref: 'main' }),
+    method: 'POST', body: JSON.stringify(lavoroId ? { ref: 'main', inputs: { lavoro: String(lavoroId) } } : { ref: 'main' }),
     headers: { authorization: `Bearer ${cfg.GITHUB_TOKEN}`, accept: 'application/vnd.github+json', 'content-type': 'application/json', 'user-agent': 'momento-reel', 'x-github-api-version': '2022-11-28' },
   });
   if (r.status !== 204) {
@@ -290,7 +292,7 @@ export async function svegliaMotore(env, perche = '') {
 
 async function avvisoMotore(env, L) {
   if (!(L.motore_fino && L.motore_fino > ora())) {
-    const ok = await svegliaMotore(env).catch(() => false);
+    const ok = await svegliaMotore(env, '', L.id).catch(() => false);
     if (ok && !L.motore_svegliato) {
       await run(env, 'UPDATE lavori SET motore_svegliato=1 WHERE id=?', L.id).catch(() => {});
       await log(env, L.id, 'motore', '⚡ motore GitHub avviato: parte entro un minuto');

@@ -152,7 +152,7 @@ async function schema(env) {
     env.DB.prepare("CREATE INDEX IF NOT EXISTS registro_lavoro ON registro(lavoro_id, id)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS cache_analisi (chiave TEXT PRIMARY KEY, dati TEXT, quando TEXT)")
   ]);
-  for (const c of ["motore_pass TEXT", "motore_fino TEXT", "motore_visto TEXT", "motore_svegliato INTEGER", "montaggio TEXT", "fonte TEXT DEFAULT 'pcloud'", "stile TEXT"]) {
+  for (const c of ["motore_pass TEXT", "motore_fino TEXT", "motore_visto TEXT", "motore_svegliato INTEGER", "montaggio TEXT", "fonte TEXT DEFAULT 'pcloud'", "stile TEXT", "approvato TEXT"]) {
     try {
       await env.DB.prepare(`ALTER TABLE lavori ADD COLUMN ${c}`).run();
     } catch {
@@ -652,8 +652,8 @@ async function apify(cfg, actor, input) {
   const d = await r.json();
   return Array.isArray(d) ? d : [];
 }
-var primo = (d, ...chiavi) => {
-  for (const k of chiavi) {
+var primo = (d, ...chiavi2) => {
+  for (const k of chiavi2) {
     let v = d;
     for (const p of k.split(".")) v = v == null ? void 0 : Array.isArray(v) && /^\d+$/.test(p) ? v[+p] : v[p];
     if (v !== void 0 && v !== null && v !== "" && !(Array.isArray(v) && !v.length)) return v;
@@ -1785,8 +1785,8 @@ var LUT_NOMI = Object.keys(LUT);
 var LUT_BN = ["ilford_hp_5", "kodak_tri_x_400", "fuji_neopan_acros_100", "ilford_delta_3200"];
 function lutPerStile(stile) {
   if (!stile) return [];
-  const chiavi = [...stile.mood || [], stile.genere].filter(Boolean);
-  const punti = LUT_NOMI.map((n) => [n, chiavi.reduce((a, k, i) => a + (LUT[n][3].includes(k) ? (chiavi.length - i) * 2 : 0), 0)]).filter(([, p]) => p > 0);
+  const chiavi2 = [...stile.mood || [], stile.genere].filter(Boolean);
+  const punti = LUT_NOMI.map((n) => [n, chiavi2.reduce((a, k, i) => a + (LUT[n][3].includes(k) ? (chiavi2.length - i) * 2 : 0), 0)]).filter(([, p]) => p > 0);
   return punti.sort((a, b) => b[1] - a[1]).slice(0, 6).map(([n]) => n);
 }
 var descriviLut = (nomi) => nomi.map((n) => `- ${n}: ${LUT[n][1]} (intensit\xE0 consigliata ${LUT[n][2]})`).join("\n");
@@ -2253,15 +2253,16 @@ async function faseRiferimenti(env, cfg, L) {
   await run(env, "UPDATE lavori SET motore_visto=NULL WHERE id=?", L.id);
   return true;
 }
-async function svegliaMotore(env, perche = "") {
+async function svegliaMotore(env, perche = "", lavoroId = 0) {
   const cfg = await configurazione(env);
   if (!cfg.GITHUB_TOKEN) return false;
-  const ultimo = (await one(env, "SELECT valore FROM impostazioni WHERE chiave='MOTORE_SVEGLIATO'"))?.valore;
+  const chiave = "MOTORE_SVEGLIATO" + (lavoroId ? "_" + lavoroId : "");
+  const ultimo = (await one(env, "SELECT valore FROM impostazioni WHERE chiave=?", chiave))?.valore;
   if (ultimo && Date.now() - Number(ultimo) < 3 * 6e4) return true;
-  await run(env, "INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES ('MOTORE_SVEGLIATO', ?)", String(Date.now()));
+  await run(env, "INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES (?, ?)", chiave, String(Date.now()));
   const r = await fetch("https://api.github.com/repos/JohnHant91/momento-montaggio/actions/workflows/analizza.yml/dispatches", {
     method: "POST",
-    body: JSON.stringify({ ref: "main" }),
+    body: JSON.stringify(lavoroId ? { ref: "main", inputs: { lavoro: String(lavoroId) } } : { ref: "main" }),
     headers: { authorization: `Bearer ${cfg.GITHUB_TOKEN}`, accept: "application/vnd.github+json", "content-type": "application/json", "user-agent": "momento-reel", "x-github-api-version": "2022-11-28" }
   });
   if (r.status !== 204) {
@@ -2272,7 +2273,7 @@ async function svegliaMotore(env, perche = "") {
 }
 async function avvisoMotore(env, L) {
   if (!(L.motore_fino && L.motore_fino > ora())) {
-    const ok = await svegliaMotore(env).catch(() => false);
+    const ok = await svegliaMotore(env, "", L.id).catch(() => false);
     if (ok && !L.motore_svegliato) {
       await run(env, "UPDATE lavori SET motore_svegliato=1 WHERE id=?", L.id).catch(() => {
       });
@@ -2784,6 +2785,8 @@ async function schemaPiani(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS piani (
     id INTEGER PRIMARY KEY AUTOINCREMENT, cliente TEXT, dati TEXT, stato TEXT NOT NULL DEFAULT 'in_corso', fase TEXT NOT NULL DEFAULT 'strategia',
     strategia TEXT, reel TEXT, errore TEXT, tentativi INTEGER DEFAULT 0, blocco_fino TEXT, creato TEXT, aggiornato TEXT)`).run();
+  await env.DB.prepare("ALTER TABLE piani ADD COLUMN approvato TEXT").run().catch(() => {
+  });
 }
 var SISTEMA_STRATEGIA = `Sei Nora, content strategist e sceneggiatrice di Momento Produzione, agenzia che gira e monta
 video e foto per i social dei clienti (ristoranti, bar, B&B, negozi, artigiani, professionisti). Johnny ti d\xE0 il cliente,
@@ -2948,7 +2951,7 @@ async function avanzaPiani(env) {
 }
 async function apiPiani(req, env, p, m, json3) {
   if (p === "/api/piani" && m === "GET") {
-    return json3(await all(env, "SELECT id, cliente, stato, fase, errore, creato, json_extract(strategia, '$.titolo_piano') AS titolo, json_extract(dati, '$.numero') AS numero, json_extract(dati, '$.mesi') AS mesi, (SELECT COUNT(*) FROM json_each(piani.reel) WHERE json_extract(value, '$.stato')='fatto') AS scritti FROM piani ORDER BY id DESC LIMIT 60"));
+    return json3(await all(env, "SELECT id, cliente, stato, fase, errore, creato, approvato, json_extract(strategia, '$.titolo_piano') AS titolo, json_extract(dati, '$.numero') AS numero, json_extract(dati, '$.mesi') AS mesi, (SELECT COUNT(*) FROM json_each(piani.reel) WHERE json_extract(value, '$.stato')='fatto') AS scritti FROM piani ORDER BY id DESC LIMIT 60"));
   }
   if (p === "/api/piani" && m === "POST") {
     const d = await req.json().catch(() => ({}));
@@ -2987,6 +2990,12 @@ async function apiPiani(req, env, p, m, json3) {
   }
   if (pp && m === "DELETE") {
     await run(env, "DELETE FROM piani WHERE id=?", pp[1]);
+    return json3({ ok: true });
+  }
+  const ap = p.match(/^\/api\/piani\/(\d+)\/approva$/);
+  if (ap && m === "POST") {
+    await run(env, "UPDATE piani SET approvato=?, aggiornato=? WHERE id=?", ora(), ora(), ap[1]);
+    await log(env, null, "idee", `\u2705 copioni del piano #${ap[1]} approvati da Johnny`);
     return json3({ ok: true });
   }
   const rp = p.match(/^\/api\/piani\/(\d+)\/riprova$/);
@@ -3908,17 +3917,17 @@ async function apiPost(req, env, p, m, json3) {
         continue;
       }
       const nSlide = ((cv.post || []).find((c) => c.n === x.n)?.png || []).length;
-      const chiavi = Array.from({ length: nSlide }, (_, k) => `${x.n}-${k + 1}`).filter((k) => file[`post-${P2.id}/${k}.png`]);
-      if (!chiavi.length) {
+      const chiavi2 = Array.from({ length: nSlide }, (_, k) => `${x.n}-${k + 1}`).filter((k) => file[`post-${P2.id}/${k}.png`]);
+      if (!chiavi2.length) {
         fatti.push({ n: x.n, errore: "slide non ancora pronte" });
         continue;
       }
-      const tipi = await Promise.all(chiavi.map(async (k) => (await env.VIDEO.getWithMetadata(`post-${P2.id}/${k}.png`, { type: "stream" })).metadata?.tipo || ""));
+      const tipi = await Promise.all(chiavi2.map(async (k) => (await env.VIDEO.getWithMetadata(`post-${P2.id}/${k}.png`, { type: "stream" })).metadata?.tipo || ""));
       if (tipi.some((t) => !/jpe?g/i.test(t))) {
         fatti.push({ n: x.n, errore: "Instagram accetta solo JPG: riesporta le slide da Canva in JPG" });
         continue;
       }
-      const link = await Promise.all(chiavi.slice(0, 10).map(async (k) => `${origine}/pubblico/post/${P2.id}/${k}.jpg?f=${await firmaPubblica(env, "post" + P2.id, k)}`));
+      const link = await Promise.all(chiavi2.slice(0, 10).map(async (k) => `${origine}/pubblico/post/${P2.id}/${k}.jpg?f=${await firmaPubblica(env, "post" + P2.id, k)}`));
       const quando = d.quando?.[x.n] && !isNaN(new Date(d.quando[x.n])) ? new Date(d.quando[x.n]).toISOString() : new Date(Date.now() + 36e5).toISOString();
       const caption = [x.caption || "", (x.hashtag || []).map((h) => "#" + String(h).replace(/^#/, "")).join(" ")].filter(Boolean).join("\n\n").slice(0, 2200);
       try {
@@ -4390,12 +4399,14 @@ async function apiAgenzia(req, env, p, m, json3) {
       one(env, "SELECT COUNT(*) AS n FROM contenuti WHERE stato IN ('da_approvare','da_pubblicare')"),
       all(env, "SELECT agente, COUNT(*) AS n FROM incarichi WHERE creato > ? GROUP BY agente", new Date(Date.now() - 30 * 864e5).toISOString()),
       one(env, "SELECT COUNT(*) AS n FROM clienti"),
-      all(env, "SELECT id, fase, blocco_fino FROM lavori WHERE stato='in_corso'"),
-      all(env, "SELECT id FROM piani WHERE stato='in_corso'").catch(() => []),
+      all(env, "SELECT id, fase, blocco_fino, COALESCE(json_extract(scheda, '$.titolo_lavoro'), substr(prompt, 1, 70)) AS titolo, json_extract(montaggio, '$.stato') AS mstato FROM lavori WHERE stato='in_corso'"),
+      all(env, "SELECT id, fase, cliente FROM piani WHERE stato='in_corso'").catch(() => []),
       all(env, "SELECT id, fase, argomento, blocco_fino FROM avatar_piani WHERE stato='in_corso'").catch(() => []),
       all(env, "SELECT id, fase, cliente, blocco_fino FROM post_lavori WHERE stato='in_corso'").catch(() => [])
     ]);
     const feed = await all(env, "SELECT agente, messaggio, livello, quando, lavoro_id FROM registro ORDER BY id DESC LIMIT 40");
+    const n = async (sql) => (await one(env, sql).catch(() => null))?.n || 0;
+    approvare.n += await n("SELECT COUNT(*) AS n FROM lavori WHERE stato='pronto' AND approvato IS NULL") + await n("SELECT COUNT(*) AS n FROM avatar_piani WHERE stato='da_approvare'") + await n("SELECT COUNT(*) AS n FROM post_lavori WHERE stato IN ('da_approvare','attende_canva')") + await n("SELECT COUNT(*) AS n FROM piani WHERE stato='pronto' AND approvato IS NULL");
     return json3({ adesso, uffici: UFFICI, squadra: SQUADRA, attivi, recenti, da_approvare: approvare.n, conti, clienti: clienti.n, reel: reelAttivi, piani: pianiAttivi, profilo, postl, feed, gestionale: !!env.GEST });
   }
   const ch = p.match(/^\/api\/chat\/(capo|gestionale|contabile)$/);
@@ -4966,22 +4977,24 @@ var PENDENTE = (col) => `EXISTS (SELECT 1 FROM json_each(lavori.${col}) WHERE js
 async function motoreApi(req, env, url) {
   const p = url.pathname, m = req.method;
   if (p === "/api/motore/coda" && m === "GET") {
-    const r = await one(env, `SELECT COUNT(*) AS n FROM lavori WHERE stato='in_corso' AND (
+    const solo = Number(url.searchParams.get("lavoro")) || 0;
+    const r = await one(env, `SELECT COUNT(*) AS n FROM lavori WHERE stato='in_corso' AND (?=0 OR id=?) AND (
       (fase='riferimenti' AND riferimenti IS NOT NULL AND ${PENDENTE("riferimenti")}) OR (fase='clip' AND clip IS NOT NULL AND ${PENDENTE("clip")}) OR
-      (fase='montaggio' AND json_extract(montaggio, '$.stato')='da_fare'))`);
+      (fase='montaggio' AND json_extract(montaggio, '$.stato')='da_fare'))`, solo, solo);
     return json({ lavoro: (r?.n || 0) > 0 });
   }
   if (p === "/api/motore/prossimo" && m === "POST") {
     if (!await identitaGitHub(req.headers.get("authorization"))) return json({ errore: "motore non riconosciuto" }, 401);
     const adesso = ora();
+    const solo = Number(url.searchParams.get("lavoro")) || 0;
     const pass2 = [...crypto.getRandomValues(new Uint8Array(24))].map((b) => b.toString(16).padStart(2, "0")).join("");
     const L2 = await one(env, `UPDATE lavori SET motore_pass=?, motore_fino=?, motore_visto=? WHERE id = (
-        SELECT id FROM lavori WHERE stato='in_corso' AND (motore_fino IS NULL OR motore_fino < ?) AND (
+        SELECT id FROM lavori WHERE stato='in_corso' AND (motore_fino IS NULL OR motore_fino < ?) AND (?=0 OR id=?) AND (
           (fase='riferimenti' AND riferimenti IS NOT NULL AND ${PENDENTE("riferimenti")}) OR
           (fase='clip' AND clip IS NOT NULL AND ${PENDENTE("clip")}) OR
           (fase='montaggio' AND json_extract(montaggio, '$.stato')='da_fare'))
         ORDER BY CASE WHEN fase='montaggio' THEN 0 ELSE 1 END, id LIMIT 1)
-      RETURNING id, fase, pcloud, riferimenti, clip, montaggio`, pass2, new Date(Date.now() + 55 * 6e4).toISOString(), adesso, adesso);
+      RETURNING id, fase, pcloud, riferimenti, clip, montaggio`, pass2, new Date(Date.now() + 55 * 6e4).toISOString(), adesso, adesso, solo, solo);
     if (!L2) return new Response(null, { status: 204 });
     const tipo2 = L2.fase;
     if (tipo2 === "montaggio") {
@@ -5144,13 +5157,119 @@ Rispondi SOLO con il JSON richiesto.`;
   return json({ errore: "metodo non consentito" }, 405);
 }
 
+// src/notifiche.js
+var b64u2 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+var daB64u = (s) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
+async function schemaNotifiche(env) {
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS push (id INTEGER PRIMARY KEY AUTOINCREMENT, endpoint TEXT UNIQUE, dispositivo TEXT, creato TEXT)").run();
+}
+async function chiavi(env) {
+  if (!env.VAPID_PRIVATA) return null;
+  const jwk = JSON.parse(env.VAPID_PRIVATA);
+  const priv = await crypto.subtle.importKey("jwk", jwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+  const pub = new Uint8Array([4, ...daB64u(jwk.x), ...daB64u(jwk.y)]);
+  return { priv, pub: b64u2(pub) };
+}
+async function jwtVapid(env, aud, k) {
+  const intest = b64u2(new TextEncoder().encode(JSON.stringify({ typ: "JWT", alg: "ES256" })));
+  const corpo = b64u2(new TextEncoder().encode(JSON.stringify({ aud, exp: Math.floor(Date.now() / 1e3) + 12 * 3600, sub: "mailto:info@momentoproduzione.it" })));
+  const firma2 = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, k.priv, new TextEncoder().encode(intest + "." + corpo));
+  return intest + "." + corpo + "." + b64u2(firma2);
+}
+async function inviaPush(env, titolo, testo, link = "#/approvazioni") {
+  const k = await chiavi(env);
+  if (!k) return 0;
+  await run(env, "INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES ('NOTIFICA_ULTIMA', ?)", JSON.stringify({ titolo, testo, link, quando: ora() }));
+  const iscritti = await all(env, "SELECT id, endpoint FROM push");
+  let ok = 0;
+  for (const s of iscritti) {
+    try {
+      const u = new URL(s.endpoint);
+      const r = await fetch(s.endpoint, { method: "POST", headers: { TTL: "86400", Urgency: "high", authorization: `vapid t=${await jwtVapid(env, u.origin, k)}, k=${k.pub}`, "content-length": "0" } });
+      if (r.status === 404 || r.status === 410) await run(env, "DELETE FROM push WHERE id=?", s.id);
+      else if (r.ok) ok++;
+      else console.log("push", r.status, (await r.text()).slice(0, 200));
+    } catch (e) {
+      console.log("push errore", e.message);
+    }
+  }
+  return ok;
+}
+async function controllaApprovazioni(env) {
+  if (!env.VAPID_PRIVATA) return;
+  const q = (sql) => all(env, sql).catch(() => []);
+  const [reel, avatar, post, piani, cont] = await Promise.all([
+    q("SELECT id, COALESCE(json_extract(scheda, '$.titolo_lavoro'), substr(prompt, 1, 60)) AS t FROM lavori WHERE stato='pronto' AND approvato IS NULL"),
+    q("SELECT id, argomento AS t FROM avatar_piani WHERE stato='da_approvare'"),
+    q("SELECT id, COALESCE(cliente, 'caroselli') AS t FROM post_lavori WHERE stato IN ('da_approvare','attende_canva')"),
+    q("SELECT id, cliente AS t FROM piani WHERE stato='pronto' AND approvato IS NULL"),
+    q("SELECT id, titolo AS t FROM contenuti WHERE stato IN ('da_approvare','da_pubblicare')")
+  ]);
+  const voci = [
+    ...reel.map((x) => ["r" + x.id, "\u{1F3AC} Reel pronto", x.t]),
+    ...avatar.map((x) => ["a" + x.id, "\u{1F3AD} Copioni del profilo", x.t]),
+    ...post.map((x) => ["p" + x.id, "\u{1F5C2}\uFE0F Caroselli da approvare", x.t]),
+    ...piani.map((x) => ["c" + x.id, "\u{1F4DD} Copioni clienti", x.t]),
+    ...cont.map((x) => ["k" + x.id, "\u2705 Contenuto da approvare", x.t])
+  ];
+  const gia = new Set(J((await one(env, "SELECT valore FROM impostazioni WHERE chiave='NOTIFICATI'"))?.valore, []));
+  const nuove = voci.filter(([k]) => !gia.has(k));
+  await run(env, "INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES ('NOTIFICATI', ?)", JSON.stringify(voci.map(([k]) => k)));
+  if (!nuove.length) return;
+  const titolo = nuove.length === 1 ? nuove[0][1] : `${nuove.length} cose da approvare`;
+  const testo = nuove.length === 1 ? String(nuove[0][2] || "").slice(0, 120) : nuove.slice(0, 4).map(([, t, x]) => `${t.split(" ")[0]} ${String(x || "").slice(0, 40)}`).join(" \xB7 ");
+  await inviaPush(env, titolo, testo);
+}
+async function apiNotifiche(req, env, p, m) {
+  if (p === "/api/notifiche/chiave" && m === "GET") return Response.json({ chiave: (await chiavi(env))?.pub || null });
+  if (p === "/api/notifiche/iscrivi" && m === "POST") {
+    const d = await req.json().catch(() => ({}));
+    const ep = String(d.endpoint || "");
+    if (!/^https:\/\//.test(ep)) return Response.json({ errore: "iscrizione non valida" }, { status: 400 });
+    await run(env, "INSERT OR REPLACE INTO push (endpoint, dispositivo, creato) VALUES (?,?,?)", ep, String(d.dispositivo || "").slice(0, 120), ora());
+    return Response.json({ ok: true });
+  }
+  if (p === "/api/notifiche/prova" && m === "POST") return Response.json({ inviate: await inviaPush(env, "\u{1F514} Notifiche attive", "Da ora ti avviso qui quando qualcosa aspetta la tua approvazione.") });
+  if (p === "/api/notifiche/ultima" && m === "GET") return Response.json(J((await one(env, "SELECT valore FROM impostazioni WHERE chiave='NOTIFICA_ULTIMA'"))?.valore, {}));
+  if (p === "/api/notifiche/stato" && m === "GET") return Response.json({ attive: !!env.VAPID_PRIVATA, dispositivi: (await one(env, "SELECT COUNT(*) AS n FROM push"))?.n || 0 });
+  return null;
+}
+var SW = `self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+self.addEventListener('push', (e) => e.waitUntil((async () => {
+  let n = {};
+  try { n = await (await fetch('/api/notifiche/ultima', { credentials: 'include' })).json(); } catch {}
+  await self.registration.showNotification(n.titolo || 'MOMENTO AGENCY AI', { body: n.testo || 'Qualcosa aspetta la tua approvazione', icon: '/icona-192.png', badge: '/icona-192.png', tag: 'approvazioni', renotify: true, data: { link: n.link || '#/approvazioni' } });
+})()));
+self.addEventListener('notificationclick', (e) => { e.notification.close(); e.waitUntil((async () => {
+  const url = '/' + (e.notification.data && e.notification.data.link || '#/approvazioni');
+  const tutte = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  for (const c of tutte) { if ('focus' in c) { await c.navigate(url).catch(() => {}); return c.focus(); } }
+  return self.clients.openWindow(url);
+})()); });
+self.addEventListener('fetch', () => {});`;
+var MANIFEST = JSON.stringify({
+  name: "MOMENTO AGENCY AI",
+  short_name: "Momento AI",
+  start_url: "/#/",
+  scope: "/",
+  display: "standalone",
+  background_color: "#F4F2EE",
+  theme_color: "#0E9F9A",
+  icons: [{ src: "/icona-192.png", sizes: "192x192", type: "image/png" }, { src: "/icona-512.png", sizes: "512x512", type: "image/png", purpose: "any maskable" }, { src: "/favicon.svg", sizes: "any", type: "image/svg+xml" }]
+});
+
+// src/icone.js
+var ICONA_192 = "iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAADbklEQVR42u3dzVHrQBCFUfUUa5MiXuCgzAJSxAmYCCj5R5I1c88JgLL9+psemVdFTTtz+D5fJ4Z1OZ5qT6+nDDvJUZShJzmGMvgkh1AGn+QQyuCTHEIZfJJDaIafniw9Y2XwSd4GzfCTvA2a4Sc5gmb4SY6gGX6SI2iGn+QImuEnOYJm+EmOoBl+kiNohp/kCJqPiWTN6U/yFmiGn+QIXIFwBXL6k7oFbABsAKc/qVvABsAGcPqTugVsAGwApz+pW8AGwAaA6ABcf0i9BtkA2AAgABAAZCkPwNgAIAAQAAgABAACAAGAAEAAIAAQAAgABAACgD699fiifz8+V/m57z9fMf/wPkMbYLOh8D4FAAJwOnp/AjAk3pcAQABOS+9HAIbG+xAACMDp6fULwBB53QIAAThNnf4CMFSGXwAgAKer018AhszwCwAE4LR1+gvA0Bl+AYAAck9fp78AYiMw/AIAASRuAae/AGIjMPwCAAEkbgGnvwBiIzD8AgABJG4Bp78AYiMw/AIAASRuAae/AGIjMPwCAAEkbgGnvwBiIzD8AgABvMLaf+Zz7nR3+gsg9iq09vAn/R1kARgUwy+Afq5Ca57+hl8Au47AvV8AOP0F4Cpk+AXgFDX8AjBQCACxCsBgGX4BGDDDLwCDhgAQpQAMnOEXgMEz/AIQAQKIjUB8AhAdAjCQCCAoArEJIDYCwy8AcSEAg4oAgiIQlQBiIzD8AhARAjDACCAoAvEIIDYCwy8AsSAAg40AgiIQiQBiIzD8AhAFAjDwCCAoAjEIwCZAACAAEAAIAAQAAgABgABAACAAEAAIAAQAAgABgABAADCnDt/nq48BGwAEAAIAAYAAQAAgABAACAAEAIMEcDmeysdAosvxVDYArkAgABAABAbgQZjEB2AbABvAR4AAXIMIvP7YANgA/5UBo5/+NgA2wFwhMOrpbwNgA9xaCox2+tsA2AD3FgOjnP6zG0AEjDz8rkC4Aj1bEPR6+t+8AUTAiMN/1xVIBIw2/Hc/A4iAkYb/oYdgETDK8D/8LZAIGGH4n/oaVAT0PvxP/x5ABPQ8/Iv8IkwE9Dr80zRNiw6vP7lKL4O/yn+FsA3oafgX3wC2Ab0M/uoBCIEebhWbXVmEwB6v05vf2YXAnp4jX/rQKgZe/eXJ7r61EYVh39Ifyv6Ao1864Y8AAAAASUVORK5CYII=";
+var ICONA_512 = "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";
+
 // src/pagina.js
 var PAGINA = `<!DOCTYPE html>
 <html lang="it"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#F4F2EE">
 <title>MOMENTO AGENCY AI</title>
-<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=1"><link rel="apple-touch-icon" href="/favicon.svg?v=1"><meta name="theme-color" content="#0E9F9A">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=1"><link rel="apple-touch-icon" href="/icona-192.png"><link rel="manifest" href="/manifest.webmanifest"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Momento AI"><meta name="theme-color" content="#0E9F9A">
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}<\/script>
 <style>
 @media print{header,.noprint,button{display:none!important}body{background:#fff;color:#000}.card{border-color:#ccc;background:#fff}.mut{color:#555}a{color:#000}}
@@ -5235,6 +5354,9 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 .et-ag.carta>span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.et-ag.carta.lavora{box-shadow:0 0 0 2px rgba(34,165,91,.45),0 12px 30px -12px rgba(0,0,0,.35)}
 .et-ag.carta.coda i{background:#f3efe7;color:#8a6a1f}.et-ag.carta.scelto{box-shadow:0 0 0 2px var(--teal),0 12px 30px -12px rgba(0,0,0,.35)}
 .etichette:not(.vicino) .et-ag.pillola{display:none}
+.reelc{display:flex;gap:14px;align-items:flex-start}.reelc .reel-cop{flex:0 0 72px;height:128px;border-radius:10px;background:#f1efe9;display:grid;place-items:center;font-size:26px;overflow:hidden}.reelc .reel-cop img{width:100%;height:100%;object-fit:cover}.reelc .reel-tit{color:inherit;text-decoration:none}.reelc.pausa{opacity:.75}.reelc.errore{border-color:var(--err)}.reelc .r_az{padding:6px 10px;font-size:13px;width:auto}
+.lavorazioni{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin:12px 0}.lz{display:flex;gap:10px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 12px;color:inherit;text-decoration:none}.lz .ic{font-size:22px}.lz .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}.lz b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lz small{font-size:12px;color:var(--mut)}
+.avanz{height:6px;border-radius:9px;background:#ece9e1;overflow:hidden}.avanz i{display:block;height:100%;background:linear-gradient(90deg,#12a3a4,#3fd0c9);border-radius:9px;transition:width .6s}
 .filtri{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 0 0}.filtri button{background:#fff;color:#4d4b46;border:1px solid var(--line);padding:6px 12px;font-size:13px;font-weight:500;white-space:nowrap}.filtri button.on{background:var(--nero);color:#fff;border-color:var(--nero)}
 .scrivi textarea{min-height:70px;margin-top:6px}.scrivi .riga{margin-top:8px}
 
@@ -5340,51 +5462,6 @@ const STANZE = [['direzione', 'Direzione creativa'], ['scouting', 'Scouting \xB7
 const FASE_AGENTI = { piano: ['direttore', 'stella'], ricerca: ['scout_yt', 'scout_tt', 'scout_ig'], riferimenti: ['motore', 'occhi'], clip: ['motore', 'analista'], scheda: ['direttore'], regia: ['regista', 'copy'], montaggio: ['motore', 'editor', 'color', 'vfx', 'sottotitoli', 'audio', 'revisore'] };
 const fa = (q) => { const s = (Date.now() - new Date(q)) / 1000; return s < 60 ? 'ora' : s < 3600 ? Math.round(s / 60) + ' min fa' : s < 86400 ? Math.round(s / 3600) + ' h fa' : new Date(q).toLocaleDateString('it-IT'); };
 
-async function regia() {
-  const R = await chiama('/api/regia');
-  const ultimo = Object.fromEntries(R.ultimi.map((u) => [AGID(u.agente), u]));
-  const conti = {}; R.conti.forEach((c) => { conti[AGID(c.agente)] = (conti[AGID(c.agente)] || 0) + c.n; });
-  const stati = {};
-  for (const L of R.attivi) for (const a of FASE_AGENTI[L.fase] || []) {
-    const preso = L.blocco_fino && L.blocco_fino > R.adesso;
-    if (stati[a]?.s !== 'lavora') stati[a] = { s: preso ? 'lavora' : 'coda', L };
-  }
-  for (const [a, u] of Object.entries(ultimo)) if (!stati[a] && u.livello === 'errore' && Date.now() - new Date(u.quando) < 30 * 60e3) stati[a] = { s: 'errore' };
-  if ((R.piani || []).length) stati.idee = { s: R.piani.some((x) => x.blocco_fino && x.blocco_fino > R.adesso) ? 'lavora' : 'coda' };
-  for (const a of R.riposo || []) stati[a] = { s: 'riposo' };
-  if (R.yt_web) AGENTI.scout_yt.r = 'Scout YouTube Shorts \xB7 cerca sul web';
-  const testoStato = { lavora: 'al lavoro', coda: 'parte a breve', errore: 'bloccato', riposo: 'a riposo' };
-  const scr = (id) => {
-    const A = AGENTI[id], st = stati[id] || {}, u = ultimo[id];
-    const msg = st.s === 'riposo' ? 'spento: per TikTok e Instagram servirebbe Apify' : st.s === 'coda' ? 'tocca a me: parto entro un minuto\u2026' : u ? u.messaggio : 'pronto, aspetto un lavoro';
-    return '<div class="scrivania ' + (st.s || '') + '" style="--c:' + (A.c || '#345') + '" data-ag="' + id + '"><div class="av">' + A.i + '</div><div class="chi"><b>' + e(A.n) + '</b><span class="stato-ag">' + (testoStato[st.s] || 'libero') + '</span><div class="ruolo">' + e(A.r) + (conti[id] ? ' \xB7 ' + conti[id] + ' azioni in 7 gg' : '') + '</div>' +
-      ('<div class="schermo">' + e(msg) + '</div>' + (u && !st.s ? '<div class="mut" style="font-size:11px;margin-top:3px">' + fa(u.quando) + (u.lavoro_id ? ' \xB7 lavoro #' + u.lavoro_id : '') + '</div>' : '')) + '</div></div>';
-  };
-  const attivi = R.attivi.map((L) => { const i = FASI.findIndex((f) => f[0] === L.fase);
-    return '<a class="card attivo" href="#/lavoro/' + L.id + '"><div class="riga"><b style="flex:1">#' + L.id + ' \xB7 ' + e(L.settore || L.prompt.slice(0, 60)) + '</b><span class="pill in_corso">' + FASI[i][1] + '\u2026</span></div><div class="fasi">' + FASI.map((f, k) => '<div class="' + (k < i ? 'ok' : k === i ? 'ora' : '') + '"></div>').join('') + '</div></a>'; }).join('');
-  const manca = Object.entries(R.chiavi || {}).filter(([, v]) => !v).map(([k]) => k);
-  const avviso = manca.length ? '<a class="card attivo" href="#/impostazioni" style="border-color:var(--warn)"><b style="color:var(--warn)">\u26A0\uFE0E Mancano le chiavi: ' + manca.join(', ') + '</b><div class="mut">' + (manca.includes('Claude') ? 'Senza Claude la squadra non pu\xF2 partire.' : 'Senza queste la ricerca salta alcune piattaforme.') + ' Tocca qui per inserirle.</div></a>' : '';
-  $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Comparto Reel</h1><a class="btn sec" href="#/lavori">Lavori</a><a class="btn" href="#/nuovo">+ Nuovo reel</a></div>' + avviso +
-    (attivi || '<p class="mut">Nessun lavoro in corso: la squadra \xE8 libera. Avvia un reel con \u201C+ Nuovo reel\u201D.</p>') +
-    '<div class="studio">' + STANZE.map(([s, nome]) => '<div class="stanza' + (s === 'post' ? ' spenta' : '') + '"><h3>' + nome + '</h3><div class="' + (s === 'post' ? 'posti' : '') + '">' + Object.keys(AGENTI).filter((a) => AGENTI[a].s === s).map(scr).join('') + '</div></div>').join('') + '</div>' +
-    '<h2>In diretta</h2><div class="log">' + (R.feed.map((r) => { const A = AGENTI[AGID(r.agente)]; return '<div class="' + r.livello + '"><span class="mut">' + new Date(r.quando).toLocaleTimeString('it-IT') + '</span> ' + A.i + ' <b>' + e(A.n) + '</b> ' + e(r.messaggio) + (r.lavoro_id ? ' <a href="#/lavoro/' + r.lavoro_id + '" class="mut">#' + r.lavoro_id + '</a>' : '') + '</div>'; }).join('') || '<div class="mut">ancora niente</div>') + '</div>';
-  document.querySelectorAll('[data-ag]').forEach((d) => d.onclick = () => agente(d.dataset.ag, stati[d.dataset.ag]));
-  timer = setTimeout(rotta, R.attivi.length ? 3000 : 10000);
-}
-
-async function agente(id, st) {
-  const A = AGENTI[id];
-  const righe = await chiama('/api/regia/agente/' + id);
-  const chiudi = () => { document.querySelector('.velo')?.remove(); document.querySelector('.pannello')?.remove(); };
-  chiudi();
-  document.body.insertAdjacentHTML('beforeend', '<div class="velo"></div><div class="pannello"><div class="riga"><div class="av" style="--c:' + (A.c || '#345') + '">' + A.i + '</div><div style="flex:1"><h1 style="margin:0">' + e(A.n) + '</h1><div class="mut">' + e(A.r) + '</div></div><button class="sec" id="xx">Chiudi</button></div>' +
-    '<p>' + e(A.d || 'Questo agente entra in squadra con la fase 2 (montaggio): legger\xE0 la scheda tecnica del Direttore creativo.') + '</p>' +
-    (st?.L ? '<p><b>Adesso:</b> lavoro <a href="#/lavoro/' + st.L.id + '">#' + st.L.id + '</a> \xB7 ' + e(st.L.settore || st.L.prompt.slice(0, 80)) + '</p>' : '') +
-    (righe.length ? '<h2>Cosa ha fatto</h2><div class="log">' + righe.map((r) => '<div class="' + r.livello + '"><span class="mut">' + new Date(r.quando).toLocaleString('it-IT') + '</span> ' + e(r.messaggio) + (r.lavoro_id ? ' <a class="mut" href="#/lavoro/' + r.lavoro_id + '">#' + r.lavoro_id + '</a>' : '') + '</div>').join('') + '</div>' : '') + '</div>');
-  document.querySelector('.velo').onclick = chiudi; $('#xx').onclick = chiudi;
-  addEventListener('hashchange', chiudi, { once: true });
-}
-
 async function chiama(path, opts = {}) {
   const r = await fetch(path, { ...opts, headers: { 'content-type': 'application/json' }, body: opts.body ? JSON.stringify(opts.body) : undefined });
   const d = await r.json().catch(() => ({}));
@@ -5476,14 +5553,42 @@ function mostraCodice(codice) {
   $('#ok').onclick = () => { location.hash = '#/'; rotta(); };
 }
 
+// LISTA REEL: tutti i reel dell'agenzia (clienti e profilo), con pausa / riprendi / elimina e l'avanzamento a colpo d'occhio
+let FILTRO_REEL = 'tutti';
 async function lista() {
   const L = await chiama('/api/lavori');
-  $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Lavori</h1><a class="btn" href="#/nuovo">+ Nuovo reel</a></div>' +
-    (L.length ? L.map((l) => '<a class="card lav" href="#/lavoro/' + l.id + '"><div class="riga"><b style="flex:1">' + e(l.titolo || l.prompt.slice(0, 90)) + '</b><span class="pill ' + l.stato + '">' + e(stato(l)) + '</span></div><div class="mut" style="margin-top:6px">#' + l.id + ' \xB7 ' + new Date(l.creato).toLocaleString('it-IT') + (l.titolo ? ' \xB7 ' + e(l.prompt.slice(0, 70)) : '') + '</div></a>').join('')
-      : '<div class="vuoto">Nessun lavoro. Scrivi il primo prompt con \u201C+ Nuovo reel\u201D.</div>');
-  if (L.some((l) => l.stato === 'in_corso')) timer = setTimeout(rotta, 8000);
+  const gruppo = (l) => l.stato === 'pausa' ? 'pausa' : l.stato === 'errore' ? 'errore' : l.stato === 'pronto' ? (l.approvato ? 'approvati' : 'da_vedere') : 'in_corso';
+  const nomi = { tutti: 'Tutti', in_corso: 'In lavorazione', da_vedere: 'Da guardare', approvati: 'Approvati', pausa: 'In pausa', errore: 'Bloccati' };
+  const conta = (g) => g === 'tutti' ? L.length : L.filter((l) => gruppo(l) === g).length;
+  const vis = L.filter((l) => FILTRO_REEL === 'tutti' || gruppo(l) === FILTRO_REEL);
+  const perc = (l) => { const i = FASI.findIndex((f) => f[0] === l.fase); return l.stato === 'pronto' ? 100 : Math.max(5, Math.round(((i < 0 ? 0 : i) + (l.fase === 'montaggio' && l.mstato === 'da_fare' ? 0.3 : 0)) / (FASI.length - 1) * 100)); };
+  const carta = (l) => {
+    const g = gruppo(l), p = perc(l);
+    const azioni = (g === 'in_corso' || g === 'errore' ? '<button class="sec r_az" data-az="pausa" data-id="' + l.id + '" title="Metti in pausa">\u23F8 Pausa</button>' : '') +
+      (g === 'pausa' || g === 'errore' ? '<button class="sec r_az" data-az="riprendi" data-id="' + l.id + '" title="Riprendi">\u25B6 Riprendi</button>' : '') +
+      '<button class="sec r_az" data-az="elimina" data-id="' + l.id + '" title="Elimina" style="color:var(--err)">\u{1F5D1}</button>';
+    return '<div class="card lav reelc ' + g + '">' +
+      '<a class="reel-cop" href="#/lavoro/' + l.id + '">' + (l.copertina ? '<img src="/api/lavori/' + l.id + '/copertina.jpg">' : '<span>' + (g === 'pronto' || g === 'da_vedere' ? '\u{1F3AC}' : g === 'pausa' ? '\u23F8' : g === 'errore' ? '\u26A0\uFE0E' : '\u23F3') + '</span>') + '</a>' +
+      '<div style="flex:1;min-width:0"><a href="#/lavoro/' + l.id + '" class="reel-tit"><b>#' + l.id + ' \xB7 ' + e(l.titolo || l.prompt.slice(0, 80)) + '</b></a>' +
+      '<div class="mut" style="margin:4px 0">' + (l.avatar ? '\u{1F3AD} profilo \xB7 ' : '') + new Date(l.creato).toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' \xB7 ' + e(g === 'in_corso' ? stato(l) : nomi[g]) + (l.errore && g === 'errore' ? ' \xB7 ' + e(l.errore.slice(0, 90)) : '') + '</div>' +
+      (g === 'in_corso' || g === 'pausa' ? '<div class="avanz"><i style="width:' + p + '%"></i></div>' : '') +
+      '<div class="riga" style="margin-top:8px;gap:6px">' + (g === 'da_vedere' ? '<a class="btn" style="padding:6px 12px" href="#/lavoro/' + l.id + '">\u25B6 Guarda e approva</a>' : '') + azioni + '</div></div></div>';
+  };
+  $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Reel</h1><a class="btn" href="#/nuovo">+ Nuovo reel</a></div>' +
+    '<div class="filtri">' + Object.keys(nomi).map((g) => '<button class="' + (FILTRO_REEL === g ? 'on' : '') + ' r_f" data-f="' + g + '">' + nomi[g] + ' <span class="mut">' + conta(g) + '</span></button>').join('') + '</div>' +
+    (vis.length ? vis.map(carta).join('') : '<div class="vuoto">' + (L.length ? 'Nessun reel in questa lista.' : 'Nessun reel. Scrivi il primo con \u201C+ Nuovo reel\u201D.') + '</div>');
+  document.querySelectorAll('.r_f').forEach((b) => b.onclick = () => { FILTRO_REEL = b.dataset.f; lista(); });
+  document.querySelectorAll('.r_az').forEach((b) => b.onclick = async () => {
+    const id = b.dataset.id, az = b.dataset.az;
+    if (az === 'elimina' && !confirm('Eliminare il reel #' + id + '? Si cancellano anche il video e il registro.')) return;
+    b.disabled = true;
+    try { await chiama('/api/lavori/' + id + (az === 'elimina' ? '' : '/' + az), { method: az === 'elimina' ? 'DELETE' : 'POST', body: az === 'elimina' ? undefined : {} }); } catch (x) { alert(x.message); }
+    lista();
+  });
+  clearTimeout(timer);
+  if (L.some((l) => l.stato === 'in_corso')) timer = setTimeout(rotta, 6000);
 }
-const stato = (l) => l.stato === 'pronto' ? 'pronto' : l.stato === 'errore' ? 'errore' : (FASI.find((f) => f[0] === l.fase) || [0, l.fase])[1] + '\u2026';
+const stato = (l) => l.stato === 'pronto' ? 'pronto' : l.stato === 'errore' ? 'errore' : l.stato === 'pausa' ? 'in pausa' : (FASI.find((f) => f[0] === l.fase) || [0, l.fase])[1] + '\u2026';
 
 const STILI_UI = ${JSON.stringify(ELENCO_STILI)};
 const LUT_UI = ${JSON.stringify(Object.fromEntries(Object.entries(LUT).map(([k, v]) => [k, v[1].split(":")[0]])))};
@@ -5857,13 +5962,14 @@ async function piano(id) {
     '<h3 style="margin:16px 0 6px">Consigli</h3>' + lst(s.consigli) + '</div>' +
     '<h2>Giornate di ripresa</h2>' + (s.giornate_di_ripresa || []).map((gr) => '<div class="card"><b>Giorno ' + e(gr.giorno) + ' \xB7 ' + e(gr.dove || '') + '</b> <span class="pill">' + e(gr.durata || '') + '</span><div>Reel: ' + (gr.reel || []).map((n) => '#' + n).join(', ') + '</div><div class="mut">Chi: ' + e(gr.chi || '') + (gr.note ? ' \xB7 ' + e(gr.note) : '') + '</div></div>').join('') +
     '<h2>Calendario e copioni</h2>' + P.reel.map((r) => vistaCopione(r, cal.find((x) => x.numero === r.numero) || {}, d, id)).join('');
-  $('#app').innerHTML = '<div class="riga noprint"><a class="mut" href="#/copioni">\u2190 Copioni</a><span style="flex:1"></span>' + (P.stato === 'pronto' ? '<button class="sec" id="p_print">\u{1F5A8}\uFE0F Stampa / PDF</button>' : '') + '<button class="rosso" id="p_del">Elimina</button></div>' +
+  $('#app').innerHTML = '<div class="riga noprint"><a class="mut" href="#/copioni">\u2190 Copioni</a><span style="flex:1"></span>' + (P.stato === 'pronto' ? (P.approvato ? '<span class="pill pronto">\u2705 approvati</span>' : '<button id="p_ok" style="width:auto">\u2705 Approva i copioni</button>') + '<button class="sec" id="p_print">\u{1F5A8}\uFE0F Stampa / PDF</button>' : '') + '<button class="rosso" id="p_del">Elimina</button></div>' +
     '<h1>' + e(d.cliente) + '</h1><div class="mut">' + d.numero + ' reel \xB7 ' + d.mesi + ' mesi dal ' + e(d.inizio) + ' \xB7 argomenti: ' + e((d.argomenti || []).join(', ')) + '</div>' + stato + strat;
   const trova = (n) => ({ r: P.reel.find((x) => x.numero === Number(n)), c: cal.find((x) => x.numero === Number(n)) || {} });
   document.querySelectorAll('[data-copia]').forEach((b) => b.onclick = async () => { await navigator.clipboard.writeText(testoCopione(trova(b.dataset.copia).r.copione, d)); b.textContent = 'Copiato \u2713'; });
   document.querySelectorAll('[data-lavoro]').forEach((b) => b.onclick = () => { const c = trova(b.dataset.lavoro).r.copione; PREFILL = 'Reel per ' + d.cliente + (d.settore ? ' (' + d.settore + ')' : '') + ', ' + c.durata_sec + ' secondi, formato ' + c.formato + '. Segui questo copione:\\n\\n' + testoCopione(c, d); location.hash = '#/nuovo'; });
   document.querySelectorAll('[data-rifai]').forEach((b) => b.onclick = async () => { const nota = prompt('Cosa vuoi cambiare in questo copione? (vuoto = riscrivilo da capo)'); if (nota === null) return; await chiama('/api/piani/' + id + '/reel/' + b.dataset.rifai + '/rifai', { method: 'POST', body: { nota } }); rotta(); });
   if ($('#p_print')) $('#p_print').onclick = () => { document.querySelectorAll('details').forEach((x) => x.open = true); print(); };
+  if ($('#p_ok')) $('#p_ok').onclick = async () => { await chiama('/api/piani/' + id + '/approva', { method: 'POST', body: {} }); rotta(); };
   if ($('#p_rip')) $('#p_rip').onclick = async () => { await chiama('/api/piani/' + id + '/riprova', { method: 'POST', body: {} }); rotta(); };
   $('#p_del').onclick = async () => { if (!confirm('Eliminare questo piano?')) return; await chiama('/api/piani/' + id, { method: 'DELETE' }); location.hash = '#/copioni'; };
   if (P.stato === 'in_corso') timer = setTimeout(rotta, 5000);
@@ -6020,7 +6126,7 @@ async function azienda() {
   const tutti = Object.keys(AGENTI).filter((a) => a !== 'regia').length;
   const h = new Date().getHours();
   const frase = [
-    R.da_approvare ? '<b class="n" style="color:var(--warn)">' + R.da_approvare + (R.da_approvare === 1 ? ' contenuto</b> ti aspetta' : ' contenuti</b> ti aspettano') + ' in approvazione.' : '',
+    R.da_approvare ? '<b class="n" style="color:var(--warn)">' + R.da_approvare + (R.da_approvare === 1 ? ' cosa</b> ti aspetta' : ' cose</b> ti aspettano') + ' in approvazione.' : '',
     lavorano.length ? nomi(lavorano, 'var(--teal)') + (lavorano.length === 1 ? ' sta' : ' stanno') + ' lavorando.' : 'Nessuno sta lavorando adesso.',
     coda.length ? nomi(coda, 'var(--warn)') + (coda.length === 1 ? ' parte' : ' partono') + ' a breve.' : '',
     (tutti - lavorano.length - coda.length) + ' sono liberi.',
@@ -6028,7 +6134,18 @@ async function azienda() {
   // striscia "al lavoro adesso": chi lavora, su cosa e l'ultima cosa che ha fatto; toccando vola dall'agente
   const striscia = [...lavorano, ...coda].filter((a) => AGENTI[a]).map((a) => '<button class="att ' + st[a] + '" data-va="' + a + '"><span class="pt"></span><span class="fa">' + (AGENTI[a].i || '\u2022') + '</span><span class="tx"><b>' + e(AGENTI[a].n) + ' <em>' + (st[a] === 'lavora' ? 'al lavoro' : 'in coda') + '</em></b>' +
     (cosa[a]?.testo ? '<small class="su">' + e(cosa[a].testo) + '</small>' : '') + (cosa[a]?.ora ? '<small>' + e(cosa[a].ora) + '</small>' : '') + '</span></button>').join('');
-  const saluto = '<div class="saluto"><h1>' + (h < 13 ? 'Buongiorno' : h < 18 ? 'Buon pomeriggio' : 'Buonasera') + ', Johnny</h1><p>' + frase + '</p>' + (striscia ? '<div class="attivi">' + striscia + '</div>' : '') + '</div>';
+  // LAVORAZIONI IN CORSO a colpo d'occhio: ogni reel, copione, carosello e incarico con la fase e quanto manca
+  const FASI_PR = { piano: 'Leo legge la richiesta', ricerca: 'cerca i reel di riferimento', riferimenti: 'studia i riferimenti', clip: 'Max scarica e misura le clip', scheda: 'Ada scrive la scheda', regia: 'Rocco prepara il montaggio', montaggio: 'il motore monta il reel' };
+  const FASI_AVP = { ricerca: 'Sofia si documenta', virali: 'cerca i video virali', copioni: 'Nora scrive i copioni', approvazione: 'aspetta te', avatar: 'Ava genera il video HeyGen', montaggio: 'il motore monta' };
+  const lav = [
+    ...(R.reel || []).map((l) => { const i = FASI.findIndex((f) => f[0] === l.fase); return { ic: '\u{1F3AC}', t: '#' + l.id + ' ' + (l.titolo || 'reel'), f: FASI_PR[l.fase] || l.fase, p: Math.max(6, Math.round((i + (l.fase === 'montaggio' && l.mstato !== 'da_fare' ? 0.6 : 0.2)) / (FASI.length - 1) * 100)), link: '#/lavoro/' + l.id }; }),
+    ...(R.profilo || []).map((x) => { const k = Object.keys(FASI_AVP), i = k.indexOf(x.fase); return { ic: '\u{1F3AD}', t: x.argomento || 'profilo', f: FASI_AVP[x.fase] || x.fase, p: Math.max(6, Math.round((i + 0.4) / k.length * 100)), link: '#/profilo/' + x.id }; }),
+    ...(R.postl || []).map((x) => ({ ic: '\u{1F5C2}\uFE0F', t: 'Caroselli ' + (x.cliente || ''), f: x.fase, p: 50, link: '#/post/' + x.id })),
+    ...(R.piani || []).map((x) => ({ ic: '\u{1F4DD}', t: 'Copioni ' + (x.cliente || ''), f: x.fase === 'strategia' ? 'Nora studia la strategia' : 'Nora scrive i copioni', p: x.fase === 'strategia' ? 25 : 65, link: '#/copioni/' + x.id })),
+    ...(R.attivi || []).map((x) => ({ ic: (AGENTI[x.agente] || {}).i || '\u2022', t: x.titolo || 'incarico', f: ((AGENTI[x.agente] || {}).n || x.agente) + (x.stato === 'in_corso' ? ' al lavoro' : ' in coda'), p: x.stato === 'in_corso' ? 55 : 10, link: '#/incarico/' + x.id })),
+  ];
+  const pannelloLav = lav.length ? '<div class="lavorazioni">' + lav.slice(0, 12).map((x) => '<a class="lz" href="' + x.link + '"><span class="ic">' + x.ic + '</span><span class="tx"><b>' + e(String(x.t).slice(0, 60)) + '</b><small>' + e(x.f) + '</small><span class="avanz"><i style="width:' + x.p + '%"></i></span></span></a>').join('') + '</div>' : '';
+  const saluto = '<div class="saluto"><h1>' + (h < 13 ? 'Buongiorno' : h < 18 ? 'Buon pomeriggio' : 'Buonasera') + ', Johnny</h1><p>' + frase + (R.da_approvare ? ' <a href="#/approvazioni">Apri le approvazioni \u25B8</a>' : '') + '</p>' + pannelloLav + (striscia ? '<div class="attivi">' + striscia + '</div>' : '') + '</div>';
   if (!prima) {
     $('#saluto').innerHTML = saluto;
     if (SALA3D) SALA3D.aggiorna(datiSala(R)); else datiSala(R);
@@ -6274,15 +6391,24 @@ async function riunionePagina(id) {
 
 async function approvazioni() {
   if (!AGENTI.capo) { const R = await chiama('/api/azienda'); Object.assign(AGENTI, R.squadra); }
-  const [L, Av, Po] = await Promise.all([chiama('/api/contenuti'), chiama('/api/avatar').catch(() => []), chiama('/api/post').catch(() => [])]);
-  // copioni del profilo e caroselli che aspettano te: si approvano nella loro pagina
-  const attesa = [...Av.filter((x) => x.stato === 'da_approvare').map((x) => ({ t: '\u{1F3AD} Copioni per il tuo profilo IG', b: x.argomento + ' \xB7 ' + x.numero + ' reel', link: '#/profilo/' + x.id })),
+  const [L, Av, Po, Re, Pi] = await Promise.all([chiama('/api/contenuti'), chiama('/api/avatar').catch(() => []), chiama('/api/post').catch(() => []), chiama('/api/lavori').catch(() => []), chiama('/api/piani').catch(() => [])]);
+  // reel finiti da guardare: si approvano qui o si rimontano nella loro pagina
+  const reel = Re.filter((l) => l.stato === 'pronto' && !l.approvato);
+  const bloccoReel = reel.length ? '<h2>\u{1F3AC} Reel da guardare e approvare (' + reel.length + ')</h2>' + reel.map((l) => '<div class="card lav reelc">' +
+    '<a class="reel-cop" href="#/lavoro/' + l.id + '">' + (l.copertina ? '<img src="/api/lavori/' + l.id + '/copertina.jpg">' : '<span>\u{1F3AC}</span>') + '</a>' +
+    '<div style="flex:1"><b>#' + l.id + ' \xB7 ' + e(l.titolo || l.prompt.slice(0, 80)) + '</b><div class="mut" style="margin:4px 0">' + (l.avatar ? '\u{1F3AD} profilo \xB7 ' : '') + 'pronto ' + fa(l.aggiornato) + '</div>' +
+    '<div class="riga" style="gap:6px"><a class="btn" style="padding:6px 12px" href="#/lavoro/' + l.id + '">\u25B6 Guarda</a><button class="ap_reel" data-id="' + l.id + '" style="width:auto;padding:6px 12px">\u2705 Approva</button><a class="btn sec" style="padding:6px 12px" href="#/lavoro/' + l.id + '">\u270F\uFE0F Modifiche</a></div></div></div>').join('') : '';
+  // copioni del profilo, copioni dei clienti e caroselli che aspettano te: si approvano nella loro pagina
+  const attesa = [...Pi.filter((x) => x.stato === 'pronto' && !x.approvato).map((x) => ({ t: '\u{1F4DD} Copioni per i clienti', b: (x.titolo || x.cliente) + ' \xB7 ' + (x.scritti || 0) + ' copioni', link: '#/copioni/' + x.id })),...Av.filter((x) => x.stato === 'da_approvare').map((x) => ({ t: '\u{1F3AD} Copioni per il tuo profilo IG', b: x.argomento + ' \xB7 ' + x.numero + ' reel', link: '#/profilo/' + x.id })),
     ...Po.filter((x) => ['da_approvare', 'attende_canva'].includes(x.stato)).map((x) => ({ t: x.stato === 'da_approvare' ? '\u{1F5C2}\uFE0F Caroselli da approvare' : '\u{1F3A8} Caroselli da fare su Canva', b: (x.cliente || '') + (x.titolo ? ' \xB7 ' + x.titolo : ''), link: '#/post/' + x.id }))];
   const blocco = attesa.length ? '<h2>\u270D\uFE0F Copioni e caroselli da approvare (' + attesa.length + ')</h2>' + attesa.map((x) => '<a class="card lav" href="' + x.link + '"><div class="riga"><b style="flex:1">' + e(x.b) + '</b><span class="btn" style="padding:5px 12px;font-size:12px">Apri e approva \u25B8</span></div><div class="mut">' + e(x.t) + '</div></a>').join('') : '';
   const gruppi = [['da_pubblicare', '\u23F0 Da pubblicare adesso'], ['da_approvare', '\u2705 Da approvare'], ['programmato', '\u{1F5D3}\uFE0F In programmazione'], ['approvato', 'Approvati senza data'], ['pubblicato', 'Pubblicati']];
-  $('#app').innerHTML = '<h1>Approvazioni e calendario</h1><p class="mut">Approvi tu, poi Rita li mette in calendario (anche nel gestionale, sezione contenuti). All\u2019ora di uscita ti avvisa: la pubblicazione automatica arriva quando colleghiamo un canale.</p>' +
-    ((blocco + gruppi.map(([s, t]) => { const g = L.filter((c) => c.stato === s); return g.length ? '<h2>' + t + ' (' + g.length + ')</h2>' + (s === 'pubblicato' ? g.slice(0, 10) : g).map(vistaContenuto).join('') : ''; }).join('')) || '<div class="vuoto">Niente da approvare.</div>');
+  $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Approvazioni</h1><button class="sec" id="notif" style="width:auto">\u{1F514} Notifiche su questo telefono</button></div><p class="mut">Tutto quello che aspetta te: reel, copioni, caroselli e post. Quando qualcosa \xE8 pronto ti arriva la notifica sul telefono.</p>' + bloccoReel + '<p class="mut" style="display:none">Approvi tu, poi Rita li mette in calendario (anche nel gestionale, sezione contenuti). All\u2019ora di uscita ti avvisa: la pubblicazione automatica arriva quando colleghiamo un canale.</p>' +
+    ((blocco + gruppi.map(([s, t]) => { const g = L.filter((c) => c.stato === s); return g.length ? '<h2>' + t + ' (' + g.length + ')</h2>' + (s === 'pubblicato' ? g.slice(0, 10) : g).map(vistaContenuto).join('') : ''; }).join('')) || '');
   agganciaContenuti(L, rotta);
+  if ($('#notif')) $('#notif').onclick = attivaNotifiche;
+  document.querySelectorAll('.ap_reel').forEach((b) => b.onclick = async () => { b.disabled = true; await chiama('/api/lavori/' + b.dataset.id + '/approva', { method: 'POST', body: {} }); rotta(); });
+  if (!(L.length || reel.length || attesa.length)) { $('#app').insertAdjacentHTML('beforeend', '<div class="vuoto">Niente da approvare: quando qualcosa \xE8 pronto ti arriva la notifica sul telefono.</div>'); }
 }
 
 async function clientiPagina() {
@@ -6338,6 +6464,25 @@ async function chatPagina(canale) {
   $('#ch_pul').onclick = async () => { await chiama('/api/chat/' + canale, { method: 'DELETE' }); rotta(); };
 }
 
+// notifiche push: su iPhone funzionano solo con l'app aggiunta alla schermata Home (Condividi \u2192 Aggiungi a Home)
+async function attivaNotifiche() {
+  const iOS = /iPhone|iPad/.test(navigator.userAgent), installata = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return alert(iOS && !installata ? 'Su iPhone: tocca Condividi \u25B8 "Aggiungi alla schermata Home", apri l\\'agenzia dall\\'icona Momento AI e premi di nuovo questo bottone.' : 'Questo browser non supporta le notifiche.');
+  try {
+    const { chiave } = await chiama('/api/notifiche/chiave');
+    if (!chiave) return alert('Le notifiche non sono ancora configurate sul server.');
+    if ((await Notification.requestPermission()) !== 'granted') return alert('Permesso negato: riattiva le notifiche per Momento AI nelle impostazioni del telefono.');
+    const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    await navigator.serviceWorker.ready;
+    const k = Uint8Array.from(atob(chiave.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((chiave.length + 3) % 4)), (c) => c.charCodeAt(0));
+    const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: k });
+    await chiama('/api/notifiche/iscrivi', { method: 'POST', body: { endpoint: sub.endpoint, dispositivo: navigator.userAgent.slice(0, 120) } });
+    await chiama('/api/notifiche/prova', { method: 'POST', body: {} });
+    alert('Fatto: ti \xE8 arrivata una notifica di prova. Da ora ti avviso quando qualcosa aspetta la tua approvazione.');
+  } catch (x) { alert('Non riesco ad attivarle: ' + x.message); }
+}
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+
 async function rotta() {
   clearTimeout(timer);
   const h = location.hash || '#/';
@@ -6349,7 +6494,7 @@ async function rotta() {
     else if (h === '#/nuovo') nuovo();
     else if (h === '#/impostazioni') await impostazioni();
     else if (h === '#/lavori') await lista();
-    else if (h === '#/reel') { if (!document.querySelector('.pannello')) await regia(); else timer = setTimeout(rotta, 3000); }
+    else if (h === '#/reel') await lista();
     else if (h.startsWith('#/agente/')) await agentePagina(h.split('/')[2]);
     else if (h.startsWith('#/incarico/')) await incarico(h.split('/')[2]);
     else if (h === '#/approvazioni') await approvazioni();
@@ -7389,6 +7534,10 @@ async function api(req, env, url) {
   }
   if (p === "/api/esci") return json2({ ok: true }, 200, { "set-cookie": cookie("", 0) });
   if (!await autorizzato(req, env)) return json2({ errore: "accesso richiesto" }, 401);
+  {
+    const n = await apiNotifiche(req, env, p, m);
+    if (n) return n;
+  }
   if (p === "/api/impostazioni" && m === "GET") {
     const cfg = await configurazione(env);
     const segreti = Object.fromEntries(CHIAVI_SEGRETE.map((k) => {
@@ -7419,16 +7568,16 @@ async function api(req, env, url) {
     ]);
     const piani = await all(env, "SELECT id, cliente, fase, blocco_fino FROM piani WHERE stato='in_corso' ORDER BY id").catch(() => []);
     const cfg = await configurazione(env);
-    const chiavi = { Claude: !!cfg.ANTHROPIC_API_KEY };
+    const chiavi2 = { Claude: !!cfg.ANTHROPIC_API_KEY };
     const riposo = cfg.APIFY_TOKEN ? [] : ["scout_tt", "scout_ig"];
-    return json2({ adesso: ora(), attivi, piani, ultimi, feed, conti, chiavi, riposo, yt_web: !cfg.YOUTUBE_API_KEY });
+    return json2({ adesso: ora(), attivi, piani, ultimi, feed, conti, chiavi: chiavi2, riposo, yt_web: !cfg.YOUTUBE_API_KEY });
   }
   const ag = p.match(/^\/api\/regia\/agente\/([a-z_]+)$/);
   if (ag && m === "GET") {
     return json2(await all(env, "SELECT messaggio, livello, quando, lavoro_id FROM registro WHERE agente=? ORDER BY id DESC LIMIT 40", ag[1]));
   }
   if (p === "/api/lavori" && m === "GET") {
-    const r = await all(env, "SELECT id, prompt, stato, fase, errore, creato, aggiornato, json_extract(scheda, '$.titolo_lavoro') AS titolo FROM lavori ORDER BY id DESC LIMIT 60");
+    const r = await all(env, "SELECT id, prompt, stato, fase, errore, creato, aggiornato, approvato, json_extract(scheda, '$.titolo_lavoro') AS titolo, json_extract(montaggio, '$.stato') AS mstato, json_extract(montaggio, '$.copertina') AS copertina, json_extract(stile, '$.avatar') AS avatar FROM lavori ORDER BY id DESC LIMIT 100");
     return json2(r);
   }
   if (p === "/api/lavori" && m === "POST") {
@@ -7470,7 +7619,7 @@ async function api(req, env, url) {
     h.set("content-length", String(tot));
     return new Response(value, { headers: h });
   }
-  const mm = p.match(/^\/api\/lavori\/(\d+)(?:\/(riprova|registro|girato|rimonta))?$/);
+  const mm = p.match(/^\/api\/lavori\/(\d+)(?:\/(riprova|registro|girato|rimonta|pausa|riprendi|approva))?$/);
   if (mm) {
     const id = Number(mm[1]);
     if (!mm[2] && m === "GET") {
@@ -7483,6 +7632,26 @@ async function api(req, env, url) {
     }
     if (!mm[2] && m === "DELETE") {
       await env.DB.batch([env.DB.prepare("DELETE FROM lavori WHERE id=?").bind(id), env.DB.prepare("DELETE FROM registro WHERE lavoro_id=?").bind(id)]);
+      if (env.VIDEO) {
+        const k = await env.VIDEO.list({ prefix: `lavoro-${id}/` }).catch(() => ({ keys: [] }));
+        for (const x of k.keys) await env.VIDEO.delete(x.name).catch(() => {
+        });
+      }
+      return json2({ ok: true });
+    }
+    if (mm[2] === "pausa" && m === "POST") {
+      await run(env, "UPDATE lavori SET stato='pausa', blocco_fino=NULL, motore_pass=NULL, motore_fino=NULL, aggiornato=? WHERE id=? AND stato IN ('in_corso','errore')", ora(), id);
+      await log(env, id, "regia", "\u23F8\uFE0F messo in pausa da Johnny");
+      return json2({ ok: true });
+    }
+    if (mm[2] === "riprendi" && m === "POST") {
+      await run(env, "UPDATE lavori SET stato='in_corso', errore=NULL, tentativi=0, blocco_fino=NULL, motore_svegliato=NULL, aggiornato=? WHERE id=? AND stato IN ('pausa','errore')", ora(), id);
+      await log(env, id, "regia", "\u25B6\uFE0F ripreso");
+      return json2({ ok: true });
+    }
+    if (mm[2] === "approva" && m === "POST") {
+      await run(env, "UPDATE lavori SET approvato=?, aggiornato=? WHERE id=? AND stato='pronto'", ora(), ora(), id);
+      await log(env, id, "regia", "\u2705 reel approvato da Johnny");
       return json2({ ok: true });
     }
     if (mm[2] === "girato" && m === "POST") {
@@ -7627,6 +7796,7 @@ var index_default = {
     await schema(env);
     await schemaPiani(env);
     await schemaAgenzia(env);
+    await schemaNotifiche(env);
     const url = new URL(req.url);
     if (url.pathname.startsWith("/persone/")) {
       try {
@@ -7636,6 +7806,9 @@ var index_default = {
       }
     }
     if (url.pathname === "/favicon.svg" || url.pathname === "/favicon.ico") return new Response(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0E9F9A"/><path d="M15 48V17h7l10 15 10-15h7v31h-7.5V29.5L32 42l-9.5-12.5V48z" fill="#fff"/></svg>`, { headers: { "content-type": "image/svg+xml", "cache-control": "public, max-age=86400" } });
+    if (url.pathname === "/manifest.webmanifest") return new Response(MANIFEST, { headers: { "content-type": "application/manifest+json", "cache-control": "public, max-age=3600" } });
+    if (url.pathname === "/sw.js") return new Response(SW, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache", "service-worker-allowed": "/" } });
+    if (url.pathname === "/icona-192.png" || url.pathname === "/icona-512.png") return new Response(Uint8Array.from(atob(url.pathname.includes("192") ? ICONA_192 : ICONA_512), (c) => c.charCodeAt(0)), { headers: { "content-type": "image/png", "cache-control": "public, max-age=86400" } });
     if (url.pathname === "/sala3d.js") return new Response(sala3d_default, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": url.searchParams.get("v") === VERSIONE_SALA ? "public, max-age=31536000, immutable" : "no-cache" } });
     const pubP = url.pathname.match(/^\/pubblico\/post\/(\d+)\/(\d+-\d+)\.jpg$/);
     if (pubP) {
@@ -7678,7 +7851,8 @@ var index_default = {
     await schema(env);
     await schemaPiani(env);
     await schemaAgenzia(env);
-    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env), avanzaRiunioni(env), avanzaAvatar(env), avanzaPost(env), diagnosiUnaVolta(env)]));
+    await schemaNotifiche(env);
+    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env), avanzaRiunioni(env), avanzaAvatar(env), avanzaPost(env), diagnosiUnaVolta(env), controllaApprovazioni(env).catch((e) => console.log("notifiche", e.message))]));
   }
 };
 export {

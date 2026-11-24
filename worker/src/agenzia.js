@@ -360,12 +360,16 @@ export async function apiAgenzia(req, env, p, m, json) {
       one(env, "SELECT COUNT(*) AS n FROM contenuti WHERE stato IN ('da_approvare','da_pubblicare')"),
       all(env, "SELECT agente, COUNT(*) AS n FROM incarichi WHERE creato > ? GROUP BY agente", new Date(Date.now() - 30 * 864e5).toISOString()),
       one(env, 'SELECT COUNT(*) AS n FROM clienti'),
-      all(env, "SELECT id, fase, blocco_fino FROM lavori WHERE stato='in_corso'"),
-      all(env, "SELECT id FROM piani WHERE stato='in_corso'").catch(() => []),
+      all(env, "SELECT id, fase, blocco_fino, COALESCE(json_extract(scheda, '$.titolo_lavoro'), substr(prompt, 1, 70)) AS titolo, json_extract(montaggio, '$.stato') AS mstato FROM lavori WHERE stato='in_corso'"),
+      all(env, "SELECT id, fase, cliente FROM piani WHERE stato='in_corso'").catch(() => []),
       all(env, "SELECT id, fase, argomento, blocco_fino FROM avatar_piani WHERE stato='in_corso'").catch(() => []),
       all(env, "SELECT id, fase, cliente, blocco_fino FROM post_lavori WHERE stato='in_corso'").catch(() => []),
     ]);
     const feed = await all(env, 'SELECT agente, messaggio, livello, quando, lavoro_id FROM registro ORDER BY id DESC LIMIT 40');
+    // tutto quello che aspetta Johnny (sezione Approvazioni unica)
+    const n = async (sql) => (await one(env, sql).catch(() => null))?.n || 0;
+    approvare.n += await n("SELECT COUNT(*) AS n FROM lavori WHERE stato='pronto' AND approvato IS NULL") + await n("SELECT COUNT(*) AS n FROM avatar_piani WHERE stato='da_approvare'") +
+      await n("SELECT COUNT(*) AS n FROM post_lavori WHERE stato IN ('da_approvare','attende_canva')") + await n("SELECT COUNT(*) AS n FROM piani WHERE stato='pronto' AND approvato IS NULL");
     return json({ adesso, uffici: UFFICI, squadra: SQUADRA, attivi, recenti, da_approvare: approvare.n, conti, clienti: clienti.n, reel: reelAttivi, piani: pianiAttivi, profilo, postl, feed, gestionale: !!env.GEST });
   }
   const ch = p.match(/^\/api\/chat\/(capo|gestionale|contabile)$/);

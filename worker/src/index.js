@@ -11,6 +11,8 @@ import { apiConsumi } from './consumi.js';
 import { diagnosiGemini, youtube } from './servizi.js';
 import { apiPost, avanzaPost } from './post.js';
 import { motoreApi } from './motore.js';
+import { apiNotifiche, controllaApprovazioni, schemaNotifiche, SW, MANIFEST } from './notifiche.js';
+import { ICONA_192, ICONA_512 } from './icone.js';
 import { PAGINA } from './pagina.js';
 import SALA3D_JS from './sala3d.txt';
 
@@ -137,6 +139,7 @@ async function api(req, env, url) {
   if (p === '/api/esci') return json({ ok: true }, 200, { 'set-cookie': cookie('', 0) });
 
   if (!(await autorizzato(req, env))) return json({ errore: 'accesso richiesto' }, 401);
+  { const n = await apiNotifiche(req, env, p, m); if (n) return n; }
 
   if (p === '/api/impostazioni' && m === 'GET') {
     const cfg = await configurazione(env);
@@ -182,7 +185,7 @@ async function api(req, env, url) {
   }
 
   if (p === '/api/lavori' && m === 'GET') {
-    const r = await all(env, "SELECT id, prompt, stato, fase, errore, creato, aggiornato, json_extract(scheda, '$.titolo_lavoro') AS titolo FROM lavori ORDER BY id DESC LIMIT 60");
+    const r = await all(env, "SELECT id, prompt, stato, fase, errore, creato, aggiornato, approvato, json_extract(scheda, '$.titolo_lavoro') AS titolo, json_extract(montaggio, '$.stato') AS mstato, json_extract(montaggio, '$.copertina') AS copertina, json_extract(stile, '$.avatar') AS avatar FROM lavori ORDER BY id DESC LIMIT 100");
     return json(r);
   }
   if (p === '/api/lavori' && m === 'POST') {
@@ -227,7 +230,7 @@ async function api(req, env, url) {
     h.set('content-length', String(tot));
     return new Response(value, { headers: h });
   }
-  const mm = p.match(/^\/api\/lavori\/(\d+)(?:\/(riprova|registro|girato|rimonta))?$/);
+  const mm = p.match(/^\/api\/lavori\/(\d+)(?:\/(riprova|registro|girato|rimonta|pausa|riprendi|approva))?$/);
   if (mm) {
     const id = Number(mm[1]);
     if (!mm[2] && m === 'GET') {
@@ -240,6 +243,24 @@ async function api(req, env, url) {
     }
     if (!mm[2] && m === 'DELETE') {
       await env.DB.batch([env.DB.prepare('DELETE FROM lavori WHERE id=?').bind(id), env.DB.prepare('DELETE FROM registro WHERE lavoro_id=?').bind(id)]);
+      if (env.VIDEO) { const k = await env.VIDEO.list({ prefix: `lavoro-${id}/` }).catch(() => ({ keys: [] })); for (const x of k.keys) await env.VIDEO.delete(x.name).catch(() => {}); }
+      return json({ ok: true });
+    }
+    // pausa: il lavoro si ferma dov'è (se il motore sta montando, finisce quel passaggio e poi si ferma); riprendi: riparte da lì
+    if (mm[2] === 'pausa' && m === 'POST') {
+      await run(env, "UPDATE lavori SET stato='pausa', blocco_fino=NULL, motore_pass=NULL, motore_fino=NULL, aggiornato=? WHERE id=? AND stato IN ('in_corso','errore')", ora(), id);
+      await log(env, id, 'regia', '⏸️ messo in pausa da Johnny');
+      return json({ ok: true });
+    }
+    if (mm[2] === 'riprendi' && m === 'POST') {
+      await run(env, "UPDATE lavori SET stato='in_corso', errore=NULL, tentativi=0, blocco_fino=NULL, motore_svegliato=NULL, aggiornato=? WHERE id=? AND stato IN ('pausa','errore')", ora(), id);
+      await log(env, id, 'regia', '▶️ ripreso');
+      return json({ ok: true });
+    }
+    // approvazione del reel finito (sezione Approvazioni)
+    if (mm[2] === 'approva' && m === 'POST') {
+      await run(env, "UPDATE lavori SET approvato=?, aggiornato=? WHERE id=? AND stato='pronto'", ora(), ora(), id);
+      await log(env, id, 'regia', '✅ reel approvato da Johnny');
       return json({ ok: true });
     }
     // aggiungere il girato a un lavoro che non lo aveva (o cambiarlo): riparte dall'analisi delle clip
@@ -366,6 +387,7 @@ export default {
     await schema(env);
     await schemaPiani(env);
     await schemaAgenzia(env);
+    await schemaNotifiche(env);
     const url = new URL(req.url);
     if (url.pathname.startsWith('/persone/')) {
       try { return await persone(req, env, url); }
@@ -373,6 +395,10 @@ export default {
     }
     // icona della scheda del browser: M bianca su quadrato teal (colore Momento)
     if (url.pathname === '/favicon.svg' || url.pathname === '/favicon.ico') return new Response(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0E9F9A"/><path d="M15 48V17h7l10 15 10-15h7v31h-7.5V29.5L32 42l-9.5-12.5V48z" fill="#fff"/></svg>`, { headers: { 'content-type': 'image/svg+xml', 'cache-control': 'public, max-age=86400' } });
+    // app sul telefono: manifest, service worker per le notifiche, icone
+    if (url.pathname === '/manifest.webmanifest') return new Response(MANIFEST, { headers: { 'content-type': 'application/manifest+json', 'cache-control': 'public, max-age=3600' } });
+    if (url.pathname === '/sw.js') return new Response(SW, { headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-cache', 'service-worker-allowed': '/' } });
+    if (url.pathname === '/icona-192.png' || url.pathname === '/icona-512.png') return new Response(Uint8Array.from(atob(url.pathname.includes('192') ? ICONA_192 : ICONA_512), (c) => c.charCodeAt(0)), { headers: { 'content-type': 'image/png', 'cache-control': 'public, max-age=86400' } });
     if (url.pathname === '/sala3d.js') return new Response(SALA3D_JS, { headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': url.searchParams.get('v') === VERSIONE_SALA ? 'public, max-age=31536000, immutable' : 'no-cache' } });
     // file dei reel raggiungibili da Instagram (Meta scarica il video da qui): link firmato, niente accesso senza firma
     const pubP = url.pathname.match(/^\/pubblico\/post\/(\d+)\/(\d+-\d+)\.jpg$/); // slide dei caroselli per Instagram
@@ -411,6 +437,7 @@ export default {
     await schema(env);
     await schemaPiani(env);
     await schemaAgenzia(env);
-    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env), avanzaRiunioni(env), avanzaAvatar(env), avanzaPost(env), diagnosiUnaVolta(env)]));
+    await schemaNotifiche(env);
+    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env), avanzaRiunioni(env), avanzaAvatar(env), avanzaPost(env), diagnosiUnaVolta(env), controllaApprovazioni(env).catch((e) => console.log('notifiche', e.message))]));
   },
 };

@@ -13,6 +13,7 @@ export async function schemaPiani(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS piani (
     id INTEGER PRIMARY KEY AUTOINCREMENT, cliente TEXT, dati TEXT, stato TEXT NOT NULL DEFAULT 'in_corso', fase TEXT NOT NULL DEFAULT 'strategia',
     strategia TEXT, reel TEXT, errore TEXT, tentativi INTEGER DEFAULT 0, blocco_fino TEXT, creato TEXT, aggiornato TEXT)`).run();
+  await env.DB.prepare('ALTER TABLE piani ADD COLUMN approvato TEXT').run().catch(() => {});
 }
 
 const SISTEMA_STRATEGIA = `Sei Nora, content strategist e sceneggiatrice di Momento Produzione, agenzia che gira e monta
@@ -174,7 +175,7 @@ export async function avanzaPiani(env) {
 // ---------------------------------------------------------------- API
 export async function apiPiani(req, env, p, m, json) {
   if (p === '/api/piani' && m === 'GET') {
-    return json(await all(env, "SELECT id, cliente, stato, fase, errore, creato, json_extract(strategia, '$.titolo_piano') AS titolo, json_extract(dati, '$.numero') AS numero, json_extract(dati, '$.mesi') AS mesi, (SELECT COUNT(*) FROM json_each(piani.reel) WHERE json_extract(value, '$.stato')='fatto') AS scritti FROM piani ORDER BY id DESC LIMIT 60"));
+    return json(await all(env, "SELECT id, cliente, stato, fase, errore, creato, approvato, json_extract(strategia, '$.titolo_piano') AS titolo, json_extract(dati, '$.numero') AS numero, json_extract(dati, '$.mesi') AS mesi, (SELECT COUNT(*) FROM json_each(piani.reel) WHERE json_extract(value, '$.stato')='fatto') AS scritti FROM piani ORDER BY id DESC LIMIT 60"));
   }
   if (p === '/api/piani' && m === 'POST') {
     const d = await req.json().catch(() => ({}));
@@ -203,6 +204,12 @@ export async function apiPiani(req, env, p, m, json) {
   }
   if (pp && m === 'DELETE') {
     await run(env, 'DELETE FROM piani WHERE id=?', pp[1]);
+    return json({ ok: true });
+  }
+  const ap = p.match(/^\/api\/piani\/(\d+)\/approva$/);
+  if (ap && m === 'POST') { // approvazione dei copioni del piano (sezione Approvazioni)
+    await run(env, 'UPDATE piani SET approvato=?, aggiornato=? WHERE id=?', ora(), ora(), ap[1]);
+    await log(env, null, 'idee', `✅ copioni del piano #${ap[1]} approvati da Johnny`);
     return json({ ok: true });
   }
   const rp = p.match(/^\/api\/piani\/(\d+)\/riprova$/);

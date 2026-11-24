@@ -26,6 +26,7 @@ PARALLELO = int(os.environ.get("PARALLELO", "2"))
 WHISPER_MODELLO = os.environ.get("WHISPER_MODELLO", "small")
 UA = "momento-montaggio/2.0"
 INIZIO = time.time()
+LAVORO = (os.environ.get("LAVORO") or "").strip()  # motore dedicato a un solo reel (lanciato dalla regia): in parallelo con gli altri
 FERMO = {"motivo": None}
 _whisper = {"m": None}
 import threading
@@ -57,7 +58,8 @@ def token_github():
 
 def prossimo():
     try:
-        with http(REGIA + "/api/motore/prossimo", data=b"", headers={"authorization": "Bearer " + token_github()}) as r:
+        q = f"?lavoro={LAVORO}" if LAVORO else ""
+        with http(REGIA + "/api/motore/prossimo" + q, data=b"", headers={"authorization": "Bearer " + token_github()}) as r:
             return None if r.status == 204 else json.load(r)
     except urllib.error.HTTPError as e:
         log("la regia ha risposto", e.code, e.read()[:300])
@@ -511,7 +513,7 @@ def risveglia():
     if not tok or not repo:
         return
     try:
-        with http(f"https://api.github.com/repos/{repo}/actions/workflows/analizza.yml/dispatches", data=json.dumps({"ref": "main"}).encode(),
+        with http(f"https://api.github.com/repos/{repo}/actions/workflows/analizza.yml/dispatches", data=json.dumps({"ref": "main", "inputs": {"lavoro": LAVORO}} if LAVORO else {"ref": "main"}).encode(),
                   headers={"authorization": f"Bearer {tok}", "accept": "application/vnd.github+json", "content-type": "application/json"}, method="POST"):
             log("lavoro ancora in coda: rilancio il motore")
     except Exception as e:

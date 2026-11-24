@@ -43,9 +43,10 @@ export async function motoreApi(req, env, url) {
 
   // 0) c'è qualcosa da guardare? (solo sì/no, senza dettagli: serve al motore per non installare niente se non serve)
   if (p === '/api/motore/coda' && m === 'GET') {
-    const r = await one(env, `SELECT COUNT(*) AS n FROM lavori WHERE stato='in_corso' AND (
+    const solo = Number(url.searchParams.get('lavoro')) || 0; // motore dedicato a un reel
+    const r = await one(env, `SELECT COUNT(*) AS n FROM lavori WHERE stato='in_corso' AND (?=0 OR id=?) AND (
       (fase='riferimenti' AND riferimenti IS NOT NULL AND ${PENDENTE('riferimenti')}) OR (fase='clip' AND clip IS NOT NULL AND ${PENDENTE('clip')}) OR
-      (fase='montaggio' AND json_extract(montaggio, '$.stato')='da_fare'))`);
+      (fase='montaggio' AND json_extract(montaggio, '$.stato')='da_fare'))`, solo, solo);
     return json({ lavoro: (r?.n || 0) > 0 });
   }
 
@@ -53,14 +54,15 @@ export async function motoreApi(req, env, url) {
   if (p === '/api/motore/prossimo' && m === 'POST') {
     if (!(await identitaGitHub(req.headers.get('authorization')))) return json({ errore: 'motore non riconosciuto' }, 401);
     const adesso = ora();
+    const solo = Number(url.searchParams.get('lavoro')) || 0; // motore dedicato a un reel: prende solo quello
     const pass = [...crypto.getRandomValues(new Uint8Array(24))].map((b) => b.toString(16).padStart(2, '0')).join('');
     const L = await one(env, `UPDATE lavori SET motore_pass=?, motore_fino=?, motore_visto=? WHERE id = (
-        SELECT id FROM lavori WHERE stato='in_corso' AND (motore_fino IS NULL OR motore_fino < ?) AND (
+        SELECT id FROM lavori WHERE stato='in_corso' AND (motore_fino IS NULL OR motore_fino < ?) AND (?=0 OR id=?) AND (
           (fase='riferimenti' AND riferimenti IS NOT NULL AND ${PENDENTE('riferimenti')}) OR
           (fase='clip' AND clip IS NOT NULL AND ${PENDENTE('clip')}) OR
           (fase='montaggio' AND json_extract(montaggio, '$.stato')='da_fare'))
         ORDER BY CASE WHEN fase='montaggio' THEN 0 ELSE 1 END, id LIMIT 1)
-      RETURNING id, fase, pcloud, riferimenti, clip, montaggio`, pass, new Date(Date.now() + 55 * 60e3).toISOString(), adesso, adesso);
+      RETURNING id, fase, pcloud, riferimenti, clip, montaggio`, pass, new Date(Date.now() + 55 * 60e3).toISOString(), adesso, adesso, solo, solo);
     if (!L) return new Response(null, { status: 204 });
     const tipo = L.fase;
     if (tipo === 'montaggio') {

@@ -7,7 +7,13 @@ name: occhi
 on:
   schedule:
     - cron: "*/5 * * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      lavoro:
+        description: "id del lavoro (vuoto = giro generale)"
+        required: false
+        default: ""
+
   push:
     branches: [main]
     paths: ["motore/**", ".github/workflows/analizza.yml"]
@@ -17,8 +23,9 @@ permissions:
   contents: write
   actions: write
 
+# un motore per ogni reel, in parallelo (repo pubblico: fino a 20 lavori insieme, gratis); il giro programmato ha il suo
 concurrency:
-  group: motore-occhi
+  group: motore-${{ github.event.inputs.lavoro || 'giro' }}
   cancel-in-progress: false
 
 env:
@@ -32,7 +39,7 @@ jobs:
       - name: C'è lavoro?
         id: coda
         run: |
-          r=$(curl -fsS "$REGIA/api/motore/coda" || echo '{}')
+          r=$(curl -fsS "$REGIA/api/motore/coda?lavoro=${{ github.event.inputs.lavoro }}" || echo '{}')
           echo "$r"
           echo "lavoro=$(echo "$r" | grep -q '"lavoro":true' && echo si || echo no)" >> "$GITHUB_OUTPUT"
 
@@ -85,6 +92,7 @@ jobs:
         if: steps.coda.outputs.lavoro == 'si'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          LAVORO: ${{ github.event.inputs.lavoro }}
         run: python motore/analizza.py
 
       - name: Tavole di controllo (cifrate)

@@ -6,7 +6,7 @@ export const PAGINA = `<!DOCTYPE html>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#F4F2EE">
 <title>MOMENTO AGENCY AI</title>
-<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=1"><link rel="apple-touch-icon" href="/favicon.svg?v=1"><meta name="theme-color" content="#0E9F9A">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=1"><link rel="apple-touch-icon" href="/icona-192.png"><link rel="manifest" href="/manifest.webmanifest"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Momento AI"><meta name="theme-color" content="#0E9F9A">
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <style>
 @media print{header,.noprint,button{display:none!important}body{background:#fff;color:#000}.card{border-color:#ccc;background:#fff}.mut{color:#555}a{color:#000}}
@@ -91,6 +91,9 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 .et-ag.carta>span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.et-ag.carta.lavora{box-shadow:0 0 0 2px rgba(34,165,91,.45),0 12px 30px -12px rgba(0,0,0,.35)}
 .et-ag.carta.coda i{background:#f3efe7;color:#8a6a1f}.et-ag.carta.scelto{box-shadow:0 0 0 2px var(--teal),0 12px 30px -12px rgba(0,0,0,.35)}
 .etichette:not(.vicino) .et-ag.pillola{display:none}
+.reelc{display:flex;gap:14px;align-items:flex-start}.reelc .reel-cop{flex:0 0 72px;height:128px;border-radius:10px;background:#f1efe9;display:grid;place-items:center;font-size:26px;overflow:hidden}.reelc .reel-cop img{width:100%;height:100%;object-fit:cover}.reelc .reel-tit{color:inherit;text-decoration:none}.reelc.pausa{opacity:.75}.reelc.errore{border-color:var(--err)}.reelc .r_az{padding:6px 10px;font-size:13px;width:auto}
+.lavorazioni{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin:12px 0}.lz{display:flex;gap:10px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 12px;color:inherit;text-decoration:none}.lz .ic{font-size:22px}.lz .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}.lz b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lz small{font-size:12px;color:var(--mut)}
+.avanz{height:6px;border-radius:9px;background:#ece9e1;overflow:hidden}.avanz i{display:block;height:100%;background:linear-gradient(90deg,#12a3a4,#3fd0c9);border-radius:9px;transition:width .6s}
 .filtri{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 0 0}.filtri button{background:#fff;color:#4d4b46;border:1px solid var(--line);padding:6px 12px;font-size:13px;font-weight:500;white-space:nowrap}.filtri button.on{background:var(--nero);color:#fff;border-color:var(--nero)}
 .scrivi textarea{min-height:70px;margin-top:6px}.scrivi .riga{margin-top:8px}
 
@@ -196,51 +199,6 @@ const STANZE = [['direzione', 'Direzione creativa'], ['scouting', 'Scouting · r
 const FASE_AGENTI = { piano: ['direttore', 'stella'], ricerca: ['scout_yt', 'scout_tt', 'scout_ig'], riferimenti: ['motore', 'occhi'], clip: ['motore', 'analista'], scheda: ['direttore'], regia: ['regista', 'copy'], montaggio: ['motore', 'editor', 'color', 'vfx', 'sottotitoli', 'audio', 'revisore'] };
 const fa = (q) => { const s = (Date.now() - new Date(q)) / 1000; return s < 60 ? 'ora' : s < 3600 ? Math.round(s / 60) + ' min fa' : s < 86400 ? Math.round(s / 3600) + ' h fa' : new Date(q).toLocaleDateString('it-IT'); };
 
-async function regia() {
-  const R = await chiama('/api/regia');
-  const ultimo = Object.fromEntries(R.ultimi.map((u) => [AGID(u.agente), u]));
-  const conti = {}; R.conti.forEach((c) => { conti[AGID(c.agente)] = (conti[AGID(c.agente)] || 0) + c.n; });
-  const stati = {};
-  for (const L of R.attivi) for (const a of FASE_AGENTI[L.fase] || []) {
-    const preso = L.blocco_fino && L.blocco_fino > R.adesso;
-    if (stati[a]?.s !== 'lavora') stati[a] = { s: preso ? 'lavora' : 'coda', L };
-  }
-  for (const [a, u] of Object.entries(ultimo)) if (!stati[a] && u.livello === 'errore' && Date.now() - new Date(u.quando) < 30 * 60e3) stati[a] = { s: 'errore' };
-  if ((R.piani || []).length) stati.idee = { s: R.piani.some((x) => x.blocco_fino && x.blocco_fino > R.adesso) ? 'lavora' : 'coda' };
-  for (const a of R.riposo || []) stati[a] = { s: 'riposo' };
-  if (R.yt_web) AGENTI.scout_yt.r = 'Scout YouTube Shorts · cerca sul web';
-  const testoStato = { lavora: 'al lavoro', coda: 'parte a breve', errore: 'bloccato', riposo: 'a riposo' };
-  const scr = (id) => {
-    const A = AGENTI[id], st = stati[id] || {}, u = ultimo[id];
-    const msg = st.s === 'riposo' ? 'spento: per TikTok e Instagram servirebbe Apify' : st.s === 'coda' ? 'tocca a me: parto entro un minuto…' : u ? u.messaggio : 'pronto, aspetto un lavoro';
-    return '<div class="scrivania ' + (st.s || '') + '" style="--c:' + (A.c || '#345') + '" data-ag="' + id + '"><div class="av">' + A.i + '</div><div class="chi"><b>' + e(A.n) + '</b><span class="stato-ag">' + (testoStato[st.s] || 'libero') + '</span><div class="ruolo">' + e(A.r) + (conti[id] ? ' · ' + conti[id] + ' azioni in 7 gg' : '') + '</div>' +
-      ('<div class="schermo">' + e(msg) + '</div>' + (u && !st.s ? '<div class="mut" style="font-size:11px;margin-top:3px">' + fa(u.quando) + (u.lavoro_id ? ' · lavoro #' + u.lavoro_id : '') + '</div>' : '')) + '</div></div>';
-  };
-  const attivi = R.attivi.map((L) => { const i = FASI.findIndex((f) => f[0] === L.fase);
-    return '<a class="card attivo" href="#/lavoro/' + L.id + '"><div class="riga"><b style="flex:1">#' + L.id + ' · ' + e(L.settore || L.prompt.slice(0, 60)) + '</b><span class="pill in_corso">' + FASI[i][1] + '…</span></div><div class="fasi">' + FASI.map((f, k) => '<div class="' + (k < i ? 'ok' : k === i ? 'ora' : '') + '"></div>').join('') + '</div></a>'; }).join('');
-  const manca = Object.entries(R.chiavi || {}).filter(([, v]) => !v).map(([k]) => k);
-  const avviso = manca.length ? '<a class="card attivo" href="#/impostazioni" style="border-color:var(--warn)"><b style="color:var(--warn)">⚠︎ Mancano le chiavi: ' + manca.join(', ') + '</b><div class="mut">' + (manca.includes('Claude') ? 'Senza Claude la squadra non può partire.' : 'Senza queste la ricerca salta alcune piattaforme.') + ' Tocca qui per inserirle.</div></a>' : '';
-  $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Comparto Reel</h1><a class="btn sec" href="#/lavori">Lavori</a><a class="btn" href="#/nuovo">+ Nuovo reel</a></div>' + avviso +
-    (attivi || '<p class="mut">Nessun lavoro in corso: la squadra è libera. Avvia un reel con “+ Nuovo reel”.</p>') +
-    '<div class="studio">' + STANZE.map(([s, nome]) => '<div class="stanza' + (s === 'post' ? ' spenta' : '') + '"><h3>' + nome + '</h3><div class="' + (s === 'post' ? 'posti' : '') + '">' + Object.keys(AGENTI).filter((a) => AGENTI[a].s === s).map(scr).join('') + '</div></div>').join('') + '</div>' +
-    '<h2>In diretta</h2><div class="log">' + (R.feed.map((r) => { const A = AGENTI[AGID(r.agente)]; return '<div class="' + r.livello + '"><span class="mut">' + new Date(r.quando).toLocaleTimeString('it-IT') + '</span> ' + A.i + ' <b>' + e(A.n) + '</b> ' + e(r.messaggio) + (r.lavoro_id ? ' <a href="#/lavoro/' + r.lavoro_id + '" class="mut">#' + r.lavoro_id + '</a>' : '') + '</div>'; }).join('') || '<div class="mut">ancora niente</div>') + '</div>';
-  document.querySelectorAll('[data-ag]').forEach((d) => d.onclick = () => agente(d.dataset.ag, stati[d.dataset.ag]));
-  timer = setTimeout(rotta, R.attivi.length ? 3000 : 10000);
-}
-
-async function agente(id, st) {
-  const A = AGENTI[id];
-  const righe = await chiama('/api/regia/agente/' + id);
-  const chiudi = () => { document.querySelector('.velo')?.remove(); document.querySelector('.pannello')?.remove(); };
-  chiudi();
-  document.body.insertAdjacentHTML('beforeend', '<div class="velo"></div><div class="pannello"><div class="riga"><div class="av" style="--c:' + (A.c || '#345') + '">' + A.i + '</div><div style="flex:1"><h1 style="margin:0">' + e(A.n) + '</h1><div class="mut">' + e(A.r) + '</div></div><button class="sec" id="xx">Chiudi</button></div>' +
-    '<p>' + e(A.d || 'Questo agente entra in squadra con la fase 2 (montaggio): leggerà la scheda tecnica del Direttore creativo.') + '</p>' +
-    (st?.L ? '<p><b>Adesso:</b> lavoro <a href="#/lavoro/' + st.L.id + '">#' + st.L.id + '</a> · ' + e(st.L.settore || st.L.prompt.slice(0, 80)) + '</p>' : '') +
-    (righe.length ? '<h2>Cosa ha fatto</h2><div class="log">' + righe.map((r) => '<div class="' + r.livello + '"><span class="mut">' + new Date(r.quando).toLocaleString('it-IT') + '</span> ' + e(r.messaggio) + (r.lavoro_id ? ' <a class="mut" href="#/lavoro/' + r.lavoro_id + '">#' + r.lavoro_id + '</a>' : '') + '</div>').join('') + '</div>' : '') + '</div>');
-  document.querySelector('.velo').onclick = chiudi; $('#xx').onclick = chiudi;
-  addEventListener('hashchange', chiudi, { once: true });
-}
-
 async function chiama(path, opts = {}) {
   const r = await fetch(path, { ...opts, headers: { 'content-type': 'application/json' }, body: opts.body ? JSON.stringify(opts.body) : undefined });
   const d = await r.json().catch(() => ({}));
@@ -332,14 +290,42 @@ function mostraCodice(codice) {
   $('#ok').onclick = () => { location.hash = '#/'; rotta(); };
 }
 
+// LISTA REEL: tutti i reel dell'agenzia (clienti e profilo), con pausa / riprendi / elimina e l'avanzamento a colpo d'occhio
+let FILTRO_REEL = 'tutti';
 async function lista() {
   const L = await chiama('/api/lavori');
-  $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Lavori</h1><a class="btn" href="#/nuovo">+ Nuovo reel</a></div>' +
-    (L.length ? L.map((l) => '<a class="card lav" href="#/lavoro/' + l.id + '"><div class="riga"><b style="flex:1">' + e(l.titolo || l.prompt.slice(0, 90)) + '</b><span class="pill ' + l.stato + '">' + e(stato(l)) + '</span></div><div class="mut" style="margin-top:6px">#' + l.id + ' · ' + new Date(l.creato).toLocaleString('it-IT') + (l.titolo ? ' · ' + e(l.prompt.slice(0, 70)) : '') + '</div></a>').join('')
-      : '<div class="vuoto">Nessun lavoro. Scrivi il primo prompt con “+ Nuovo reel”.</div>');
-  if (L.some((l) => l.stato === 'in_corso')) timer = setTimeout(rotta, 8000);
+  const gruppo = (l) => l.stato === 'pausa' ? 'pausa' : l.stato === 'errore' ? 'errore' : l.stato === 'pronto' ? (l.approvato ? 'approvati' : 'da_vedere') : 'in_corso';
+  const nomi = { tutti: 'Tutti', in_corso: 'In lavorazione', da_vedere: 'Da guardare', approvati: 'Approvati', pausa: 'In pausa', errore: 'Bloccati' };
+  const conta = (g) => g === 'tutti' ? L.length : L.filter((l) => gruppo(l) === g).length;
+  const vis = L.filter((l) => FILTRO_REEL === 'tutti' || gruppo(l) === FILTRO_REEL);
+  const perc = (l) => { const i = FASI.findIndex((f) => f[0] === l.fase); return l.stato === 'pronto' ? 100 : Math.max(5, Math.round(((i < 0 ? 0 : i) + (l.fase === 'montaggio' && l.mstato === 'da_fare' ? 0.3 : 0)) / (FASI.length - 1) * 100)); };
+  const carta = (l) => {
+    const g = gruppo(l), p = perc(l);
+    const azioni = (g === 'in_corso' || g === 'errore' ? '<button class="sec r_az" data-az="pausa" data-id="' + l.id + '" title="Metti in pausa">⏸ Pausa</button>' : '') +
+      (g === 'pausa' || g === 'errore' ? '<button class="sec r_az" data-az="riprendi" data-id="' + l.id + '" title="Riprendi">▶ Riprendi</button>' : '') +
+      '<button class="sec r_az" data-az="elimina" data-id="' + l.id + '" title="Elimina" style="color:var(--err)">🗑</button>';
+    return '<div class="card lav reelc ' + g + '">' +
+      '<a class="reel-cop" href="#/lavoro/' + l.id + '">' + (l.copertina ? '<img src="/api/lavori/' + l.id + '/copertina.jpg">' : '<span>' + (g === 'pronto' || g === 'da_vedere' ? '🎬' : g === 'pausa' ? '⏸' : g === 'errore' ? '⚠︎' : '⏳') + '</span>') + '</a>' +
+      '<div style="flex:1;min-width:0"><a href="#/lavoro/' + l.id + '" class="reel-tit"><b>#' + l.id + ' · ' + e(l.titolo || l.prompt.slice(0, 80)) + '</b></a>' +
+      '<div class="mut" style="margin:4px 0">' + (l.avatar ? '🎭 profilo · ' : '') + new Date(l.creato).toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' · ' + e(g === 'in_corso' ? stato(l) : nomi[g]) + (l.errore && g === 'errore' ? ' · ' + e(l.errore.slice(0, 90)) : '') + '</div>' +
+      (g === 'in_corso' || g === 'pausa' ? '<div class="avanz"><i style="width:' + p + '%"></i></div>' : '') +
+      '<div class="riga" style="margin-top:8px;gap:6px">' + (g === 'da_vedere' ? '<a class="btn" style="padding:6px 12px" href="#/lavoro/' + l.id + '">▶ Guarda e approva</a>' : '') + azioni + '</div></div></div>';
+  };
+  $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Reel</h1><a class="btn" href="#/nuovo">+ Nuovo reel</a></div>' +
+    '<div class="filtri">' + Object.keys(nomi).map((g) => '<button class="' + (FILTRO_REEL === g ? 'on' : '') + ' r_f" data-f="' + g + '">' + nomi[g] + ' <span class="mut">' + conta(g) + '</span></button>').join('') + '</div>' +
+    (vis.length ? vis.map(carta).join('') : '<div class="vuoto">' + (L.length ? 'Nessun reel in questa lista.' : 'Nessun reel. Scrivi il primo con “+ Nuovo reel”.') + '</div>');
+  document.querySelectorAll('.r_f').forEach((b) => b.onclick = () => { FILTRO_REEL = b.dataset.f; lista(); });
+  document.querySelectorAll('.r_az').forEach((b) => b.onclick = async () => {
+    const id = b.dataset.id, az = b.dataset.az;
+    if (az === 'elimina' && !confirm('Eliminare il reel #' + id + '? Si cancellano anche il video e il registro.')) return;
+    b.disabled = true;
+    try { await chiama('/api/lavori/' + id + (az === 'elimina' ? '' : '/' + az), { method: az === 'elimina' ? 'DELETE' : 'POST', body: az === 'elimina' ? undefined : {} }); } catch (x) { alert(x.message); }
+    lista();
+  });
+  clearTimeout(timer);
+  if (L.some((l) => l.stato === 'in_corso')) timer = setTimeout(rotta, 6000);
 }
-const stato = (l) => l.stato === 'pronto' ? 'pronto' : l.stato === 'errore' ? 'errore' : (FASI.find((f) => f[0] === l.fase) || [0, l.fase])[1] + '…';
+const stato = (l) => l.stato === 'pronto' ? 'pronto' : l.stato === 'errore' ? 'errore' : l.stato === 'pausa' ? 'in pausa' : (FASI.find((f) => f[0] === l.fase) || [0, l.fase])[1] + '…';
 
 const STILI_UI = ${JSON.stringify(ELENCO_STILI)};
 const LUT_UI = ${JSON.stringify(Object.fromEntries(Object.entries(LUT).map(([k, v]) => [k, v[1].split(':')[0]])))};
@@ -713,13 +699,14 @@ async function piano(id) {
     '<h3 style="margin:16px 0 6px">Consigli</h3>' + lst(s.consigli) + '</div>' +
     '<h2>Giornate di ripresa</h2>' + (s.giornate_di_ripresa || []).map((gr) => '<div class="card"><b>Giorno ' + e(gr.giorno) + ' · ' + e(gr.dove || '') + '</b> <span class="pill">' + e(gr.durata || '') + '</span><div>Reel: ' + (gr.reel || []).map((n) => '#' + n).join(', ') + '</div><div class="mut">Chi: ' + e(gr.chi || '') + (gr.note ? ' · ' + e(gr.note) : '') + '</div></div>').join('') +
     '<h2>Calendario e copioni</h2>' + P.reel.map((r) => vistaCopione(r, cal.find((x) => x.numero === r.numero) || {}, d, id)).join('');
-  $('#app').innerHTML = '<div class="riga noprint"><a class="mut" href="#/copioni">← Copioni</a><span style="flex:1"></span>' + (P.stato === 'pronto' ? '<button class="sec" id="p_print">🖨️ Stampa / PDF</button>' : '') + '<button class="rosso" id="p_del">Elimina</button></div>' +
+  $('#app').innerHTML = '<div class="riga noprint"><a class="mut" href="#/copioni">← Copioni</a><span style="flex:1"></span>' + (P.stato === 'pronto' ? (P.approvato ? '<span class="pill pronto">✅ approvati</span>' : '<button id="p_ok" style="width:auto">✅ Approva i copioni</button>') + '<button class="sec" id="p_print">🖨️ Stampa / PDF</button>' : '') + '<button class="rosso" id="p_del">Elimina</button></div>' +
     '<h1>' + e(d.cliente) + '</h1><div class="mut">' + d.numero + ' reel · ' + d.mesi + ' mesi dal ' + e(d.inizio) + ' · argomenti: ' + e((d.argomenti || []).join(', ')) + '</div>' + stato + strat;
   const trova = (n) => ({ r: P.reel.find((x) => x.numero === Number(n)), c: cal.find((x) => x.numero === Number(n)) || {} });
   document.querySelectorAll('[data-copia]').forEach((b) => b.onclick = async () => { await navigator.clipboard.writeText(testoCopione(trova(b.dataset.copia).r.copione, d)); b.textContent = 'Copiato ✓'; });
   document.querySelectorAll('[data-lavoro]').forEach((b) => b.onclick = () => { const c = trova(b.dataset.lavoro).r.copione; PREFILL = 'Reel per ' + d.cliente + (d.settore ? ' (' + d.settore + ')' : '') + ', ' + c.durata_sec + ' secondi, formato ' + c.formato + '. Segui questo copione:\\n\\n' + testoCopione(c, d); location.hash = '#/nuovo'; });
   document.querySelectorAll('[data-rifai]').forEach((b) => b.onclick = async () => { const nota = prompt('Cosa vuoi cambiare in questo copione? (vuoto = riscrivilo da capo)'); if (nota === null) return; await chiama('/api/piani/' + id + '/reel/' + b.dataset.rifai + '/rifai', { method: 'POST', body: { nota } }); rotta(); });
   if ($('#p_print')) $('#p_print').onclick = () => { document.querySelectorAll('details').forEach((x) => x.open = true); print(); };
+  if ($('#p_ok')) $('#p_ok').onclick = async () => { await chiama('/api/piani/' + id + '/approva', { method: 'POST', body: {} }); rotta(); };
   if ($('#p_rip')) $('#p_rip').onclick = async () => { await chiama('/api/piani/' + id + '/riprova', { method: 'POST', body: {} }); rotta(); };
   $('#p_del').onclick = async () => { if (!confirm('Eliminare questo piano?')) return; await chiama('/api/piani/' + id, { method: 'DELETE' }); location.hash = '#/copioni'; };
   if (P.stato === 'in_corso') timer = setTimeout(rotta, 5000);
@@ -876,7 +863,7 @@ async function azienda() {
   const tutti = Object.keys(AGENTI).filter((a) => a !== 'regia').length;
   const h = new Date().getHours();
   const frase = [
-    R.da_approvare ? '<b class="n" style="color:var(--warn)">' + R.da_approvare + (R.da_approvare === 1 ? ' contenuto</b> ti aspetta' : ' contenuti</b> ti aspettano') + ' in approvazione.' : '',
+    R.da_approvare ? '<b class="n" style="color:var(--warn)">' + R.da_approvare + (R.da_approvare === 1 ? ' cosa</b> ti aspetta' : ' cose</b> ti aspettano') + ' in approvazione.' : '',
     lavorano.length ? nomi(lavorano, 'var(--teal)') + (lavorano.length === 1 ? ' sta' : ' stanno') + ' lavorando.' : 'Nessuno sta lavorando adesso.',
     coda.length ? nomi(coda, 'var(--warn)') + (coda.length === 1 ? ' parte' : ' partono') + ' a breve.' : '',
     (tutti - lavorano.length - coda.length) + ' sono liberi.',
@@ -884,7 +871,18 @@ async function azienda() {
   // striscia "al lavoro adesso": chi lavora, su cosa e l'ultima cosa che ha fatto; toccando vola dall'agente
   const striscia = [...lavorano, ...coda].filter((a) => AGENTI[a]).map((a) => '<button class="att ' + st[a] + '" data-va="' + a + '"><span class="pt"></span><span class="fa">' + (AGENTI[a].i || '•') + '</span><span class="tx"><b>' + e(AGENTI[a].n) + ' <em>' + (st[a] === 'lavora' ? 'al lavoro' : 'in coda') + '</em></b>' +
     (cosa[a]?.testo ? '<small class="su">' + e(cosa[a].testo) + '</small>' : '') + (cosa[a]?.ora ? '<small>' + e(cosa[a].ora) + '</small>' : '') + '</span></button>').join('');
-  const saluto = '<div class="saluto"><h1>' + (h < 13 ? 'Buongiorno' : h < 18 ? 'Buon pomeriggio' : 'Buonasera') + ', Johnny</h1><p>' + frase + '</p>' + (striscia ? '<div class="attivi">' + striscia + '</div>' : '') + '</div>';
+  // LAVORAZIONI IN CORSO a colpo d'occhio: ogni reel, copione, carosello e incarico con la fase e quanto manca
+  const FASI_PR = { piano: 'Leo legge la richiesta', ricerca: 'cerca i reel di riferimento', riferimenti: 'studia i riferimenti', clip: 'Max scarica e misura le clip', scheda: 'Ada scrive la scheda', regia: 'Rocco prepara il montaggio', montaggio: 'il motore monta il reel' };
+  const FASI_AVP = { ricerca: 'Sofia si documenta', virali: 'cerca i video virali', copioni: 'Nora scrive i copioni', approvazione: 'aspetta te', avatar: 'Ava genera il video HeyGen', montaggio: 'il motore monta' };
+  const lav = [
+    ...(R.reel || []).map((l) => { const i = FASI.findIndex((f) => f[0] === l.fase); return { ic: '🎬', t: '#' + l.id + ' ' + (l.titolo || 'reel'), f: FASI_PR[l.fase] || l.fase, p: Math.max(6, Math.round((i + (l.fase === 'montaggio' && l.mstato !== 'da_fare' ? 0.6 : 0.2)) / (FASI.length - 1) * 100)), link: '#/lavoro/' + l.id }; }),
+    ...(R.profilo || []).map((x) => { const k = Object.keys(FASI_AVP), i = k.indexOf(x.fase); return { ic: '🎭', t: x.argomento || 'profilo', f: FASI_AVP[x.fase] || x.fase, p: Math.max(6, Math.round((i + 0.4) / k.length * 100)), link: '#/profilo/' + x.id }; }),
+    ...(R.postl || []).map((x) => ({ ic: '🗂️', t: 'Caroselli ' + (x.cliente || ''), f: x.fase, p: 50, link: '#/post/' + x.id })),
+    ...(R.piani || []).map((x) => ({ ic: '📝', t: 'Copioni ' + (x.cliente || ''), f: x.fase === 'strategia' ? 'Nora studia la strategia' : 'Nora scrive i copioni', p: x.fase === 'strategia' ? 25 : 65, link: '#/copioni/' + x.id })),
+    ...(R.attivi || []).map((x) => ({ ic: (AGENTI[x.agente] || {}).i || '•', t: x.titolo || 'incarico', f: ((AGENTI[x.agente] || {}).n || x.agente) + (x.stato === 'in_corso' ? ' al lavoro' : ' in coda'), p: x.stato === 'in_corso' ? 55 : 10, link: '#/incarico/' + x.id })),
+  ];
+  const pannelloLav = lav.length ? '<div class="lavorazioni">' + lav.slice(0, 12).map((x) => '<a class="lz" href="' + x.link + '"><span class="ic">' + x.ic + '</span><span class="tx"><b>' + e(String(x.t).slice(0, 60)) + '</b><small>' + e(x.f) + '</small><span class="avanz"><i style="width:' + x.p + '%"></i></span></span></a>').join('') + '</div>' : '';
+  const saluto = '<div class="saluto"><h1>' + (h < 13 ? 'Buongiorno' : h < 18 ? 'Buon pomeriggio' : 'Buonasera') + ', Johnny</h1><p>' + frase + (R.da_approvare ? ' <a href="#/approvazioni">Apri le approvazioni ▸</a>' : '') + '</p>' + pannelloLav + (striscia ? '<div class="attivi">' + striscia + '</div>' : '') + '</div>';
   if (!prima) {
     $('#saluto').innerHTML = saluto;
     if (SALA3D) SALA3D.aggiorna(datiSala(R)); else datiSala(R);
@@ -1130,15 +1128,24 @@ async function riunionePagina(id) {
 
 async function approvazioni() {
   if (!AGENTI.capo) { const R = await chiama('/api/azienda'); Object.assign(AGENTI, R.squadra); }
-  const [L, Av, Po] = await Promise.all([chiama('/api/contenuti'), chiama('/api/avatar').catch(() => []), chiama('/api/post').catch(() => [])]);
-  // copioni del profilo e caroselli che aspettano te: si approvano nella loro pagina
-  const attesa = [...Av.filter((x) => x.stato === 'da_approvare').map((x) => ({ t: '🎭 Copioni per il tuo profilo IG', b: x.argomento + ' · ' + x.numero + ' reel', link: '#/profilo/' + x.id })),
+  const [L, Av, Po, Re, Pi] = await Promise.all([chiama('/api/contenuti'), chiama('/api/avatar').catch(() => []), chiama('/api/post').catch(() => []), chiama('/api/lavori').catch(() => []), chiama('/api/piani').catch(() => [])]);
+  // reel finiti da guardare: si approvano qui o si rimontano nella loro pagina
+  const reel = Re.filter((l) => l.stato === 'pronto' && !l.approvato);
+  const bloccoReel = reel.length ? '<h2>🎬 Reel da guardare e approvare (' + reel.length + ')</h2>' + reel.map((l) => '<div class="card lav reelc">' +
+    '<a class="reel-cop" href="#/lavoro/' + l.id + '">' + (l.copertina ? '<img src="/api/lavori/' + l.id + '/copertina.jpg">' : '<span>🎬</span>') + '</a>' +
+    '<div style="flex:1"><b>#' + l.id + ' · ' + e(l.titolo || l.prompt.slice(0, 80)) + '</b><div class="mut" style="margin:4px 0">' + (l.avatar ? '🎭 profilo · ' : '') + 'pronto ' + fa(l.aggiornato) + '</div>' +
+    '<div class="riga" style="gap:6px"><a class="btn" style="padding:6px 12px" href="#/lavoro/' + l.id + '">▶ Guarda</a><button class="ap_reel" data-id="' + l.id + '" style="width:auto;padding:6px 12px">✅ Approva</button><a class="btn sec" style="padding:6px 12px" href="#/lavoro/' + l.id + '">✏️ Modifiche</a></div></div></div>').join('') : '';
+  // copioni del profilo, copioni dei clienti e caroselli che aspettano te: si approvano nella loro pagina
+  const attesa = [...Pi.filter((x) => x.stato === 'pronto' && !x.approvato).map((x) => ({ t: '📝 Copioni per i clienti', b: (x.titolo || x.cliente) + ' · ' + (x.scritti || 0) + ' copioni', link: '#/copioni/' + x.id })),...Av.filter((x) => x.stato === 'da_approvare').map((x) => ({ t: '🎭 Copioni per il tuo profilo IG', b: x.argomento + ' · ' + x.numero + ' reel', link: '#/profilo/' + x.id })),
     ...Po.filter((x) => ['da_approvare', 'attende_canva'].includes(x.stato)).map((x) => ({ t: x.stato === 'da_approvare' ? '🗂️ Caroselli da approvare' : '🎨 Caroselli da fare su Canva', b: (x.cliente || '') + (x.titolo ? ' · ' + x.titolo : ''), link: '#/post/' + x.id }))];
   const blocco = attesa.length ? '<h2>✍️ Copioni e caroselli da approvare (' + attesa.length + ')</h2>' + attesa.map((x) => '<a class="card lav" href="' + x.link + '"><div class="riga"><b style="flex:1">' + e(x.b) + '</b><span class="btn" style="padding:5px 12px;font-size:12px">Apri e approva ▸</span></div><div class="mut">' + e(x.t) + '</div></a>').join('') : '';
   const gruppi = [['da_pubblicare', '⏰ Da pubblicare adesso'], ['da_approvare', '✅ Da approvare'], ['programmato', '🗓️ In programmazione'], ['approvato', 'Approvati senza data'], ['pubblicato', 'Pubblicati']];
-  $('#app').innerHTML = '<h1>Approvazioni e calendario</h1><p class="mut">Approvi tu, poi Rita li mette in calendario (anche nel gestionale, sezione contenuti). All’ora di uscita ti avvisa: la pubblicazione automatica arriva quando colleghiamo un canale.</p>' +
-    ((blocco + gruppi.map(([s, t]) => { const g = L.filter((c) => c.stato === s); return g.length ? '<h2>' + t + ' (' + g.length + ')</h2>' + (s === 'pubblicato' ? g.slice(0, 10) : g).map(vistaContenuto).join('') : ''; }).join('')) || '<div class="vuoto">Niente da approvare.</div>');
+  $('#app').innerHTML = '<div class="riga"><h1 style="flex:1">Approvazioni</h1><button class="sec" id="notif" style="width:auto">🔔 Notifiche su questo telefono</button></div><p class="mut">Tutto quello che aspetta te: reel, copioni, caroselli e post. Quando qualcosa è pronto ti arriva la notifica sul telefono.</p>' + bloccoReel + '<p class="mut" style="display:none">Approvi tu, poi Rita li mette in calendario (anche nel gestionale, sezione contenuti). All’ora di uscita ti avvisa: la pubblicazione automatica arriva quando colleghiamo un canale.</p>' +
+    ((blocco + gruppi.map(([s, t]) => { const g = L.filter((c) => c.stato === s); return g.length ? '<h2>' + t + ' (' + g.length + ')</h2>' + (s === 'pubblicato' ? g.slice(0, 10) : g).map(vistaContenuto).join('') : ''; }).join('')) || '');
   agganciaContenuti(L, rotta);
+  if ($('#notif')) $('#notif').onclick = attivaNotifiche;
+  document.querySelectorAll('.ap_reel').forEach((b) => b.onclick = async () => { b.disabled = true; await chiama('/api/lavori/' + b.dataset.id + '/approva', { method: 'POST', body: {} }); rotta(); });
+  if (!(L.length || reel.length || attesa.length)) { $('#app').insertAdjacentHTML('beforeend', '<div class="vuoto">Niente da approvare: quando qualcosa è pronto ti arriva la notifica sul telefono.</div>'); }
 }
 
 async function clientiPagina() {
@@ -1194,6 +1201,25 @@ async function chatPagina(canale) {
   $('#ch_pul').onclick = async () => { await chiama('/api/chat/' + canale, { method: 'DELETE' }); rotta(); };
 }
 
+// notifiche push: su iPhone funzionano solo con l'app aggiunta alla schermata Home (Condividi → Aggiungi a Home)
+async function attivaNotifiche() {
+  const iOS = /iPhone|iPad/.test(navigator.userAgent), installata = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return alert(iOS && !installata ? 'Su iPhone: tocca Condividi ▸ "Aggiungi alla schermata Home", apri l\\'agenzia dall\\'icona Momento AI e premi di nuovo questo bottone.' : 'Questo browser non supporta le notifiche.');
+  try {
+    const { chiave } = await chiama('/api/notifiche/chiave');
+    if (!chiave) return alert('Le notifiche non sono ancora configurate sul server.');
+    if ((await Notification.requestPermission()) !== 'granted') return alert('Permesso negato: riattiva le notifiche per Momento AI nelle impostazioni del telefono.');
+    const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    await navigator.serviceWorker.ready;
+    const k = Uint8Array.from(atob(chiave.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((chiave.length + 3) % 4)), (c) => c.charCodeAt(0));
+    const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: k });
+    await chiama('/api/notifiche/iscrivi', { method: 'POST', body: { endpoint: sub.endpoint, dispositivo: navigator.userAgent.slice(0, 120) } });
+    await chiama('/api/notifiche/prova', { method: 'POST', body: {} });
+    alert('Fatto: ti è arrivata una notifica di prova. Da ora ti avviso quando qualcosa aspetta la tua approvazione.');
+  } catch (x) { alert('Non riesco ad attivarle: ' + x.message); }
+}
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+
 async function rotta() {
   clearTimeout(timer);
   const h = location.hash || '#/';
@@ -1205,7 +1231,7 @@ async function rotta() {
     else if (h === '#/nuovo') nuovo();
     else if (h === '#/impostazioni') await impostazioni();
     else if (h === '#/lavori') await lista();
-    else if (h === '#/reel') { if (!document.querySelector('.pannello')) await regia(); else timer = setTimeout(rotta, 3000); }
+    else if (h === '#/reel') await lista();
     else if (h.startsWith('#/agente/')) await agentePagina(h.split('/')[2]);
     else if (h.startsWith('#/incarico/')) await incarico(h.split('/')[2]);
     else if (h === '#/approvazioni') await approvazioni();
