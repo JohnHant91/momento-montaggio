@@ -4,7 +4,7 @@ import { motoreImpagina } from './impagina.js';
 // Motore "occhi" su GitHub Actions (repo johnhant91/momento-montaggio). Si presenta con l'identità OIDC firmata da GitHub,
 // prende i video da guardare (reel di riferimento o clip pCloud), li misura (ffmpeg, Whisper) ed estrae i fotogrammi chiave.
 // La regia manda misure + fotogrammi a Claude (la chiave resta su Cloudflare: su GitHub non c'è nessuna chiave).
-import { J, log, one, ora, run, configurazione } from './db.js';
+import { J, all, log, one, ora, run, configurazione } from './db.js';
 import { analisiClip, analisiRiferimento, chiaveClip, chiaveRif } from './lavoro.js';
 import * as S from './servizi.js';
 import { chi } from './consumi.js';
@@ -41,8 +41,41 @@ async function aggiorna(env, id, colonna, indice, el) {
 
 const PENDENTE = (col) => `EXISTS (SELECT 1 FROM json_each(lavori.${col}) WHERE json_extract(value, '$.stato')='da_guardare')`;
 
+// verso del girato: Claude guarda i fotogrammi (a lotti di 10) e dice di quanto girare quelli coricati
+const PROMPT_VERSO = `Controlli il verso dei fotogrammi di un girato. Per ogni immagine guarda se è DRITTA: persone in piedi
+con la testa in alto, tavoli, banchi e pavimento in basso, oggetti appoggiati sotto, scritte leggibili da sinistra a destra.
+Se la camera era tenuta in verticale l'immagine esce CORICATA: persone sdraiate di lato, piano del tavolo in verticale, scritte che
+corrono dall'alto in basso. Rispondi SOLO JSON: {"gradi": [n, n, ...]} uno per immagine nell'ordine:
+0 se è dritta, 90 se va girata di 90° in senso ORARIO per diventare dritta, -90 se in senso ANTIORARIO, 180 se è capovolta.
+Guarda bene la gravità: liquidi che colano, impasto che cade, oggetti appoggiati. Un'inquadratura orizzontale dritta è 0.`;
+async function chiediVerso(cfg, immagini) {
+  const gradi = [];
+  for (let k = 0; k < immagini.length; k += 10) {
+    const lotto = immagini.slice(k, k + 10);
+    const out = await S.claudeVisione(cfg, cfg.CLAUDE_MODEL, PROMPT_VERSO, `Immagini: ${lotto.length}.`, lotto.map((j, n) => ({ cosa: `fotogramma ${n + 1}`, jpeg: j })), 400);
+    for (let n = 0; n < lotto.length; n++) { const g = Number(out?.gradi?.[n]); gradi.push([90, -90, 180].includes(g) ? g : 0); }
+  }
+  return gradi;
+}
+
 export async function motoreApi(req, env, url) {
   const p = url.pathname, m = req.method;
+  if (p.startsWith('/api/motore/verso-prova/') && m === 'POST') {
+    if (!(await identitaGitHub(req.headers.get('authorization')))) return json({ errore: 'motore non riconosciuto' }, 401);
+    if (p.endsWith('/prendi')) {
+      const c = (await one(env, "SELECT valore FROM impostazioni WHERE chiave='PROVA_VERSO'"))?.valore || 'Clienti/PANIFICIO NONNO ENRICO';
+      const F = await all(env, "SELECT percorso, nome, dimensione FROM archivio WHERE tipo='video' AND percorso >= ? AND percorso < ? ORDER BY percorso", c + '/', c + '0');
+      const o = new URL(req.url).origin;
+      return json({ cartella: c, file: await Promise.all(F.map(async (f) => ({ nome: f.nome, url: await linkFirmato(env, o, f.percorso) }))) });
+    }
+    if (p.endsWith('/esito')) {
+      const d = await req.json().catch(() => ({}));
+      const cfg = chi(await configurazione(env), { area: 'reel', agente: 'occhi' });
+      const gradi = await chiediVerso(cfg, (d.immagini || []).slice(0, 200));
+      await run(env, 'INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES (?,?)', 'PROVA_VERSO_ESITO', JSON.stringify({ quando: ora(), nomi: d.nomi || [], gradi }));
+      return json({ gradi });
+    }
+  }
   if (p.startsWith('/api/motore/importa')) return motoreImporta(req, env, p, m, json, identitaGitHub);
   if (p.startsWith('/api/motore/impagina')) return motoreImpagina(req, env, p, m, json, identitaGitHub, linkFirmato);
 
@@ -102,17 +135,10 @@ export async function motoreApi(req, env, url) {
   // il montatore chiede se il girato è coricato (camera tenuta in verticale): un fotogramma per clip, una sola chiamata
   if (mm[2] === 'verso' && m === 'POST') {
     const d = await req.json().catch(() => ({}));
-    const im = (d.immagini || []).slice(0, 40);
+    const im = (d.immagini || []).slice(0, 60);
     if (!im.length) return json({ gradi: [] });
     const cfg = chi(await configurazione(env), { area: 'reel', lavoro_id: Number(id) || null, agente: 'occhi' });
-    try {
-      const out = await S.claudeVisione(cfg, cfg.CLAUDE_MODEL, `Controlli il verso dei fotogrammi di un girato. Per ogni immagine guarda se è DRITTA: persone in piedi
-con la testa in alto, tavoli e pavimento in basso, scritte leggibili da sinistra a destra. Se la camera era girata l'immagine è coricata
-(persone sdraiate di lato, scritte in verticale) o capovolta. Rispondi SOLO JSON: {"gradi": [n, n, ...]} uno per immagine nell'ordine:
-0 se è dritta, 90 se va girata di 90° in senso ORARIO per diventare dritta, -90 se in senso ANTIORARIO, 180 se è capovolta.
-Un'inquadratura orizzontale dritta (paesaggio, banco visto di lato) è 0. Nel dubbio 0.`, `Immagini: ${im.length}.`, im.map((j, k) => ({ cosa: `fotogramma ${k + 1}`, jpeg: j })), 600);
-      return json({ gradi: (out?.gradi || []).map((g) => [90, -90, 180].includes(Number(g)) ? Number(g) : 0) });
-    } catch (e) { return json({ gradi: [], errore: String(e?.message || e).slice(0, 200) }); }
+    try { return json({ gradi: await chiediVerso(cfg, im) }); } catch (e) { return json({ gradi: [], errore: String(e?.message || e).slice(0, 200) }); }
   }
   if (mm[2] === 'fuoco' && m === 'POST') {
     const d = await req.json().catch(() => ({}));

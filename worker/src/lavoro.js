@@ -584,6 +584,10 @@ JSON: {"riprese": [{"n": 1, "fase": "gancio|sviluppo|climax|chiusura", "inquadra
     return 'salta';
   }
   const indicazioni = prima?.indicazioni_rimonta;
+  // niente reel muti: senza un brano (e senza che Johnny chieda il suono originale) ci si ferma PRIMA di pagare il piano
+  if (!brano && !/senza musica|suono originale|audio originale|solo audio|voce|parlat|talking/i.test((L.prompt || '') + ' ' + (indicazioni?.testo || ''))) {
+    throw new Error('manca la musica: metti un brano in Archivio → Musica (o nella cartella delle clip) e poi premi Riprova. Il piano non è stato pagato.');
+  }
   await log(env, L.id, 'regista', indicazioni ? `rimonto con le tue indicazioni: ${indicazioni.testo || ''}` : `scrivo il piano di montaggio da ${clip.length} clip`);
   const extra = indicazioni ? `\n\nQUESTO È UN NUOVO MONTAGGIO. Piano precedente:\n${JSON.stringify(prima.piano || {})}\n\nINDICAZIONI DI JOHNNY PER IL NUOVO MONTAGGIO (hanno la precedenza sulla scheda):\n${JSON.stringify(indicazioni)}\nCambia davvero quello che chiede, il resto miglioralo se puoi.` : '';
   const mu = brano?.c.analisi?.musica;

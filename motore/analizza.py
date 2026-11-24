@@ -133,7 +133,7 @@ def verso_clip(lavoro, file_per_k):
         if t.get("codec") in ("mjpeg", "png", "webp") or not t.get("durata_sec"):
             continue
         p = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{(t['durata_sec'] or 1) * 0.4:.2f}", "-i", f, "-frames:v", "1",
-                            "-vf", "scale=384:384:force_original_aspect_ratio=decrease", "-q:v", "5", "-f", "image2", "-"], capture_output=True, timeout=120)
+                            "-vf", "scale=512:512:force_original_aspect_ratio=decrease", "-q:v", "4", "-f", "image2", "-"], capture_output=True, timeout=120)
         if p.stdout:
             voci.append((k, base64.b64encode(p.stdout).decode()))
     if not voci:
