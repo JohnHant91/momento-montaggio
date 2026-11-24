@@ -363,14 +363,14 @@ async function apiConsumi(req, env, p, m, json3) {
 // src/servizi.js
 var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function riparaJson(t) {
-  let out = "", dentro = false, esc = false;
+  let out = "", dentro = false, esc2 = false;
   for (const ch of t) {
-    if (dentro && !esc && (ch === "\n" || ch === "\r" || ch === "	")) {
+    if (dentro && !esc2 && (ch === "\n" || ch === "\r" || ch === "	")) {
       out += ch === "	" ? "\\t" : ch === "\n" ? "\\n" : "";
       continue;
     }
-    if (ch === '"' && !esc) dentro = !dentro;
-    esc = ch === "\\" && !esc;
+    if (ch === '"' && !esc2) dentro = !dentro;
+    esc2 = ch === "\\" && !esc2;
     out += ch;
   }
   return out;
@@ -2924,7 +2924,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
       };
     }
   }
-  const hex3 = (v) => typeof v === "string" && /^(#[0-9a-f]{6}|rgba?\([0-9., ]+\))$/i.test(v.trim()) ? v.trim() : void 0;
+  const hex4 = (v) => typeof v === "string" && /^(#[0-9a-f]{6}|rgba?\([0-9., ]+\))$/i.test(v.trim()) ? v.trim() : void 0;
   const grafiche = !SPLITTISH(formato) ? [] : (p.grafiche || []).filter((g) => g && TIPI_GRAFICA.includes(g.tipo) && g.sulla_parola).slice(0, 40).map((g) => ({
     tipo: g.tipo,
     sulla_parola: String(g.sulla_parola).slice(0, 40),
@@ -2932,7 +2932,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : "";
     dati: g.dati && typeof g.dati === "object" ? JSON.parse(JSON.stringify(g.dati).slice(0, 3e3) || "{}") : {},
     ...Array.isArray(g.effetti) && g.effetti.length ? { effetti: g.effetti.filter((e) => EFFETTI_SPLIT.includes(e)).slice(0, 5) } : {}
   })).map((g) => g.pieno && g.effetti ? { ...g, effetti: g.effetti.filter((e) => !["dietro", "esce", "adesivo"].includes(e)) } : g).map((g) => g.tipo === "sito" && !/^https:\/\/[\w.-]+\.[a-z]{2,}/i.test(g.dati.url || "") ? { ...g, tipo: "card", dati: { titolo: g.dati.titolo || g.dati.url || "sito", testo: g.dati.testo || "" } } : g);
-  const palette = !SPLITTISH(formato) ? null : Object.fromEntries(["fondo", "inchiostro", "accento", "secondario", "tenue"].map((k) => [k, hex3(p.palette?.[k])]).filter(([, v]) => v));
+  const palette = !SPLITTISH(formato) ? null : Object.fromEntries(["fondo", "inchiostro", "accento", "secondario", "tenue"].map((k) => [k, hex4(p.palette?.[k])]).filter(([, v]) => v));
   const font_split = !SPLITTISH(formato) ? null : Object.fromEntries(Object.entries(FONT_SPLIT).map(([k, ok]) => [k, ok.includes(p.font_split?.[k]) ? p.font_split[k] : ok[0]]));
   const tracker = formato === "split_grafico" && p.tracker?.voci?.length ? { totale: Math.min(10, Math.max(1, Number(p.tracker.totale) || p.tracker.voci.length)), voci: p.tracker.voci.slice(0, 10).map((v) => ({ etichetta: String(v.etichetta || "").slice(0, 24), sulla_parola: String(v.sulla_parola || "").slice(0, 40) })).filter((v) => v.sulla_parola) } : null;
   const adesivi = formato === "parole_dietro" ? (p.adesivi || []).filter((a) => a && a.sulla_parola && ADESIVI.includes(a.tipo)).slice(0, 8).map((a) => ({ sulla_parola: String(a.sulla_parola).slice(0, 40), tipo: a.tipo })) : [];
@@ -3857,9 +3857,223 @@ async function apiAvatar(req, env, p, m, json3) {
   return null;
 }
 
+// src/impagina.js
+var MODELLI = {
+  copertina_foto: "foto a tutto schermo, titolo grande in basso su sfumatura",
+  copertina_titolo: "solo tipografia: titolo enorme su colore pieno del brand, forma grafica di accento",
+  testo: "titolo e paragrafo su sfondo pulito, numero di pagina",
+  foto_testo: "foto nei 3/5 alti, titolo e testo sotto",
+  lista: "titolo e 3-5 punti (scrivi i punti nel testo separati da a capo)",
+  citazione: "frase in grande tra virgolette, autore sotto",
+  numero: "un numero enorme (deve essere nel titolo, vero e dato da Johnny) con la spiegazione sotto",
+  cta: "chiusura: logo, invito all\u2019azione, profilo"
+};
+var FONT = {
+  "Inter": "Inter:wght@400;600;800",
+  "Montserrat": "Montserrat:wght@400;600;800",
+  "Poppins": "Poppins:wght@400;600;800",
+  "Manrope": "Manrope:wght@400;600;800",
+  "DM Sans": "DM+Sans:wght@400;600;800",
+  "Space Grotesk": "Space+Grotesk:wght@400;600;700",
+  "Archivo Black": "Archivo+Black",
+  "Bebas Neue": "Bebas+Neue",
+  "Anton": "Anton",
+  "Playfair Display": "Playfair+Display:wght@500;700;900",
+  "DM Serif Display": "DM+Serif+Display",
+  "Fraunces": "Fraunces:wght@500;700;900",
+  "Lora": "Lora:wght@400;600",
+  "Cormorant Garamond": "Cormorant+Garamond:wght@500;700",
+  "Instrument Serif": "Instrument+Serif"
+};
+var trovaFont = (nome, riserva) => Object.keys(FONT).find((f) => String(nome || "").toLowerCase().includes(f.toLowerCase())) || riserva;
+var esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+var hex2 = (c, r) => /^#[0-9a-f]{6}$/i.test(c || "") ? c : r;
+var lum = (h) => {
+  const n = parseInt(h.slice(1), 16);
+  const [r, g, b] = [n >> 16, n >> 8 & 255, n & 255].map((v) => {
+    v /= 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+var suColore = (h) => lum(h) > 0.45 ? "#111111" : "#FFFFFF";
+function tavolozza(stile) {
+  const p = (stile?.palette || []).map((c) => hex2(c, null)).filter(Boolean);
+  const ordinati = [...p].sort((a, b) => lum(b) - lum(a));
+  const chiaro = ordinati[0] && lum(ordinati[0]) > 0.6 ? ordinati[0] : "#F6F4EF";
+  const scuro = ordinati.length && lum(ordinati[ordinati.length - 1]) < 0.12 ? ordinati[ordinati.length - 1] : "#16181A";
+  const accento = p.find((c) => c !== chiaro && c !== scuro) || "#0E9F9A";
+  return { chiaro, scuro, accento };
+}
+function modelloPer(slide, i, totale) {
+  if (MODELLI[slide.modello]) return slide.modello;
+  if (slide.ruolo === "copertina" || i === 0) return slide.foto ? "copertina_foto" : "copertina_titolo";
+  if (slide.ruolo === "cta" || i === totale - 1) return "cta";
+  if (slide.foto) return "foto_testo";
+  if (/\n|;/.test(slide.testo || "")) return "lista";
+  return "testo";
+}
+function slideHTML({ slide, i, totale, stile, logo, profilo }) {
+  const T = tavolozza(stile);
+  const ft = trovaFont(stile?.font_titoli, /elegant|lusso|romant|natal/i.test(stile?.mood || "") ? "Playfair Display" : "Montserrat");
+  const fx = trovaFont(stile?.font_testo, "Inter");
+  const famiglie = [.../* @__PURE__ */ new Set([ft, fx])].map((f) => "family=" + FONT[f]).join("&");
+  const m = modelloPer(slide, i, totale);
+  const titolo = esc(slide.titolo), testo = esc(slide.testo);
+  const foto = slide.foto ? `{{FOTO:${slide.foto}}}` : null;
+  const logoTag = logo ? `<img class="logo" src="{{LOGO}}">` : "";
+  const pagina = totale > 1 && m !== "copertina_foto" && m !== "copertina_titolo" ? `<div class="pag">${i + 1}/${totale}</div>` : "";
+  const lungo = (slide.titolo || "").length;
+  const tg = (base) => Math.round(base * (lungo > 60 ? 0.62 : lungo > 40 ? 0.78 : lungo > 24 ? 0.9 : 1));
+  let corpo = "", fondo = T.chiaro;
+  if (m === "copertina_foto") {
+    fondo = T.scuro;
+    corpo = `<div class="foto piena" style="background-image:url('${foto}')"></div><div class="velo"></div>${logoTag}
+      <div class="basso"><div class="barra" style="background:${T.accento}"></div><h1 style="font-size:${tg(118)}px;color:#fff">${titolo}</h1>${testo ? `<p style="color:rgba(255,255,255,.88)">${testo}</p>` : ""}</div><div class="scorri" style="color:#fff">scorri</div>`;
+  } else if (m === "copertina_titolo") {
+    fondo = T.accento;
+    const c = suColore(T.accento);
+    corpo = `<div class="forma" style="background:${T.scuro}"></div>${logoTag}<div class="centro"><h1 style="font-size:${tg(140)}px;color:${c}">${titolo}</h1>${testo ? `<p style="color:${c};opacity:.85">${testo}</p>` : ""}</div><div class="scorri" style="color:${c}">scorri</div>`;
+  } else if (m === "foto_testo") {
+    corpo = `<div class="foto alta" style="background-image:url('${foto}')"></div>${pagina}<div class="sotto"><h2 style="font-size:${tg(76)}px">${titolo}</h2>${testo ? `<p>${testo}</p>` : ""}</div>`;
+  } else if (m === "lista") {
+    const punti = String(slide.testo || "").split(/\n|;/).map((x) => x.replace(/^\s*[-•\d.)]+\s*/, "").trim()).filter(Boolean).slice(0, 6);
+    corpo = `${pagina}<div class="pieno"><h2 style="font-size:${tg(84)}px">${titolo}</h2><ul>${punti.map((x) => `<li><span style="background:${T.accento}"></span>${esc(x)}</li>`).join("")}</ul></div>`;
+  } else if (m === "citazione") {
+    fondo = T.scuro;
+    corpo = `${pagina}<div class="centro"><div class="virg" style="color:${T.accento}">\u201C</div><h2 style="font-size:${tg(80)}px;color:#fff">${titolo}</h2>${testo ? `<p style="color:rgba(255,255,255,.75)">${testo}</p>` : ""}</div>`;
+  } else if (m === "numero") {
+    const n = (slide.titolo || "").match(/[\d.,]+\s*%?|\d+/)?.[0] || "";
+    const resto = esc((slide.titolo || "").replace(n, "").trim());
+    corpo = `${pagina}<div class="centro"><div class="numero" style="color:${T.accento}">${esc(n)}</div>${resto ? `<h2 style="font-size:64px">${resto}</h2>` : ""}${testo ? `<p>${testo}</p>` : ""}</div>`;
+  } else if (m === "cta") {
+    fondo = T.scuro;
+    corpo = `<div class="centro">${logo ? `<img class="logo grande" src="{{LOGO}}">` : ""}<h2 style="font-size:${tg(88)}px;color:#fff">${titolo}</h2>${testo ? `<p style="color:rgba(255,255,255,.8)">${testo}</p>` : ""}
+      ${profilo ? `<div class="profilo" style="background:${T.accento};color:${suColore(T.accento)}">@${esc(profilo)}</div>` : ""}</div>`;
+  } else {
+    corpo = `${pagina}<div class="pieno"><div class="barra" style="background:${T.accento}"></div><h2 style="font-size:${tg(88)}px">${titolo}</h2>${testo ? `<p class="grande">${testo}</p>` : ""}</div>${logoTag}`;
+  }
+  const colTesto = suColore(fondo);
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?${famiglie}&display=block" rel="stylesheet"><style>
+*{box-sizing:border-box;margin:0}html,body{width:1080px;height:1350px;overflow:hidden}
+body{background:${fondo};color:${colTesto};font-family:'${fx}',sans-serif;position:relative;-webkit-font-smoothing:antialiased}
+h1,h2{font-family:'${ft}',serif;font-weight:800;line-height:1.02;letter-spacing:-.02em;text-wrap:balance}
+p{font-size:40px;line-height:1.35;margin-top:28px;text-wrap:pretty;max-width:900px}p.grande{font-size:44px}
+.foto{position:absolute;background-size:cover;background-position:center}.foto.piena{inset:0}.foto.alta{left:0;right:0;top:0;height:62%}
+.velo{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 35%,rgba(0,0,0,.78) 100%)}
+.basso{position:absolute;left:84px;right:84px;bottom:110px}.barra{width:96px;height:12px;border-radius:6px;margin-bottom:34px}
+.centro{position:absolute;inset:0;padding:120px 96px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
+.pieno{position:absolute;inset:0;padding:150px 96px 120px;display:flex;flex-direction:column;justify-content:center}
+.sotto{position:absolute;left:84px;right:84px;bottom:90px;top:66%;display:flex;flex-direction:column;justify-content:center}.sotto p{font-size:36px;margin-top:20px}
+.forma{position:absolute;right:-180px;top:-180px;width:640px;height:640px;border-radius:50%;opacity:.16}
+.logo{position:absolute;left:84px;top:84px;height:86px;max-width:300px;object-fit:contain}.logo.grande{position:static;height:150px;max-width:460px;margin-bottom:56px}
+.pag{position:absolute;right:84px;top:84px;font-size:30px;font-weight:600;opacity:.55}
+.scorri{position:absolute;right:84px;bottom:54px;font-size:28px;font-weight:600;letter-spacing:.04em;opacity:.8}
+ul{list-style:none;padding:0;margin-top:44px;display:flex;flex-direction:column;gap:30px}li{display:flex;gap:28px;align-items:flex-start;font-size:42px;line-height:1.3}
+li span{flex:0 0 22px;height:22px;border-radius:50%;margin-top:14px}
+.virg{font-family:'${ft}',serif;font-size:260px;line-height:.6;height:120px}
+.numero{font-family:'${ft}',serif;font-weight:800;font-size:300px;line-height:.9;letter-spacing:-.04em}
+.profilo{margin-top:56px;padding:22px 40px;border-radius:999px;font-size:38px;font-weight:700}
+</style></head><body>${corpo}</body></html>`;
+}
+async function preparaImpaginazione(env, P2) {
+  const Ct = J(P2.contenuti, {});
+  const st = Ct.stile || {};
+  const cart = P2.pcloud && !/code=/.test(P2.pcloud) ? P2.pcloud : P2.cliente ? "Clienti/" + P2.cliente : "";
+  const logo = cart ? await logoCliente(env, cart).catch(() => null) : null;
+  const cfg = await configurazione(env);
+  const profilo = String(P2.cliente_id || "") === String(cfg.IG_CLIENTE_ID) ? cfg.IG_USERNAME || "" : "";
+  const fotoF = J(P2.foto, {})?.foto || [];
+  const slide = [];
+  for (const x of (Ct.post || []).filter((y) => y.stato === "approvato")) {
+    const S = x.slide || [];
+    S.forEach((s, k) => slide.push({
+      n: x.n,
+      k: k + 1,
+      chiave: `post-${P2.id}/${x.n}-${k + 1}.png`,
+      html: slideHTML({ slide: s, i: k, totale: S.length, stile: st, logo, profilo }),
+      foto: s.foto ? (() => {
+        const f = fotoF.find((z) => z.nome === s.foto);
+        return f ? f.percorso ? { archivio: f.percorso } : { fileid: f.fileid } : null;
+      })() : null,
+      nome_foto: s.foto || null
+    }));
+  }
+  return { slide, logo, pcloud: /code=/.test(P2.pcloud || "") ? P2.pcloud : null };
+}
+async function svegliaImpagina(env, id) {
+  const cfg = await configurazione(env);
+  if (!cfg.GITHUB_TOKEN) return false;
+  const r = await fetch("https://api.github.com/repos/JohnHant91/momento-montaggio/actions/workflows/impagina.yml/dispatches", {
+    method: "POST",
+    body: JSON.stringify({ ref: "main", inputs: { post: String(id) } }),
+    headers: { authorization: `Bearer ${cfg.GITHUB_TOKEN}`, accept: "application/vnd.github+json", "content-type": "application/json", "user-agent": "momento-reel", "x-github-api-version": "2022-11-28" }
+  });
+  return r.status === 204;
+}
+async function motoreImpagina(req, env, p, m, json3, identitaGitHub2, firmaLink) {
+  if (!p.startsWith("/api/motore/impagina")) return null;
+  const url = new URL(req.url);
+  if (p === "/api/motore/impagina/prendi" && m === "POST") {
+    if (!await identitaGitHub2(req.headers.get("authorization"))) return json3({ errore: "motore non riconosciuto" }, 401);
+    const id = Number(url.searchParams.get("id")) || 0;
+    const pass2 = [...crypto.getRandomValues(new Uint8Array(24))].map((b) => b.toString(16).padStart(2, "0")).join("");
+    const P3 = await one(env, `UPDATE post_lavori SET canva=json_set(COALESCE(canva,'{}'), '$.pass', ?, '$.fino', ?), aggiornato=? WHERE id = (SELECT id FROM post_lavori WHERE fase='impagina' AND stato='in_corso'
+      AND (?=0 OR id=?) AND (json_extract(canva,'$.fino') IS NULL OR json_extract(canva,'$.fino') < ?) ORDER BY id LIMIT 1) RETURNING *`, pass2, new Date(Date.now() + 30 * 6e4).toISOString(), ora(), id, id, ora());
+    if (!P3) return new Response(null, { status: 204 });
+    const pac = await preparaImpaginazione(env, P3);
+    for (const s of pac.slide) if (s.foto?.archivio) s.foto.url = await firmaLink(env, url.origin, s.foto.archivio);
+    return json3({
+      id: P3.id,
+      pass: pass2,
+      pcloud_code: pac.pcloud ? new URL(pac.pcloud).searchParams.get("code") : null,
+      pcloud_eu: /(^|\/\/)e\.|eapi/.test(pac.pcloud || ""),
+      logo: pac.logo ? await firmaLink(env, url.origin, pac.logo) : null,
+      slide: pac.slide
+    });
+  }
+  const mm = p.match(/^\/api\/motore\/impagina\/(\d+)\/(slide|fine)$/);
+  if (!mm) return json3({ errore: "non trovato" }, 404);
+  const P2 = await one(env, "SELECT * FROM post_lavori WHERE id=?", mm[1]);
+  const pass = req.headers.get("x-pass") || "";
+  if (!P2 || pass.length < 32 || pass !== J(P2.canva, {})?.pass) return json3({ errore: "lasciapassare non valido" }, 403);
+  if (mm[2] === "slide" && m === "PUT") {
+    const chiave = String(url.searchParams.get("k") || "");
+    if (!new RegExp(`^post-${P2.id}/\\d+-\\d+\\.png$`).test(chiave)) return json3({ errore: "chiave non valida" }, 400);
+    await env.VIDEO.put(chiave, await req.arrayBuffer(), { metadata: { tipo: "image/jpeg" } });
+    return json3({ ok: true });
+  }
+  if (mm[2] === "fine" && m === "POST") {
+    const d = await req.json().catch(() => ({}));
+    const fatte = (d.fatte || []).filter((k) => new RegExp(`^post-${P2.id}/\\d+-\\d+\\.png$`).test(k));
+    const file = Object.fromEntries(fatte.map((k) => [k, true]));
+    const perPost = {};
+    for (const k of fatte) {
+      const [n] = k.split("/")[1].split("-").map(Number);
+      (perPost[n] ||= []).push(k);
+    }
+    const canva = { motore: true, quando: ora(), post: Object.entries(perPost).map(([n, ks]) => ({ n: Number(n), png: ks.sort((a, b) => Number(a.split("-").pop().split(".")[0]) - Number(b.split("-").pop().split(".")[0])) })) };
+    const ok = fatte.length && !(d.errori || []).length;
+    await run(
+      env,
+      "UPDATE post_lavori SET canva=?, slide_file=?, fase=?, stato=?, errore=?, aggiornato=? WHERE id=?",
+      JSON.stringify(canva),
+      JSON.stringify(file),
+      ok ? "fatto" : "impagina",
+      ok ? "da_vedere" : "errore",
+      ok ? null : `slide non riuscite: ${(d.errori || []).slice(0, 3).join("; ")}`.slice(0, 400),
+      ora(),
+      P2.id
+    );
+    await log(env, null, "caroselli", ok ? `\u{1F3A8} post #${P2.id}: ${fatte.length} slide impaginate, pronte da guardare in Approvazioni` : `\u26A0\uFE0F post #${P2.id}: impaginazione non riuscita`, ok ? "info" : "warn");
+    return json3({ ok: true });
+  }
+  return json3({ errore: "non trovato" }, 404);
+}
+
 // src/post.js
 var BLOCCO_MIN4 = 12;
-var FASI_POST = [["ricerca", "Post virali"], ["studio", "Studio"], ["foto", "Foto"], ["contenuti", "Testi"], ["approvazione", "Approvazione"], ["canva", "Canva"], ["scarica", "Slide"], ["fatto", "Pronto"]];
+var FASI_POST = [["ricerca", "Post virali"], ["studio", "Studio"], ["foto", "Foto"], ["contenuti", "Testi"], ["approvazione", "Approvazione"], ["impagina", "Impaginazione"], ["fatto", "Pronto"]];
 var AGENTE_FASE = { ricerca: "scout_ig", studio: "occhi", foto: "analista", contenuti: "caroselli", scarica: "caroselli" };
 async function schemaPost(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS post_lavori (id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER, cliente TEXT, nicchia TEXT, tipo TEXT DEFAULT 'carosello',
@@ -4009,14 +4223,25 @@ async function fasefoto(env, cfg, P2) {
     await log(env, null, "analista", `post #${P2.id}: nessuna cartella di foto, i caroselli saranno grafici`);
     return;
   }
-  const tutte = (await pcloudClip(P2.pcloud)).filter((f) => f.tipo === "immagine").slice(0, 40);
+  const daArchivio = !/code=/.test(P2.pcloud);
+  const tutte = daArchivio ? (await fileSotto(env, P2.pcloud)).filter((f) => f.tipo === "immagine" && !/^logo/i.test(f.nome) && /\.(jpe?g|png|webp)$/i.test(f.nome)).slice(0, 40).map((f) => ({ nome: f.nome, percorso: f.percorso, dimensione: f.dimensione, tipo: "immagine", tecnico: {} })) : (await pcloudClip(P2.pcloud)).filter((f) => f.tipo === "immagine").slice(0, 40);
   if (!tutte.length) throw new Error("nella cartella pCloud non ci sono foto (jpg, png, webp)");
   const viste = J(P2.foto, {})?.foto || [];
   const fatte = new Set(viste.map((f) => f.nome));
-  const lotto = tutte.filter((f) => !fatte.has(f.nome)).slice(0, 8);
+  const lotto = tutte.filter((f) => !fatte.has(f.nome)).slice(0, daArchivio ? 4 : 8);
   const immagini = [];
   for (const f of lotto) {
     try {
+      if (daArchivio) {
+        if (!env.ARCHIVIO || f.dimensione > 3 * 1048576 || !/\.jpe?g$/i.test(f.nome)) continue;
+        const o = await env.ARCHIVIO.get(f.percorso);
+        if (!o) continue;
+        const u8 = new Uint8Array(await o.arrayBuffer());
+        let bin = "";
+        for (let k = 0; k < u8.length; k += 32768) bin += String.fromCharCode(...u8.subarray(k, k + 32768));
+        immagini.push({ cosa: f.nome, jpeg: btoa(bin), f });
+        continue;
+      }
       const t = await pcloudApi(P2.pcloud, "getpubthumblink", { fileid: f.fileid, size: "640x640" });
       const b = await immagineBase64(`https://${t.hosts[0]}${t.path}`);
       if (b) immagini.push({ cosa: f.nome, jpeg: b.jpeg, f });
@@ -4036,10 +4261,10 @@ Per ogni foto allegata rispondi SOLO JSON: {"foto": [{"nome": "nome file esatto"
     );
     for (const x of out.foto || []) {
       const f = lotto.find((l) => l.nome === x.nome);
-      if (f) viste.push({ ...x, fileid: f.fileid, risoluzione: f.tecnico?.risoluzione, orientamento: f.tecnico?.orientamento });
+      if (f) viste.push({ ...x, fileid: f.fileid, percorso: f.percorso, risoluzione: f.tecnico?.risoluzione, orientamento: f.tecnico?.orientamento });
     }
   }
-  for (const f of lotto) if (!viste.some((v) => v.nome === f.nome)) viste.push({ nome: f.nome, fileid: f.fileid, uso: "scarta", problemi: "miniatura non disponibile" });
+  for (const f of lotto) if (!viste.some((v) => v.nome === f.nome)) viste.push(f.percorso ? { nome: f.nome, percorso: f.percorso, uso: "contenuto", qualita: 6, descrizione: "foto grande non vista (scelta dal nome)" } : { nome: f.nome, fileid: f.fileid, uso: "scarta", problemi: "miniatura non disponibile" });
   const finite = viste.length >= tutte.length;
   await run(env, "UPDATE post_lavori SET foto=?, fase=?, errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify({ totale: tutte.length, foto: viste }), finite ? "contenuti" : "foto", ora(), P2.id);
   await log(env, null, "analista", `\u{1F50E} post #${P2.id}: ${viste.length}/${tutte.length} foto guardate${finite ? `, ${viste.filter((v) => v.uso !== "scarta").length} buone` : ""}`);
@@ -4049,7 +4274,9 @@ async function faseContenuti(env, cfg, P2) {
   const St = J(P2.studio, {}), F = (J(P2.foto, {})?.foto || []).filter((f) => f.uso !== "scarta").sort((a, b) => (b.qualita || 0) - (a.qualita || 0));
   const out = await claude(
     cfg,
-    `Sei Pietro (caroselli e grafiche) con Giulia (copywriter) di AGENZIA MOMENTO AI. Scrivi post e caroselli Instagram pronti da impaginare su Canva.
+    `Sei Pietro (caroselli e grafiche) con Giulia (copywriter) di AGENZIA MOMENTO AI. Scrivi post e caroselli Instagram pronti da impaginare con i modelli dell'agenzia.
+MODELLI DI SLIDE (scegli per ogni slide quello giusto, la copertina con foto se c'\xE8 una foto buona):
+${Object.entries(MODELLI).map(([k, v]) => "- " + k + ": " + v).join("\n")}
 REGOLE: ogni slide ha UNA idea; copertina con gancio forte e corto; testi brevi (rispetta il massimo di parole per slide); l'ultima slide chiude con una CTA chiara;
 usa SOLO le foto dell'elenco (nome file esatto) quando ci sono, la migliore come copertina, mai la stessa foto due volte nello stesso carosello; niente dati inventati sul cliente.
 ===== SKILL: carousel-writer =====
@@ -4066,7 +4293,7 @@ FOTO DISPONIBILI (scattate da Johnny): ${F.length ? F.map((f) => `${f.nome} \xB7
 Rispondi SOLO JSON:
 {"stile": {"palette": ["#hex", "#hex", "#hex"], "font_titoli": "...", "font_testo": "...", "mood": "...", "regole": "indicazioni grafiche per tutto il set"},
  "post": [{"n": 1, "tipo": "carosello | post", "titolo": "titolo interno", "obiettivo": "salvataggi | condivisioni | commenti | contatti",
-   "slide": [{"n": 1, "ruolo": "copertina | contenuto | cta", "titolo": "testo grande", "testo": "testo piccolo o vuoto", "foto": "nome file o null", "layout": "come impaginarla"}],
+   "slide": [{"n": 1, "ruolo": "copertina | contenuto | cta", "modello": "uno dei MODELLI", "titolo": "testo grande", "testo": "testo piccolo o vuoto (per lista: un punto per riga)", "foto": "nome file o null"}],
    "caption": "caption completa con gancio e CTA", "hashtag": ["8-12 hashtag senza #"], "alt": "testo alternativo"}]}`,
     { maxTokens: 16e3 }
   );
@@ -4097,7 +4324,7 @@ async function faseScarica(env, cfg, P2) {
 async function avanzaPost(env) {
   await schemaPost(env);
   const adesso = ora();
-  const L = await all(env, "SELECT * FROM post_lavori WHERE stato='in_corso' AND fase IN ('ricerca','studio','foto','contenuti','scarica') AND (blocco_fino IS NULL OR blocco_fino < ?) ORDER BY id LIMIT 2", adesso);
+  const L = await all(env, "SELECT * FROM post_lavori WHERE stato='in_corso' AND fase IN ('ricerca','studio','foto','contenuti','scarica','impagina') AND (blocco_fino IS NULL OR blocco_fino < ?) ORDER BY id LIMIT 2", adesso);
   if (!L.length) return;
   const cfg0 = await configurazione(env);
   for (const P0 of L) {
@@ -4110,6 +4337,15 @@ async function avanzaPost(env) {
       else if (P2.fase === "foto") await fasefoto(env, cfg, P2);
       else if (P2.fase === "contenuti") await faseContenuti(env, cfg, P2);
       else if (P2.fase === "scarica") await faseScarica(env, cfg, P2);
+      else if (P2.fase === "impagina") {
+        const cv = J(P2.canva, {}) || {};
+        if (!cv.svegliato || Date.now() - new Date(cv.svegliato) > 20 * 6e4) {
+          const ok = await svegliaImpagina(env, P2.id);
+          await run(env, "UPDATE post_lavori SET canva=json_set(COALESCE(canva,'{}'), '$.svegliato', ?), tentativi=0, blocco_fino=? WHERE id=?", ora(), new Date(Date.now() + 5 * 6e4).toISOString(), P2.id);
+          if (!ok) throw new Error("GitHub non risponde: controlla il token GitHub in Impostazioni");
+          await log(env, null, "caroselli", `\u{1F3A8} post #${P2.id}: il motore impagina le slide`);
+        } else await run(env, "UPDATE post_lavori SET tentativi=0 WHERE id=?", P2.id);
+      }
     } catch (e) {
       const msg = String(e?.message || e).slice(0, 400);
       const credito = /credit balance|billing/i.test(msg);
@@ -4137,7 +4373,7 @@ async function apiPost(req, env, p, m, json3) {
     const d = await corpo();
     if (!d.cliente_id && String(d.cliente || "").trim().length < 2) return json3({ errore: "scegli o scrivi il cliente" }, 400);
     if (String(d.brief || "").trim().length < 10) return json3({ errore: "scrivi di cosa devono parlare (almeno una frase)" }, 400);
-    if (d.pcloud && !/code=/.test(d.pcloud)) return json3({ errore: 'il link pCloud deve essere il link pubblico della cartella (contiene "code=")' }, 400);
+    if (d.pcloud && /^https?:/.test(d.pcloud) && !/code=/.test(d.pcloud)) return json3({ errore: 'il link pCloud deve essere il link pubblico della cartella (contiene "code=")' }, 400);
     return json3({ id: await nuovoLavoroPost(env, d) });
   }
   if (p === "/api/post/img" && m === "GET") {
@@ -4206,8 +4442,9 @@ async function apiPost(req, env, p, m, json3) {
       return { ...x, slide: Array.isArray(mod.slide) ? mod.slide : x.slide, caption: typeof mod.caption === "string" ? mod.caption.slice(0, 2200) : x.caption, stato: ok.has(x.n) ? "approvato" : "scartato" };
     });
     if (!Ct.post.some((x) => x.stato === "approvato")) return json3({ errore: "approva almeno un post" }, 400);
-    await run(env, "UPDATE post_lavori SET contenuti=?, fase='canva', stato='attende_canva', blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(Ct), ora(), P2.id);
-    await log(env, null, "caroselli", `\u{1F3A8} post #${P2.id}: ${ok.size} approvati da Johnny, pronti per Canva`);
+    for (const k of Object.keys(J(P2.slide_file, {}) || {})) await env.VIDEO.delete(k);
+    await run(env, "UPDATE post_lavori SET contenuti=?, canva=NULL, slide_file=NULL, fase='impagina', stato='in_corso', blocco_fino=NULL, tentativi=0, aggiornato=? WHERE id=?", JSON.stringify(Ct), ora(), P2.id);
+    await log(env, null, "caroselli", `\u{1F3A8} post #${P2.id}: ${ok.size} approvati da Johnny, li impagino`);
     return json3({ ok: true });
   }
   if (m === "POST" && mm[2] === "canva") {
@@ -4257,7 +4494,7 @@ async function apiPost(req, env, p, m, json3) {
     return json3({ ok: ok.length > 0, fatti });
   }
   if (m === "POST" && mm[2] === "riprova") {
-    await run(env, "UPDATE post_lavori SET stato=CASE WHEN fase='canva' THEN 'attende_canva' ELSE 'in_corso' END, errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", ora(), P2.id);
+    await run(env, "UPDATE post_lavori SET stato='in_corso', fase=CASE WHEN fase IN ('canva','fatto') AND contenuti IS NOT NULL THEN 'impagina' ELSE fase END, canva=CASE WHEN fase IN ('canva','fatto','impagina') THEN NULL ELSE canva END, errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", ora(), P2.id);
     return json3({ ok: true });
   }
   if (m === "DELETE") {
@@ -4721,7 +4958,7 @@ async function apiAgenzia(req, env, p, m, json3) {
     ]);
     const feed = await all(env, "SELECT agente, messaggio, livello, quando, lavoro_id FROM registro ORDER BY id DESC LIMIT 40");
     const n = async (sql) => (await one(env, sql).catch(() => null))?.n || 0;
-    approvare.n += await n("SELECT COUNT(*) AS n FROM lavori WHERE stato='pronto' AND approvato IS NULL") + await n("SELECT COUNT(*) AS n FROM avatar_piani WHERE stato='da_approvare'") + await n("SELECT COUNT(*) AS n FROM post_lavori WHERE stato IN ('da_approvare','attende_canva')") + await n("SELECT COUNT(*) AS n FROM piani WHERE stato='pronto' AND approvato IS NULL") + await n("SELECT COUNT(*) AS n FROM riunioni WHERE stato='proposte'") + await n("SELECT COUNT(*) AS n FROM incarichi WHERE stato IN ('fatto','da_approvare') AND visto IS NULL AND esito LIKE '%documento%'");
+    approvare.n += await n("SELECT COUNT(*) AS n FROM lavori WHERE stato='pronto' AND approvato IS NULL") + await n("SELECT COUNT(*) AS n FROM avatar_piani WHERE stato='da_approvare'") + await n("SELECT COUNT(*) AS n FROM post_lavori WHERE stato IN ('da_approvare','attende_canva','da_vedere')") + await n("SELECT COUNT(*) AS n FROM piani WHERE stato='pronto' AND approvato IS NULL") + await n("SELECT COUNT(*) AS n FROM riunioni WHERE stato='proposte'") + await n("SELECT COUNT(*) AS n FROM incarichi WHERE stato IN ('fatto','da_approvare') AND visto IS NULL AND esito LIKE '%documento%'");
     return json3({ adesso, uffici: UFFICI, squadra: SQUADRA, attivi, recenti, da_approvare: approvare.n, conti, clienti: clienti.n, reel: reelAttivi, piani: pianiAttivi, profilo, postl, feed, gestionale: !!env.GEST });
   }
   const ch = p.match(/^\/api\/chat\/(capo|gestionale|contabile)$/);
@@ -5512,6 +5749,7 @@ var PENDENTE = (col) => `EXISTS (SELECT 1 FROM json_each(lavori.${col}) WHERE js
 async function motoreApi(req, env, url) {
   const p = url.pathname, m = req.method;
   if (p.startsWith("/api/motore/importa")) return motoreImporta(req, env, p, m, json, identitaGitHub);
+  if (p.startsWith("/api/motore/impagina")) return motoreImpagina(req, env, p, m, json, identitaGitHub, linkFirmato);
   if (p === "/api/motore/coda" && m === "GET") {
     const solo = Number(url.searchParams.get("lavoro")) || 0;
     const r = await one(env, `SELECT COUNT(*) AS n FROM lavori WHERE stato='in_corso' AND (?=0 OR id=?) AND (
@@ -5739,7 +5977,7 @@ async function controllaApprovazioni(env) {
   const [reel, avatar, post, piani, cont, riun, doc] = await Promise.all([
     q("SELECT id, COALESCE(json_extract(scheda, '$.titolo_lavoro'), substr(prompt, 1, 60)) AS t FROM lavori WHERE stato='pronto' AND approvato IS NULL"),
     q("SELECT id, argomento AS t FROM avatar_piani WHERE stato='da_approvare'"),
-    q("SELECT id, COALESCE(cliente, 'caroselli') AS t FROM post_lavori WHERE stato IN ('da_approvare','attende_canva')"),
+    q("SELECT id, COALESCE(cliente, 'caroselli') AS t FROM post_lavori WHERE stato IN ('da_approvare','attende_canva','da_vedere')"),
     q("SELECT id, cliente AS t FROM piani WHERE stato='pronto' AND approvato IS NULL"),
     q("SELECT id, titolo AS t FROM contenuti WHERE stato IN ('da_approvare','da_pubblicare')"),
     q("SELECT id, COALESCE(titolo, substr(richiesta, 1, 60)) AS t FROM riunioni WHERE stato='proposte'"),
@@ -5902,6 +6140,7 @@ ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
 .ar-ant{display:flex;align-items:center;justify-content:center;aspect-ratio:1;background:var(--s2);border-radius:10px;overflow:hidden;font-size:34px}.ar-ant img{width:100%;height:100%;object-fit:cover}
 .ar-drop{border:2px dashed var(--line);border-radius:14px;padding:22px;text-align:center;color:var(--mut,#777);cursor:pointer}.ar-drop.su{border-color:var(--teal,#12a3a4);background:var(--tealbg)}
 .ar-riga{display:grid;grid-template-columns:1fr 120px 70px;gap:8px;align-items:center;font-size:13px;margin-top:6px}.ar-riga span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ar-bar{height:6px;background:#eee;border-radius:4px;overflow:hidden}.ar-bar i{display:block;height:100%;width:0;background:var(--teal,#12a3a4)}
+.sl-fila{display:flex;gap:8px;overflow-x:auto;margin-top:8px;padding-bottom:4px}.sl-fila img{height:190px;aspect-ratio:4/5;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
 .ap-h{display:flex;align-items:center;gap:8px;margin-top:26px}.ap{margin-bottom:12px}.ap-voce{border-top:1px solid var(--line);padding:10px 0}.ap-voce:first-of-type{border-top:0}.ap-voce.consigliata{background:var(--card)bea;border-radius:10px;padding:10px}.ap summary{cursor:pointer}
 .lavorazioni{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin:12px 0}.lz{display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px;color:inherit;text-decoration:none}.lz .ic{font-size:22px}.lz .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}.lz b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lz small{font-size:12px;color:var(--mut)}
 .avanz{height:6px;border-radius:9px;background:var(--s2);overflow:hidden}.avanz i{display:block;height:100%;background:linear-gradient(90deg,#12a3a4,#3fd0c9);border-radius:9px;transition:width .6s}
@@ -6356,8 +6595,8 @@ async function impostazioni() {
 }
 
 // ---------------------------------------------------------------- Post e caroselli
-const ST_POST = { in_corso: 'in corso', da_approvare: 'da approvare', attende_canva: 'da fare su Canva', fatto: 'pronto', errore: 'errore' };
-const PILL_POST = { in_corso: 'corso', da_approvare: 'errore', attende_canva: 'errore', fatto: 'pronto', errore: 'errore' };
+const ST_POST = { in_corso: 'in corso', da_approvare: 'testi da approvare', attende_canva: 'da impaginare', da_vedere: 'slide da guardare', fatto: 'pronto', errore: 'errore' };
+const PILL_POST = { in_corso: 'corso', da_approvare: 'errore', attende_canva: 'errore', da_vedere: 'errore', fatto: 'pronto', errore: 'errore' };
 const imgEst = (u) => '/api/post/img?u=' + encodeURIComponent(u);
 async function postLista() {
   const L = await chiama('/api/post');
@@ -6370,7 +6609,7 @@ async function postLista() {
 
 async function postNuovo() {
   const CL = await chiama('/api/clienti').catch(() => []);
-  $('#app').innerHTML = '<a class="mut" href="#/post">\u2190 Post e caroselli</a><h1>Nuovo lavoro: post e caroselli</h1>' +
+  $('#app').innerHTML = '<a class="mut" href="#/approvazioni">\u2190 Approvazioni</a><h1>Nuovi post e caroselli</h1>' +
     '<label>Cliente</label><select id="p_cl"><option value="">\u2014 scrivi sotto un cliente nuovo \u2014</option>' + CL.map((c) => '<option value="' + c.id + '">' + e(c.nome) + (c.nicchia ? ' \xB7 ' + e(c.nicchia) : '') + '</option>').join('') + '</select>' +
     '<input id="p_cn" placeholder="Nome del cliente (se non \xE8 in elenco)" style="margin-top:8px">' +
     '<label>Nicchia (per cercare i virali giusti)</label><input id="p_ni" placeholder="Es. ristorante di pesce a Salerno, B&B in Costiera, palestra">' +
@@ -6378,14 +6617,16 @@ async function postNuovo() {
     '<div style="flex:1;min-width:110px"><label>Quanti</label><input id="p_nu" type="number" min="1" max="12" value="3"></div>' +
     '<div style="flex:1;min-width:110px"><label>Slide per carosello</label><input id="p_sl" type="number" min="2" max="10" value="7"></div></div>' +
     '<label>Di cosa parlano</label><textarea id="p_br" placeholder="Es. 3 caroselli per la Torretta: la tostatura artigianale, le miscele della casa, la colazione del sabato. Obiettivo: salvataggi e visite al bar."></textarea>' +
-    '<label>Le tue foto su pCloud (facoltativo)</label><input id="p_pc" placeholder="https://e.pcloud.link/publink/show?code=\u2026">' +
-    '<div class="aiuto">Link pubblico della cartella con gli scatti. Ada le guarda tutte e sceglie le migliori per ogni slide. Senza foto i caroselli sono grafici.</div>' +
+    '<label>Le foto: cartella dell\u2019Archivio</label><select id="p_ar"><option value="">Nessuna (o link pCloud qui sotto)</option></select>' +
+    '<label>Oppure: link della cartella pCloud</label><input id="p_pc" placeholder="https://e.pcloud.link/publink/show?code=\u2026">' +
+    '<div class="aiuto">Iris guarda gli scatti e sceglie i migliori per ogni slide; il logo lo prende dalla cartella del cliente nell\u2019Archivio. Senza foto i caroselli sono grafici.</div>' +
     '<label>Post che ti piacciono come esempio (facoltativo)</label><textarea id="p_es" style="min-height:60px" placeholder="Un link Instagram o TikTok per riga"></textarea>' +
     '<label>Note (facoltativo)</label><input id="p_no" placeholder="Colori del brand, cose da non dire, date\u2026">' +
     '<div style="margin-top:18px"><button id="p_go">Avvia la squadra</button></div><div id="p_er" class="err"></div>';
+  chiama('/api/archivio/cartelle').then((C) => C.forEach((c) => { const o = document.createElement('option'); o.value = c.percorso; o.textContent = '\u{1F5C2}\uFE0F ' + c.percorso; $('#p_ar').appendChild(o); })).catch(() => {});
   $('#p_go').onclick = async () => {
     const d = { cliente_id: Number($('#p_cl').value) || null, cliente: $('#p_cn').value.trim(), nicchia: $('#p_ni').value.trim(), tipo: $('#p_ti').value, numero: Number($('#p_nu').value), slide: Number($('#p_sl').value),
-      brief: $('#p_br').value.trim(), pcloud: $('#p_pc').value.trim(), esempi: $('#p_es').value.split(/\\s+/).filter((x) => /^https:/.test(x)), note: $('#p_no').value.trim() };
+      brief: $('#p_br').value.trim(), pcloud: $('#p_pc').value.trim() || $('#p_ar').value, esempi: $('#p_es').value.split(/\\s+/).filter((x) => /^https:/.test(x)), note: $('#p_no').value.trim() };
     $('#p_go').disabled = true;
     try { const r = await chiama('/api/post', { method: 'POST', body: d }); location.hash = '#/post/' + r.id; } catch (x) { $('#p_er').textContent = x.message; $('#p_go').disabled = false; }
   };
@@ -6424,7 +6665,7 @@ async function postDettaglio(id) {
   $('#app').innerHTML = '<a class="mut" href="#/post">\u2190 Post e caroselli</a><h1>' + e(P.cliente || 'Cliente') + ' \xB7 ' + P.numero + ' ' + (P.tipo === 'post' ? 'post' : P.tipo === 'misto' ? 'contenuti' : 'caroselli') + '</h1><div class="mut">#' + P.id + ' \xB7 ' + e(P.nicchia || '') + '</div>' + passi +
     '<div class="card"><b>Brief</b><div style="white-space:pre-wrap">' + e(P.brief) + '</div>' + (P.pcloud ? '<div class="mut">\u{1F4C1} foto: <a href="' + e(P.pcloud) + '" target="_blank" rel="noopener">cartella pCloud</a></div>' : '') + '</div>' +
     (P.errore ? '<div class="card err">' + e(P.errore) + ' <button class="sec" id="po_rp">Riprova</button></div>' : '') +
-    (P.stato === 'attende_canva' ? '<div class="card">\u{1F3A8} <b>Pronti per Canva.</b> Testi, foto e stile sono approvati: chiedi a Claude in chat <i>\u201Cfai su Canva il lavoro post #' + P.id + '\u201D</i> e le slide tornano qui in PNG, con il link per modificarle.</div>' : '') +
+    (P.fase === 'impagina' && P.stato === 'in_corso' ? '<div class="card">\u{1F3A8} <b>Impaginazione in corso.</b> Il motore sta creando le slide con i modelli dell\u2019agenzia (colori, font e logo del cliente). Ti arrivano in Approvazioni.</div>' : '') +
     (pubblicabili ? '<div class="card"><b>\u{1F4F2} Pubblicazione su Instagram</b>' + (P.instagram?.suo_profilo ? '<p class="mut">Vanno sul tuo profilo solo quando premi qui, agli orari che scegli (proposti: uno al giorno alle 19:00).</p><div class="riga"><button id="pi_go">Programma su Instagram</button></div><div id="pi_er" class="err"></div>'
       : '<p class="mut" style="margin-bottom:0">Per ora si pubblica in automatico solo sul tuo profilo. Per i clienti scarichi le slide e la caption, oppure colleghiamo il loro account Instagram.</p>') + '</div>' : '') +
     posts + studio + foto + virali + '<div class="riga" style="margin-top:14px"><button class="sec" id="po_del">Elimina</button></div>';
@@ -6765,7 +7006,7 @@ async function azienda() {
   const daScegliere = riunioni.filter((x) => x.stato === 'proposte').map((x) => ({ t: '\u{1F5F3}\uFE0F PROPOSTE DA SCEGLIERE', b: x.titolo || x.richiesta || '', link: '#/riunione/' + x.id, img: null, i: '\u{1F5F3}\uFE0F' }));
   const ultimoReport = riunioni.find((x) => x.tipo === 'settimanale' && x.stato === 'report');
   const daApprovareAv = avatarL.filter((x) => x.stato === 'da_approvare').map((x) => ({ t: '\u{1F3AD} COPIONI AVATAR DA APPROVARE', b: x.argomento, link: '#/profilo/' + x.id, img: null, i: '\u{1F3AD}' }));
-  const daPost = postL.filter((x) => ['da_approvare', 'attende_canva', 'fatto'].includes(x.stato)).slice(0, 4).map((x) => ({ t: x.stato === 'da_approvare' ? '\u{1F5C2}\uFE0F CAROSELLI DA APPROVARE' : x.stato === 'attende_canva' ? '\u{1F3A8} CAROSELLI DA FARE SU CANVA' : '\u{1F5C2}\uFE0F CAROSELLI PRONTI', b: (x.cliente || '') + (x.titolo ? ' \xB7 ' + x.titolo : ''), link: '#/post/' + x.id, img: x.stato === 'fatto' ? '/api/post/' + x.id + '/slide/1-1.png' : null, i: '\u{1F5C2}\uFE0F' }));
+  const daPost = postL.filter((x) => ['da_approvare', 'da_vedere', 'fatto'].includes(x.stato)).slice(0, 4).map((x) => ({ t: x.stato === 'da_approvare' ? '\u{1F5C2}\uFE0F CAROSELLI DA APPROVARE' : x.stato === 'da_vedere' ? '\u{1F3A8} SLIDE DA GUARDARE' : '\u{1F5C2}\uFE0F CAROSELLI PRONTI', b: (x.cliente || '') + (x.titolo ? ' \xB7 ' + x.titolo : ''), link: '#/post/' + x.id, img: x.stato === 'fatto' ? '/api/post/' + x.id + '/slide/1-1.png' : null, i: '\u{1F5C2}\uFE0F' }));
   const recenti = [...daScegliere, ...daApprovareAv, ...daPost, ...(ultimoReport ? [{ t: '\u{1F4CA} REPORT RIUNIONE OPERATIVA', b: ultimoReport.titolo, link: '#/riunione/' + ultimoReport.id, img: null, i: '\u{1F4CA}' }] : []), ...lavori.slice(0, 4).map((L) => ({ t: 'REEL \xB7 ' + (L.stato === 'pronto' ? 'pronto' : L.stato === 'errore' ? 'errore' : 'in lavorazione'), b: (L.titolo || L.prompt || '').slice(0, 60), link: '#/lavoro/' + L.id, img: L.stato === 'pronto' ? '/api/lavori/' + L.id + '/anteprima.jpg' : null, i: '\u{1F3AC}' })),
     ...R.recenti.slice(0, 4).map((I) => ({ t: (AGENTI[I.agente]?.n || I.agente) + ' \xB7 ' + (ST_INC[I.stato] || I.stato), b: I.titolo, link: '#/incarico/' + I.id, img: null, i: AGENTI[I.agente]?.i || '\u{1F4C4}' }))];
   $('#app').innerHTML = '<div id="saluto">' + saluto + '</div>' +
@@ -7008,7 +7249,7 @@ async function approvazioni() {
   const [avD, piD, poD, riD] = await Promise.all([
     Promise.all(Av.filter((x) => x.stato === 'da_approvare').map((x) => chiama('/api/avatar/' + x.id).catch(() => null))),
     Promise.all(Pi.filter((x) => x.stato === 'pronto' && !x.approvato).map((x) => chiama('/api/piani/' + x.id).catch(() => null))),
-    Promise.all(Po.filter((x) => ['da_approvare', 'attende_canva'].includes(x.stato)).map((x) => chiama('/api/post/' + x.id).catch(() => null))),
+    Promise.all(Po.filter((x) => ['da_approvare', 'attende_canva', 'da_vedere'].includes(x.stato)).map((x) => chiama('/api/post/' + x.id).catch(() => null))),
     Promise.all(Ri.filter((x) => x.stato === 'proposte').map((x) => chiama('/api/riunioni/' + x.id).catch(() => null))),
   ]);
   const sez = (ic, t, n, corpo, cat) => n ? '<div class="apsez" data-cat="' + cat + '"><h2 class="ap-h">' + ic + ' ' + t + ' <span class="pill">' + n + '</span></h2>' + corpo + '</div>' : '';
@@ -7032,7 +7273,12 @@ async function approvazioni() {
   // 4. caroselli
   const tipoPo = (P) => P.tipo === 'post' ? 'post' : P.tipo === 'misto' ? 'post caroselli' : 'caroselli';
   const bPo = poD.filter(Boolean).map((P) => '<div class="apsez" data-cat="' + tipoPo(P) + '">' + ((P) => { const Ct = P.contenuti || {}; const da = P.stato === 'da_approvare';
-    if (!da) return '<div class="card ap"><b>\u{1F3A8} Caroselli da fare su Canva</b> \xB7 ' + e(P.cliente || '') + '<div class="mut">approvati: ora vanno impaginati su Canva \xB7 <a href="#/post/' + P.id + '">apri</a></div></div>';
+    if (!da) { // slide impaginate: si guardano qui, si pubblicano dalla pagina del lavoro
+      const per = {}; (P.slide_file || []).forEach((k) => { const m = k.match(/\\/(\\d+)-(\\d+)\\.png$/); if (m) (per[m[1]] ||= []).push([Number(m[2]), k]); });
+      return '<div class="card ap"><b>\u{1F3A8} Slide pronte \xB7 ' + e(P.cliente || '') + '</b><div class="mut" style="margin-bottom:8px">impaginate con i modelli dell\u2019agenzia</div>' +
+        Object.entries(per).map(([n, ks]) => { const x = (Ct.post || []).find((y) => String(y.n) === n) || {}; return '<div class="ap-voce"><b>' + n + '. ' + e(x.titolo || '') + '</b><div class="sl-fila">' +
+          ks.sort((a, b) => a[0] - b[0]).map(([, k]) => '<a href="/api/post/' + P.id + '/slide/' + k.split('/')[1] + '" target="_blank"><img loading="lazy" src="/api/post/' + P.id + '/slide/' + k.split('/')[1] + '"></a>').join('') + '</div></div>'; }).join('') +
+        '<div class="riga" style="gap:6px;margin-top:8px"><a class="btn" href="#/post/' + P.id + '">Pubblica o programma</a><button class="sec po_rifai" data-p="' + P.id + '" style="width:auto">Rifai l\u2019impaginazione</button></div></div>'; }
     return '<div class="card ap"><b>\u{1F5C2}\uFE0F Caroselli ' + e(P.cliente || '') + '</b><div class="mut" style="margin-bottom:8px"><a href="#/post/' + P.id + '">apri per modificare le slide</a></div>' +
       (Ct.post || []).filter((x) => x.stato === 'da_approvare' || !x.stato).map((x) => '<div class="ap-voce"><label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" class="po_ap" data-p="' + P.id + '" data-n="' + x.n + '" checked style="width:auto">' + x.n + '. ' + e(x.titolo || '') + '</label>' +
         '<ol style="padding-left:18px;margin:6px 0">' + (x.slide || []).map((sl) => '<li><b>' + e(sl.titolo || '') + '</b>' + (sl.testo ? ' \u2014 ' + e(sl.testo) : '') + '</li>').join('') + '</ol>' +
@@ -7076,6 +7322,7 @@ async function approvazioni() {
   document.querySelectorAll('.po_go').forEach((b) => b.onclick = () => { const pid = b.dataset.p; const n = [...document.querySelectorAll('.po_ap[data-p="' + pid + '"]:checked')].map((x) => Number(x.dataset.n));
     const modifiche = {}; document.querySelectorAll('.po_cap[data-p="' + pid + '"]').forEach((x) => { modifiche[x.dataset.n] = { caption: x.value }; });
     if (!n.length) return alert('Seleziona almeno un carosello'); azione(b, () => chiama('/api/post/' + pid + '/approva', { method: 'POST', body: { n, modifiche } })); });
+  document.querySelectorAll('.po_rifai').forEach((b) => b.onclick = () => azione(b, () => chiama('/api/post/' + b.dataset.p + '/riprova', { method: 'POST', body: {} })));
   document.querySelectorAll('.ri_go').forEach((b) => b.onclick = () => azione(b, () => chiama('/api/riunioni/' + b.dataset.r + '/scegli', { method: 'POST', body: { indice: Number(b.dataset.i) } })));
   document.querySelectorAll('.doc_ok').forEach((b) => b.onclick = () => azione(b, () => chiama('/api/incarichi/' + b.dataset.id + '/visto', { method: 'POST', body: {} })));
 }
@@ -8205,14 +8452,14 @@ export function avvia(cont, dati, cb) {
 
 // src/index.js
 var json2 = (d, status = 200, extra = {}) => new Response(JSON.stringify(d), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...extra } });
-var hex2 = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+var hex3 = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 var imp = async (env, k) => (await one(env, "SELECT valore FROM impostazioni WHERE chiave=?", k))?.valore || "";
 var salva2 = (env, k, v) => run(env, "INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES (?,?)", k, v);
 async function pbkdf2(password, sale, giri = 1e5) {
   const k = await crypto.subtle.importKey("raw", new TextEncoder().encode(String(password)), "PBKDF2", false, ["deriveBits"]);
-  return hex2(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: new TextEncoder().encode(sale), iterations: giri }, k, 256));
+  return hex3(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: new TextEncoder().encode(sale), iterations: giri }, k, 256));
 }
-var casuale = (n) => hex2(crypto.getRandomValues(new Uint8Array(n)));
+var casuale = (n) => hex3(crypto.getRandomValues(new Uint8Array(n)));
 async function nuovoSegreto(testo) {
   const sale = casuale(16);
   return `pbkdf2$100000$${sale}$${await pbkdf2(testo, sale)}`;
@@ -8235,7 +8482,7 @@ async function hashPassword(env) {
 }
 async function firma2(hash, email) {
   const k = await crypto.subtle.importKey("raw", new TextEncoder().encode(hash), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  return hex2(await crypto.subtle.sign("HMAC", k, new TextEncoder().encode("momento-agency-sessione|" + email)));
+  return hex3(await crypto.subtle.sign("HMAC", k, new TextEncoder().encode("momento-agency-sessione|" + email)));
 }
 var emailAccesso = (env) => imp(env, "ADMIN_EMAIL");
 async function autorizzato(req, env) {

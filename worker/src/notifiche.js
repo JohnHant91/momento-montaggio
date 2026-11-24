@@ -52,7 +52,7 @@ export async function controllaApprovazioni(env) {
   const [reel, avatar, post, piani, cont, riun, doc] = await Promise.all([
     q("SELECT id, COALESCE(json_extract(scheda, '$.titolo_lavoro'), substr(prompt, 1, 60)) AS t FROM lavori WHERE stato='pronto' AND approvato IS NULL"),
     q("SELECT id, argomento AS t FROM avatar_piani WHERE stato='da_approvare'"),
-    q("SELECT id, COALESCE(cliente, 'caroselli') AS t FROM post_lavori WHERE stato IN ('da_approvare','attende_canva')"),
+    q("SELECT id, COALESCE(cliente, 'caroselli') AS t FROM post_lavori WHERE stato IN ('da_approvare','attende_canva','da_vedere')"),
     q("SELECT id, cliente AS t FROM piani WHERE stato='pronto' AND approvato IS NULL"),
     q("SELECT id, titolo AS t FROM contenuti WHERE stato IN ('da_approvare','da_pubblicare')"),
     q("SELECT id, COALESCE(titolo, substr(richiesta, 1, 60)) AS t FROM riunioni WHERE stato='proposte'"),

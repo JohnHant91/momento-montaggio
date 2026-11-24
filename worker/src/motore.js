@@ -1,5 +1,6 @@
 import { firmaSorgenti, linkFirmato, servi } from './archivio.js';
 import { motoreImporta } from './importa.js';
+import { motoreImpagina } from './impagina.js';
 // Motore "occhi" su GitHub Actions (repo johnhant91/momento-montaggio). Si presenta con l'identità OIDC firmata da GitHub,
 // prende i video da guardare (reel di riferimento o clip pCloud), li misura (ffmpeg, Whisper) ed estrae i fotogrammi chiave.
 // La regia manda misure + fotogrammi a Claude (la chiave resta su Cloudflare: su GitHub non c'è nessuna chiave).
@@ -43,6 +44,7 @@ const PENDENTE = (col) => `EXISTS (SELECT 1 FROM json_each(lavori.${col}) WHERE 
 export async function motoreApi(req, env, url) {
   const p = url.pathname, m = req.method;
   if (p.startsWith('/api/motore/importa')) return motoreImporta(req, env, p, m, json, identitaGitHub);
+  if (p.startsWith('/api/motore/impagina')) return motoreImpagina(req, env, p, m, json, identitaGitHub, linkFirmato);
 
   // 0) c'è qualcosa da guardare? (solo sì/no, senza dettagli: serve al motore per non installare niente se non serve)
   if (p === '/api/motore/coda' && m === 'GET') {

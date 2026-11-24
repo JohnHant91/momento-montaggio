@@ -10,9 +10,11 @@ import { SKILL } from './skill_testi.js';
 import { chi } from './consumi.js';
 import { cliente } from './agenzia.js';
 import { instagram, firmaPubblica } from './avatar.js';
+import { MODELLI, svegliaImpagina } from './impagina.js';
+import { fileSotto } from './archivio.js';
 
 const BLOCCO_MIN = 12;
-export const FASI_POST = [['ricerca', 'Post virali'], ['studio', 'Studio'], ['foto', 'Foto'], ['contenuti', 'Testi'], ['approvazione', 'Approvazione'], ['canva', 'Canva'], ['scarica', 'Slide'], ['fatto', 'Pronto']];
+export const FASI_POST = [['ricerca', 'Post virali'], ['studio', 'Studio'], ['foto', 'Foto'], ['contenuti', 'Testi'], ['approvazione', 'Approvazione'], ['impagina', 'Impaginazione'], ['fatto', 'Pronto']];
 const AGENTE_FASE = { ricerca: 'scout_ig', studio: 'occhi', foto: 'analista', contenuti: 'caroselli', scarica: 'caroselli' };
 
 export async function schemaPost(env) {
@@ -132,14 +134,23 @@ async function fasefoto(env, cfg, P) {
     await log(env, null, 'analista', `post #${P.id}: nessuna cartella di foto, i caroselli saranno grafici`);
     return;
   }
-  const tutte = (await S.pcloudClip(P.pcloud)).filter((f) => f.tipo === 'immagine').slice(0, 40);
+  const daArchivio = !/code=/.test(P.pcloud);
+  const tutte = daArchivio
+    ? (await fileSotto(env, P.pcloud)).filter((f) => f.tipo === 'immagine' && !/^logo/i.test(f.nome) && /\.(jpe?g|png|webp)$/i.test(f.nome)).slice(0, 40).map((f) => ({ nome: f.nome, percorso: f.percorso, dimensione: f.dimensione, tipo: 'immagine', tecnico: {} }))
+    : (await S.pcloudClip(P.pcloud)).filter((f) => f.tipo === 'immagine').slice(0, 40);
   if (!tutte.length) throw new Error('nella cartella pCloud non ci sono foto (jpg, png, webp)');
   const viste = J(P.foto, {})?.foto || [];
   const fatte = new Set(viste.map((f) => f.nome));
-  const lotto = tutte.filter((f) => !fatte.has(f.nome)).slice(0, 8);
+  const lotto = tutte.filter((f) => !fatte.has(f.nome)).slice(0, daArchivio ? 4 : 8);
   const immagini = [];
   for (const f of lotto) {
     try {
+      if (daArchivio) { // dall'archivio: Claude vede le foto fino a ~4 MB (le più grandi le sceglie dal nome)
+        if (!env.ARCHIVIO || f.dimensione > 3 * 1048576 || !/\.jpe?g$/i.test(f.nome)) continue;
+        const o = await env.ARCHIVIO.get(f.percorso); if (!o) continue;
+        const u8 = new Uint8Array(await o.arrayBuffer()); let bin = ''; for (let k = 0; k < u8.length; k += 32768) bin += String.fromCharCode(...u8.subarray(k, k + 32768));
+        immagini.push({ cosa: f.nome, jpeg: btoa(bin), f }); continue;
+      }
       const t = await S.pcloudApi(P.pcloud, 'getpubthumblink', { fileid: f.fileid, size: '640x640' });
       const b = await immagineBase64(`https://${t.hosts[0]}${t.path}`);
       if (b) immagini.push({ cosa: f.nome, jpeg: b.jpeg, f });
@@ -149,9 +160,9 @@ async function fasefoto(env, cfg, P) {
     const out = await S.claudeVisione(cfg, cfg.CLAUDE_MODEL, 'Sei Ada, analista di AGENZIA MOMENTO AI. Valuti foto scattate da un fotografo per usarle nei caroselli Instagram di un cliente.',
       `CLIENTE: ${P.cliente} · NICCHIA: ${P.nicchia}\nBRIEF: ${P.brief}\nPer ogni foto allegata rispondi SOLO JSON: {"foto": [{"nome": "nome file esatto", "descrizione": "cosa si vede", "qualita": 1-10, "problemi": "mosso, buio... o vuoto", "spazio_testo": "dove si può mettere il testo (alto/basso/sinistra/nessuno)", "uso": "copertina | slide | sfondo | scarta"}]}`,
       immagini.map(({ cosa, jpeg }) => ({ cosa, jpeg })), 4000);
-    for (const x of out.foto || []) { const f = lotto.find((l) => l.nome === x.nome); if (f) viste.push({ ...x, fileid: f.fileid, risoluzione: f.tecnico?.risoluzione, orientamento: f.tecnico?.orientamento }); }
+    for (const x of out.foto || []) { const f = lotto.find((l) => l.nome === x.nome); if (f) viste.push({ ...x, fileid: f.fileid, percorso: f.percorso, risoluzione: f.tecnico?.risoluzione, orientamento: f.tecnico?.orientamento }); }
   }
-  for (const f of lotto) if (!viste.some((v) => v.nome === f.nome)) viste.push({ nome: f.nome, fileid: f.fileid, uso: 'scarta', problemi: 'miniatura non disponibile' });
+  for (const f of lotto) if (!viste.some((v) => v.nome === f.nome)) viste.push(f.percorso ? { nome: f.nome, percorso: f.percorso, uso: 'contenuto', qualita: 6, descrizione: 'foto grande non vista (scelta dal nome)' } : { nome: f.nome, fileid: f.fileid, uso: 'scarta', problemi: 'miniatura non disponibile' });
   const finite = viste.length >= tutte.length;
   await run(env, 'UPDATE post_lavori SET foto=?, fase=?, errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?', JSON.stringify({ totale: tutte.length, foto: viste }), finite ? 'contenuti' : 'foto', ora(), P.id);
   await log(env, null, 'analista', `🔎 post #${P.id}: ${viste.length}/${tutte.length} foto guardate${finite ? `, ${viste.filter((v) => v.uso !== 'scarta').length} buone` : ''}`);
@@ -161,7 +172,9 @@ async function fasefoto(env, cfg, P) {
 async function faseContenuti(env, cfg, P) {
   const C = P.cliente_id ? await cliente(env, P.cliente_id) : null;
   const St = J(P.studio, {}), F = (J(P.foto, {})?.foto || []).filter((f) => f.uso !== 'scarta').sort((a, b) => (b.qualita || 0) - (a.qualita || 0));
-  const out = await S.claude(cfg, `Sei Pietro (caroselli e grafiche) con Giulia (copywriter) di AGENZIA MOMENTO AI. Scrivi post e caroselli Instagram pronti da impaginare su Canva.
+  const out = await S.claude(cfg, `Sei Pietro (caroselli e grafiche) con Giulia (copywriter) di AGENZIA MOMENTO AI. Scrivi post e caroselli Instagram pronti da impaginare con i modelli dell'agenzia.
+MODELLI DI SLIDE (scegli per ogni slide quello giusto, la copertina con foto se c'è una foto buona):
+${Object.entries(MODELLI).map(([k, v]) => '- ' + k + ': ' + v).join('\n')}
 REGOLE: ogni slide ha UNA idea; copertina con gancio forte e corto; testi brevi (rispetta il massimo di parole per slide); l'ultima slide chiude con una CTA chiara;
 usa SOLO le foto dell'elenco (nome file esatto) quando ci sono, la migliore come copertina, mai la stessa foto due volte nello stesso carosello; niente dati inventati sul cliente.
 ===== SKILL: carousel-writer =====
@@ -178,7 +191,7 @@ FOTO DISPONIBILI (scattate da Johnny): ${F.length ? F.map((f) => `${f.nome} · $
 Rispondi SOLO JSON:
 {"stile": {"palette": ["#hex", "#hex", "#hex"], "font_titoli": "...", "font_testo": "...", "mood": "...", "regole": "indicazioni grafiche per tutto il set"},
  "post": [{"n": 1, "tipo": "carosello | post", "titolo": "titolo interno", "obiettivo": "salvataggi | condivisioni | commenti | contatti",
-   "slide": [{"n": 1, "ruolo": "copertina | contenuto | cta", "titolo": "testo grande", "testo": "testo piccolo o vuoto", "foto": "nome file o null", "layout": "come impaginarla"}],
+   "slide": [{"n": 1, "ruolo": "copertina | contenuto | cta", "modello": "uno dei MODELLI", "titolo": "testo grande", "testo": "testo piccolo o vuoto (per lista: un punto per riga)", "foto": "nome file o null"}],
    "caption": "caption completa con gancio e CTA", "hashtag": ["8-12 hashtag senza #"], "alt": "testo alternativo"}]}`, { maxTokens: 16000 });
   const post = (out.post || []).slice(0, P.numero).map((p, i) => ({ ...p, n: i + 1, stato: 'da_approvare' }));
   await run(env, "UPDATE post_lavori SET contenuti=?, fase='approvazione', stato='da_approvare', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify({ stile: out.stile || {}, post }), ora(), P.id);
@@ -207,7 +220,7 @@ async function faseScarica(env, cfg, P) {
 export async function avanzaPost(env) {
   await schemaPost(env);
   const adesso = ora();
-  const L = await all(env, "SELECT * FROM post_lavori WHERE stato='in_corso' AND fase IN ('ricerca','studio','foto','contenuti','scarica') AND (blocco_fino IS NULL OR blocco_fino < ?) ORDER BY id LIMIT 2", adesso);
+  const L = await all(env, "SELECT * FROM post_lavori WHERE stato='in_corso' AND fase IN ('ricerca','studio','foto','contenuti','scarica','impagina') AND (blocco_fino IS NULL OR blocco_fino < ?) ORDER BY id LIMIT 2", adesso);
   if (!L.length) return;
   const cfg0 = await configurazione(env);
   for (const P0 of L) {
@@ -220,6 +233,16 @@ export async function avanzaPost(env) {
       else if (P.fase === 'foto') await fasefoto(env, cfg, P);
       else if (P.fase === 'contenuti') await faseContenuti(env, cfg, P);
       else if (P.fase === 'scarica') await faseScarica(env, cfg, P);
+      else if (P.fase === 'impagina') {
+        // chiamo il motore GitHub; se dopo 20 minuti non ha consegnato lo richiamo
+        const cv = J(P.canva, {}) || {};
+        if (!cv.svegliato || Date.now() - new Date(cv.svegliato) > 20 * 60e3) {
+          const ok = await svegliaImpagina(env, P.id);
+          await run(env, "UPDATE post_lavori SET canva=json_set(COALESCE(canva,'{}'), '$.svegliato', ?), tentativi=0, blocco_fino=? WHERE id=?", ora(), new Date(Date.now() + 5 * 60e3).toISOString(), P.id);
+          if (!ok) throw new Error('GitHub non risponde: controlla il token GitHub in Impostazioni');
+          await log(env, null, 'caroselli', `🎨 post #${P.id}: il motore impagina le slide`);
+        } else await run(env, 'UPDATE post_lavori SET tentativi=0 WHERE id=?', P.id);
+      }
     } catch (e) {
       const msg = String(e?.message || e).slice(0, 400);
       const credito = /credit balance|billing/i.test(msg);
@@ -241,7 +264,7 @@ export async function apiPost(req, env, p, m, json) {
     const d = await corpo();
     if (!d.cliente_id && String(d.cliente || '').trim().length < 2) return json({ errore: 'scegli o scrivi il cliente' }, 400);
     if (String(d.brief || '').trim().length < 10) return json({ errore: 'scrivi di cosa devono parlare (almeno una frase)' }, 400);
-    if (d.pcloud && !/code=/.test(d.pcloud)) return json({ errore: 'il link pCloud deve essere il link pubblico della cartella (contiene "code=")' }, 400);
+    if (d.pcloud && /^https?:/.test(d.pcloud) && !/code=/.test(d.pcloud)) return json({ errore: 'il link pCloud deve essere il link pubblico della cartella (contiene "code=")' }, 400);
     return json({ id: await nuovoLavoroPost(env, d) });
   }
   // anteprime delle immagini dei post virali (Instagram e TikTok non si lasciano incorporare da altri siti)
@@ -280,8 +303,9 @@ export async function apiPost(req, env, p, m, json) {
     const Ct = J(P.contenuti, {});
     Ct.post = (Ct.post || []).map((x) => { const mod = d.modifiche?.[x.n] || {}; return { ...x, slide: Array.isArray(mod.slide) ? mod.slide : x.slide, caption: typeof mod.caption === 'string' ? mod.caption.slice(0, 2200) : x.caption, stato: ok.has(x.n) ? 'approvato' : 'scartato' }; });
     if (!Ct.post.some((x) => x.stato === 'approvato')) return json({ errore: 'approva almeno un post' }, 400);
-    await run(env, "UPDATE post_lavori SET contenuti=?, fase='canva', stato='attende_canva', blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(Ct), ora(), P.id);
-    await log(env, null, 'caroselli', `🎨 post #${P.id}: ${ok.size} approvati da Johnny, pronti per Canva`);
+    for (const k of Object.keys(J(P.slide_file, {}) || {})) await env.VIDEO.delete(k);
+    await run(env, "UPDATE post_lavori SET contenuti=?, canva=NULL, slide_file=NULL, fase='impagina', stato='in_corso', blocco_fino=NULL, tentativi=0, aggiornato=? WHERE id=?", JSON.stringify(Ct), ora(), P.id);
+    await log(env, null, 'caroselli', `🎨 post #${P.id}: ${ok.size} approvati da Johnny, li impagino`);
     return json({ ok: true });
   }
   if (m === 'POST' && mm[2] === 'canva') { // {post:[{n, design_id, link, png:[url…]}]} le slide fatte su Canva
@@ -319,7 +343,7 @@ export async function apiPost(req, env, p, m, json) {
     if (ok.length) await log(env, null, 'social', `📲 ${ok.length} ${ok.length === 1 ? 'carosello programmato' : 'caroselli programmati'} su Instagram: ${ok.map((f) => `#${f.n} ${f.quando.slice(0, 16).replace('T', ' ')}`).join(', ')}`);
     return json({ ok: ok.length > 0, fatti });
   }
-  if (m === 'POST' && mm[2] === 'riprova') { await run(env, "UPDATE post_lavori SET stato=CASE WHEN fase='canva' THEN 'attende_canva' ELSE 'in_corso' END, errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", ora(), P.id); return json({ ok: true }); }
+  if (m === 'POST' && mm[2] === 'riprova') { await run(env, "UPDATE post_lavori SET stato='in_corso', fase=CASE WHEN fase IN ('canva','fatto') AND contenuti IS NOT NULL THEN 'impagina' ELSE fase END, canva=CASE WHEN fase IN ('canva','fatto','impagina') THEN NULL ELSE canva END, errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", ora(), P.id); return json({ ok: true }); }
   if (m === 'DELETE') {
     for (const k of Object.keys(J(P.slide_file, {}) || {})) await env.VIDEO.delete(k);
     await run(env, 'DELETE FROM post_lavori WHERE id=?', P.id); return json({ ok: true });

@@ -1,0 +1,38 @@
+# Impaginatore dei caroselli: fotografa le slide (modelli HTML dell'agenzia) con Chrome, lanciato dall'app.
+# Si presenta con l'identità firmata da GitHub (OIDC): nessuna chiave salvata qui. Nel log solo numeri.
+name: impagina
+
+on:
+  workflow_dispatch:
+    inputs:
+      post:
+        description: "id del lavoro post"
+        required: false
+        default: ""
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: impagina-${{ github.event.inputs.post || 'giro' }}
+  cancel-in-progress: false
+
+env:
+  REGIA: https://momento-reel.gestionalelcl.workers.dev
+
+jobs:
+  impagina:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: motore/impagina.py
+          sparse-checkout-cone-mode: false
+      - name: Font
+        run: sudo apt-get install -y -qq fonts-noto-color-emoji > /dev/null 2>&1 || true
+      - name: Impagina le slide
+        env:
+          POST: ${{ github.event.inputs.post }}
+        run: python3 motore/impagina.py

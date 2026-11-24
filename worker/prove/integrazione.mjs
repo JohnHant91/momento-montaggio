@@ -205,7 +205,16 @@ P = await giro(); ok(P.fase === 'contenuti' && P.foto.foto.length === 2 && P.fot
 P = await giro(); ok(P.stato === 'da_approvare' && P.contenuti.post.length === 3 && P.contenuti.post[0].slide[0].foto === 'a.jpg', 'Pietro e Giulia: 3 caroselli (non 4), con la foto giusta in copertina');
 r = await chiama('/api/post/' + pid2 + '/approva', { method: 'POST', body: { n: [1, 2], modifiche: { 1: { caption: 'caption di Johnny' } } } });
 P = (await chiama('/api/post/' + pid2)).j;
-ok(P.stato === 'attende_canva' && P.contenuti.post[0].caption === 'caption di Johnny' && P.contenuti.post[2].stato === 'scartato', 'Johnny approva 2 caroselli, uno modificato: pronti per Canva');
+ok(P.fase === 'impagina' && P.stato === 'in_corso' && P.contenuti.post[0].caption === 'caption di Johnny' && P.contenuti.post[2].stato === 'scartato', 'Johnny approva 2 caroselli, uno modificato: vanno all\'impaginatore');
+{ const { preparaImpaginazione } = await import('../src/impagina.js');
+  const Pr = env.DB._db.prepare('SELECT * FROM post_lavori WHERE id=?').get(pid2); const pac = await preparaImpaginazione(env, Pr);
+  ok(pac.slide.length >= 2 && pac.slide.every((x) => /<!DOCTYPE html>/.test(x.html) && /^post-\d+\/\d+-\d+\.png$/.test(x.chiave)), 'ogni slide approvata diventa una pagina da fotografare (' + pac.slide.length + ')');
+  const pass = 'q'.repeat(40); env.DB._db.prepare("UPDATE post_lavori SET canva=? WHERE id=?").run(JSON.stringify({ pass }), pid2);
+  const k = pac.slide.slice(0, 2).map((x) => x.chiave);
+  for (const c of k) await W.fetch(new Request('https://x/api/motore/impagina/' + pid2 + '/slide?k=' + encodeURIComponent(c), { method: 'PUT', headers: { 'x-pass': pass }, body: new Uint8Array([255, 216, 255]) }), env);
+  await W.fetch(new Request('https://x/api/motore/impagina/' + pid2 + '/fine', { method: 'POST', headers: { 'x-pass': pass, 'content-type': 'application/json' }, body: JSON.stringify({ fatte: k, errori: [] }) }), env);
+  P = (await chiama('/api/post/' + pid2)).j; ok(P.stato === 'da_vedere' && P.slide_file.length === 2, 'le slide impaginate tornano e vanno in Approvazioni');
+  const a = await chiama('/api/azienda'); ok(a.j.da_approvare >= 1, 'il contatore delle approvazioni le conta'); }
 r = await chiama('/api/post/' + pid2 + '/canva', { method: 'POST', body: { post: [{ n: 1, design_id: 'DAF1234567x', link: 'https://www.canva.com/design/DAF/edit', png: ['https://export.canva.example/1.png', 'https://export.canva.example/2.png'] }] } });
 P = await giro();
 ok(P.stato === 'fatto' && P.slide_file.length === 2, 'le slide di Canva tornano in archivio');

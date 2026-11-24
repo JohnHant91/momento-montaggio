@@ -370,7 +370,7 @@ export async function apiAgenzia(req, env, p, m, json) {
     // tutto quello che aspetta Johnny (sezione Approvazioni unica)
     const n = async (sql) => (await one(env, sql).catch(() => null))?.n || 0;
     approvare.n += await n("SELECT COUNT(*) AS n FROM lavori WHERE stato='pronto' AND approvato IS NULL") + await n("SELECT COUNT(*) AS n FROM avatar_piani WHERE stato='da_approvare'") +
-      await n("SELECT COUNT(*) AS n FROM post_lavori WHERE stato IN ('da_approvare','attende_canva')") + await n("SELECT COUNT(*) AS n FROM piani WHERE stato='pronto' AND approvato IS NULL") +
+      await n("SELECT COUNT(*) AS n FROM post_lavori WHERE stato IN ('da_approvare','attende_canva','da_vedere')") + await n("SELECT COUNT(*) AS n FROM piani WHERE stato='pronto' AND approvato IS NULL") +
       await n("SELECT COUNT(*) AS n FROM riunioni WHERE stato='proposte'") + await n("SELECT COUNT(*) AS n FROM incarichi WHERE stato IN ('fatto','da_approvare') AND visto IS NULL AND esito LIKE '%documento%'");
     return json({ adesso, uffici: UFFICI, squadra: SQUADRA, attivi, recenti, da_approvare: approvare.n, conti, clienti: clienti.n, reel: reelAttivi, piani: pianiAttivi, profilo, postl, feed, gestionale: !!env.GEST });
   }
