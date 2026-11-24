@@ -992,17 +992,31 @@ class HyperTalking(TalkingHead):
         return rep
 
 
-def misura_camera(src, t_in, durata, info):
+def misura_camera(src, t_in, durata, info, ritaglio=None):
     """Movimento della camera nel tratto: tremolio (vibrazione), scatto (il salto più brusco tra due fotogrammi) e deriva.
     Un tratto è "lineare" se non trema e non ha scatti; una panoramica lenta e regolare va bene."""
+    # misuro sulla parte che finirà nel reel (ritaglio verticale ed eventuale avvicinamento): un orizzontale tagliato in
+    # verticale ingrandisce il tremolio ~3 volte, quindi va misurato lì e non sull'inquadratura intera
     w = 160
-    h = int(round(w * info["h"] / max(1, info["w"]) / 2) * 2) if info.get("w") else 284
+    vf = "fps=15"
+    rw, rh = info.get("w") or 1080, info.get("h") or 1920
+    if ritaglio:
+        z = max(1.0, float(ritaglio.get("z") or 1))
+        cw, ch = rw, rh
+        if rw / max(1, rh) > 9 / 16:
+            cw = rh * 9 / 16
+        cw, ch = cw / z, ch / z
+        cx, cy = float(ritaglio.get("cx", 0.5)), float(ritaglio.get("cy", 0.5))
+        x0, y0 = min(max(0, cx * rw - cw / 2), rw - cw), min(max(0, cy * rh - ch / 2), rh - ch)
+        vf += f",crop={int(cw) // 2 * 2}:{int(ch) // 2 * 2}:{int(x0)}:{int(y0)}"
+        rw, rh = cw, ch
+    h = int(round(w * rh / max(1, rw) / 2) * 2)
     p = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-ss", f"{t_in:.3f}", "-t", f"{max(durata, 0.3):.3f}", "-i", src,
-                        "-vf", f"fps=15,scale={w}:{h},format=gray", "-f", "rawvideo", "-"], capture_output=True)
+                        "-vf", f"{vf},scale={w}:{h},format=gray", "-f", "rawvideo", "-"], capture_output=True)
     dati = np.frombuffer(p.stdout, dtype=np.uint8)
     nf = dati.size // (w * h)
     if nf < 4:
-        return {"tremolio": 9.0, "scatto": 9.0, "deriva": 1.0, "buio": True}
+        return {"tremolio": 9.0, "scatto": 9.0, "deriva": 1.0, "salto_immagine": 0.0, "buio": True}
     g = list(dati[: nf * w * h].reshape(nf, h, w).astype(np.float32))
     fin = np.outer(np.hanning(h), np.hanning(w))
     spost = []
@@ -1024,7 +1038,7 @@ def misura_camera(src, t_in, durata, info):
 
 def voto_tratto(m):
     """Più basso è meglio. Un tratto è buono sotto 0,5: niente vibrazioni, niente scatti, niente salti d'immagine."""
-    return m["tremolio"] + 0.35 * m["scatto"] + 1.5 * max(0, m["deriva"] - 0.15) + (0.03 * max(0, m["salto_immagine"] - 45)) + (5 if m["buio"] else 0)
+    return m["tremolio"] + 0.35 * m["scatto"] + 0.8 * max(0, m["deriva"] - 0.3) + (0.03 * max(0, m["salto_immagine"] - 45)) + (5 if m["buio"] else 0)
 
 
 TRANSIZIONI_REMOTION = ["taglio", "dissolvenza", "zoom_blur", "whip_sx", "whip_dx", "whip_su", "glitch", "rgb_split", "flash_bianco",
@@ -1058,10 +1072,11 @@ class MontatoreCompleto(TalkingHead):
             tt = sorted({round(min(fine, max(0.0, vicino)), 2)} | {round(fine * k / passi, 2) for k in range(passi + 1)})
             return [t for t in tt if t <= fine]
 
-        def migliore(src, info, serve, vicino):
+        def migliore(src, info, serve, vicino, zf=None):
             cand = candidati(src, info, serve, vicino)
+            rit = {"z": (zf or {}).get("z", 1), "cx": (zf or {}).get("cx", 0.5), "cy": (zf or {}).get("cy", 0.5)}
             with ThreadPoolExecutor(PARALLELO) as ex:
-                voti = list(ex.map(lambda t: (voto_tratto(misura_camera(src, t, serve, info)), t), cand))
+                voti = list(ex.map(lambda t: (voto_tratto(misura_camera(src, t, serve, info, rit)), t), cand))
             occ = usati.get(src, [])
             voti = [(v + 0.02 * abs(t - vicino), v, t) for v, t in voti if not any(a - serve < t < b for a, b in occ)]
             return min(voti) if voti else (99, 99, vicino)
@@ -1073,7 +1088,7 @@ class MontatoreCompleto(TalkingHead):
             info = s["_info"]
             if info["dur"] < serve + 0.05:
                 continue
-            _, voto, t = migliore(s["file"], info, serve, float(s.get("in", 0)))
+            _, voto, t = migliore(s["file"], info, serve, float(s.get("in", 0)), s.get("zoom_fisso"))
             if voto <= self.BUONO:
                 if abs(t - float(s.get("in", 0))) > 0.05:
                     spostati += 1
@@ -1097,10 +1112,20 @@ class MontatoreCompleto(TalkingHead):
                     s.update({"file": r["file"], "_info": r["_info"], "in": tr, "in_preciso": True, "nome": r.get("nome"), "clip": r.get("clip")})
                     cambiati += 1
                 else:
-                    s["in"], s["in_preciso"] = t, True
-                    self.qc.append(f"pezzo {k + 1} trema ancora (voto {voto:.2f}): nessuna ripresa ferma di quel momento, serve un'altra clip")
+                    # niente tratto fermo né riprese di riserva: il pezzo si toglie (meglio un reel più corto che un pezzo mosso)
+                    s["_scarta"] = True
+                    self.report.append(f"pezzo {k + 1}: {s.get('nome') or 'clip'} mossa in ogni tratto e nessuna ripresa ferma di quel momento: tolto")
+                    continue
             usati.setdefault(s["file"], []).append((float(s["in"]), float(s["in"]) + serve))
-        self.avvisa("editor", f"controllo il girato: {spostati} pezzi spostati sul tratto fermo, {cambiati} clip mosse sostituite con altre riprese")
+        tolti = [s for s in segmenti if s.get("_scarta")]
+        if tolti and len(segmenti) - len(tolti) >= 4:
+            segmenti[:] = [s for s in segmenti if not s.get("_scarta")]
+        elif tolti:  # troppo pochi pezzi rimasti: tengo i migliori tratti trovati e lo segnalo
+            for s in tolti:
+                s.pop("_scarta", None)
+                self.qc.append(f"pezzo {s.get('nome') or ''} trema in ogni tratto: servono altre riprese")
+            tolti = []
+        self.avvisa("editor", f"controllo il girato: {spostati} pezzi spostati sul tratto fermo, {cambiati} clip mosse sostituite con altre riprese" + (f", {len(tolti)} pezzi mossi tolti" if tolti else ""))
 
     def monta(self, out_finale):
         t0 = time.time()
