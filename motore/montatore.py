@@ -175,7 +175,7 @@ class Montatore:
         lo, hi = min(float(np.percentile(lum, 0.5)), 20.0), max(float(np.percentile(lum, 99.5)), 90.0)
         yn = (y - lo) / max(1.0, hi - lo)
         esp = math.log(max(yn, 0.03)) / math.log(max(y_target, 60) / 255)  # >1 = schiarire
-        gamma = float(np.clip(esp, 0.85, 2.3)) if 3 < y < 245 else 1.0
+        gamma = float(np.clip(esp, 0.85, 2.0)) if 3 < y < 245 else 1.0  # oltre 2 la grana del sensore esplode
         livelli = f"colorlevels=rimin={lo / 255:.3f}:gimin={lo / 255:.3f}:bimin={lo / 255:.3f}:rimax={hi / 255:.3f}:gimax={hi / 255:.3f}:bimax={hi / 255:.3f},"
         filtro = f"colorchannelmixer=rr={gain[0]:.3f}:gg={gain[1]:.3f}:bb={gain[2]:.3f},{livelli}eq=gamma={gamma:.3f}:saturation=1.22"
         if gamma > 1.3:  # dopo averla aperta, un filo di contrasto sui mezzitoni perché non sembri lattiginosa
@@ -392,19 +392,24 @@ class Montatore:
         mov = self.movimento(s.get("effetto", ""), dur)
         if mov:
             filtri.append(mov)
+        # pulizia della grana PRIMA di schiarire: più il pezzo era buio (gamma alta), più rumore del sensore viene fuori
+        mg = re.search(r"eq=gamma=([0-9.]+)", corr or "")  # i pezzi vanno in parallelo: la gamma la leggo dal filtro del pezzo
+        g = float(mg.group(1)) if mg else 1.0
+        dn = "hqdn3d=1.5:1.5:3:3" if g <= 1.15 else "hqdn3d=2.5:2:5:4" if g <= 1.5 else "hqdn3d=3.5:3:6:5"
+        filtri.append(dn)
+        if g > 1.15:
+            self.report.append(f"pezzo {i + 1}: grana pulita (era buio, schiarito con gamma {g:.2f})")
         if corr:
             filtri.append(corr)
         filtri.append(self.filtro_colore(lut))
-        # rifinitura da consegna: nitidezza leggera per lo schermo del telefono + grana finissima contro le bande nei cieli/sfumature
-        filtri.append("unsharp=5:5:0.35:5:5:0")
+        # rifinitura da consegna: nitidezza leggera solo sulla luminanza (sui pezzi schiariti di meno: riaccenderebbe la grana)
+        filtri.append("unsharp=5:5:0.35:5:5:0" if g <= 1.15 else "unsharp=5:5:0.2:5:5:0")
         if "glow" in globali:  # alone luminoso morbido (romantico, natalizio)
             filtri.append("split[ga][gb];[gb]gblur=sigma=22[gg];[ga][gg]blend=all_mode=screen:all_opacity=0.18")
         if "vhs" in globali:  # videocassetta: colori sbavati, morbidezza, rumore e leggero tremolio di righe
             filtri.append("rgbashift=rh=4:bh=-4,gblur=sigma=0.8,noise=alls=10:allf=t+u,eq=saturation=1.15:contrast=0.95")
         if "grana" in globali:
             filtri.append("noise=alls=6:allf=t")
-        elif "vhs" not in globali:
-            filtri.append("noise=alls=2:allf=t")
         if "vignettatura" in globali and not self.p.get("luminoso", True):  # regola di Johnny: reel luminosi, niente bordi scuri
             filtri.append("vignette=PI/5")
         filtri.append(f"trim=duration={dur:.3f},setpts=PTS-STARTPTS,setsar=1,format=yuv420p")

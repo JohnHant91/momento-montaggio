@@ -5,6 +5,7 @@ on:
       clip: { required: true }
       da: { required: false, default: "2" }
       ruota: { required: false, default: "0" }
+      luts: { required: false, default: "" }
 permissions: { id-token: write, contents: write }
 env: { REGIA: "https://momento-reel.gestionalelcl.workers.dev" }
 jobs:
@@ -18,14 +19,14 @@ jobs:
           command -v ffmpeg >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg >/dev/null)
           pip install -q -r motore/requirements.txt
       - name: Pezzo
-        env: { CLIP: "${{ github.event.inputs.clip }}", DA: "${{ github.event.inputs.da }}", DUR: "6", RUOTA: "${{ github.event.inputs.ruota }}" }
+        env: { CLIP: "${{ github.event.inputs.clip }}", DA: "${{ github.event.inputs.da }}", DUR: "6", RUOTA: "${{ github.event.inputs.ruota }}", LUTS: "${{ github.event.inputs.luts }}" }
         run: python3 motore/guarda_clip.py && python3 motore/prova_pezzo.py
       - name: Cifra
         run: |
-          mkdir -p /tmp/out && cd /tmp/studio && tar czf /tmp/t.tgz *.mp4
+          mkdir -p /tmp/out && cd /tmp/studio && tar czf /tmp/t.tgz $(ls *.mp4 *.jpg 2>/dev/null)
           openssl rand -out /tmp/k.bin 32
           openssl enc -aes-256-cbc -pbkdf2 -in /tmp/t.tgz -out /tmp/out/t.enc -pass file:/tmp/k.bin
           openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/motore/chiave_studio.pem" -in /tmp/k.bin -out /tmp/out/k.enc
-          cd /tmp/out && git init -q && git checkout -q -b prova-pezzo && git add . \
+          cd /tmp/out && git init -q && git checkout -q -b prova-pezzo-${{ github.run_id }} && git add . \
           && git -c user.name=motore -c user.email=motore@momento commit -qm "pezzo" \
-          && git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" prova-pezzo
+          && git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" prova-pezzo-${{ github.run_id }}
