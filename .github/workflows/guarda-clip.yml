@@ -21,7 +21,7 @@ jobs:
         env: { CLIP: "${{ github.event.inputs.clip }}", DA: "${{ github.event.inputs.da }}", DUR: "${{ github.event.inputs.dur }}" }
         run: |
           command -v ffmpeg >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg >/dev/null)
-          python3 motore/guarda_clip.py
+          pip install -q pillow && python3 motore/guarda_clip.py
       - name: Cifra
         run: |
           mkdir -p /tmp/out && cd /tmp/tavole && tar czf /tmp/t.tgz *
