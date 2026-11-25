@@ -133,21 +133,48 @@ class Montatore:
         m = medi.mean(axis=0)
         return {"rgb": m / max(m.mean(), 1), "y": float(np.median(lum))}
 
+    @staticmethod
+    def esposizione(lum, y_target):
+        """Punto nero/bianco e gamma che portano il pezzo alla luminosità voluta."""
+        y = float(np.median(lum))
+        lo, hi = min(float(np.percentile(lum, 0.3)), 48.0), max(float(np.percentile(lum, 99.5)), 90.0)
+        yn = (y - lo) / max(1.0, hi - lo)
+        esp = math.log(max(yn, 0.03)) / math.log(max(y_target, 60) / 255)  # >1 = schiarire
+        gamma = float(np.clip(esp, 0.85, 2.0)) if 3 < y < 245 else 1.0  # oltre 2 la grana del sensore esplode
+        return lo, hi, gamma
+
+    @staticmethod
+    def colore_dopo(medi, lo, hi, gamma):
+        """Quanto colore resta (0-255, max-min medio sui toni medi) dopo livelli + gamma: le clip buie aperte molto diventano grigie."""
+        sim = np.clip((medi - lo) / max(1.0, hi - lo), 0, 1) ** (1 / gamma) * 255
+        l = sim.mean(axis=1)
+        sim = sim[(l > 20) & (l < 235)]
+        return float((sim.max(axis=1) - sim.min(axis=1)).mean()) if len(sim) > 50 else None
+
     def riferimento(self, segmenti):
         """Shot matching: il colore e l'esposizione di riferimento sono la mediana di tutti i pezzi, così le clip
         sembrano girate nella stessa luce (prima ognuna veniva neutralizzata per conto suo e il reel 'saltava')."""
         def misura(s):
             vel = 0.5 if s.get("rallenty") else float(s.get("velocita", 1) or 1)
             q = self.fotogrammi(s["file"], float(s.get("in", 0)), max(0.3, float(s["durata"]) * vel), 3)
-            return self.statistiche(q)
+            st = self.statistiche(q)
+            if st:
+                px = np.concatenate([x.reshape(-1, 3).astype(np.float32) for _, x in q])
+                lum = px.mean(axis=1)
+                st["px"] = px[(lum > 20) & (lum < 235)], lum
+            return st
         with ThreadPoolExecutor(PARALLELO) as ex:
             st = [x for x in ex.map(misura, segmenti) if x]
         if len(st) < 2:
             return None
         rgb = np.median(np.array([x["rgb"] for x in st]), axis=0)
         y = float(np.clip(np.median([x["y"] for x in st]), 100, 118))  # luminoso sì, ma non lattiginoso
-        self.report.append(f"color: riferimento comune per {len(st)} pezzi (luminosità {y:.0f}, dominante R{rgb[0]:.2f} G{rgb[1]:.2f} B{rgb[2]:.2f})")
-        return {"rgb": rgb, "y": y}
+        yt = max(y, 106)
+        col = [self.colore_dopo(x["px"][0], *self.esposizione(x["px"][1], yt)) for x in st]
+        col = [c for c in col if c]
+        sat = float(np.median(col)) if col else None
+        self.report.append(f"color: riferimento comune per {len(st)} pezzi (luminosità {y:.0f}, dominante R{rgb[0]:.2f} G{rgb[1]:.2f} B{rgb[2]:.2f}, colore {sat or 0:.0f})")
+        return {"rgb": rgb, "y": y, "sat": sat}
 
     def correzione(self, quadri):
         """Bianco ed esposizione del pezzo portati verso il riferimento comune (o, senza riferimento, gray-world delicato)."""
@@ -161,8 +188,8 @@ class Montatore:
         m = medi.mean(axis=0)
         rif = getattr(self, "rif_colore", None)
         if rif is not None:
-            gain = np.clip(rif["rgb"] / np.maximum(m / max(m.mean(), 1), 0.01), 0.86, 1.14)
-            gain = 1 + (gain - 1) * 0.85
+            # regola di Johnny: tutte le clip con la stessa color -> bilanciamento pieno verso il riferimento comune
+            gain = np.clip(rif["rgb"] / np.maximum(m / max(m.mean(), 1), 0.01), 0.8, 1.2)
             y_target = max(rif["y"], 106)
         else:
             gain = np.clip(m.mean() / np.maximum(m, 1), 0.88, 1.12)
@@ -173,12 +200,15 @@ class Montatore:
         # quasi a 255, poi una gamma che porta i mezzitoni a ~118. (Prima la gamma era calcolata al contrario: le clip
         # scure venivano scurite ancora.)
         # il punto più scuro del pezzo diventa nero vero (prima solo se era già sotto 20: i neri restavano grigi)
-        lo, hi = min(float(np.percentile(lum, 0.3)), 48.0), max(float(np.percentile(lum, 99.5)), 90.0)
-        yn = (y - lo) / max(1.0, hi - lo)
-        esp = math.log(max(yn, 0.03)) / math.log(max(y_target, 60) / 255)  # >1 = schiarire
-        gamma = float(np.clip(esp, 0.85, 2.0)) if 3 < y < 245 else 1.0  # oltre 2 la grana del sensore esplode
+        lo, hi, gamma = self.esposizione(lum, y_target)
+        # stessa intensità di colore per tutti i pezzi (il cioccolato sciolto, buio e aperto molto, veniva grigio)
+        satur = 1.22
+        if rif is not None and rif.get("sat"):
+            dopo = self.colore_dopo(medi * gain, lo, hi, gamma)
+            if dopo:
+                satur = 1.22 * float(np.clip(rif["sat"] / dopo, 0.75, 1.5))
         livelli = f"colorlevels=rimin={lo / 255:.3f}:gimin={lo / 255:.3f}:bimin={lo / 255:.3f}:rimax={hi / 255:.3f}:gimax={hi / 255:.3f}:bimax={hi / 255:.3f},"
-        filtro = f"colorchannelmixer=rr={gain[0]:.3f}:gg={gain[1]:.3f}:bb={gain[2]:.3f},{livelli}eq=gamma={gamma:.3f}:saturation=1.22"
+        filtro = f"colorchannelmixer=rr={gain[0]:.3f}:gg={gain[1]:.3f}:bb={gain[2]:.3f},{livelli}eq=gamma={gamma:.3f}:saturation={satur:.3f}"
         # sempre un piede nelle ombre: neri densi, mezzitoni dove sono (più deciso se la clip è stata aperta molto)
         # la gamma che apre una clip buia alza soprattutto le ombre (neri grigi): le riporto giù in proporzione
         f = float(np.clip((gamma - 1.0) / 1.0, 0.0, 1.0))
