@@ -1097,6 +1097,10 @@ class MontatoreCompleto(TalkingHead):
             info = s["_info"]
             if info["dur"] < serve + 0.05:
                 continue
+            if s.get("in_bloccato"):  # punto scelto da Johnny: non si sposta e non si sostituisce
+                usati.setdefault(s["file"], []).append((float(s["in"]), float(s["in"]) + serve))
+                self.report.append(f"pezzo {k + 1}: tenuto da {float(s['in']):.1f}s come richiesto")
+                continue
             _, voto, t = migliore(s["file"], info, serve, float(s.get("in", 0)), s.get("zoom_fisso"))
             if voto <= self.BUONO:
                 if abs(t - float(s.get("in", 0))) > 0.05:
