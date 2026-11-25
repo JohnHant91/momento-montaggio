@@ -180,7 +180,9 @@ class Montatore:
         livelli = f"colorlevels=rimin={lo / 255:.3f}:gimin={lo / 255:.3f}:bimin={lo / 255:.3f}:rimax={hi / 255:.3f}:gimax={hi / 255:.3f}:bimax={hi / 255:.3f},"
         filtro = f"colorchannelmixer=rr={gain[0]:.3f}:gg={gain[1]:.3f}:bb={gain[2]:.3f},{livelli}eq=gamma={gamma:.3f}:saturation=1.22"
         # sempre un piede nelle ombre: neri densi, mezzitoni dove sono (più deciso se la clip è stata aperta molto)
-        filtro += ",curves=all='0/0 0.1/0.06 0.25/0.21 0.5/0.5 0.75/0.79 1/1'" if gamma > 1.3 else ",curves=all='0/0 0.1/0.07 0.25/0.23 0.5/0.5 1/1'"
+        # la gamma che apre una clip buia alza soprattutto le ombre (neri grigi): le riporto giù in proporzione
+        f = float(np.clip((gamma - 1.0) / 1.0, 0.0, 1.0))
+        filtro += (f",curves=all='0/0 0.1/{0.07 - 0.04 * f:.3f} 0.2/{0.18 - 0.1 * f:.3f} 0.4/{0.39 - 0.07 * f:.3f} 0.6/{0.6 - 0.015 * f:.3f} 0.8/0.8 1/1'")
         # sovraesposizione: tante zone quasi bianche o immagine troppo chiara -> curva che recupera le alte luci
         bruciati = float((lum > 240).mean())
         p98 = float(np.percentile(lum, 98))
