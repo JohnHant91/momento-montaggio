@@ -145,7 +145,7 @@ class Montatore:
         if len(st) < 2:
             return None
         rgb = np.median(np.array([x["rgb"] for x in st]), axis=0)
-        y = float(np.clip(np.median([x["y"] for x in st]), 105, 132))
+        y = float(np.clip(np.median([x["y"] for x in st]), 100, 118))  # luminoso sì, ma non lattiginoso
         self.report.append(f"color: riferimento comune per {len(st)} pezzi (luminosità {y:.0f}, dominante R{rgb[0]:.2f} G{rgb[1]:.2f} B{rgb[2]:.2f})")
         return {"rgb": rgb, "y": y}
 
@@ -163,23 +163,24 @@ class Montatore:
         if rif is not None:
             gain = np.clip(rif["rgb"] / np.maximum(m / max(m.mean(), 1), 0.01), 0.86, 1.14)
             gain = 1 + (gain - 1) * 0.85
-            y_target = max(rif["y"], 112)
+            y_target = max(rif["y"], 106)
         else:
             gain = np.clip(m.mean() / np.maximum(m, 1), 0.88, 1.12)
             gain = 1 + (gain - 1) * 0.7  # correzione delicata: non deve ammazzare il look naturale della luce
-            y_target = 118
+            y_target = 112
         y = float(np.median(lum))
         # regola di Johnny: reel LUMINOSI e COLORATI. Livelli: il nero vero del pezzo va a 0 e il suo punto più chiaro
         # quasi a 255, poi una gamma che porta i mezzitoni a ~118. (Prima la gamma era calcolata al contrario: le clip
         # scure venivano scurite ancora.)
-        lo, hi = min(float(np.percentile(lum, 0.5)), 20.0), max(float(np.percentile(lum, 99.5)), 90.0)
+        # il punto più scuro del pezzo diventa nero vero (prima solo se era già sotto 20: i neri restavano grigi)
+        lo, hi = min(float(np.percentile(lum, 0.3)), 48.0), max(float(np.percentile(lum, 99.5)), 90.0)
         yn = (y - lo) / max(1.0, hi - lo)
         esp = math.log(max(yn, 0.03)) / math.log(max(y_target, 60) / 255)  # >1 = schiarire
         gamma = float(np.clip(esp, 0.85, 2.0)) if 3 < y < 245 else 1.0  # oltre 2 la grana del sensore esplode
         livelli = f"colorlevels=rimin={lo / 255:.3f}:gimin={lo / 255:.3f}:bimin={lo / 255:.3f}:rimax={hi / 255:.3f}:gimax={hi / 255:.3f}:bimax={hi / 255:.3f},"
         filtro = f"colorchannelmixer=rr={gain[0]:.3f}:gg={gain[1]:.3f}:bb={gain[2]:.3f},{livelli}eq=gamma={gamma:.3f}:saturation=1.22"
-        if gamma > 1.3:  # dopo averla aperta, un filo di contrasto sui mezzitoni perché non sembri lattiginosa
-            filtro += ",curves=all='0/0 0.25/0.22 0.5/0.5 0.75/0.79 1/1'"
+        # sempre un piede nelle ombre: neri densi, mezzitoni dove sono (più deciso se la clip è stata aperta molto)
+        filtro += ",curves=all='0/0 0.1/0.06 0.25/0.21 0.5/0.5 0.75/0.79 1/1'" if gamma > 1.3 else ",curves=all='0/0 0.1/0.07 0.25/0.23 0.5/0.5 1/1'"
         # sovraesposizione: tante zone quasi bianche o immagine troppo chiara -> curva che recupera le alte luci
         bruciati = float((lum > 240).mean())
         p98 = float(np.percentile(lum, 98))
@@ -187,7 +188,7 @@ class Montatore:
             k = float(np.clip(max(bruciati * 2.5, (y - 130) / 400, (p98 - 235) / 150), 0.04, 0.18))
             filtro += (f",curves=all='0/0 0.25/{0.25 - k * 0.3:.3f} 0.5/{0.5 - k * 0.8:.3f} 0.75/{0.75 - k:.3f} 0.9/{0.88 - k:.3f} 1/{0.96 - k * 0.5:.3f}'")
         # neri lavati: un po' di profondità
-        p2 = float(np.percentile(lum, 2))
+        p2 = float(np.percentile(lum, 2)) - lo
         if p2 > 28 and gamma < 1.3:
             filtro += f",curves=all='{min(p2 - 10, 40) / 255:.3f}/0 1/1'"
         return filtro
@@ -208,6 +209,33 @@ class Montatore:
                 self.report.append(f"LUT {self.p['lut'].get('nome')} non disponibile ({e}): uso il look {self.p.get('look')}")
                 self.p["lut"] = None
         return f"lut3d='{lut}'"
+
+    def nero_lut(self):
+        """Le LUT da pellicola alzano il nero (effetto 'sbiadito'): misuro dove finisce il nero e lo riporto a zero."""
+        if not self.p.get("lut"):
+            return ""
+        if not hasattr(self, "_nero_lut"):
+            self._nero_lut = ""
+            try:
+                import lut as LUTLIB
+                L = self.p["lut"]
+                f = LUTLIB.file_lut(L.get("nome"), L.get("pacchetto"), L.get("file"))
+                k = float(L.get("intensita") or 0.7)
+                for riga in open(f):
+                    v = riga.split()
+                    if len(v) == 3:
+                        try:
+                            n = [float(x) * k for x in v]
+                            break
+                        except ValueError:
+                            continue
+                m = max(0.0, min(n))
+                if m > 0.008:
+                    self._nero_lut = f"colorlevels=rimin={n[0]:.3f}:gimin={n[1]:.3f}:bimin={n[2]:.3f}"
+                    self.report.append(f"color: la LUT alzava il nero a {m * 255:.0f}/255, riportato a 0")
+            except Exception:
+                pass
+        return self._nero_lut
 
     def movimento_camera(self, src, t_in, durata):
         """Tremolio (scatti ad alta frequenza, in px su 160 di larghezza) e deriva (spostamento totale / larghezza)."""
@@ -402,6 +430,9 @@ class Montatore:
         if corr:
             filtri.append(corr)
         filtri.append(self.filtro_colore(lut))
+        nl = self.nero_lut()
+        if nl:
+            filtri.append(nl)
         # rifinitura da consegna: nitidezza leggera solo sulla luminanza (sui pezzi schiariti di meno: riaccenderebbe la grana)
         filtri.append("unsharp=5:5:0.35:5:5:0" if g <= 1.15 else "unsharp=5:5:0.2:5:5:0")
         if "glow" in globali:  # alone luminoso morbido (romantico, natalizio)

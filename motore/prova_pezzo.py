@@ -27,7 +27,11 @@ if LUTS:  # tavola di confronto: stesso pezzo, grana pulita, LUT diverse; fotogr
         etich = voce.replace(":", "_")
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", "1", "-i", out, "-frames:v", "1", "-vf", "scale=540:960", f"/tmp/studio/f{k:02d}_{etich}.jpg"])
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", "1", "-i", out, "-frames:v", "1", "-vf", "crop=540:540:270:690", f"/tmp/studio/z{k:02d}_{etich}.jpg"])
-        print(etich, " | ".join(m.report))
+        st = subprocess.run(["ffmpeg", "-v", "error", "-i", out, "-vf", "signalstats,metadata=print:file=-", "-f", "null", "-"], capture_output=True, text=True).stdout
+        import re as _re
+        val = lambda k: [float(x) for x in _re.findall(k + r"=([\d.]+)", st)]
+        med = lambda v: sum(v) / max(1, len(v))
+        print(etich, f"MEDIA {med(val('YAVG')):.0f} BASSO {med(val('YLOW')):.0f} MIN {med(val('YMIN')):.0f} ALTO {med(val('YHIGH')):.0f}", " | ".join(m.report))
     sys.exit(0)
 piano = {"segmenti": [{"file": src, "in": 0.5, "durata": 3.4, "effetto": "nessuno"}], "look": "pulito_commerciale", "intensita_look": 0.8, "stabilizza_tutto": True}  # deve risultare pulito anche così
 m = MT.Montatore(piano, "/tmp/studio/lav", avvisa=lambda *a: print(*a))
