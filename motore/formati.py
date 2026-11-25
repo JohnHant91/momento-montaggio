@@ -1257,14 +1257,16 @@ class MontatoreCompleto(TalkingHead):
                     and not props["look"]["particelle"] and not props["look"]["light_leaks"] and not props["look"]["bande"] and not props["look"]["tinta"])
         if semplice:
             # nessuna grafica: unisco i pezzi con ffmpeg, fotogramma per fotogramma, e sfumo il finale
-            lista = os.path.join(self.tmp, "unione.txt")
-            with open(lista, "w") as f:
-                for c in clip:
-                    f.write(f"file '{os.path.join(pub, c['src'])}'\n")
+            # filtro concat (ogni pezzo decodificato per conto suo): il "concat demuxer" usava le intestazioni H.264 del
+            # primo pezzo per tutti e gli altri uscivano a quadretti e sbavature
             dfin = float(props["finale"].get("durata", 0.8))
             colore = "white" if props["finale"]["tipo"] == "bianco" else "black"
-            self.ff(["-f", "concat", "-safe", "0", "-i", lista, "-vf", f"fade=t=out:st={max(0, totale - dfin):.3f}:d={dfin:.3f}:color={colore},format=yuv420p",
-                     "-an"] + X264_INT + [anim], "unisco i pezzi")
+            ingressi = []
+            for c in clip:
+                ingressi += ["-i", os.path.join(pub, c["src"])]
+            catena = "".join(f"[{k}:v]setsar=1,fps={FPS}[v{k}];" for k in range(len(clip))) + "".join(f"[v{k}]" for k in range(len(clip))) + \
+                     f"concat=n={len(clip)}:v=1:a=0,fade=t=out:st={max(0, totale - dfin):.3f}:d={dfin:.3f}:color={colore},format=yuv420p[out]"
+            self.ff(ingressi + ["-filter_complex", catena, "-map", "[out]", "-an"] + X264_INT + [anim], "unisco i pezzi")
             for x in os.listdir(pub):
                 if x.startswith(sigla):
                     os.remove(os.path.join(pub, x))

@@ -7,7 +7,7 @@ MT.X264_INT[MT.X264_INT.index("-r") + 1] = "25"
 src = "/tmp/tavole/pezzo.mp4"
 os.makedirs("/tmp/studio", exist_ok=True)
 print(subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True).stdout.splitlines()[0])
-piano = {"segmenti": [{"file": src, "in": 0.0, "durata": 2.6, "effetto": "nessuno", "centro_x": 0.62}], "look": "pulito_commerciale", "intensita_look": 0.8}
+piano = {"segmenti": [{"file": src, "in": 0.0, "durata": 2.6, "effetto": "nessuno", "centro_x": 0.62}], "look": "pulito_commerciale", "intensita_look": 0.8, "stabilizza_tutto": True}
 m = MT.Montatore(piano, "/tmp/studio/lav", avvisa=lambda *a: print(*a))
 s = piano["segmenti"][0]
 s["_info"] = m.probe(s["file"])
