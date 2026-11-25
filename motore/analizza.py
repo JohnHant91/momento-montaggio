@@ -666,6 +666,8 @@ def monta(lavoro):
         avvisa("motore", f"🎬 reel consegnato: {rep['durata']} s, {rep['mb']} MB")
     except Exception as e:
         log("montaggio non riuscito:", e)
+        import traceback  # nel log pubblico solo file/riga/funzione, niente dati dei clienti
+        log("dove:", " > ".join(f"{os.path.basename(f.filename)}:{f.lineno}:{f.name}" for f in traceback.extract_tb(e.__traceback__)[-4:]))
         try:
             regia(lavoro, "esito", corpo={"errore": str(e)[:500]})
         except Exception as e2:
