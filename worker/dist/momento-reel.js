@@ -6347,6 +6347,14 @@ async function motoreApi(req, env, url) {
       const o = new URL(req.url).origin;
       return json({ cartella: c, file: await Promise.all(F.map(async (f) => ({ nome: f.nome, url: await linkFirmato(env, o, f.percorso) }))) });
     }
+    if (p.endsWith("/reel")) {
+      const id2 = Number(new URL(req.url).searchParams.get("id")) || 0;
+      const n = Number(new URL(req.url).searchParams.get("n")) || 0;
+      const chiave = `lavoro-${id2}/reel.mp4` + (n ? "#" + n : "");
+      const { value, metadata } = await env.VIDEO.getWithMetadata(chiave, { type: "arrayBuffer" });
+      if (!value) return json({ errore: "non trovato" }, 404);
+      return new Response(value, { headers: { "content-type": "application/octet-stream", "x-parti": String(metadata?.parti || 1) } });
+    }
     if (p.endsWith("/esito")) {
       const d = await req.json().catch(() => ({}));
       const cfg = chi(await configurazione(env), { area: "reel", agente: "occhi" });

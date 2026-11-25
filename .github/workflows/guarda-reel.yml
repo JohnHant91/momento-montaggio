@@ -1,0 +1,47 @@
+# Copia cifrata (chiave dello studio) di un reel finito, per controllarlo fotogramma per fotogramma. Nel log solo numeri.
+name: guarda-reel
+
+on:
+  workflow_dispatch:
+    inputs:
+      lavoro:
+        description: "numero del lavoro"
+        required: true
+
+permissions:
+  id-token: write
+  contents: write
+
+env:
+  REGIA: https://momento-reel.gestionalelcl.workers.dev
+
+jobs:
+  guarda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: motore/chiave_studio.pem
+          sparse-checkout-cone-mode: false
+      - name: Scarica e cifra
+        env:
+          LAVORO: ${{ github.event.inputs.lavoro }}
+        run: |
+          T=$(curl -fsS -H "authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=momento-reel" | python3 -c "import sys,json;print(json.load(sys.stdin)['value'])")
+          curl -fsS -X POST -A "momento-guarda/1.0" -H "authorization: Bearer $T" -D /tmp/h.txt -o /tmp/r0 "$REGIA/api/motore/verso-prova/reel?id=$LAVORO"
+          N=$(grep -i '^x-parti' /tmp/h.txt | tr -dc '0-9'); N=${N:-1}; echo "parti: $N"
+          cp /tmp/r0 /tmp/reel.mp4
+          for i in $(seq 1 $((N-1))); do
+            T=$(curl -fsS -H "authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=momento-reel" | python3 -c "import sys,json;print(json.load(sys.stdin)['value'])")
+            curl -fsS -X POST -A "momento-guarda/1.0" -H "authorization: Bearer $T" -o /tmp/r$i "$REGIA/api/motore/verso-prova/reel?id=$LAVORO&n=$i"
+            cat /tmp/r$i >> /tmp/reel.mp4
+          done
+          ls -l /tmp/reel.mp4 | awk '{print "byte:", $5}'
+          mkdir -p /tmp/out
+          openssl rand -out /tmp/k.bin 32
+          openssl enc -aes-256-cbc -pbkdf2 -in /tmp/reel.mp4 -out /tmp/out/reel.enc -pass file:/tmp/k.bin
+          openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/motore/chiave_studio.pem" -in /tmp/k.bin -out /tmp/out/k.enc
+          cd /tmp/out && git init -q && git checkout -q -b guarda-reel && git add . \
+          && git -c user.name=motore -c user.email=motore@momento commit -qm "reel" \
+          && git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" guarda-reel
