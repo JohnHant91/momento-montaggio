@@ -225,6 +225,59 @@ class Montatore:
             filtro += f",curves=all='{min(p2 - 10, 40) / 255:.3f}/0 1/1'"
         return filtro
 
+    def pareggia(self, pezzi):
+        """Shot matching sui pezzi FINITI (dopo pulizia, curve e LUT): misuro tinta, colore e luce di ognuno e porto
+        quelli fuori dal gruppo verso la mediana. Regola di Johnny: tutte le clip con la stessa color."""
+        def misura(p):
+            q = self.fotogrammi(p, 0.3, max(0.5, self.probe(p)["dur"] - 0.6), 4, 216)
+            if not q:
+                return None
+            px = np.concatenate([x.reshape(-1, 3).astype(np.float32) for _, x in q])
+            l = px.mean(axis=1)
+            medi = px[(l > 25) & (l < 230)]
+            if len(medi) < 200:
+                return None
+            m = medi.mean(axis=0)
+            return {"rgb": m / max(m.mean(), 1), "sat": float((medi.max(axis=1) - medi.min(axis=1)).mean()), "y": float(np.median(l))}
+        with ThreadPoolExecutor(PARALLELO) as ex:
+            st = list(ex.map(misura, pezzi))
+        ok = [x for x in st if x]
+        if len(ok) < 3:
+            return pezzi
+        rgb = np.median([x["rgb"] for x in ok], axis=0)
+        sat = float(np.median([x["sat"] for x in ok]))
+        y = float(np.median([x["y"] for x in ok]))
+
+        def correggi(a):
+            i, p, x = a
+            if not x:
+                return p
+            fl, note = [], []
+            if x["sat"] < sat * 0.9:  # più spento degli altri (es. cioccolato sciolto aperto molto): colore su
+                k = float(np.clip(sat / max(x["sat"], 1), 1.0, 1.45))
+                fl.append(f"eq=saturation={k:.3f}")
+                note.append(f"colore +{(k - 1) * 100:.0f}%")
+            if x["sat"] <= sat * 1.15:  # tinta: solo sui pezzi non già pieni di colore proprio (la scatola gialla resta gialla)
+                g = np.clip(rgb / np.maximum(x["rgb"], 0.01), 0.9, 1.1)
+                if np.abs(g - 1).max() > 0.025:
+                    fl.append(f"colorchannelmixer=rr={g[0]:.3f}:gg={g[1]:.3f}:bb={g[2]:.3f}")
+                    note.append("tinta allineata")
+            if abs(x["y"] - y) > 14:  # luce: avvicino alla mediana senza toccare nero e bianco
+                gm = float(np.clip(math.log(max(x["y"], 5) / 255) / math.log(max(y, 5) / 255), 0.85, 1.2))
+                fl.append(f"eq=gamma={gm:.3f}")
+                note.append("luce allineata")
+            if not fl:
+                return p
+            out = p.replace(".mp4", "_pari.mp4")
+            try:
+                self.ff(["-i", p, "-vf", ",".join(fl), "-an"] + X264_INT + [out], f"pareggio pezzo {i + 1}")
+                self.report.append(f"pezzo {i + 1}: pareggiato agli altri ({', '.join(note)})")
+                return out
+            except Exception:
+                return p
+        with ThreadPoolExecutor(PARALLELO) as ex:
+            return list(ex.map(correggi, [(i, p, x) for i, (p, x) in enumerate(zip(pezzi, st))]))
+
     def filtro_colore(self, lut):
         """LUT da pellicola/grading scelta dal colorist (libreria G'MIC) al posto del look generato, se c'è."""
         if self.p.get("lut"):
@@ -894,6 +947,7 @@ class Montatore:
         self.avvisa("editor", f"monto {len(segmenti)} pezzi in parallelo: reframe sul soggetto, stabilizzazione, rallenty")
         with ThreadPoolExecutor(PARALLELO) as ex:
             pezzi = list(ex.map(lambda a: self.pezzo(a[0], a[1], lut, globali), enumerate(segmenti)))
+        pezzi = self.pareggia(pezzi)
         if P.get("chiusura"):
             pezzi.append(self.chiusura(P["chiusura"], lut))
             segmenti_tr = segmenti + [{"transizione_in": P["chiusura"].get("transizione", "dissolvenza")}]

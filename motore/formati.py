@@ -1161,6 +1161,7 @@ class MontatoreCompleto(TalkingHead):
         self.avvisa("editor", f"preparo {len(segmenti)} pezzi in parallelo: reframe sul soggetto, stabilizzazione, rallenty")
         with ThreadPoolExecutor(PARALLELO) as ex:
             pezzi = list(ex.map(lambda a: self.pezzo(a[0], a[1], lut, globali), enumerate(segmenti)))
+        pezzi = self.pareggia(pezzi)
         with ThreadPoolExecutor(PARALLELO) as ex:
             volti = list(ex.map(self.volto, [dict(s, file=p, **{"in": 0}) for s, p in zip(segmenti, pezzi)]))
 
