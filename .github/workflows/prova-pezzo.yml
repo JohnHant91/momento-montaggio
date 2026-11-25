@@ -1,5 +1,10 @@
 name: prova-pezzo
-on: { workflow_dispatch: {} }
+on:
+  workflow_dispatch:
+    inputs:
+      clip: { required: true }
+      da: { required: false, default: "2" }
+      ruota: { required: false, default: "0" }
 permissions: { id-token: write, contents: write }
 env: { REGIA: "https://momento-reel.gestionalelcl.workers.dev" }
 jobs:
@@ -13,7 +18,7 @@ jobs:
           command -v ffmpeg >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg >/dev/null)
           pip install -q -r motore/requirements.txt
       - name: Pezzo
-        env: { CLIP: "C0050.MP4", DA: "3", DUR: "3" }
+        env: { CLIP: "${{ github.event.inputs.clip }}", DA: "${{ github.event.inputs.da }}", DUR: "6", RUOTA: "${{ github.event.inputs.ruota }}" }
         run: python3 motore/guarda_clip.py && python3 motore/prova_pezzo.py
       - name: Cifra
         run: |
