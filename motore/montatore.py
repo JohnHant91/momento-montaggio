@@ -284,6 +284,13 @@ class Montatore:
             try:
                 import lut as LUTLIB
                 L = self.p.get("lut") or {}
+                voce = LUTLIB.CATALOGO.get(L.get("nome") or "", {})
+                if L.get("nome") and not str(voce.get("licenza", "")).startswith("CC") and not L.get("file"):
+                    # lavori per i clienti: solo LUT gratuite con licenza chiara (simulazioni pellicola CC BY-SA)
+                    if not getattr(self, "_lut_cambiata", False):
+                        self._lut_cambiata = True
+                        self.report.append(f"color: {L.get('nome')} non ha una licenza dichiarata, uso kodak_2383 (CC BY-SA)")
+                    L = self.p["lut"] = {"nome": "kodak_2383_constlmap", "intensita": 0.6}
                 f = LUTLIB.filtro(L.get("nome"), L.get("intensita"), L.get("pacchetto"), L.get("file"), L.get("bn"))
                 if f:
                     if not getattr(self, "_lut_detta", False):

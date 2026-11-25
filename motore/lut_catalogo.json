@@ -2,365 +2,437 @@
  "kodak_portra_400": {
   "pacchetto": "negative_new",
   "file": "kodak_portra_400",
-  "intensita": 0.8
+  "intensita": 0.8,
+  "licenza": "CC BY-SA 4.0 (simulazioni pellicola RawTherapee / Pat David)"
  },
  "kodak_portra_160": {
   "pacchetto": "negative_new",
   "file": "kodak_portra_160",
-  "intensita": 0.8
+  "intensita": 0.8,
+  "licenza": "CC BY-SA 4.0 (simulazioni pellicola RawTherapee / Pat David)"
  },
  "kodak_portra_800": {
   "pacchetto": "negative_new",
   "file": "kodak_portra_800",
-  "intensita": 0.8
+  "intensita": 0.8,
+  "licenza": "CC BY-SA 4.0 (simulazioni pellicola RawTherapee / Pat David)"
  },
  "fuji_400h": {
   "pacchetto": "negative_new",
   "file": "fuji_400h",
-  "intensita": 0.8
+  "intensita": 0.8,
+  "licenza": "CC BY-SA 4.0 (simulazioni pellicola RawTherapee / Pat David)"
  },
  "fuji_160c": {
   "pacchetto": "negative_new",
   "file": "fuji_160c",
-  "intensita": 0.8
+  "intensita": 0.8,
+  "licenza": "CC BY-SA 4.0 (simulazioni pellicola RawTherapee / Pat David)"
  },
  "kodak_ektar_100": {
   "pacchetto": "negative_color",
   "file": "kodak_ektar_100",
-  "intensita": 1
+  "intensita": 1,
+  "licenza": "CC BY-SA 4.0 (simulazioni pellicola RawTherapee / Pat David)"
  },
  "fuji_superia_200": {
   "pacchetto": "negative_color",
   "file": "fuji_superia_200",
-  "intensita": 0.8
+  "intensita": 0.8,
+  "licenza": "CC BY-SA 4.0 (simulazioni pellicola RawTherapee / Pat David)"
  },
  "agfa_vista_200": {
   "pacchetto": "negative_color",
   "file": "agfa_vista_200",
-  "intensita": 1
+  "intensita": 1,
+  "licenza": "CC BY-SA 4.0 (simulazioni pellicola RawTherapee / Pat David)"
  },
  "kodak_elite_color_400": {
   "pacchetto": "negative_color",
   "file": "kodak_elite_color_400",
-  "intensita": 0.8
+  "intensita": 0.8,
+  "licenza": "CC BY-SA 4.0 (simulazioni pellicola RawTherapee / Pat David)"
  },
  "lomography_redscale_100": {
   "pacchetto": "negative_color",
   "file": "lomography_redscale_100",
-  "intensita": 0.6
+  "intensita": 0.6,
+  "licenza": "CC BY-SA 4.0 (simulazioni pellicola RawTherapee / Pat David)"
  },
  "kodak_2383_constlmap": {
   "pacchetto": "print",
   "file": "kodak_2383_constlmap",
-  "intensita": 0.55
+  "intensita": 0.55,
+  "licenza": "CC BY-SA 4.0 (simulazioni pellicola RawTherapee / Pat David)"
  },
  "fuji_3513_constlmap": {
   "pacchetto": "print",
   "file": "fuji_3513_constlmap",
-  "intensita": 0.55
+  "intensita": 0.55,
+  "licenza": "CC BY-SA 4.0 (simulazioni pellicola RawTherapee / Pat David)"
  },
  "ilford_hp_5": {
   "pacchetto": "negative_new",
   "file": "ilford_hp_5",
   "intensita": 1,
-  "bn": true
+  "bn": true,
+  "licenza": "CC BY-SA 4.0 (simulazioni pellicola RawTherapee / Pat David)"
  },
  "kodak_tri_x_400": {
   "pacchetto": "negative_new",
   "file": "kodak_tri-x_400",
   "intensita": 1,
-  "bn": true
+  "bn": true,
+  "licenza": "CC BY-SA 4.0 (simulazioni pellicola RawTherapee / Pat David)"
  },
  "fuji_neopan_acros_100": {
   "pacchetto": "bw",
   "file": "fuji_neopan_acros_100",
   "intensita": 1,
-  "bn": true
+  "bn": true,
+  "licenza": "CC BY-SA 4.0 (simulazioni pellicola RawTherapee / Pat David)"
  },
  "ilford_delta_3200": {
   "pacchetto": "bw",
   "file": "ilford_delta_3200",
   "intensita": 1,
-  "bn": true
+  "bn": true,
+  "licenza": "CC BY-SA 4.0 (simulazioni pellicola RawTherapee / Pat David)"
  },
  "polaroid_690_warm": {
   "pacchetto": "instant_pro",
   "file": "polaroid_690_warm",
-  "intensita": 0.75
+  "intensita": 0.75,
+  "licenza": "CC BY-SA 4.0 (simulazioni pellicola RawTherapee / Pat David)"
  },
  "polaroid_px_70_cold": {
   "pacchetto": "instant_consumer",
   "file": "polaroid_px-70_cold",
-  "intensita": 0.4
+  "intensita": 0.4,
+  "licenza": "CC BY-SA 4.0 (simulazioni pellicola RawTherapee / Pat David)"
  },
  "polaroid_time_zero_expired": {
   "pacchetto": "instant_consumer",
   "file": "polaroid_time_zero_expired",
-  "intensita": 0.45
+  "intensita": 0.45,
+  "licenza": "CC BY-SA 4.0 (simulazioni pellicola RawTherapee / Pat David)"
  },
  "fuji_fp_100c": {
   "pacchetto": "instant_pro",
   "file": "fuji_fp-100c",
-  "intensita": 0.75
+  "intensita": 0.75,
+  "licenza": "CC BY-SA 4.0 (simulazioni pellicola RawTherapee / Pat David)"
  },
  "bleach_bypass": {
   "pacchetto": "others",
   "file": "bleach_bypass",
-  "intensita": 0.4
+  "intensita": 0.4,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "cinematic_01": {
   "pacchetto": "others",
   "file": "cinematic_01",
-  "intensita": 0.7
+  "intensita": 0.7,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "cinematic_02": {
   "pacchetto": "others",
   "file": "cinematic_02",
-  "intensita": 0.7
+  "intensita": 0.7,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "cinematic_03": {
   "pacchetto": "others",
   "file": "cinematic_03",
-  "intensita": 0.55
+  "intensita": 0.55,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "hong_kong": {
   "pacchetto": "others",
   "file": "hong_kong",
-  "intensita": 0.65
+  "intensita": 0.65,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "k_tone_vintage_kodachrome": {
   "pacchetto": "others",
   "file": "k_tone_vintage_kodachrome",
-  "intensita": 0.75
+  "intensita": 0.75,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "golden": {
   "pacchetto": "others",
   "file": "golden",
-  "intensita": 0.7
+  "intensita": 0.7,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "golden_vibrant": {
   "pacchetto": "others",
   "file": "golden_vibrant",
-  "intensita": 0.65
+  "intensita": 0.65,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "super_warm": {
   "pacchetto": "others",
   "file": "super_warm",
-  "intensita": 0.35
+  "intensita": 0.35,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "warm_highlight": {
   "pacchetto": "others",
   "file": "warm_highlight",
-  "intensita": 0.5
+  "intensita": 0.5,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "natural_vivid": {
   "pacchetto": "others",
   "file": "natural_vivid",
-  "intensita": 0.7
+  "intensita": 0.7,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "vibrant_contrast": {
   "pacchetto": "others",
   "file": "vibrant_contrast",
-  "intensita": 0.65
+  "intensita": 0.65,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "faded_analog": {
   "pacchetto": "others",
   "file": "faded_analog",
-  "intensita": 0.45
+  "intensita": 0.45,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "muted_fade": {
   "pacchetto": "others",
   "file": "muted_fade",
-  "intensita": 0.7
+  "intensita": 0.7,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "light_blown": {
   "pacchetto": "others",
   "file": "light_blown",
-  "intensita": 0.45
+  "intensita": 0.45,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "summer": {
   "pacchetto": "others",
   "file": "summer",
-  "intensita": 0.7
+  "intensita": 0.7,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "sunny_warm": {
   "pacchetto": "others",
   "file": "sunny_warm",
-  "intensita": 0.5
+  "intensita": 0.5,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "color_rich": {
   "pacchetto": "others",
   "file": "color_rich",
-  "intensita": 1
+  "intensita": 1,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "nostalgic": {
   "pacchetto": "others",
   "file": "nostalgic",
-  "intensita": 0.7
+  "intensita": 0.7,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "60s_faded": {
   "pacchetto": "others",
   "file": "60s_faded",
-  "intensita": 0.45
+  "intensita": 0.45,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "cinematic_lady_bird": {
   "pacchetto": "pixlsus",
   "file": "cinematic_lady_bird",
-  "intensita": 1
+  "intensita": 1,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "cinematic_mexico": {
   "pacchetto": "pixlsus",
   "file": "cinematic_mexico",
-  "intensita": 0.6
+  "intensita": 0.6,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "street": {
   "pacchetto": "pixlsus",
   "file": "street",
-  "intensita": 1
+  "intensita": 1,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "modern_film": {
   "pacchetto": "pixlsus",
   "file": "modern_film",
-  "intensita": 1
+  "intensita": 1,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "faded_print": {
   "pacchetto": "pixlsus",
   "file": "faded_print",
-  "intensita": 0.7
+  "intensita": 0.7,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "autumn": {
   "pacchetto": "pixlsus",
   "file": "autumn",
-  "intensita": 1
+  "intensita": 1,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "taiga": {
   "pacchetto": "pixlsus",
   "file": "taiga",
-  "intensita": 1
+  "intensita": 1,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "night_spy": {
   "pacchetto": "pixlsus",
   "file": "night_spy",
-  "intensita": 0.4
+  "intensita": 0.4,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "seventies_magazine": {
   "pacchetto": "pixlsus",
   "file": "seventies_magazine",
-  "intensita": 0.75
+  "intensita": 0.75,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "velvetia": {
   "pacchetto": "pixlsus",
   "file": "velvetia",
-  "intensita": 0.6
+  "intensita": 0.6,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "whiter_whites": {
   "pacchetto": "pixlsus",
   "file": "whiter_whites",
-  "intensita": 1
+  "intensita": 1,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "delicatessen": {
   "pacchetto": "pixlsus",
   "file": "delicatessen",
-  "intensita": 0.6
+  "intensita": 0.6,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "london_nights": {
   "pacchetto": "inavision",
   "file": "london_nights",
-  "intensita": 0.7
+  "intensita": 0.7,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "nightlife": {
   "pacchetto": "inavision",
   "file": "nightlife",
-  "intensita": 0.7
+  "intensita": 0.7,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "cold_ice": {
   "pacchetto": "inavision",
   "file": "cold_ice",
-  "intensita": 0.65
+  "intensita": 0.65,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "jwick_21": {
   "pacchetto": "inavision",
   "file": "jwick_21",
-  "intensita": 0.6
+  "intensita": 0.6,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "vintage_mob": {
   "pacchetto": "inavision",
   "file": "vintage_mob",
-  "intensita": 0.5
+  "intensita": 0.5,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "cineblue": {
   "pacchetto": "berat",
   "file": "cineblue",
-  "intensita": 0.45
+  "intensita": 0.45,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "goldentime": {
   "pacchetto": "berat",
   "file": "goldentime",
-  "intensita": 0.55
+  "intensita": 0.55,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "green_and_orange": {
   "pacchetto": "berat",
   "file": "green_and_orange",
-  "intensita": 0.7
+  "intensita": 0.7,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "western": {
   "pacchetto": "berat",
   "file": "western",
-  "intensita": 0.5
+  "intensita": 0.5,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "crispromance": {
   "pacchetto": "jtsemple",
   "file": "crispromance",
-  "intensita": 0.75
+  "intensita": 0.75,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "magentacoffee": {
   "pacchetto": "jtsemple",
   "file": "magentacoffee",
-  "intensita": 0.7
+  "intensita": 0.7,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "minimalistcaffeination": {
   "pacchetto": "jtsemple",
   "file": "minimalistcaffeination",
-  "intensita": 0.75
+  "intensita": 0.75,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "nostalgiahoney": {
   "pacchetto": "jtsemple",
   "file": "nostalgiahoney",
-  "intensita": 1
+  "intensita": 1,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "lushgreensummer": {
   "pacchetto": "jtsemple",
   "file": "lushgreensummer",
-  "intensita": 0.7
+  "intensita": 0.7,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "winterlighthouse": {
   "pacchetto": "jtsemple",
   "file": "winterlighthouse",
-  "intensita": 0.7
+  "intensita": 0.7,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "justpeachy": {
   "pacchetto": "jtsemple",
   "file": "justpeachy",
-  "intensita": 0.5
+  "intensita": 0.5,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "teal_moonlight": {
   "pacchetto": "ohadperetz",
   "file": "teal_moonlight",
-  "intensita": 0.65
+  "intensita": 0.65,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "retro_summer_3": {
   "pacchetto": "ohadperetz",
   "file": "retro_summer_3",
-  "intensita": 0.45
+  "intensita": 0.45,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "vintage_warmth_1": {
   "pacchetto": "ohadperetz",
   "file": "vintage_warmth_1",
-  "intensita": 0.7
+  "intensita": 0.7,
+  "licenza": "non dichiarata: solo prove interne"
  },
  "true_colors_8": {
   "pacchetto": "ohadperetz",
   "file": "true_colors_8",
-  "intensita": 0.45
+  "intensita": 0.45,
+  "licenza": "non dichiarata: solo prove interne"
  }
 }
