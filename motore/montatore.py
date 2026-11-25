@@ -169,21 +169,26 @@ class Montatore:
             gain = 1 + (gain - 1) * 0.7  # correzione delicata: non deve ammazzare il look naturale della luce
             y_target = 118
         y = float(np.median(lum))
-        scuro = y < 80  # girato sottoesposto (laboratori, sere): si porta su davvero, non di un pelo
-        gamma = float(np.clip(math.log(y_target / 255) / math.log(max(y, 5) / 255), 0.55 if scuro else 0.75, 1.25)) if 12 < y < 240 else 1.0
-        gamma = 1 + (gamma - 1) * (1.0 if scuro else 0.8)
-        filtro = f"colorchannelmixer=rr={gain[0]:.3f}:gg={gain[1]:.3f}:bb={gain[2]:.3f},eq=gamma={gamma:.3f}"
+        # regola di Johnny: reel LUMINOSI e COLORATI. Livelli: il nero vero del pezzo va a 0 e il suo punto più chiaro
+        # quasi a 255, poi una gamma che porta i mezzitoni a ~118. (Prima la gamma era calcolata al contrario: le clip
+        # scure venivano scurite ancora.)
+        lo, hi = min(float(np.percentile(lum, 0.5)), 20.0), max(float(np.percentile(lum, 99.5)), 90.0)
+        yn = (y - lo) / max(1.0, hi - lo)
+        esp = math.log(max(yn, 0.03)) / math.log(max(y_target, 60) / 255)  # >1 = schiarire
+        gamma = float(np.clip(esp, 0.85, 2.3)) if 3 < y < 245 else 1.0
+        livelli = f"colorlevels=rimin={lo / 255:.3f}:gimin={lo / 255:.3f}:bimin={lo / 255:.3f}:rimax={hi / 255:.3f}:gimax={hi / 255:.3f}:bimax={hi / 255:.3f},"
+        filtro = f"colorchannelmixer=rr={gain[0]:.3f}:gg={gain[1]:.3f}:bb={gain[2]:.3f},{livelli}eq=gamma={gamma:.3f}:saturation=1.22"
+        if gamma > 1.3:  # dopo averla aperta, un filo di contrasto sui mezzitoni perché non sembri lattiginosa
+            filtro += ",curves=all='0/0 0.25/0.22 0.5/0.5 0.75/0.79 1/1'"
         # sovraesposizione: tante zone quasi bianche o immagine troppo chiara -> curva che recupera le alte luci
         bruciati = float((lum > 240).mean())
         p98 = float(np.percentile(lum, 98))
         if bruciati > 0.015 or p98 > 248 or y > 150:
             k = float(np.clip(max(bruciati * 2.5, (y - 130) / 400, (p98 - 235) / 150), 0.04, 0.18))
             filtro += (f",curves=all='0/0 0.25/{0.25 - k * 0.3:.3f} 0.5/{0.5 - k * 0.8:.3f} 0.75/{0.75 - k:.3f} 0.9/{0.88 - k:.3f} 1/{0.96 - k * 0.5:.3f}'")
-        if y < 60:  # molto scuro: alzo anche i mezzitoni con una curva morbida (le ombre restano dense)
-            filtro += ",curves=all='0/0 0.2/0.26 0.5/0.6 0.8/0.86 1/1'"
         # neri lavati: un po' di profondità
         p2 = float(np.percentile(lum, 2))
-        if p2 > 28:
+        if p2 > 28 and gamma < 1.3:
             filtro += f",curves=all='{min(p2 - 10, 40) / 255:.3f}/0 1/1'"
         return filtro
 
@@ -344,7 +349,7 @@ class Montatore:
                 self.ff(["-ss", f"{t_in:.3f}", "-t", f"{sorgente + 0.2:.3f}", "-i", src, "-vf",
                          f"vidstabdetect=shakiness=8:accuracy=10:stepsize=8:mincontrast=0.2:result={trf}", "-f", "null", "-"], "stabilizza")
                 a_mano = bool(self.p.get("camera_a_mano"))  # stile street: tolgo il tremolio ma tengo la camera viva
-                if (cam["deriva"] < 0.025 or ferma) and not a_mano:  # inquadratura bloccata come su un treppiede
+                if cam["deriva"] < 0.01 and cam["tremolio"] < 0.5 and not a_mano:  # solo se era quasi ferma: il treppiede finto salta
                     filtri.append(f"vidstabtransform=input={trf}:tripod=1:maxangle=0:optzoom=1:interpol=bicubic")
                     modo = "bloccata come su treppiede" + (f", la ripresa si spostava del {cam['deriva'] * 100:.0f}%" if cam["deriva"] >= 0.025 else "")
                 else:  # movimento voluto: lo tengo ma lo rendo morbido (finestra di ~1,2 s)
@@ -394,7 +399,7 @@ class Montatore:
             filtri.append("noise=alls=6:allf=t")
         elif "vhs" not in globali:
             filtri.append("noise=alls=2:allf=t")
-        if "vignettatura" in globali:
+        if "vignettatura" in globali and not self.p.get("luminoso", True):  # regola di Johnny: reel luminosi, niente bordi scuri
             filtri.append("vignette=PI/5")
         filtri.append(f"trim=duration={dur:.3f},setpts=PTS-STARTPTS,setsar=1,format=yuv420p")
         tentativi = [filtri, [f for f in filtri if not f.startswith(("vidstab", "minterpolate"))],

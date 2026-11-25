@@ -3115,7 +3115,8 @@ Rispondi SOLO JSON: {"correzioni": [{"id": n, "testo": "testo corretto, oppure "
     await log(env, L.id, "copy", `correttore non disponibile (${String(e.message).slice(0, 100)}): testi lasciati come sono`, "warn");
   }
 }
-var REGOLE_REEL_BASE = `- Durata massima 1'30" (oltre non \xE8 pi\xF9 un Reel).
+var REGOLE_REEL_BASE = `- Colore: reel LUMINOSI e COLORATI, mai scuri; niente vignettatura.
+- Durata massima 1'30" (oltre non \xE8 pi\xF9 un Reel).
 - Testi, sottotitoli, loghi e il soggetto importante stanno nella zona sicura: 220 px liberi in alto, 450 px in basso, 35 px ai lati; in basso a destra, da 1220 px in gi\xF9, ci sono i pulsanti.
 - Copertina: titolo e soggetto dentro il 3:4 centrale (1080x1440, da 240 a 1680 px), perch\xE9 nella griglia del profilo si vede solo quello.
 - Le clip orizzontali dritte restano orizzontali: si ritaglia il 9:16 sul soggetto. Si raddrizzano solo quelle girate con la camera in verticale (immagine coricata).

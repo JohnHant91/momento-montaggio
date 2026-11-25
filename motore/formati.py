@@ -1253,11 +1253,31 @@ class MontatoreCompleto(TalkingHead):
         self.avvisa("vfx", f"monto con Remotion: {len(clip)} clip, {sum(1 for c in clip if c.get('ingresso', {}).get('tipo', 'taglio') != 'taglio')} transizioni, "
                            f"{len(titoli)} titoli animati" + (f", sottotitoli {props['sottotitoli']['stile']}" if parole else ""))
         anim = os.path.join(self.tmp, "montaggio.mp4")
+        semplice = (not titoli and not parole and not props["finale"].get("logo") and all(c.get("ingresso", {}).get("tipo", "taglio") == "taglio" for c in clip)
+                    and not props["look"]["particelle"] and not props["look"]["light_leaks"] and not props["look"]["bande"] and not props["look"]["tinta"])
+        if semplice:
+            # nessuna grafica: unisco i pezzi con ffmpeg, fotogramma per fotogramma, e sfumo il finale
+            lista = os.path.join(self.tmp, "unione.txt")
+            with open(lista, "w") as f:
+                for c in clip:
+                    f.write(f"file '{os.path.join(pub, c['src'])}'\n")
+            dfin = float(props["finale"].get("durata", 0.8))
+            colore = "white" if props["finale"]["tipo"] == "bianco" else "black"
+            self.ff(["-f", "concat", "-safe", "0", "-i", lista, "-vf", f"fade=t=out:st={max(0, totale - dfin):.3f}:d={dfin:.3f}:color={colore},format=yuv420p",
+                     "-an"] + X264_INT + [anim], "unisco i pezzi")
+            for x in os.listdir(pub):
+                if x.startswith(sigla):
+                    os.remove(os.path.join(pub, x))
+            self.report.append("unione diretta dei pezzi (nessuna grafica: Remotion non serve)")
         try:
+            if semplice:
+                raise StopIteration
             p = subprocess.run(["npx", "remotion", "render", "src/index.ts", "Montaggio", anim, f"--props={pj}", "--codec=h264", "--crf=16", "--muted",
                                 "--concurrency=4", "--log=error"], cwd=GRAFICHE, capture_output=True, text=True, timeout=3000)
             if p.returncode != 0 or not os.path.exists(anim):
                 raise RuntimeError("render del montaggio non riuscito: " + (p.stderr or p.stdout)[-600:])
+        except StopIteration:
+            pass
         finally:
             for x in os.listdir(pub):
                 if x.startswith(sigla):
