@@ -247,7 +247,7 @@ Le misure sono frazioni dell'immagine (0,0 = in alto a sinistra). Se l'oggetto n
         Object.assign(el, { stato: 'fatto', analisi, errore: undefined });
         await env.DB.prepare('INSERT OR REPLACE INTO cache_analisi (chiave, dati, quando) VALUES (?,?,?)').bind(chiaveRif(el.video), JSON.stringify(analisi), ora()).run();
       } else {
-        analisi.misure = { qualita: mis.qualita_fotogrammi, movimento: mis.movimento_tra_fotogrammi, tagli_interni_sec: mis.tagli_sec, volume_lufs: mis.volume_lufs, parlato: mis.parlato };
+        analisi.misure = { qualita: mis.qualita_fotogrammi, movimento: mis.movimento_tra_fotogrammi, tagli_interni_sec: mis.tagli_sec, volume_lufs: mis.volume_lufs, parlato: mis.parlato, occhio: mis.occhio };
         Object.assign(el, { stato: 'fatto', analisi, tecnico: { ...(el.tecnico || {}), ...mis.tecnico }, errore: undefined });
         await env.DB.prepare('INSERT OR REPLACE INTO cache_analisi (chiave, dati, quando) VALUES (?,?,?)').bind(chiaveClip(el), JSON.stringify({ analisi, tecnico: el.tecnico }), ora()).run();
       }

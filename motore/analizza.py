@@ -441,6 +441,15 @@ def analizza(lavoro, el, cartella):
         "bpm_stimato": tempo, "regolarita_beat": forza_beat, "tagli_sul_beat_indice": sul_beat,
         "parlato": parlato,
     }
+    if not rif:
+        # occhio del videomaker (gratis): quando succedono i gesti e dove la camera trema/è sfocata. Le posizioni no:
+        # la clip qui non è ancora raddrizzata, sinistra/destra sarebbero sbagliate
+        try:
+            import occhio as OC
+            le = OC.leggi_scheda(OC.guarda(path))
+            misure["occhio"] = OC.scheda_breve(le, posizioni=False)[:600]
+        except Exception as e:
+            log(f"occhio non riuscito: {str(e)[:80]}")
     for f in (path, wav):
         if os.path.exists(f):
             os.remove(f)

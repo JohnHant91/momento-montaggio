@@ -213,6 +213,8 @@ async function api(req, env, url) {
     // archivio interno: la cartella scelta, oppure quella che il prompt nomina (es. "torretta … panettoni" → Clienti/Torretta/Panettoni)
     let arch = !video.length && !pcloud ? (pulisci(d.archivio) || await trovaCartella(env, prompt).catch(() => null)) : null;
     if (arch && d.solo_clip) stile = { ...(stile || { genere: null, mood: [] }), solo_clip: true };
+    // LUT: la sceglie Johnny prima del montaggio (nessuna scelta automatica)
+    if (d.lut && /^[a-z0-9_]{2,40}$/.test(String(d.lut))) stile = { ...(stile || { genere: null, mood: [] }), lut: String(d.lut) };
     const r = video.length
       ? await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,?,'url',?,?,?) RETURNING id", prompt, JSON.stringify(video), JSON.stringify(link), stile ? JSON.stringify(stile) : null, ora(), ora())
       : await one(env, "INSERT INTO lavori (prompt, pcloud, link_rif, fonte, stile, creato, aggiornato) VALUES (?,?,?,?,?,?,?) RETURNING id", prompt, arch || pcloud, JSON.stringify(link), arch ? 'archivio' : 'pcloud', stile ? JSON.stringify(stile) : null, ora(), ora());

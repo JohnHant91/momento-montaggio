@@ -232,7 +232,7 @@ def tratto_migliore(lettura, durata, vicino=None, preferisci_azione=True):
         luce = 1 - float(np.clip((bruc[s:e] > 0.08).mean() + (chiu[s:e] > 0.35).mean(), 0, 1))
         att = float(np.clip(azione[s:e].mean() / azmax, 0, 1))
         # azione intera: premio se un gesto inizia e finisce dentro il tratto, penalità se viene tagliato a metà
-        intera, tagliata = 0.0, 0.0
+        intera, tagliata, gesto = 0.0, 0.0, None
         for a in lettura["azioni"]:
             if a["camera_trema"]:
                 continue
@@ -241,6 +241,8 @@ def tratto_migliore(lettura, durata, vicino=None, preferisci_azione=True):
                 continue
             lun_a = a["a"] - a["da"] + 0.1
             if t[s] <= a["da"] + 0.05 and t[e - 1] >= a["a"] - 0.05:
+                if intera < 1.0 or (gesto and a["forza"] > gesto[2]):
+                    gesto = (a["da"], a["a"], a["forza"])
                 intera = max(intera, 1.0)
             else:
                 intera = max(intera, 0.6 * dentro / lun_a)
@@ -250,8 +252,8 @@ def tratto_migliore(lettura, durata, vicino=None, preferisci_azione=True):
         if vicino is not None:
             voto -= 0.01 * abs(t[s] - vicino)
         if migliore is None or voto > migliore[0]:
-            migliore = (voto, s, e, stabil, f, att, intera)
-    voto, s, e, stabil, f, att, intera = migliore
+            migliore = (voto, s, e, stabil, f, att, intera, gesto)
+    voto, s, e, stabil, f, att, intera, gesto = migliore
     dove = [x["dove"] for x in ist[s:e] if x["dove"] and x["azione"] > 0.9]
     cx = cy = None
     if dove:
@@ -263,16 +265,17 @@ def tratto_migliore(lettura, durata, vicino=None, preferisci_azione=True):
     # entro 0,3 s prima dell'azione (taglio sull'azione) se c'è spazio
     t_in = float(t[s])
     return {"in": round(t_in, 2), "voto": round(float(voto), 3), "motivo": motivo, "centro_x": cx, "centro_y": cy,
-            "stabile": round(stabil, 2), "fuoco": round(f, 2), "azione": round(att, 2)}
+            "stabile": round(stabil, 2), "fuoco": round(f, 2), "azione": round(att, 2),
+            "gesto": [gesto[0], gesto[1]] if gesto else None}
 
 
-def scheda_breve(lettura):
+def scheda_breve(lettura, posizioni=True):
     """Testo compatto per il Regista (il cervello che decide il racconto): cosa succede e quando, in una riga per tratto."""
     out = []
     for a in lettura["azioni"]:
         d = a["dove"]
         pos = ""
-        if d:
+        if d and posizioni:
             cx = (d[0] + d[2]) / 2
             pos = " a sinistra" if cx < 0.38 else " a destra" if cx > 0.62 else " al centro"
         out.append(f"{a['da']:.1f}-{a['a']:.1f}s azione{pos}" + (" (camera che trema)" if a["camera_trema"] else ""))

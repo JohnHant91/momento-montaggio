@@ -285,7 +285,7 @@ class Montatore:
                 import lut as LUTLIB
                 L = self.p.get("lut") or {}
                 voce = LUTLIB.CATALOGO.get(L.get("nome") or "", {})
-                if L.get("nome") and not str(voce.get("licenza", "")).startswith("CC") and not L.get("file"):
+                if L.get("nome") and not L.get("scelta_da") and not str(voce.get("licenza", "")).startswith("CC") and not L.get("file"):
                     # lavori per i clienti: solo LUT gratuite con licenza chiara (simulazioni pellicola CC BY-SA)
                     if not getattr(self, "_lut_cambiata", False):
                         self._lut_cambiata = True

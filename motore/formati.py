@@ -1060,6 +1060,69 @@ class MontatoreCompleto(TalkingHead):
 
     BUONO = 0.5
 
+    def impronta(self, s):
+        """Impronta visiva di un pezzo (fotogramma centrale piccolo + colori): per riconoscere due inquadrature quasi uguali."""
+        vel = 0.5 if s.get("rallenty") else float(s.get("velocita", 1) or 1)
+        q = self.fotogrammi(s["file"], float(s.get("in", 0)), max(0.4, float(s["durata"]) * vel), 2, 96)
+        if not q:
+            return None
+        a = np.mean([x.astype(np.float32) for _, x in q], axis=0)
+        g = a.mean(axis=2)
+        g = (g - g.mean()) / (g.std() + 1e-6)
+        hist = np.concatenate([np.histogram(a[..., c], bins=16, range=(0, 255))[0] for c in range(3)]).astype(np.float32)
+        return g, hist / (hist.sum() + 1e-6)
+
+    @staticmethod
+    def somiglianza(i1, i2):
+        """0-1: 1 = stessa inquadratura. Media fra forma (correlazione dell'immagine) e colori."""
+        if i1 is None or i2 is None or i1[0].shape != i2[0].shape:
+            return 0.0
+        forma = float((i1[0] * i2[0]).mean())
+        colori = float(np.minimum(i1[1], i2[1]).sum())
+        return max(0.0, 0.6 * forma + 0.4 * colori)
+
+    def niente_doppioni(self, segmenti, riserve, migliore):
+        """REGOLA DA MONTATORE: mai due pezzi di fila con la stessa inquadratura (jump cut / doppione). Il secondo si cambia
+        con una ripresa di riserva diversa, altrimenti si scambia col pezzo dopo, altrimenti si toglie."""
+        try:
+            imp = [self.impronta(s) for s in segmenti]
+        except Exception:
+            return
+        k = 1
+        while k < len(segmenti):
+            s, p = segmenti[k], segmenti[k - 1]
+            sim = self.somiglianza(imp[k - 1], imp[k])
+            if sim < 0.65 or s.get("in_bloccato") or s.get("_scarta") or p.get("_scarta"):
+                k += 1
+                continue
+            vel = 0.5 if s.get("rallenty") else float(s.get("velocita", 1) or 1)
+            serve = float(s["durata"]) * vel
+            fatto = False
+            for r in sorted(riserve, key=lambda r: abs((r.get("clip") or 0) - (s.get("clip") or 0)))[:6]:
+                if r["_info"]["dur"] < serve + 0.05:
+                    continue
+                _, vr, tr = migliore(r["file"], r["_info"], serve, r["_info"]["dur"] / 2 - serve / 2)
+                if vr > self.BUONO:
+                    continue
+                nuovo = dict(s, file=r["file"], _info=r["_info"], **{"in": tr}, nome=r.get("nome"), clip=r.get("clip"), in_preciso=True)
+                ir = self.impronta(nuovo)
+                if self.somiglianza(imp[k - 1], ir) < 0.55 and (k + 1 >= len(segmenti) or self.somiglianza(ir, imp[k + 1]) < 0.65):
+                    self.report.append(f"pezzo {k + 1}: quasi uguale al pezzo prima ({sim:.2f}), cambiato con {r.get('nome') or 'una riserva'} a {tr:.1f}s")
+                    segmenti[k] = nuovo
+                    imp[k] = ir
+                    riserve.remove(r)
+                    fatto = True
+                    break
+            if not fatto and k + 1 < len(segmenti) and not segmenti[k + 1].get("in_bloccato") and self.somiglianza(imp[k - 1], imp[k + 1]) < 0.55:
+                self.report.append(f"pezzo {k + 1}: quasi uguale al pezzo prima ({sim:.2f}), scambiato col pezzo dopo")
+                segmenti[k], segmenti[k + 1] = segmenti[k + 1], segmenti[k]
+                imp[k], imp[k + 1] = imp[k + 1], imp[k]
+                fatto = True
+            if not fatto and len([x for x in segmenti if not x.get("_scarta")]) > 5:
+                self.report.append(f"pezzo {k + 1}: quasi uguale al pezzo prima ({sim:.2f}) e nessuna alternativa: tolto")
+                s["_scarta"] = True
+            k += 1
+
     def scegli_tratti_fermi(self, segmenti):
         """REGOLA DI JOHNNY: mai pezzi mossi o con scatti. Per ogni pezzo cerco nella clip il tratto più fermo (vicino a quello
         scelto dal regista); se la clip non ne ha, la sostituisco con una ripresa di riserva dello stesso girato (preferendo
@@ -1146,6 +1209,16 @@ class MontatoreCompleto(TalkingHead):
                     # inquadratura 9:16 centrata dove succede l'azione (se il Regista non ha già indicato un oggetto)
                     if c.get("centro_x") is not None and not s.get("zoom_fisso") and not s.get("centro_x"):
                         s["centro_x"] = c["centro_x"]
+                    # TAGLIO SULL'AZIONE: il pezzo entra 0,3 s prima del gesto ed esce 0,4 s dopo; niente coda morta
+                    g = c.get("gesto")
+                    if g:
+                        nin = max(0.0, g[0] - 0.3)
+                        ndur = min(serve - (nin - t), g[1] + 0.4 - nin)
+                        if ndur >= 1.8 and serve - ndur > 0.6 and nin >= t - 0.01:
+                            self.report.append(f"pezzo {k + 1}: tagliato sul gesto {g[0]:.1f}-{g[1]:.1f}s ({serve:.1f}s -> {ndur:.1f}s)")
+                            t = round(nin, 2)
+                            s["durata"] = round(ndur / vel, 2)
+                            serve = ndur
                 elif abs(t - float(s.get("in", 0))) > 0.05:
                     self.report.append(f"pezzo {k + 1}: spostato a {t:.1f}s, tratto fermo (voto {voto:.2f})")
                 if abs(t - float(s.get("in", 0))) > 0.05:
@@ -1175,6 +1248,7 @@ class MontatoreCompleto(TalkingHead):
                     self.report.append(f"pezzo {k + 1}: {s.get('nome') or 'clip'} mossa in ogni tratto e nessuna ripresa ferma di quel momento: tolto")
                     continue
             usati.setdefault(s["file"], []).append((float(s["in"]), float(s["in"]) + serve))
+        self.niente_doppioni(segmenti, riserve, migliore)
         tolti = [s for s in segmenti if s.get("_scarta")]
         if tolti and len(segmenti) - len(tolti) >= 4:
             segmenti[:] = [s for s in segmenti if not s.get("_scarta")]

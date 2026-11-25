@@ -455,7 +455,7 @@ VALORI AMMESSI
 - transizione_in: ${TRANSIZIONI.join(', ')} (la prima clip non ne ha)
 - effetto: ${EFFETTI_PEZZO.join(', ')}
 - effetti_globali: ${EFFETTI_GLOBALI.join(', ')}
-- lut (facoltativa, LUT vere di pellicole e colorist; se la scegli, comanda lei il colore): ${LUT_NOMI.join(', ')}
+- lut: la sceglie Johnny prima del montaggio, tu metti sempre null
 - stile testi: titolo_grande_centrale, etichetta_box, sottotitolo_classico; posizione: alto, centro, terzo_inferiore
 - REGOLA FERREA DI JOHNNY: nei titoli e nei testi usa SOLO informazioni che Johnny ha scritto nella richiesta o che si sentono nel girato. Mai inventare numeri, tempi (es. "48 ore di lievitazione"), prezzi, ingredienti, premi o promesse: se non hai informazioni, titoli di atmosfera col nome del prodotto o del cliente, oppure nessun titolo.
 - REGOLA DEL GIRATO: mai pezzi mossi, con scatti di camera o problemi; scegli il tratto fermo della clip o un'altra ripresa dello stesso momento.
@@ -547,7 +547,10 @@ Rispondi SOLO JSON: {"correzioni": [{"id": n, "testo": "testo corretto, oppure \
 }
 
 // regole fisse di Johnny per tutti i reel (modificabili in Impostazioni): Rocco le legge in ogni piano
-export const REGOLE_REEL_BASE = `- Colore: reel LUMINOSI e COLORATI, mai scuri; niente vignettatura.
+export const REGOLE_REEL_BASE = `- Reel di PRODOTTO: circa 20 secondi, 6-8 pezzi da 2,5-3,5 s, solo i passaggi chiave del racconto (lavorazione → trasformazione → prodotto finito → confezione/consegna). Meglio corto e pieno che lungo e lento.
+- Il PRODOTTO è il protagonista di ogni pezzo: si vede sempre, al centro dell'attenzione. In ogni clip si prende il momento in cui il prodotto si muove o viene lavorato (glassa che cola, panettone spostato, mani che impastano), mai il prodotto fermo se nella clip c'è il gesto. Usa le AZIONI viste dall'occhio (campo "occhio" delle clip: tempi esatti dei gesti).
+- Il pezzo dura quanto il gesto: entra un attimo prima che il gesto inizi ed esce quando finisce (taglio sull'azione).
+- Colore: stessa esposizione e stessa color per tutte le clip, neri veri, niente vignettatura. La LUT la sceglie Johnny prima del montaggio.
 - Durata massima 1'30" (oltre non è più un Reel).
 - Testi, sottotitoli, loghi e il soggetto importante stanno nella zona sicura: 220 px liberi in alto, 450 px in basso, 35 px ai lati; in basso a destra, da 1220 px in giù, ci sono i pulsanti.
 - Copertina: titolo e soggetto dentro il 3:4 centrale (1080x1440, da 240 a 1680 px), perché nella griglia del profilo si vede solo quello.
@@ -566,7 +569,7 @@ async function faseRegia(env, cfg, L) {
     indice: i, file: c.nome, tipo: c.tipo === 'immagine' || c.tecnico?.tipo === 'immagine' ? 'immagine' : 'video', tecnico: c.tecnico,
     descrizione: c.analisi?.descrizione, momenti: (c.analisi?.momenti || []).slice(0, 8), problemi: c.analisi?.problemi, parlato: c.analisi?.parlato,
     trascrizione: (c.analisi?.misure?.parlato?.trascrizione || []).slice(0, 40), testo_nell_immagine: c.analisi?.testo_nell_immagine || undefined,
-    verticale: c.analisi?.adatta_al_verticale,
+    verticale: c.analisi?.adatta_al_verticale, occhio: c.analisi?.misure?.occhio || c.occhio || undefined,
   }));
   const prima = J(L.montaggio, null);
   if (!clip.length) {
@@ -768,7 +771,8 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
     chiusura: formato === 'montaggio' ? p.chiusura : null, palette: palette || (p.colori?.accento ? { accento: p.colori.accento } : undefined), look: lookVoluto || (R?.look && LOOKS.includes(R.look) ? R.look : (LOOKS.includes(p.look) ? p.look : (LOOKS.includes(scheda.colore?.look) ? scheda.colore.look : 'naturale_vivace'))),
     effetti_globali: [...new Set([...(p.effetti_globali || []), ...(R?.globali || [])])].filter((e) => EFFETTI_GLOBALI.includes(e)), copertina: cop,
     // LUT: quella chiesta da Johnny nel rimontaggio, poi quella del Regista, poi la prima consigliata dallo stile
-    lut: indicazioni?.lut === 'nessuna' ? null : voceLut(LUT[indicazioni?.lut] ? indicazioni.lut : (LUT[p.lut?.nome] ? p.lut.nome : (lookVoluto ? null : lutPerStile(J(L.stile, null))[0])), indicazioni?.lut ? null : p.lut?.intensita),
+    // LUT: SOLO quella scelta da Johnny (nel nuovo lavoro o nel rimontaggio); il Regista e lo stile non la scelgono più
+    lut: (() => { const s = indicazioni?.lut || J(L.stile, null)?.lut || prima?.piano?.lut?.nome; return s && s !== 'nessuna' && LUT[s] ? { ...voceLut(s, null), scelta_da: 'johnny' } : null; })(),
   };
   const versione = (prima?.versione || 0) + 1;
   // Chiara ripassa titoli, copertina e caption prima del montaggio: la sua nota arriva a Johnny con il reel

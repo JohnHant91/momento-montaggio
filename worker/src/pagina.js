@@ -431,13 +431,14 @@ function nuovo() {
     '<label>Reel MODELLO: lo stile che vuoi (facoltativo, ma fa la differenza)</label><textarea id="lr" style="min-height:70px" placeholder="Un link per riga: Instagram, TikTok, Pinterest, YouTube, Vimeo… La squadra copia il suo linguaggio (look, ritmo, testi sì/no, finale), non i contenuti."></textarea>' +
     '<label>Stile di montaggio</label><div class="riga" style="gap:10px"><select id="sg" style="flex:1"><option value="">Genere: lo capisce Stella</option>' + Object.entries(GENERI_UI).map(([k, v]) => '<option value="' + k + '">' + v + '</option>').join('') + '</select><select id="sm" style="flex:1"><option value="">Mood: lo capisce Stella</option>' + Object.entries(MOOD_UI).map(([k, v]) => '<option value="' + k + '">' + v + '</option>').join('') + '</select></div>' +
     '<div class="aiuto">Puoi anche solo scriverlo nella richiesta (es. “street emozionale”, “romantico”, “natalizio”): Stella cerca reel montati così e la squadra applica quello stile alle tue clip.</div>' +
+    '<label>LUT (la scegli tu)</label><select id="lt"><option value="">nessuna LUT</option>' + Object.entries(LUT_UI).map(([k, d]) => '<option value="' + k + '">' + e(d) + '</option>').join('') + '</select>' +
     '<div style="margin-top:18px"><button id="go">Avvia la squadra</button></div><div id="er" class="err"></div>';
   if (PREFILL) { $('#pr').value = PREFILL; PREFILL = ''; }
   chiama('/api/archivio/cartelle').then((C) => { const sel = $('#ar'); if (!sel) return; C.forEach((c) => { const o = document.createElement('option'); o.value = c.percorso; o.textContent = '🗂️ ' + c.percorso; sel.appendChild(o); });
     if (ARCH_PREFILL) { sel.value = ARCH_PREFILL; ARCH_PREFILL = ''; } }).catch(() => {});
   $('#go').onclick = async () => {
     $('#go').disabled = true;
-    try { const r = await chiama('/api/lavori', { method: 'POST', body: { prompt: $('#pr').value, pcloud: $('#pc').value, archivio: $('#ar').value, link_rif: $('#lr').value, solo_clip: $('#solo').checked, stile: ($('#sg').value || '') + '+' + ($('#sm').value || '') } }); location.hash = '#/lavoro/' + r.id; }
+    try { const r = await chiama('/api/lavori', { method: 'POST', body: { prompt: $('#pr').value, pcloud: $('#pc').value, archivio: $('#ar').value, link_rif: $('#lr').value, solo_clip: $('#solo').checked, stile: ($('#sg').value || '') + '+' + ($('#sm').value || ''), lut: $('#lt').value || null } }); location.hash = '#/lavoro/' + r.id; }
     catch (x) { $('#er').textContent = x.message; $('#go').disabled = false; }
   };
 }
@@ -507,7 +508,7 @@ function vistaReel(L) {
     '<div class="card"><b>Rimonta</b><p class="mut">Rifà solo piano e montaggio (niente nuova ricerca né analisi).</p>' +
     '<label>Cosa cambiare</label><textarea id="rim_t" style="min-height:70px" placeholder="Es. più veloce, gancio con la tazza, meno testi, chiusura con il logo"></textarea>' +
     '<div class="riga"><div style="flex:1"><label>Look</label><select id="rim_l">' + LOOKS_UI.map(([v, n]) => '<option value="' + v + '">' + n + '</option>').join('') + '</select></div>' +
-    '<div style="flex:1"><label>LUT (pellicola / grading)</label><select id="rim_lut"><option value="">come prima / la sceglie il colorist</option><option value="nessuna">nessuna LUT</option>' + Object.entries(LUT_UI).map(([k, d]) => '<option value="' + k + '">' + e(d) + '</option>').join('') + '</select></div>' +
+    '<div style="flex:1"><label>LUT (pellicola / grading)</label><select id="rim_lut"><option value="">come prima</option><option value="nessuna">nessuna LUT</option>' + Object.entries(LUT_UI).map(([k, d]) => '<option value="' + k + '">' + e(d) + '</option>').join('') + '</select></div>' +
     '<div style="flex:1"><label>Durata (s)</label><input id="rim_d" type="number" min="7" max="90" placeholder="come prima"></div>' +
     '<div style="flex:1"><label>Formato</label><select id="rim_f"><option value="">decide Rocco</option><option value="montaggio">Montaggio</option><option value="talking_head">Talking-head</option><option value="carosello">Carosello → reel</option></select></div></div>' +
     '<div style="margin-top:12px"><button id="rim_ok">Rimonta</button></div><div id="rim_er" class="err"></div></div>';
