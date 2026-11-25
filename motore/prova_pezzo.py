@@ -13,7 +13,7 @@ if ruota:
     import analizza as AN
     AN.raddrizza(src, ruota, lambda *a: print(*a))
     shutil.copy(src, "/tmp/studio/1_raddrizzato.mp4")
-piano = {"segmenti": [{"file": src, "in": 0.5, "durata": 3.4, "effetto": "nessuno"}], "look": "pulito_commerciale", "intensita_look": 0.8, "stabilizza_tutto": True}
+piano = {"segmenti": [{"file": src, "in": 0.5, "durata": 3.4, "effetto": "nessuno"}], "look": "pulito_commerciale", "intensita_look": 0.8, "stabilizza_tutto": True}  # deve risultare pulito anche così
 m = MT.Montatore(piano, "/tmp/studio/lav", avvisa=lambda *a: print(*a))
 s = piano["segmenti"][0]
 s["_info"] = m.probe(s["file"])

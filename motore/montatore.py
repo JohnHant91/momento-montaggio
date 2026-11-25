@@ -344,6 +344,12 @@ class Montatore:
             self.report.append(f"pezzo {i + 1}: niente movimento aggiunto (camera a mano)")
             s["effetto"] = "nessuno"
         trf = os.path.join(self.tmp, f"stab_{i}.trf")
+        # vidstab sul motore GitHub (ffmpeg 8) rovina l'immagine: fotogrammi a chiazze, mani "trascinate", scatti.
+        # Verificato su una clip vera: senza stabilizzazione il pezzo è pulito. I tratti mossi li evita la scelta del
+        # tratto fermo e le clip troppo mosse vengono sostituite con altre riprese.
+        if stab is True and not os.environ.get("STABILIZZA_VIDSTAB"):
+            stab = False
+            self.report.append(f"pezzo {i + 1}: niente stabilizzazione (rovinava l'immagine)")
         if stab is True:
             try:
                 self.ff(["-ss", f"{t_in:.3f}", "-t", f"{sorgente + 0.2:.3f}", "-i", src, "-vf",
