@@ -1066,6 +1066,37 @@ class MontatoreCompleto(TalkingHead):
         quella girata più vicino) che abbia un tratto fermo."""
         riserve = [dict(r, _info=self.probe(r["file"])) for r in (self.p.get("riserve") or []) if r.get("file")]
         usati = {}  # file -> intervalli già usati (per non montare due volte lo stesso tratto)
+        # L'OCCHIO DEL VIDEOMAKER (gratis, OpenCV): ogni clip guardata 10 volte al secondo -> camera, azione sul soggetto,
+        # fuoco, luce. Così si sceglie il GESTO sul prodotto (intero) e non il tratto dove non succede niente.
+        occhi = {}
+        try:
+            import occhio as OC
+            files = sorted({x["file"] for x in segmenti + riserve if x.get("file")})
+
+            def guarda(f):
+                try:
+                    return f, OC.leggi_scheda(OC.guarda(f))
+                except Exception:
+                    return f, None
+            with ThreadPoolExecutor(PARALLELO) as ex:
+                occhi = {f: l for f, l in ex.map(guarda, files) if l}
+            self.avvisa("editor", f"occhio del videomaker: {len(occhi)} clip guardate (azioni, camera, fuoco, luce)")
+        except Exception as e:
+            self.avvisa("editor", f"occhio non disponibile ({str(e)[:60]}): scelgo col solo controllo del mosso", "warn")
+
+        def con_occhio(src, serve, vicino, azione=True):
+            """(ordinamento, voto stile vecchio: più basso = meglio, inizio, consiglio) oppure None."""
+            le = occhi.get(src)
+            if not le:
+                return None
+            r = OC.tratto_migliore(le, serve, vicino, preferisci_azione=azione)
+            if not r:
+                return None
+            occ = usati.get(src, [])
+            if any(a - serve < r["in"] < b for a, b in occ):
+                return None
+            v = round(1 - r["voto"], 3)
+            return (v, v, r["in"], r)
 
         def candidati(src, info, serve, vicino):
             fine = max(0.0, info["dur"] - serve - 0.05)
@@ -1073,7 +1104,10 @@ class MontatoreCompleto(TalkingHead):
             tt = sorted({round(min(fine, max(0.0, vicino)), 2)} | {round(fine * k / passi, 2) for k in range(passi + 1)})
             return [t for t in tt if t <= fine]
 
-        def migliore(src, info, serve, vicino, zf=None):
+        def migliore(src, info, serve, vicino, zf=None, azione=True):
+            oc = con_occhio(src, serve, vicino, azione)
+            if oc and oc[1] <= self.BUONO * 0.8:
+                return oc[:3]
             rit = {"z": (zf or {}).get("z", 1), "cx": (zf or {}).get("cx", 0.5), "cy": (zf or {}).get("cy", 0.5)}
             # velocità: se il tratto scelto dal Regista è già fermo lo tengo senza misurare tutta la clip
             fine = max(0.0, info["dur"] - serve - 0.05)
@@ -1101,11 +1135,21 @@ class MontatoreCompleto(TalkingHead):
                 usati.setdefault(s["file"], []).append((float(s["in"]), float(s["in"]) + serve))
                 self.report.append(f"pezzo {k + 1}: tenuto da {float(s['in']):.1f}s come richiesto")
                 continue
-            _, voto, t = migliore(s["file"], info, serve, float(s.get("in", 0)), s.get("zoom_fisso"))
+            # il Regista ha chiesto una pausa/inquadratura ferma? allora l'occhio non cerca l'azione
+            azione = not re.search(r"pausa|ferm|statico|senza mani|still", str(s.get("motivo") or ""), re.I)
+            _, voto, t = migliore(s["file"], info, serve, float(s.get("in", 0)), s.get("zoom_fisso"), azione)
             if voto <= self.BUONO:
+                oc = con_occhio(s["file"], serve, float(s.get("in", 0)), azione)
+                if oc and abs(oc[2] - t) < 0.01:
+                    c = oc[3]
+                    self.report.append(f"pezzo {k + 1}: occhio -> {t:.1f}s, {c['motivo']}")
+                    # inquadratura 9:16 centrata dove succede l'azione (se il Regista non ha già indicato un oggetto)
+                    if c.get("centro_x") is not None and not s.get("zoom_fisso") and not s.get("centro_x"):
+                        s["centro_x"] = c["centro_x"]
+                elif abs(t - float(s.get("in", 0))) > 0.05:
+                    self.report.append(f"pezzo {k + 1}: spostato a {t:.1f}s, tratto fermo (voto {voto:.2f})")
                 if abs(t - float(s.get("in", 0))) > 0.05:
                     spostati += 1
-                    self.report.append(f"pezzo {k + 1}: spostato a {t:.1f}s, tratto fermo (voto {voto:.2f})")
                 s["in"], s["in_preciso"] = t, True
             else:
                 # sostituzione con una riserva: la più vicina nell'ordine di ripresa (nomi file in sequenza), poi la più ferma

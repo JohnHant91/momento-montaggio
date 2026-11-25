@@ -1,0 +1,39 @@
+# Prova dell occhio del videomaker su una cartella dell Archivio: gratis (OpenCV), risultato cifrato.
+name: prova-occhio
+
+on:
+  workflow_dispatch:
+    inputs:
+      ruote: { required: false, default: '{"*sony*": -90, "C0050.MP4": 0, "C0061.MP4": 0, "C0062.MP4": 0, "C0060.MP4": 90}' }
+
+permissions:
+  id-token: write
+  contents: write
+
+env:
+  REGIA: https://momento-reel.gestionalelcl.workers.dev
+
+jobs:
+  prova:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Strumenti
+        run: |
+          if ! command -v ffmpeg >/dev/null; then sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null; fi
+          pip install -q pillow numpy opencv-python-headless
+      - name: Occhio del videomaker
+        run: python3 motore/prova_occhio.py
+        env: { RUOTE: "${{ github.event.inputs.ruote }}" }
+      - name: Tavole (cifrate)
+        if: always()
+        run: |
+          ls /tmp/tavole/occhio.json >/dev/null 2>&1 || exit 0
+          mkdir -p /tmp/out && cd /tmp/tavole && tar czf /tmp/t.tgz occhio.json
+          openssl rand -out /tmp/k.bin 32
+          openssl enc -aes-256-cbc -pbkdf2 -in /tmp/t.tgz -out /tmp/out/tavole.enc -pass file:/tmp/k.bin
+          openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/motore/chiave_studio.pem" -in /tmp/k.bin -out /tmp/out/k.enc
+          cd /tmp/out && git init -q && git checkout -q -b tavole-occhio && git add . \
+          && git -c user.name=motore -c user.email=motore@momento commit -qm "tavole verso" \
+          && git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" tavole-occhio
