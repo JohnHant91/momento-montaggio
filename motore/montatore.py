@@ -200,7 +200,7 @@ class Montatore:
         if self.p.get("lut"):
             try:
                 import lut as LUTLIB
-                L = self.p["lut"]
+                L = self.p.get("lut") or {}
                 f = LUTLIB.filtro(L.get("nome"), L.get("intensita"), L.get("pacchetto"), L.get("file"), L.get("bn"))
                 if f:
                     if not getattr(self, "_lut_detta", False):
@@ -208,7 +208,7 @@ class Montatore:
                         self.report.append(f"color: LUT {L.get('nome')} al {float(L.get('intensita') or 0.7) * 100:.0f}%")
                     return f
             except Exception as e:
-                self.report.append(f"LUT {self.p['lut'].get('nome')} non disponibile ({e}): uso il look {self.p.get('look')}")
+                self.report.append(f"LUT {(self.p.get('lut') or {}).get('nome')} non disponibile ({e}): uso il look {self.p.get('look')}")
                 self.p["lut"] = None
         return f"lut3d='{lut}'"
 
@@ -220,7 +220,7 @@ class Montatore:
             self._nero_lut = ""
             try:
                 import lut as LUTLIB
-                L = self.p["lut"]
+                L = self.p.get("lut") or {}
                 f = LUTLIB.file_lut(L.get("nome"), L.get("pacchetto"), L.get("file"))
                 k = float(L.get("intensita") or 0.7)
                 for riga in open(f):

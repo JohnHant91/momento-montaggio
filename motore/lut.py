@@ -1,5 +1,7 @@
 """Libreria LUT del motore: scarica i pacchetti G'MIC (.cube) la prima volta, li tiene in cache e restituisce il file."""
-import json, os, subprocess, sys, zipfile, urllib.request
+import json, os, subprocess, sys, threading, zipfile, urllib.request
+
+_BLOCCO = threading.Lock()  # i pezzi sono montati in parallelo: un solo download/estrazione per volta
 
 CACHE = os.path.expanduser("~/.cache/momento-lut")
 CATALOGO = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "lut_catalogo.json")))
@@ -12,13 +14,19 @@ def file_lut(nome=None, pacchetto=None, file=None):
     if not pacchetto or not file:
         return None
     cartella = os.path.join(CACHE, pacchetto)
-    if not os.path.isdir(cartella):
+    with _BLOCCO:
+        return _trova(cartella, pacchetto, file)
+
+
+def _trova(cartella, pacchetto, file):
+    if not os.path.isdir(os.path.join(cartella, ".ok")):
         os.makedirs(CACHE, exist_ok=True)
         zp = os.path.join(CACHE, pacchetto + ".zip")
         urllib.request.urlretrieve(f"https://gmic.eu/color_presets/{pacchetto}/{pacchetto}_cube.zip", zp)
         with zipfile.ZipFile(zp) as z:
             z.extractall(cartella)
         os.remove(zp)
+        os.makedirs(os.path.join(cartella, ".ok"), exist_ok=True)
     for radice, _, files in os.walk(cartella):
         if file + ".cube" in files:
             return os.path.join(radice, file + ".cube")
