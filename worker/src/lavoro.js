@@ -189,7 +189,11 @@ async function cache(env, chiave, calcola) {
 }
 
 // ------------------------------------------------------------------ le fasi
+// MODO SNELLO (default): Johnny dà clip + prompt. Niente piano con Claude, niente ricerca/riferimenti, niente scheda:
+// si paga solo la visione delle clip nuove, il Regista e una revisione.
+const snello = (L) => !J(L.link_rif, []).length && !J(L.stile, null)?.avatar && (FONTI[L.fonte || 'pcloud'] || FONTI.pcloud).pronta(L);
 async function fasePiano(env, cfg, L) {
+  if (snello(L)) { await run(env, 'UPDATE lavori SET piano=?, scheda=? WHERE id=?', JSON.stringify({ obiettivo: 'reel dalle clip di Johnny' }), JSON.stringify({ richiesta_di_johnny: L.prompt }), L.id); return; }
   // reel col mio avatar: il piano è già nel copione, niente chiamata a Claude
   if (J(L.stile, null)?.avatar) { await run(env, 'UPDATE lavori SET piano=? WHERE id=?', JSON.stringify({ settore: 'profilo personale di Johnny', obiettivo: 'reel per il profilo Instagram' }), L.id); return; }
   await log(env, L.id, 'direttore', 'leggo la richiesta e preparo la ricerca');
@@ -894,7 +898,7 @@ almeno metà dei pezzi da clip diverse o da momenti diversi delle stesse clip (l
 }
 
 // REVISORE (controllo qualità prima di Johnny): guarda un fotogramma al secondo del reel finito e decide se è da consegnare.
-// Se non passa, rimanda il reel al Regista con le correzioni e si rimonta da solo (max 2 giri): Johnny vede solo reel promossi.
+// Se non passa, rimanda il reel al Regista con le correzioni e si rimonta da solo (max 1 giro, per risparmiare token): Johnny vede solo reel promossi.
 const SISTEMA_QA = `Sei il revisore finale di Momento Produzione: un videomaker senior che decide se un reel promozionale verticale
 può andare al cliente. Guardi il foglio con un fotogramma al secondo del reel FINITO (il tempo è scritto in giallo). Sei severo ma giusto.
 Bocci solo per difetti veri che un cliente noterebbe. Rispondi SOLO con JSON valido.`;
@@ -921,7 +925,7 @@ async function faseMontaggio(env, cfg, L) {
     const q = await revisione(env, cfg, L, m).catch((e) => ({ passa: true, voto: null, nota: 'revisione non riuscita: ' + String(e?.message || e).slice(0, 80) }));
     const giri = m.qa_giri || 0;
     m.qa = { ...q, quando: ora(), giro: giri + 1 };
-    if (q.passa || giri >= 2) {
+    if (q.passa || giri >= 1) {
       await run(env, 'UPDATE lavori SET montaggio=? WHERE id=?', JSON.stringify(m), L.id);
       await log(env, L.id, 'revisore', q.passa ? `✅ revisione superata${q.voto ? ` (voto ${q.voto}/10)` : ''}${q.nota ? ' · ' + q.nota : ''}` : `⚠️ dopo ${giri + 1} revisioni il voto è ${q.voto}/10: te lo consegno con i difetti segnati (${q.difetti.map((x) => x.problema).join('; ').slice(0, 200)})`, q.passa ? 'info' : 'warn');
       return true;
@@ -973,7 +977,9 @@ async function lavora(env, cfg, L, scadenza) {
     let prossima = FASI[FASI.indexOf(L.fase) + 1];
     if (finita === 'salta') prossima = 'fatto';
     // reel col mio avatar: lo studio dei virali l'ha già fatto Zoe nel piano del profilo, niente seconda ricerca (risparmia Apify, Claude e Gemini)
-    if (L.fase === 'piano' && J(L.stile, null)?.solo_clip && !J(L.link_rif, []).length) { prossima = 'clip'; await log(env, L.id, 'direttore', 'uso solo le tue clip: niente ricerca di reel sulle piattaforme'); }
+    if (L.fase === 'piano' && snello(L)) { prossima = 'clip'; await log(env, L.id, 'direttore', 'modo snello: clip + prompt, niente ricerca né scheda'); }
+    else if (L.fase === 'clip' && snello(L) && !J(L.riferimenti, []).length) prossima = 'regia';
+    else if (L.fase === 'piano' && J(L.stile, null)?.solo_clip && !J(L.link_rif, []).length) { prossima = 'clip'; await log(env, L.id, 'direttore', 'uso solo le tue clip: niente ricerca di reel sulle piattaforme'); }
     if (L.fase === 'piano' && J(L.stile, null)?.avatar) { prossima = 'clip'; await log(env, L.id, 'direttore', 'reel con il tuo avatar: i virali li ha già studiati Zoe, salto la ricerca dei riferimenti'); }
     await run(env, 'UPDATE lavori SET fase=?, stato=?, tentativi=0, aggiornato=? WHERE id=?',
       prossima, prossima === 'fatto' ? 'pronto' : 'in_corso', ora(), L.id);
