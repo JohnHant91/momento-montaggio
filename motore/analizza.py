@@ -93,7 +93,10 @@ def link_pcloud(lavoro, fileid):
 def scarica_url(url, dest):
     try:
         with http(url, timeout=900, headers={"user-agent": "Mozilla/5.0"}) as r, open(dest, "wb") as f:
+            atteso = int(r.headers.get("content-length") or 0)
             shutil.copyfileobj(r, f, 1 << 22)
+        if atteso and os.path.getsize(dest) != atteso:  # connessione caduta a metà: il file è troncato
+            raise RuntimeError(f"download troncato ({os.path.getsize(dest) // 1048576} di {atteso // 1048576} MB)")
     except urllib.error.HTTPError as e:
         raise RuntimeError(f"download non riuscito (HTTP {e.code}): link scaduto o non pubblico")
 
@@ -586,6 +589,18 @@ def monta(lavoro):
                 return hashlib.sha256(("pcloud:" + str(s["fileid"])).encode()).hexdigest()[:32]
             return hashlib.sha256(urllib.parse.urlsplit(s["url"]).path.encode()).hexdigest()[:32]
 
+        def integro(path, nome=""):
+            """il file si apre ed è completo? (un download troncato dà 'moov atom not found' a metà montaggio)"""
+            if not os.path.exists(path) or os.path.getsize(path) == 0:
+                return False
+            if re.search(r"\.(mp3|m4a|wav|aac|flac|ogg|jpe?g|png|webp|heic)$", nome or "", re.I):
+                return True
+            r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path], capture_output=True, text=True, timeout=120)
+            try:
+                return r.returncode == 0 and float(r.stdout.strip() or 0) > 0
+            except ValueError:
+                return False
+
         def prendi(k):
             s = voci[k]
             dest = os.path.join(cartella, "src_" + re.sub(r"\W+", "_", k)[-40:])
@@ -594,9 +609,21 @@ def monta(lavoro):
             if ck and os.path.exists(cf):
                 r = subprocess.run(["openssl", "enc", "-d", "-aes-256-ctr", "-pbkdf2", "-iter", "1000", "-in", cf, "-out", dest, "-pass", "env:CCK"],
                                    env=dict(os.environ, CCK=ck), capture_output=True)
-                if r.returncode == 0 and os.path.getsize(dest) > 0:
+                if r.returncode == 0 and integro(dest, s.get("nome")):
                     return k, dest, True
-            scarica_url(link_pcloud(lavoro, s["fileid"]) if s.get("fileid") else s["url"], dest)
+                os.remove(cf)  # copia in cache rovinata: la butto e riscarico
+                avvisa("motore", "una clip in cache era rovinata: la riscarico", "warn")
+            for tentativo in range(3):
+                try:
+                    scarica_url(link_pcloud(lavoro, s["fileid"]) if s.get("fileid") else s["url"], dest)
+                except RuntimeError as e:
+                    if "troncato" not in str(e) or tentativo == 2:
+                        raise
+                if integro(dest, s.get("nome")):
+                    break
+                avvisa("motore", f"download incompleto ({os.path.getsize(dest) // 1048576} MB): riprovo", "warn")
+            else:
+                raise RuntimeError(f"la clip {s.get('nome') or ''} arriva sempre incompleta")
             if ck:
                 subprocess.run(["openssl", "enc", "-aes-256-ctr", "-pbkdf2", "-iter", "1000", "-in", dest, "-out", cf, "-pass", "env:CCK"],
                                env=dict(os.environ, CCK=ck), capture_output=True)
