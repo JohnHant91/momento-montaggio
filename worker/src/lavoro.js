@@ -617,7 +617,10 @@ Rispondi SOLO JSON: {"correzioni": [{"id": n, "testo": "testo corretto, oppure \
 
 // regole fisse di Johnny per tutti i reel (modificabili in Impostazioni): Rocco le legge in ogni piano
 export const REGOLE_REEL_BASE = `- Vale per QUALSIASI cliente e prodotto (cibo, moda, locali, servizi, oggetti): lo stile è questo, il soggetto cambia.
-- Reel di PRODOTTO: circa 20 secondi, 6-8 pezzi da 2,5-3,5 s, solo i passaggi chiave del racconto (lavorazione → trasformazione → prodotto finito → confezione/consegna). Meglio corto e pieno che lungo e lento.
+- Reel di PRODOTTO (misurato sul montaggio vero di Johnny, panettone Nonno Enrico: 48 s, 16 pezzi): 30-50 secondi, 12-16 pezzi (ognuno da una clip diversa).
+  APERTURA lenta e d'atmosfera: una inquadratura lunga 4-8 s sulla lavorazione. CENTRO a ritmo: pezzi da 1-3 s che seguono il processo in ordine
+  (lavorazione → trasformazione → prodotto finito). CHIUSURA sul prodotto confezionato: 2 inquadrature lunghe da 4-6 s (la scatola, il prodotto in mano/portato verso la camera).
+  Momenti che NON possono mancare se sono nel girato: il prodotto che viene spostato/portato, la decorazione finale (granella, glassa), la confezione.
 - Il PRODOTTO è il protagonista di ogni pezzo: si vede sempre, al centro dell'attenzione. In ogni clip si prende il momento in cui il prodotto si muove o viene lavorato (glassa che cola, panettone spostato, mani che impastano), mai il prodotto fermo se nella clip c'è il gesto. Usa le AZIONI viste dall'occhio (campo "occhio" delle clip: tempi esatti dei gesti).
 - Il pezzo dura quanto il gesto: entra un attimo prima che il gesto inizi ed esce quando finisce (taglio sull'azione).
 - Colore (metodo di Johnny): 1) esposizione automatica clip per clip, tutte uguali 2) base neutra Rec.709 3) montaggio 4) color finale UNA volta su tutto il reel. Neri e colori identici fra una clip e l'altra, niente vignettatura. La LUT la sceglie Johnny prima del montaggio.
