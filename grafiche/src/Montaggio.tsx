@@ -5,7 +5,8 @@
 // Regole fisse: la faccia resta sempre libera (le grafiche stanno ai lati, sopra la testa o dietro), i sottotitoli
 // stanno sotto, tutto dentro la safe zone di Reels / TikTok / Shorts.
 import React from "react";
-import { AbsoluteFill, Audio, Easing, OffthreadVideo, Img, Sequence, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Audio, Easing, OffthreadVideo, Img, Sequence, continueRender, delayRender, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { getAvailableFonts } from "@remotion/google-fonts";
 import { loadFont as sansMontserrat } from "@remotion/google-fonts/Montserrat";
 import { loadFont as sansInter } from "@remotion/google-fonts/Inter";
 import { loadFont as dispBebas } from "@remotion/google-fonts/BebasNeue";
@@ -23,7 +24,20 @@ const FONT: Record<string, string> = {
   playfair: serifPlayfair().fontFamily,
   pacifico: scriptPacifico().fontFamily,
 };
-export const font = (n?: string) => FONT[(n || "montserrat").toLowerCase()] || FONT.montserrat;
+// TUTTI i Google Fonts (~1.700, licenza libera): oltre ai 5 di casa, qualsiasi famiglia chiesta per nome si scarica al render
+const norm = (x: string) => String(x || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+const DISPONIBILI = getAvailableFonts();
+const caricati: Record<string, string> = {};
+export function caricaFont(nome?: string) {
+  const k = norm(nome || "");
+  if (!k || FONT[k] || caricati[k]) return;
+  const f = DISPONIBILI.find((x) => norm(x.fontFamily) === k || norm(x.importName) === k);
+  if (!f) return;
+  caricati[k] = `"${f.fontFamily}"`;
+  const h = delayRender(`font ${f.fontFamily}`);
+  f.load().then((m) => m.loadFont().waitUntilDone()).then(() => continueRender(h)).catch(() => continueRender(h));
+}
+export const font = (n?: string) => FONT[norm(n || "montserrat")] || caricati[norm(n || "")] || FONT.montserrat;
 
 export type ClipM = {
   src: string;            // file in public/ (già tagliato, raddrizzato e col colore sistemato dal motore)
@@ -83,6 +97,8 @@ const Media: React.FC<{ c: ClipM }> = ({ c }) => {
 };
 
 export const Montaggio: React.FC<MontaggioProps> = (P) => {
+  // font chiesti per nome (titoli, testo, sottotitoli, singoli titoli): caricati una volta prima del primo fotogramma
+  React.useState(() => { [P.font?.titoli, P.font?.testo, P.sottotitoli?.font, ...(P.titoli || []).map((t: any) => t.font)].forEach((n) => caricaFont(n)); return 0; });
   const { fps } = useVideoConfig();
   const f = useCurrentFrame();
   const accento = P.palette?.accento || "#FFD43B";

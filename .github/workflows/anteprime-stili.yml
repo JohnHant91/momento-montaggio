@@ -23,6 +23,11 @@ jobs:
             echo "{\"stile\":\"$s\",\"accento\":\"#FFD60A\",\"font\":\"Arial Black, Arial, sans-serif\",\"parole\":[{\"t\":\"Questo\",\"da\":0.1,\"a\":0.4},{\"t\":\"panettone\",\"da\":0.4,\"a\":0.9,\"k\":true},{\"t\":\"cambia\",\"da\":0.9,\"a\":1.3},{\"t\":\"tutto\",\"da\":1.3,\"a\":1.8}]}" > p.json
             npx remotion still src/index.ts ProvaSottotitoli out/$s.png --props=p.json --frame=20 --log=error
           done
+          for fnt in Anton Oswald "Permanent Marker" "DM Serif Display" Caveat "Archivo Black"; do
+            n=$(echo "$fnt" | tr -d ' ')
+            echo "{\"stile\":\"chiave\",\"accento\":\"#FF5E1A\",\"font\":\"$fnt\",\"parole\":[{\"t\":\"Font\",\"da\":0.1,\"a\":0.4},{\"t\":\"$fnt\",\"da\":0.4,\"a\":0.9,\"k\":true}]}" > p.json
+            npx remotion still src/index.ts ProvaSottotitoli out/font_$n.png --props=p.json --frame=20 --log=error || echo "ERRORE font $fnt"
+          done
           ls out
       - name: Transizioni
         working-directory: grafiche
@@ -48,7 +53,12 @@ jobs:
           out=Image.new('RGB',(W*col,(H+24)*((len(tt)+col-1)//col)),(0,0,0)); d=ImageDraw.Draw(out)
           for i,f in enumerate(tt):
               x,y=(i%col)*W,(i//col)*(H+24); out.paste(Image.open('tr/'+f).convert('RGB').resize((W,H)),(x,y+24)); d.text((x+4,y+6),f[:-4],fill=(255,255,255))
-          out.save('transizioni.jpg',quality=82)"
-          mkdir -p /tmp/pub && cp sottotitoli.jpg transizioni.jpg /tmp/pub/ && cd /tmp/pub
+          out.save('transizioni.jpg',quality=82)
+          ff=sorted(x for x in os.listdir('.') if x.startswith('font_'))
+          out=Image.new('RGB',(540*2,300*((len(ff)+1)//2)),(0,0,0)); d=ImageDraw.Draw(out)
+          for i,f in enumerate(ff):
+              x,y=(i%2)*540,(i//2)*300; out.paste(Image.open(f).convert('RGB').crop((0,660,1080,1260)).resize((540,300)),(x,y)); d.text((x+8,y+8),f,fill=(255,255,255))
+          out.save('font.jpg',quality=85)"
+          mkdir -p /tmp/pub && cp sottotitoli.jpg transizioni.jpg font.jpg /tmp/pub/ && cd /tmp/pub
           git init -q && git checkout -q -b anteprime-stili && git add . && git -c user.name=motore -c user.email=motore@momento commit -qm anteprime
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" anteprime-stili

@@ -4,7 +4,7 @@ import { Pannello, PannelloProps } from "./Pannello";
 import { FPS } from "./theme";
 import { Split, SplitProps } from "./Split";
 import { Dietro, DietroProps } from "./Dietro";
-import { Montaggio, MontaggioProps } from "./Montaggio";
+import { Montaggio, MontaggioProps, caricaFont, font } from "./Montaggio";
 import { AbsoluteFill } from "remotion";
 import { Sottotitoli, SottotitoliProps } from "./montatore/sottotitoli";
 import { PresenzaClip, Transizione } from "./montatore/transizioni";
@@ -19,7 +19,7 @@ const ProvaTransizione: React.FC<{ tipo: string }> = ({ tipo }) => (
   </AbsoluteFill>);
 
 // anteprima di uno stile di sottotitoli su sfondo neutro (per l'archivio Stili)
-const ProvaSottotitoli: React.FC<SottotitoliProps> = (p) => (<AbsoluteFill style={{ background: "linear-gradient(160deg,#3a4a5a,#1b2330)" }}><Sottotitoli {...p} y={960} /></AbsoluteFill>);
+const ProvaSottotitoli: React.FC<SottotitoliProps> = (p) => { React.useState(() => { caricaFont(p.font); return 0; }); return (<AbsoluteFill style={{ background: "linear-gradient(160deg,#3a4a5a,#1b2330)" }}><Sottotitoli {...p} font={font(p.font)} y={960} /></AbsoluteFill>); };
 
 const esempio: PannelloProps = {
   chip: "TIP",

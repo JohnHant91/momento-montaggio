@@ -532,7 +532,7 @@ VALORI AMMESSI
 - stile testi: titolo_grande_centrale, etichetta_box, sottotitolo_classico; posizione: alto, centro, terzo_inferiore
 - REGOLA FERREA DI JOHNNY: nei titoli e nei testi usa SOLO informazioni che Johnny ha scritto nella richiesta o che si sentono nel girato. Mai inventare numeri, tempi (es. "48 ore di lievitazione"), prezzi, ingredienti, premi o promesse: se non hai informazioni, titoli di atmosfera col nome del prodotto o del cliente, oppure nessun titolo.
 - REGOLA DEL GIRATO: mai pezzi mossi, con scatti di camera o problemi; scegli il tratto fermo della clip o un'altra ripresa dello stesso momento.
-- MONTATORE (formato montaggio): "titoli" in motion graphics, stile ${STILI_TITOLO.join(', ')}; posizione alto (sopra la testa), sx / dx (ai lati del viso), basso, centro (SOLO su clip senza persone: la faccia deve restare sempre libera); sottotitoli.stile: ${STILI_SOTT.join(', ')}; font_reel: ${FONT_REEL.join(', ')}; look_reel.particelle: neve, polvere, coriandoli, bokeh (es. neve per lo spot di Natale)
+- MONTATORE (formato montaggio): "titoli" in motion graphics, stile ${STILI_TITOLO.join(', ')}; posizione alto (sopra la testa), sx / dx (ai lati del viso), basso, centro (SOLO su clip senza persone: la faccia deve restare sempre libera); sottotitoli.stile: ${STILI_SOTT.join(', ')}; font_reel: {titoli, testo} con il NOME di qualsiasi Google Font (es. Anton, Archivo Black, Oswald, Poppins, Space Grotesk, DM Serif Display, Caveat, Permanent Marker; i nostri di casa: ${FONT_REEL.join(', ')}); look_reel.particelle: neve, polvere, coriandoli, bokeh (es. neve per lo spot di Natale)
 - formato: montaggio, talking_head, carosello, split_grafico, parole_dietro (vedi FORMATI DEL MONTATORE)
 - adesivi (solo parole_dietro): ${ADESIVI.join(', ')}
 - grafiche (solo split_grafico): ${TIPI_GRAFICA.join(', ')}; effetti delle grafiche: ${EFFETTI_SPLIT.join(', ')}; font_split.titoli: ${FONT_SPLIT.titoli.join(', ')}; testo: ${FONT_SPLIT.testo.join(', ')}; mono: ${FONT_SPLIT.mono.join(', ')}
@@ -834,7 +834,9 @@ almeno metà dei pezzi da clip diverse o da momenti diversi delle stesse clip (l
   const lookReel = motore !== 'montatore' ? null : { grana: Math.min(0.15, Math.max(0, Number(p.look_reel?.grana ?? 0.06))), vignetta: Math.min(0.6, Math.max(0, Number(p.look_reel?.vignetta ?? 0.32))),
     particelle: ['neve', 'polvere', 'coriandoli', 'bokeh'].includes(p.look_reel?.particelle) ? p.look_reel.particelle : null,
     tinta: /^#[0-9a-f]{6}$/i.test(p.look_reel?.tinta || '') ? p.look_reel.tinta : null, tinta_forza: Math.min(0.4, Math.max(0, Number(p.look_reel?.tinta_forza ?? 0.18))) };
-  const fontReel = motore !== 'montatore' ? null : { titoli: FONT_REEL.includes(p.font_reel?.titoli) ? p.font_reel.titoli : 'montserrat', testo: FONT_REEL.includes(p.font_reel?.testo) ? p.font_reel.testo : 'montserrat' };
+  // qualsiasi Google Font per nome (il motore grafico lo scarica al render); i 5 di casa restano il ripiego
+  const fontOk = (x) => typeof x === 'string' && /^[A-Za-z0-9 ]{2,40}$/.test(x.trim()) ? x.trim() : null;
+  const fontReel = motore !== 'montatore' ? null : { titoli: fontOk(p.font_reel?.titoli) || 'montserrat', testo: fontOk(p.font_reel?.testo) || 'montserrat' };
   if (motore === 'montatore' && p.sottotitoli) p.sottotitoli = { ...p.sottotitoli, stile: STILI_SOTT.includes(p.sottotitoli.stile) ? p.sottotitoli.stile : 'box' };
   // clip di riserva: le altre clip video del girato, così il montatore sostituisce un pezzo che trema con un'altra
   // ripresa dello stesso momento (la più vicina nell'ordine di ripresa) invece di montarlo mosso
