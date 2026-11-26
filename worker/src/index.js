@@ -16,6 +16,7 @@ import { apiNotifiche, controllaApprovazioni, schemaNotifiche, SW, MANIFEST } fr
 import { ICONA_192, ICONA_512 } from './icone.js';
 import { apiImporta } from './importa.js';
 import { apiCalendario } from './calendario.js';
+import { apiSchede, avanzaSchede } from './social/schede.js';
 import { apiArchivio, linkValido, pulisci, servi, trovaCartella } from './archivio.js';
 import { PAGINA } from './pagina.js';
 import SALA3D_JS from './sala3d.txt';
@@ -335,6 +336,10 @@ async function api(req, env, url) {
     const r = await apiAvatar(req, env, p, m, json);
     if (r) return r;
   }
+  if (p.startsWith('/api/social/')) {
+    const r = await apiSchede(req, env, p, m, json);
+    if (r) return r;
+  }
   if (p.startsWith('/api/calendario')) {
     const r = await apiCalendario(req, env, p, m, json);
     if (r) return r;
@@ -483,6 +488,6 @@ export default {
     await schemaPiani(env);
     await schemaAgenzia(env);
     await schemaNotifiche(env);
-    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env), avanzaRiunioni(env), avanzaAvatar(env), avanzaPost(env), diagnosiUnaVolta(env), controllaApprovazioni(env).catch((e) => console.log('notifiche', e.message))]));
+    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env), avanzaRiunioni(env), avanzaAvatar(env), avanzaPost(env), avanzaSchede(env).catch((e) => console.log('schede', e.message)), diagnosiUnaVolta(env), controllaApprovazioni(env).catch((e) => console.log('notifiche', e.message))]));
   },
 };

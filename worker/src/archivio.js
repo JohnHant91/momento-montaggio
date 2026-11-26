@@ -32,7 +32,7 @@ async function creaCartella(env, p) {
   }
 }
 
-async function registraFile(env, p, oggetto, mime) {
+export async function registraFile(env, p, oggetto, mime) {
   if (padre(p)) await creaCartella(env, padre(p));
   await run(env, `INSERT INTO archivio (percorso, cartella, nome, tipo, dimensione, etag, mime, creato) VALUES (?,?,?,?,?,?,?,?)
     ON CONFLICT(percorso) DO UPDATE SET dimensione=excluded.dimensione, etag=excluded.etag, mime=excluded.mime, creato=excluded.creato`,
