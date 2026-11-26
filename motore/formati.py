@@ -218,6 +218,33 @@ class TalkingHead(_Base):
             prec = (nome, z, fx)
         self.report.append("multicam: " + str(len(tratti)) + " frasi su " + str(len({(round(p["zoom"], 2), p["fx"]) for p in tratti})) + " camere virtuali, cambi con frustata")
 
+    VUOTE = set("il lo la i gli le un uno una di a da in con su per tra fra e o ma se che chi non mi ti si ci vi ne è sono ho hai ha del della dei delle al alla ai alle dal dalla nel nella sul sulla questo questa quello quella come più anche poi molto tutto tutti cosa perché quando dove allora quindi però così io tu lui lei noi voi loro mio tuo suo the and to of a is it you that this".split())
+
+    def supers(self, tratti):
+        """KINETIC SUPERS: 2-3 parole chiave DETTE in ogni blocco di camera, grandi e animate quando si sentono.
+        Al massimo una ogni ~1,7 s, nessuna sulle frasi di riempimento, il gancio lo gestisce già il titolo."""
+        out, ultimo = [], -9.0
+        for k, p in enumerate(tratti):
+            if not k:
+                continue
+            parole = [w for w in p["riga"] if w["testo"].strip()]
+            piene = [i for i, w in enumerate(parole) if len(norm(w["testo"])) > 3 and norm(w["testo"]) not in self.VUOTE]
+            if not piene or parole[piene[0]]["t0"] - ultimo < 1.7:
+                continue
+            i = piene[0]
+            pezzo = [parole[i]["testo"]]
+            for w in parole[i + 1:i + 3]:
+                if len(" ".join(pezzo + [w["testo"]])) > 22:
+                    break
+                pezzo.append(w["testo"])
+            while len(pezzo) > 1 and norm(pezzo[-1]) in self.VUOTE:
+                pezzo.pop()
+            testo = re.sub(r"[.,;:!?…]+$", "", " ".join(pezzo))
+            out.append({"testo": testo, "sulla_parola": parole[i]["testo"], "stile": "fascia", "durata": min(1.8, p["durata"]), "colore": None if len(out) % 2 else "rosa"})
+            ultimo = parole[i]["t0"]
+        self.report.append(f"kinetic supers: {len(out)} parole chiave animate sui cambi di camera")
+        return out
+
     def tratto(self, i, p, lut):
         s = p["s"]
         cw, ch, x, y = self.finestra(s, p["zoom"], p.get("fx", 0.5))
@@ -314,6 +341,8 @@ class TalkingHead(_Base):
         if P.get("multicam") and (self.ZOOM != [1.0] or getattr(self, "NOME", "") == "parole_dietro"):
             self.avvisa("editor", "multicam: più camere virtuali dalla stessa ripresa, cambi con frustata sulle frasi")
             self.camere(tratti)
+            if self.ZOOM != [1.0] and not P.get("cartelli"):
+                P["cartelli"] = self.supers(tratti)
         self.report.append(f"talking-head: {len(tratti)} frasi, {tagliati:.1f} s di pause tolte")
 
         lut = self.crea_lut(P.get("look", "naturale_vivace"), min(0.75, float(P.get("intensita_look", 0.6))))
