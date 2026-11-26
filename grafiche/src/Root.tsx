@@ -7,6 +7,16 @@ import { Dietro, DietroProps } from "./Dietro";
 import { Montaggio, MontaggioProps } from "./Montaggio";
 import { AbsoluteFill } from "remotion";
 import { Sottotitoli, SottotitoliProps } from "./montatore/sottotitoli";
+import { PresenzaClip, Transizione } from "./montatore/transizioni";
+
+// anteprima di una transizione: la clip A (arancio) esce, la B (blu) entra; il fotogramma 15 è a metà passaggio
+const Pannello2: React.FC<{ c: string; l: string }> = ({ c, l }) => (<AbsoluteFill style={{ background: c, alignItems: "center", justifyContent: "center", fontSize: 520, fontWeight: 900, color: "rgba(255,255,255,.9)", fontFamily: "Arial Black, Arial" }}>{l}</AbsoluteFill>);
+const ProvaTransizione: React.FC<{ tipo: string }> = ({ tipo }) => (
+  <AbsoluteFill style={{ background: "#000" }}>
+    <PresenzaClip durata={1} uscita={{ tipo, durata: 1 }}><Pannello2 c="linear-gradient(160deg,#ff9a3c,#d9480f)" l="A" /></PresenzaClip>
+    <PresenzaClip durata={1} ingresso={{ tipo, durata: 1 }}><Pannello2 c="linear-gradient(160deg,#4dabf7,#1c3d8f)" l="B" /></PresenzaClip>
+    <Transizione tipo={tipo} accento="#FFD60A" />
+  </AbsoluteFill>);
 
 // anteprima di uno stile di sottotitoli su sfondo neutro (per l'archivio Stili)
 const ProvaSottotitoli: React.FC<SottotitoliProps> = (p) => (<AbsoluteFill style={{ background: "linear-gradient(160deg,#3a4a5a,#1b2330)" }}><Sottotitoli {...p} y={960} /></AbsoluteFill>);
@@ -69,6 +79,15 @@ export const Root: React.FC = () => (
     durationInFrames={FPS * 6}
     defaultProps={{ fps: 30, durata: 6, clip: [] } as MontaggioProps}
     calculateMetadata={({ props }) => ({ fps: props.fps || FPS, width: props.larghezza || 1080, height: props.altezza || 1920, durationInFrames: Math.max(30, Math.ceil((props.durata || 6) * (props.fps || FPS))) })}
+  />
+  <Composition
+    id="ProvaTransizione"
+    component={ProvaTransizione}
+    width={540}
+    height={960}
+    fps={30}
+    durationInFrames={30}
+    defaultProps={{ tipo: "tendina_sx" }}
   />
   <Composition
     id="ProvaSottotitoli"

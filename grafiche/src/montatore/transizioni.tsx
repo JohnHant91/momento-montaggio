@@ -6,11 +6,16 @@ import React from "react";
 import { AbsoluteFill, Easing, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 
 export const TIPI_TRANSIZIONE = ["taglio", "dissolvenza", "zoom_blur", "whip_sx", "whip_dx", "whip_su", "glitch", "rgb_split", "flash_bianco",
-  "light_leak", "scorri_su", "zoom_in", "spin", "iris", "sfocatura", "flash_nero"];
+  "light_leak", "scorri_su", "zoom_in", "spin", "iris", "sfocatura", "flash_nero",
+  // famiglia xfade di ffmpeg riscritta in Remotion (tendine, spinte, coperture, forme, strisce, 3D)
+  "tendina_sx", "tendina_dx", "tendina_su", "tendina_giu", "spingi_sx", "spingi_dx", "spingi_giu", "copri_sx", "copri_dx", "copri_su", "copri_giu",
+  "cerchio_chiudi", "rombo", "rettangolo", "apri_verticale", "apri_orizzontale", "diagonale_sx", "diagonale_dx", "strisce_orizzontali",
+  "strisce_verticali", "radiale", "schiaccia_o", "schiaccia_v", "grigio", "cubo_sx", "cubo_dx", "ribalta", "caduta", "zoom_out", "persiana"];
 
 const clamp = { extrapolateLeft: "clamp" as const, extrapolateRight: "clamp" as const };
 const morbido = Easing.inOut(Easing.cubic);
 // numero pseudo-casuale stabile per fotogramma (il render salta tra i fotogrammi: niente Math.random)
+const e = (p: number) => morbido(Math.min(1, Math.max(0, p)));
 const rnd = (n: number) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 
 // stile della clip durante l'ingresso (p 0→1) o l'uscita (p 0→1)
@@ -45,6 +50,42 @@ function stile(tipo: string, p: number, entra: boolean, f: number): React.CSSPro
       return { transform: `translateX(${dx}px)`, filter: `saturate(${1 + forza}) contrast(${1 + forza * 0.4})`, opacity: entra ? (p < 0.5 ? (rnd(f + 7) > 0.5 ? 1 : 0) : 1) : 1 };
     }
     case "flash_bianco": case "flash_nero": case "light_leak": return entra ? { opacity: interpolate(p, [0, 0.45, 0.55], [0, 0, 1], clamp) } : {};
+    // ---- tendine: la clip nuova si scopre da un lato
+    case "tendina_sx": return entra ? { clipPath: `inset(0 0 0 ${100 - e(p) * 100}%)` } : {};
+    case "tendina_dx": return entra ? { clipPath: `inset(0 ${100 - e(p) * 100}% 0 0)` } : {};
+    case "tendina_su": return entra ? { clipPath: `inset(${100 - e(p) * 100}% 0 0 0)` } : {};
+    case "tendina_giu": return entra ? { clipPath: `inset(0 0 ${100 - e(p) * 100}% 0)` } : {};
+    // ---- spinte: la nuova spinge via la vecchia
+    case "spingi_sx": return { transform: `translateX(${entra ? 100 - e(p) * 100 : -e(p) * 100}%)` };
+    case "spingi_dx": return { transform: `translateX(${entra ? -100 + e(p) * 100 : e(p) * 100}%)` };
+    case "spingi_giu": return { transform: `translateY(${entra ? -100 + e(p) * 100 : e(p) * 100}%)` };
+    // ---- coperture: la nuova scorre sopra la vecchia ferma
+    case "copri_sx": return entra ? { transform: `translateX(${100 - e(p) * 100}%)`, boxShadow: "0 0 60px rgba(0,0,0,.5)" } : {};
+    case "copri_dx": return entra ? { transform: `translateX(${-100 + e(p) * 100}%)`, boxShadow: "0 0 60px rgba(0,0,0,.5)" } : {};
+    case "copri_su": return entra ? { transform: `translateY(${100 - e(p) * 100}%)`, boxShadow: "0 0 60px rgba(0,0,0,.5)" } : {};
+    case "copri_giu": return entra ? { transform: `translateY(${-100 + e(p) * 100}%)`, boxShadow: "0 0 60px rgba(0,0,0,.5)" } : {};
+    // ---- forme
+    case "cerchio_chiudi": { const r = (1 - e(p)) * 80; return entra ? { WebkitMaskImage: `radial-gradient(circle at 50% 45%, transparent ${r}%, #000 ${r + 0.5}%)`, maskImage: `radial-gradient(circle at 50% 45%, transparent ${r}%, #000 ${r + 0.5}%)` } : {}; }
+    case "rombo": { const k = e(p) * 100; return entra ? { clipPath: `polygon(50% ${50 - k}%, ${50 + k}% 50%, 50% ${50 + k}%, ${50 - k}% 50%)` } : {}; }
+    case "rettangolo": { const k = 50 - e(p) * 50; return entra ? { clipPath: `inset(${k}% ${k}% ${k}% ${k}%)` } : {}; }
+    case "apri_verticale": { const k = 50 - e(p) * 50; return entra ? { clipPath: `inset(0 ${k}% 0 ${k}%)` } : {}; }
+    case "apri_orizzontale": { const k = 50 - e(p) * 50; return entra ? { clipPath: `inset(${k}% 0 ${k}% 0)` } : {}; }
+    case "diagonale_sx": { const k = e(p) * 200; return entra ? { clipPath: `polygon(0 0, ${k}% 0, 0 ${k}%)` } : {}; }
+    case "diagonale_dx": { const k = e(p) * 200; return entra ? { clipPath: `polygon(100% 0, ${100 - k}% 0, 100% ${k}%)` } : {}; }
+    case "strisce_orizzontali": { const k = e(p) * 10; const m = `repeating-linear-gradient(to bottom, #000 0 ${k}%, transparent ${k}% 10%)`; return entra ? { WebkitMaskImage: m, maskImage: m } : {}; }
+    case "strisce_verticali": { const k = e(p) * 10; const m = `repeating-linear-gradient(to right, #000 0 ${k}%, transparent ${k}% 10%)`; return entra ? { WebkitMaskImage: m, maskImage: m } : {}; }
+    case "persiana": { const k = e(p) * 12.5; const m = `repeating-linear-gradient(to bottom, #000 0 ${k}%, transparent ${k}% 12.5%)`; return entra ? { WebkitMaskImage: m, maskImage: m, transform: `scaleY(${1 + (1 - p) * 0.05})` } : {}; }
+    case "radiale": { const m = `conic-gradient(from 0deg at 50% 45%, #000 ${e(p) * 360}deg, transparent ${e(p) * 360 + 0.5}deg)`; return entra ? { WebkitMaskImage: m, maskImage: m } : {}; }
+    // ---- deformazioni
+    case "schiaccia_o": return { transform: `scaleX(${entra ? e(p) : 1 - e(p)})` };
+    case "schiaccia_v": return { transform: `scaleY(${entra ? e(p) : 1 - e(p)})` };
+    case "grigio": return entra ? { opacity: interpolate(p, [0.5, 1], [0, 1], clamp), filter: `grayscale(${1 - p})` } : { filter: `grayscale(${Math.min(1, p * 2)})` };
+    case "zoom_out": return entra ? { transform: `scale(${interpolate(p, [0, 1], [1.5, 1], { ...clamp, easing: morbido })})`, opacity: interpolate(p, [0, 0.5], [0, 1], clamp) } : { transform: `scale(${1 - e(p) * 0.3})` };
+    case "caduta": return entra ? { transform: `translateY(${interpolate(p, [0, 1], [-100, 0], { ...clamp, easing: Easing.out(Easing.bounce) })}%)` } : {};
+    // ---- 3D
+    case "cubo_sx": return entra ? { transform: `perspective(1600px) rotateY(${90 - e(p) * 90}deg)`, transformOrigin: "left center" } : { transform: `perspective(1600px) rotateY(${-e(p) * 90}deg)`, transformOrigin: "right center" };
+    case "cubo_dx": return entra ? { transform: `perspective(1600px) rotateY(${-90 + e(p) * 90}deg)`, transformOrigin: "right center" } : { transform: `perspective(1600px) rotateY(${e(p) * 90}deg)`, transformOrigin: "left center" };
+    case "ribalta": return entra ? { transform: `perspective(1600px) rotateY(${p < 0.5 ? 90 : 90 - (p - 0.5) * 180}deg)`, opacity: p < 0.5 ? 0 : 1 } : { transform: `perspective(1600px) rotateY(${Math.min(90, p * 180)}deg)`, opacity: p < 0.5 ? 1 : 0 };
     default: return {};
   }
 }

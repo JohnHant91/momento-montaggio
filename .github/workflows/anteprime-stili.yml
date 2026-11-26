@@ -21,9 +21,17 @@ jobs:
           mkdir -p out
           for s in karaoke box pop grassetto minimal neon chiave contorno macchina mano; do
             echo "{\"stile\":\"$s\",\"accento\":\"#FFD60A\",\"font\":\"Arial Black, Arial, sans-serif\",\"parole\":[{\"t\":\"Questo\",\"da\":0.1,\"a\":0.4},{\"t\":\"panettone\",\"da\":0.4,\"a\":0.9,\"k\":true},{\"t\":\"cambia\",\"da\":0.9,\"a\":1.3},{\"t\":\"tutto\",\"da\":1.3,\"a\":1.8}]}" > p.json
-            npx remotion still src/index.ts ProvaSottotitoli out/$s.png --props=p.json --frame=40 --log=error
+            npx remotion still src/index.ts ProvaSottotitoli out/$s.png --props=p.json --frame=20 --log=error
           done
           ls out
+      - name: Transizioni
+        working-directory: grafiche
+        run: |
+          mkdir -p out/tr
+          for t in dissolvenza zoom_blur whip_sx whip_dx whip_su glitch rgb_split flash_bianco light_leak scorri_su zoom_in spin iris sfocatura flash_nero tendina_sx tendina_dx tendina_su tendina_giu spingi_sx spingi_dx spingi_giu copri_sx copri_dx copri_su copri_giu cerchio_chiudi rombo rettangolo apri_verticale apri_orizzontale diagonale_sx diagonale_dx strisce_orizzontali strisce_verticali radiale schiaccia_o schiaccia_v grigio cubo_sx cubo_dx ribalta caduta zoom_out persiana; do
+            echo "{\"tipo\":\"$t\"}" > t.json
+            npx remotion still src/index.ts ProvaTransizione out/tr/$t.png --props=t.json --frame=12 --log=error || echo "ERRORE $t"
+          done
       - name: Tavola
         run: |
           cd grafiche/out && pip install -q pillow
@@ -34,7 +42,13 @@ jobs:
           out=Image.new('RGB',(1080,300*5),(0,0,0)); d=ImageDraw.Draw(out)
           for i,(s,im) in enumerate(zip(n,ims)):
               x,y=(i%2)*540,(i//2)*300; out.paste(im,(x,y)); d.text((x+10,y+10),s,fill=(255,255,255))
-          out.save('sottotitoli.jpg',quality=85)"
-          mkdir -p /tmp/pub && cp sottotitoli.jpg /tmp/pub/ && cd /tmp/pub
+          out.save('sottotitoli.jpg',quality=85)
+          import os
+          tt=sorted(os.listdir('tr')); W,H=180,320; col=8
+          out=Image.new('RGB',(W*col,(H+24)*((len(tt)+col-1)//col)),(0,0,0)); d=ImageDraw.Draw(out)
+          for i,f in enumerate(tt):
+              x,y=(i%col)*W,(i//col)*(H+24); out.paste(Image.open('tr/'+f).convert('RGB').resize((W,H)),(x,y+24)); d.text((x+4,y+6),f[:-4],fill=(255,255,255))
+          out.save('transizioni.jpg',quality=82)"
+          mkdir -p /tmp/pub && cp sottotitoli.jpg transizioni.jpg /tmp/pub/ && cd /tmp/pub
           git init -q && git checkout -q -b anteprime-stili && git add . && git -c user.name=motore -c user.email=motore@momento commit -qm anteprime
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" anteprime-stili

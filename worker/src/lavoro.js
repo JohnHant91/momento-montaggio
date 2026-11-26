@@ -478,9 +478,11 @@ async function faseScheda(env, cfg, L) {
 const LOOKS = ['neon_notte', 'estate_luminosa', 'autunno_caldo', 'inverno_freddo', 'street_urbano', 'emozionale_film', 'romantico_soft', 'amichevole_solare', 'natalizio_caldo', 'spot_contrasto', 'moody_caldo', 'caldo_cinematico', 'pulito_commerciale', 'teal_orange', 'moody_scuro', 'naturale_vivace', 'bn_contrasto', 'pastello_soft', 'vintage_film'];
 const TRANSIZIONI = ['taglio_netto', 'dissolvenza', 'flash_bianco', 'whip_pan', 'zoom', 'glitch', 'slide', 'fadenero',
   // transizioni del montatore nuovo (Remotion)
-  'zoom_blur', 'whip_sx', 'whip_dx', 'whip_su', 'rgb_split', 'light_leak', 'scorri_su', 'zoom_in', 'spin', 'iris', 'sfocatura', 'flash_nero'];
+  'zoom_blur', 'whip_sx', 'whip_dx', 'whip_su', 'rgb_split', 'light_leak', 'scorri_su', 'zoom_in', 'spin', 'iris', 'sfocatura', 'flash_nero',
+  // famiglia xfade (tendine, spinte, coperture, forme, strisce, 3D)
+  'tendina_sx', 'tendina_dx', 'tendina_su', 'tendina_giu', 'spingi_sx', 'spingi_dx', 'spingi_giu', 'copri_sx', 'copri_dx', 'copri_su', 'copri_giu', 'cerchio_chiudi', 'rombo', 'rettangolo', 'apri_verticale', 'apri_orizzontale', 'diagonale_sx', 'diagonale_dx', 'strisce_orizzontali', 'strisce_verticali', 'radiale', 'schiaccia_o', 'schiaccia_v', 'grigio', 'cubo_sx', 'cubo_dx', 'ribalta', 'caduta', 'zoom_out', 'persiana'];
 // famiglie: lo stile che permette "whip_pan" permette anche whip_sx/dx/su, e così via
-const FAMIGLIA_TR = { whip_sx: 'whip_pan', whip_dx: 'whip_pan', whip_su: 'whip_pan', zoom_blur: 'zoom', zoom_in: 'zoom', spin: 'zoom', rgb_split: 'glitch', light_leak: 'dissolvenza', sfocatura: 'dissolvenza', iris: 'dissolvenza', scorri_su: 'slide', flash_nero: 'fadenero' };
+const FAMIGLIA_TR = { tendina_sx: 'slide', tendina_dx: 'slide', tendina_su: 'slide', tendina_giu: 'slide', spingi_sx: 'slide', spingi_dx: 'slide', spingi_giu: 'slide', copri_sx: 'slide', copri_dx: 'slide', copri_su: 'slide', copri_giu: 'slide', cerchio_chiudi: 'dissolvenza', rombo: 'dissolvenza', rettangolo: 'dissolvenza', apri_verticale: 'dissolvenza', apri_orizzontale: 'dissolvenza', diagonale_sx: 'dissolvenza', diagonale_dx: 'dissolvenza', strisce_orizzontali: 'slide', strisce_verticali: 'slide', radiale: 'dissolvenza', schiaccia_o: 'zoom', schiaccia_v: 'zoom', grigio: 'dissolvenza', cubo_sx: 'zoom', cubo_dx: 'zoom', ribalta: 'zoom', caduta: 'zoom', zoom_out: 'zoom', persiana: 'slide', whip_sx: 'whip_pan', whip_dx: 'whip_pan', whip_su: 'whip_pan', zoom_blur: 'zoom', zoom_in: 'zoom', spin: 'zoom', rgb_split: 'glitch', light_leak: 'dissolvenza', sfocatura: 'dissolvenza', iris: 'dissolvenza', scorri_su: 'slide', flash_nero: 'fadenero' };
 const STILI_TITOLO = ['blur', 'sale', 'rotazione', 'numero', 'evidenziatore', 'macchina', 'hyper', 'scintille', 'aurora', 'impatto', 'etichetta', 'comic', 'flip3d', 'ombra'];
 const STILI_SOTT = ['karaoke', 'box', 'pop', 'grassetto', 'minimal', 'neon', 'chiave', 'contorno', 'macchina', 'mano'];
 const FONT_REEL = ['montserrat', 'inter', 'bebas', 'playfair', 'pacifico'];
@@ -768,7 +770,7 @@ almeno metà dei pezzi da clip diverse o da momenti diversi delle stesse clip (l
   // lo stile è vincolante: transizioni ed effetti fuori stile vengono sostituiti
   if (R) {
     for (const s of seg) {
-      if (s.transizione_in && !R.transizioni.includes(s.transizione_in) && !R.transizioni.includes(FAMIGLIA_TR[s.transizione_in])) s.transizione_in = R.transizioni.includes('taglio_netto') ? 'taglio_netto' : R.transizioni[0];
+      if (s.transizione_in && !R.transizioni.includes(s.transizione_in) && !R.transizioni.includes(FAMIGLIA_TR[s.transizione_in]) && !new RegExp('\\b' + s.transizione_in + '\\b').test(String(L.prompt || '') + ' ' + String(indicazioni?.testo || ''))) s.transizione_in = R.transizioni.includes('taglio_netto') ? 'taglio_netto' : R.transizioni[0];
       if (R.effetti && !R.effetti.includes(s.effetto)) s.effetto = 'nessuno';
       if (R.rallenty === 'mai') s.rallenty = false;
     }

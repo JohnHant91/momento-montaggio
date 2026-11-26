@@ -1043,11 +1043,12 @@ def voto_tratto(m):
 
 
 TRANSIZIONI_REMOTION = ["taglio", "dissolvenza", "zoom_blur", "whip_sx", "whip_dx", "whip_su", "glitch", "rgb_split", "flash_bianco",
-                        "light_leak", "scorri_su", "zoom_in", "spin", "iris", "sfocatura", "flash_nero"]
+                        "light_leak", "scorri_su", "zoom_in", "spin", "iris", "sfocatura", "flash_nero",
+                        "tendina_sx", "tendina_dx", "tendina_su", "tendina_giu", "spingi_sx", "spingi_dx", "spingi_giu", "copri_sx", "copri_dx", "copri_su", "copri_giu", "cerchio_chiudi", "rombo", "rettangolo", "apri_verticale", "apri_orizzontale", "diagonale_sx", "diagonale_dx", "strisce_orizzontali", "strisce_verticali", "radiale", "schiaccia_o", "schiaccia_v", "grigio", "cubo_sx", "cubo_dx", "ribalta", "caduta", "zoom_out", "persiana"]
 # nomi delle transizioni del vecchio montatore → nuove
 VECCHIE_TR = {"taglio_netto": "taglio", "whip_pan": "whip_dx", "zoom": "zoom_blur", "fadenero": "flash_nero", "flash": "flash_bianco"}
 STILI_TITOLO = ["blur", "sale", "rotazione", "numero", "evidenziatore", "macchina", "hyper", "scintille", "aurora", "impatto", "etichetta", "comic", "flip3d", "ombra"]
-STILI_SOTTOTITOLI = ["karaoke", "box", "pop", "grassetto", "minimal", "neon"]
+STILI_SOTTOTITOLI = ["karaoke", "box", "pop", "grassetto", "minimal", "neon", "chiave", "contorno", "macchina", "mano"]
 
 
 class MontatoreCompleto(TalkingHead):
