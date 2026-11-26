@@ -1,5 +1,6 @@
 import { GENERI, MOOD } from '../worker/src/stili.js';
 import { LUT } from '../worker/src/lut.js';
+import { PALETTE } from '../worker/src/palette.js';
 import fs from 'fs';
 const OK = '✅ il motore lo sa fare', NO = '🛠️ da costruire';
 const out = {};
@@ -45,22 +46,23 @@ g += `\n## Da costruire (trend 2026)\n` + [['Kinetic typography a schermo pieno'
 out['Stili/03-motion-graphics.md'] = g;
 
 // ---------------- SOTTOTITOLI
-const SO = { karaoke: 'La parola detta si accende mentre le altre restano chiare.', box: 'Testo su riquadro colorato che segue le parole (box che scorre).', pop: '1-3 parole alla volta che saltano fuori: il più usato nei reel.', grassetto: 'Bianco grande in grassetto con contorno scuro.', minimal: 'Frase pulita, piccola, elegante: contenuti estetici.', neon: 'Testo luminoso colorato con alone.' };
+const SO = { chiave: 'Frase bianca, la parola chiave più grande e nel colore d\'accento.', contorno: 'Lettere vuote con bordo d\'accento: la parola detta si riempie.', macchina: 'Le lettere si scrivono una a una con il cursore, su riquadro scuro.', mano: 'Minuscolo, leggermente inclinato, sottolineatura a pennello sulla parola detta.', karaoke: 'La parola detta si accende mentre le altre restano chiare.', box: 'Testo su riquadro colorato che segue le parole (box che scorre).', pop: '1-3 parole alla volta che saltano fuori: il più usato nei reel.', grassetto: 'Bianco grande in grassetto con contorno scuro.', minimal: 'Frase pulita, piccola, elegante: contenuti estetici.', neon: 'Testo luminoso colorato con alone.' };
 let s = `# Sottotitoli\nI più usati nei reel che rendono sono il blocco grande al centro e il riquadro colorato. Sui contenuti eleganti una frase pulita funziona meglio delle animazioni pesanti.\n\n## Stili (${Object.keys(SO).length})\n` + Object.entries(SO).map(([k, d]) => riga(`\`${k}\``, d)).join('\n');
 s += `\n## Font disponibili\n` + riga('montserrat · inter · bebas · playfair · pacifico', 'Si scelgono separati per titoli e testo.');
 s += `\n## Posizione\n` + riga('In alto, al centro o in basso', 'Sempre dentro la zona sicura: 220 px liberi in alto, 450 in basso. Mai sopra la faccia o il prodotto.');
-s += `\n## Da costruire\n` + [['Parola chiave colorata', 'Tutta la frase bianca, una parola in colore e più grande.'], ['Emoji automatiche', 'Un\'emoji accanto alle parole chiave.'], ['Scritto a mano', 'Font corsivo/pennarello, per contenuti personali.'], ['Macchina da scrivere', 'Le lettere compaiono una a una.'], ['Contorno colorato', 'Testo vuoto con bordo colorato.'], ['Doppia lingua', 'Italiano sopra, inglese sotto.']].map(([n, d]) => riga(n, d, NO)).join('\n');
+s += `\n## Da costruire\n` + [['Emoji automatiche', 'Un\'emoji accanto alle parole chiave.'], ['Doppia lingua', 'Italiano sopra, inglese sotto.']].map(([n, d]) => riga(n, d, NO)).join('\n');
 out['Stili/04-sottotitoli.md'] = s;
 
 // ---------------- COLORE
 const LK = ['neon_notte', 'estate_luminosa', 'autunno_caldo', 'inverno_freddo', 'street_urbano', 'emozionale_film', 'romantico_soft', 'amichevole_solare', 'natalizio_caldo', 'spot_contrasto', 'moody_caldo', 'caldo_cinematico', 'pulito_commerciale', 'teal_orange', 'moody_scuro', 'naturale_vivace', 'bn_contrasto', 'pastello_soft', 'vintage_film'];
 let c = `# Colore\nMetodo di Johnny: esposizione uguale su ogni clip → base neutra Rec.709 → montaggio → color finale una sola volta su tutto il reel.\n\n## Look (${LK.length})\n` + riga(LK.map((x) => `\`${x}\``).join(' · '), 'Look completi (contrasto, saturazione, tinta) applicati dal motore.');
 c += `\n## LUT pellicola (${Object.keys(LUT).length})\n` + Object.entries(LUT).map(([k, v]) => `- \`${k}\`: ${v[1]} (intensità ${v[2]})`).join('\n') + `\n\n_${OK}. Nel prompt: "LUT kodak_portra_400" oppure lasci scegliere al mood._\n`;
+c += `\n## Palette per testi e grafiche (${Object.keys(PALETTE).length})\nNel prompt: "palette energia" oppure "colori nero e giallo".\n` + Object.entries(PALETTE).map(([k, v]) => `- \`${k}\` (${v[4]}): accento ${v[0]} · secondario ${v[1]} · fondo ${v[2]} · testo ${v[3]}`).join('\n') + '\n';
 out['Stili/05-colore.md'] = c;
 
 const conta = (txt) => ({ ok: (txt.match(/✅/g) || []).length, no: (txt.match(/🛠️/g) || []).length });
 let ind = `# Archivio stili\nTutto quello che puoi chiedere nel prompt di un reel. Esempio:\n> Queste sono le clip. Stile **street**, mood **energico**, colori **nero e giallo**, sottotitoli **pop** in **bebas**, transizioni **whip_pan** e **flash_bianco**, titolo **impatto** all'inizio.\n\n| Sezione | Pronti | Da costruire |\n|---|---|---|\n`;
-for (const [f, txt] of Object.entries(out)) { const n = f.includes('colore') ? { ok: LK.length + Object.keys(LUT).length, no: 0 } : conta(txt); ind += `| [${f.split('/')[1]}](${f.split('/')[1]}) | ${n.ok} | ${n.no} |\n`; }
+for (const [f, txt] of Object.entries(out)) { const n = f.includes('colore') ? { ok: LK.length + Object.keys(LUT).length + Object.keys(PALETTE).length, no: 0 } : conta(txt); ind += `| [${f.split('/')[1]}](${f.split('/')[1]}) | ${n.ok} | ${n.no} |\n`; }
 out['Stili/00-INDICE.md'] = ind;
 for (const [f, txt] of Object.entries(out)) { fs.mkdirSync('./out/Stili', { recursive: true }); fs.writeFileSync('./out/' + f, txt); }
 console.log(ind);

@@ -5,6 +5,7 @@ import { libreriaTesto } from './libreria.js';
 import * as S from './servizi.js';
 import * as A from './archivio.js';
 import { inviaPush } from './notifiche.js';
+import { PALETTE, descriviPalette } from './palette.js';
 import { SKILL as SKILL_V } from './skill_testi.js';
 import { clientePerNome, lineaCliente, testoLinea, ripassoChiara } from './chiara.js';
 import { rilevaStile, ricetta, ricercaStile } from './stili.js';
@@ -481,7 +482,7 @@ const TRANSIZIONI = ['taglio_netto', 'dissolvenza', 'flash_bianco', 'whip_pan', 
 // famiglie: lo stile che permette "whip_pan" permette anche whip_sx/dx/su, e così via
 const FAMIGLIA_TR = { whip_sx: 'whip_pan', whip_dx: 'whip_pan', whip_su: 'whip_pan', zoom_blur: 'zoom', zoom_in: 'zoom', spin: 'zoom', rgb_split: 'glitch', light_leak: 'dissolvenza', sfocatura: 'dissolvenza', iris: 'dissolvenza', scorri_su: 'slide', flash_nero: 'fadenero' };
 const STILI_TITOLO = ['blur', 'sale', 'rotazione', 'numero', 'evidenziatore', 'macchina', 'hyper', 'scintille', 'aurora', 'impatto', 'etichetta', 'comic', 'flip3d', 'ombra'];
-const STILI_SOTT = ['karaoke', 'box', 'pop', 'grassetto', 'minimal', 'neon'];
+const STILI_SOTT = ['karaoke', 'box', 'pop', 'grassetto', 'minimal', 'neon', 'chiave', 'contorno', 'macchina', 'mano'];
 const FONT_REEL = ['montserrat', 'inter', 'bebas', 'playfair', 'pacifico'];
 const EFFETTI_PEZZO = ['dolly_in', 'slider_dx', 'slider_sx', 'punch_in', 'zoom_lento', 'zoom_out', 'shake', 'nessuno'];
 const EFFETTI_GLOBALI = ['grana', 'vignettatura', 'bande_cinema', 'light_leak', 'glow', 'vhs'];
@@ -693,7 +694,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
   const extraDisposizioni = `\n\nCOME LAVORIAMO ORA (vincolante):
 - Le clip le ha GIÀ SCELTE Johnny: sono quelle da usare. Usale TUTTE, ognuna almeno una volta, salvo una clip davvero inutilizzabile (mossa o sfocata in ogni tratto): in quel caso scrivilo in "note". Non aggiungere materiale che non c'è.
 - Stile, mood, colori, sottotitoli, transizioni e titoli li detta Johnny nel prompt con i nomi dell'archivio Stili (es. "stile street, mood energico, colori nero e giallo, sottotitoli pop in bebas"): applicali alla lettera. Quello che non dice lo scegli tu coerente con il resto.
-- I colori che chiede diventano la palette di testi, titoli e grafiche (campo colori/palette).
+- I colori che chiede diventano la palette di testi, titoli e grafiche: se nomina una palette dell'archivio o colori che ci somigliano, metti il suo nome in "palette_nome"; altrimenti metti gli HEX in colori.accento. Palette disponibili:\n${descriviPalette()}
 - MUSICA: non montarla tu${brano ? " (c'è un brano nella cartella: usa quello)" : ''}. Monta sul ritmo che chiede il mood e lascia il suono delle clip. In "musica_da_mettere" proponi 3 brani o generi precisi da cercare nella libreria audio di Instagram/Edits, con BPM, mood e il secondo da cui farla partire.`;
   // montaggi già scartati da Johnny con questo girato (+ quello precedente se è un rimontaggio): il nuovo deve essere diverso
   const scarti = J((await one(env, 'SELECT valore FROM impostazioni WHERE chiave=?', chiaveScarti(L)))?.valore, []) || [];
@@ -863,12 +864,13 @@ almeno metà dei pezzi da clip diverse o da momenti diversi delle stesse clip (l
     finale: ['nero', 'bianco'].includes(indicazioni?.finale) ? indicazioni.finale : (['nero', 'bianco'].includes(p.finale) ? p.finale : (R?.finale || null)),
     musica: brano ? { ...rifSorgente(brano.c), nome: brano.c.nome, durata: brano.c.tecnico?.durata_sec, bpm: mu?.bpm, battuta: mu?.battuta_sec, primo_battito: mu?.primo_battito, volume: 0.9 } : null,
     sfx: brano ? false : p.sfx, segmenti: formato === 'carosello' ? [] : seg, broll, slide: formato === 'carosello' ? slide : [],
-    chiusura: formato === 'montaggio' ? p.chiusura : null, palette: palette || (p.colori?.accento ? { accento: p.colori.accento } : undefined), look: lookVoluto || (R?.look && LOOKS.includes(R.look) ? R.look : (LOOKS.includes(p.look) ? p.look : (LOOKS.includes(scheda.colore?.look) ? scheda.colore.look : 'naturale_vivace'))),
+    chiusura: formato === 'montaggio' ? p.chiusura : null, palette: palette || (PALETTE[p.palette_nome] ? { accento: PALETTE[p.palette_nome][0], secondario: PALETTE[p.palette_nome][1], fondo: PALETTE[p.palette_nome][2], inchiostro: PALETTE[p.palette_nome][3] } : (p.colori?.accento ? { accento: p.colori.accento } : undefined)), look: lookVoluto || (R?.look && LOOKS.includes(R.look) ? R.look : (LOOKS.includes(p.look) ? p.look : (LOOKS.includes(scheda.colore?.look) ? scheda.colore.look : 'naturale_vivace'))),
     effetti_globali: [...new Set([...(p.effetti_globali || []), ...(R?.globali || [])])].filter((e) => EFFETTI_GLOBALI.includes(e)), copertina: cop,
     // LUT: quella chiesta da Johnny nel rimontaggio, poi quella del Regista, poi la prima consigliata dallo stile
     // LUT: SOLO quella scelta da Johnny (nel nuovo lavoro o nel rimontaggio); il Regista e lo stile non la scelgono più
     lut: (() => { const s = indicazioni?.lut || J(L.stile, null)?.lut || prima?.piano?.lut?.nome; return s && s !== 'nessuna' && LUT[s] ? { ...voceLut(s, null), scelta_da: 'johnny' } : null; })(),
   };
+  if (PALETTE[p.palette_nome]) piano.colori = { ...(piano.colori || {}), accento: PALETTE[p.palette_nome][0], secondario: PALETTE[p.palette_nome][1] };
   const versione = (prima?.versione || 0) + 1;
   // Chiara ripassa titoli, copertina e caption prima del montaggio: la sua nota arriva a Johnny con il reel
   const notaChiara = await ripassoChiara(env, cfg, Ccl, 'reel', { titoli: (piano.titoli || []).map((t) => t.testo || t), copertina: piano.copertina?.testo, caption: piano.caption || p.caption, chiusura: piano.chiusura?.testo || p.chiusura }).catch(() => null);

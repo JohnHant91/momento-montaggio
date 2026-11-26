@@ -7,5 +7,5 @@ Tutto quello che puoi chiedere nel prompt di un reel. Esempio:
 | [01-montaggio.md](01-montaggio.md) | 62 | 3 |
 | [02-transizioni-effetti.md](02-transizioni-effetti.md) | 40 | 4 |
 | [03-motion-graphics.md](03-motion-graphics.md) | 42 | 9 |
-| [04-sottotitoli.md](04-sottotitoli.md) | 8 | 6 |
-| [05-colore.md](05-colore.md) | 91 | 0 |
+| [04-sottotitoli.md](04-sottotitoli.md) | 12 | 2 |
+| [05-colore.md](05-colore.md) | 123 | 0 |

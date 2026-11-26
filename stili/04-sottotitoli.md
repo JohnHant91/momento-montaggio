@@ -1,7 +1,23 @@
 # Sottotitoli
 I più usati nei reel che rendono sono il blocco grande al centro e il riquadro colorato. Sui contenuti eleganti una frase pulita funziona meglio delle animazioni pesanti.
 
-## Stili (6)
+## Stili (10)
+### `chiave`
+Frase bianca, la parola chiave più grande e nel colore d'accento.
+_✅ il motore lo sa fare_
+
+### `contorno`
+Lettere vuote con bordo d'accento: la parola detta si riempie.
+_✅ il motore lo sa fare_
+
+### `macchina`
+Le lettere si scrivono una a una con il cursore, su riquadro scuro.
+_✅ il motore lo sa fare_
+
+### `mano`
+Minuscolo, leggermente inclinato, sottolineatura a pennello sulla parola detta.
+_✅ il motore lo sa fare_
+
 ### `karaoke`
 La parola detta si accende mentre le altre restano chiare.
 _✅ il motore lo sa fare_
@@ -37,24 +53,8 @@ Sempre dentro la zona sicura: 220 px liberi in alto, 450 in basso. Mai sopra la 
 _✅ il motore lo sa fare_
 
 ## Da costruire
-### Parola chiave colorata
-Tutta la frase bianca, una parola in colore e più grande.
-_🛠️ da costruire_
-
 ### Emoji automatiche
 Un'emoji accanto alle parole chiave.
-_🛠️ da costruire_
-
-### Scritto a mano
-Font corsivo/pennarello, per contenuti personali.
-_🛠️ da costruire_
-
-### Macchina da scrivere
-Le lettere compaiono una a una.
-_🛠️ da costruire_
-
-### Contorno colorato
-Testo vuoto con bordo colorato.
 _🛠️ da costruire_
 
 ### Doppia lingua

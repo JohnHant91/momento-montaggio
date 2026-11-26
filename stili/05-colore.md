@@ -81,3 +81,38 @@ _✅ il motore lo sa fare_
 - `true_colors_8`: True colors: colori fedeli e ricchi, quasi neutro (intensità 0.45)
 
 _✅ il motore lo sa fare. Nel prompt: "LUT kodak_portra_400" oppure lasci scegliere al mood._
+
+## Palette per testi e grafiche (32)
+Nel prompt: "palette energia" oppure "colori nero e giallo".
+- `energia` (energico, sport, lancio): accento #FFD60A · secondario #FF5E1A · fondo #0D0D0D · testo #FFFFFF
+- `nero_giallo` (street, deciso, tech): accento #FFD60A · secondario #FFFFFF · fondo #0B0B0B · testo #FFFFFF
+- `fuoco` (promo, urgenza, food): accento #FF3B30 · secondario #FF9500 · fondo #1A0A05 · testo #FFFFFF
+- `elettrico` (tech, AI, notte): accento #2F6BFF · secondario #00E5FF · fondo #05070F · testo #FFFFFF
+- `neon_rosa_blu` (creator, notte, giovane): accento #FF2E93 · secondario #2F6BFF · fondo #0B0B1A · testo #FFFFFF
+- `acido` (trend, giovane, glitch): accento #C6FF00 · secondario #FFFFFF · fondo #101010 · testo #FFFFFF
+- `forno` (pane, artigiano, caldo): accento #E0A63A · secondario #7A4B2A · fondo #F5EBDD · testo #2A1A10
+- `caffe` (caffè, banco, torrefazione): accento #C8894B · secondario #3B2A20 · fondo #EFE6DA · testo #1E1410
+- `pasticceria` (dolci, delicato): accento #E8A0B4 · secondario #F4D6C6 · fondo #FFF8F2 · testo #4A2C2A
+- `natale` (natale, feste): accento #C8102E · secondario #D4AF37 · fondo #0F3D2E · testo #FFFFFF
+- `oro_nero` (lusso, elegante): accento #D4AF37 · secondario #F5E6B8 · fondo #0A0A0A · testo #FFFFFF
+- `mare` (estate, hotel, mare): accento #1F8FBF · secondario #F2E4C9 · fondo #FFFFFF · testo #0E2A3A
+- `tramonto` (emozionale, estate): accento #FF7A59 · secondario #FFC15E · fondo #2B1B3A · testo #FFFFFF
+- `mediterraneo` (Italia, ceramiche, limoni): accento #1E5AA8 · secondario #F2C94C · fondo #FBF7EF · testo #13294B
+- `oliva` (natura, olio, campagna): accento #7A8B3A · secondario #D9C9A3 · fondo #F6F2E8 · testo #2E2A1E
+- `bosco` (legno, artigianato): accento #3F5A45 · secondario #C9B79C · fondo #F3ECE0 · testo #1F2A22
+- `legno` (falegnameria, caldo): accento #8B5A2B · secondario #E7D3B5 · fondo #FAF4EA · testo #2B1D12
+- `terracotta` (casa, ceramica, rustico): accento #C65D3B · secondario #E9C6A5 · fondo #FBF3EA · testo #3A2219
+- `pastello` (soft, beauty, primavera): accento #F7A8B8 · secondario #A8D8F0 · fondo #FFF7FB · testo #3A3A4A
+- `lavanda` (sognante, calmo): accento #9B87F5 · secondario #E6E0FF · fondo #FAF8FF · testo #2B2440
+- `menta` (fresco, pulito, salute): accento #2EC4B6 · secondario #CBF3F0 · fondo #FFFFFF · testo #0F3B38
+- `teal_momento` (brand Momento, pulito): accento #0E9F9A · secondario #CFE9E7 · fondo #F1EFEA · testo #17171A
+- `bianco_nero` (bianco e nero, drammatico): accento #FFFFFF · secondario #9A9A9A · fondo #000000 · testo #FFFFFF
+- `minimal_crema` (minimal, editoriale): accento #1A1A1A · secondario #B8A68F · fondo #F4F1EA · testo #1A1A1A
+- `vintage` (retrò, pellicola, nostalgia): accento #D98E04 · secondario #8C4A2F · fondo #F1E3C8 · testo #2B2118
+- `vhs` (anni 90, vhs, ironico): accento #FF4FD8 · secondario #3DF5FF · fondo #14081F · testo #FFFFFF
+- `autunno` (autunno, vino, castagne): accento #C2571A · secondario #E8B04B · fondo #2A1A12 · testo #FFFFFF
+- `inverno` (inverno, freddo, pulito): accento #8FB8DE · secondario #FFFFFF · fondo #0F1A2A · testo #FFFFFF
+- `romantico` (romantico, san valentino): accento #E36588 · secondario #F7D6E0 · fondo #FFF5F7 · testo #3D1F2B
+- `corporate` (aziendale, professionale): accento #1F4E79 · secondario #9DB9D5 · fondo #FFFFFF · testo #14212E
+- `verde_successo` (risultati, prima/dopo): accento #22C55E · secondario #BBF7D0 · fondo #0B1410 · testo #FFFFFF
+- `halloween` (halloween, misterioso): accento #FF7518 · secondario #7B2CBF · fondo #0A0A0A · testo #FFFFFF
