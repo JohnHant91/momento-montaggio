@@ -716,8 +716,8 @@ def monta(lavoro):
                 if not f or not os.path.exists(f):
                     return False
                 o = os.path.join(cartella, f"proxy-{k}.mp4")
-                subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", f, "-an", "-vf", "scale=540:-2", "-c:v", "libx264", "-preset", "ultrafast",
-                                "-crf", "30", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-fs", "19M", o], check=True, timeout=300)
+                subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", f, "-an", "-vf", "fps=25,scale=480:-2", "-c:v", "libx264", "-preset", "veryfast", "-g", "12", "-keyint_min", "12",
+                                "-crf", "31", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-fs", "19M", o], check=True, timeout=300)
                 invia_file(lavoro, f"proxy-{k}", o, "video/mp4")
                 return True
             with ThreadPoolExecutor(3) as ex:

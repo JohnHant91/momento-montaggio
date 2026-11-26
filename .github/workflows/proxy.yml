@@ -1,0 +1,20 @@
+# Copie leggere delle clip di un reel già montato, per il taglio dal telefono (veloci da caricare e scorrere).
+name: proxy
+on:
+  workflow_dispatch:
+    inputs:
+      lavoro: { required: true }
+permissions:
+  id-token: write
+  contents: read
+env:
+  REGIA: https://momento-reel.gestionalelcl.workers.dev
+jobs:
+  proxy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: command -v ffmpeg >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null)
+      - run: python3 motore/proxy.py
+        env: { LAVORO: "${{ github.event.inputs.lavoro }}" }

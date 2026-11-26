@@ -121,11 +121,11 @@ def main():
                 indice[nome] = ([round(i / 5, 2) for i in range(len(fr))], emb(fr))
     print(f"indice: {len(indice)} clip, {sum(len(v[0]) for v in indice.values())} fotogrammi")
     res = {}
-    U = chiama("/api/motore/verso-prova/umano", {})
-    if U.get("url"):
-        scarica(U["url"], "/tmp/umano.mp4")
+    try:
+        scarica(f"{REGIA}/api/motore/verso-prova/umano", "/tmp/umano.mp4", auth=True)
         res["umano"] = analizza_reel("/tmp/umano.mp4", indice, "reel umano")
-        res["umano"]["nome"] = U.get("nome")
+    except Exception as e:
+        print("reel umano non letto:", str(e)[:100])
     for k in [x for x in (os.environ.get("REEL_AI") or "").split(",") if x]:
         dest = f"/tmp/ai_{k.replace('/', '_')}.mp4"
         try:

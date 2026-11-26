@@ -79,13 +79,43 @@ export async function motoreApi(req, env, url) {
       if (!value) return json({ errore: 'non trovato' }, 404);
       return new Response(value, { headers: { 'content-type': 'application/octet-stream', 'x-parti': String(metadata?.parti || 1) } });
     }
-    // il reel montato a mano da Johnny (link pCloud salvato nelle impostazioni, mai nei log pubblici)
+    // il reel montato a mano da Johnny (link pCloud salvato nelle impostazioni, mai nei log pubblici).
+    // pCloud lega il link di download all'IP di chi lo chiede: il file passa da qui
     if (p.endsWith('/umano')) {
       const link = (await one(env, "SELECT valore FROM impostazioni WHERE chiave='PROVA_UMANO'"))?.valore;
       if (!link) return json({});
       const F = (await S.pcloudClip(link)).filter((f) => f.tipo !== 'musica' && f.tipo !== 'immagine');
       if (!F.length) return json({ errore: 'nessun video nel link' });
-      return json({ nome: F[0].nome, url: await S.pcloudLinkDownload(link, F[0].fileid) });
+      const r = await fetch(await S.pcloudLinkDownload(link, F[0].fileid));
+      return new Response(r.body, { status: r.status, headers: { 'content-type': 'application/octet-stream', 'x-nome': encodeURIComponent(F[0].nome) } });
+    }
+    // copie leggere per il taglio dal telefono di un reel già montato
+    if (p.endsWith('/proxy-lista')) {
+      const id = Number(new URL(req.url).searchParams.get('id')) || 0;
+      const L = await one(env, 'SELECT id, montaggio, clip FROM lavori WHERE id=?', id);
+      if (!L) return json({ errore: 'non trovato' }, 404);
+      const tutte = J(L.clip, []) || [], m = J(L.montaggio, {});
+      const segs = [...(m.piano?.segmenti || []), ...(m.piano?.riserve || [])];
+      const o = new URL(req.url).origin;
+      const out = [];
+      for (const [k, t] of (m.revisore?.tratti || []).entries()) {
+        const c = tutte.find((x) => x.nome === t.nome);
+        if (c?.sorgente?.tipo !== 'archivio') continue;
+        const seg = segs.find((x) => x.nome === t.nome) || {};
+        out.push({ k, nome: t.nome, url: await linkFirmato(env, o, c.sorgente.percorso), ruota: Number(seg.ruota ?? c.analisi?.rotazione ?? 0) || 0 });
+      }
+      return json({ pezzi: out });
+    }
+    if (p.endsWith('/proxy-su')) {
+      const q = new URL(req.url).searchParams, id = Number(q.get('id')) || 0, k = Number(q.get('k'));
+      if (!(k >= 0 && k < 40)) return json({ errore: 'pezzo' }, 400);
+      await env.VIDEO.put(`lavoro-${id}/proxy-${k}.mp4`, await req.arrayBuffer(), { metadata: { tipo: 'video/mp4' } });
+      return json({ ok: true });
+    }
+    if (p.endsWith('/proxy-fatto')) {
+      const id = Number(new URL(req.url).searchParams.get('id')) || 0;
+      await run(env, "UPDATE lavori SET montaggio=json_set(montaggio,'$.revisore.proxy',json('true')) WHERE id=?", id);
+      return json({ ok: true });
     }
     if (p.endsWith('/esito')) {
       const d = await req.json().catch(() => ({}));
