@@ -396,8 +396,30 @@ export async function tiktok(cfg, queries, hashtags, perVoce = 10) {
   return { video: items.map(normTiktok).filter((v) => v.id && (!v.durata || v.durata <= cfg.DURATA_MAX)) };
 }
 
+// Instagram con l'API ufficiale (gratis) tramite il modulo momento-instagram: ricerca per hashtag sul tuo account business
+async function instagramUfficiale(cfg, hashtags, perVoce) {
+  const env = cfg._rec;
+  if (!env?.IG || !env?.IG_INTERNO_KEY) return null;
+  const out = [], note = [];
+  for (const h of hashtags.slice(0, 5)) {
+    try {
+      const r = await env.IG.fetch(`https://momento-instagram/hashtag?tag=${encodeURIComponent(h.replace(/^#/, ''))}&n=${perVoce}`, { headers: { 'x-admin-key': env.IG_INTERNO_KEY } });
+      const d = await r.json();
+      if (d.errore) { note.push(`#${h}: ${String(d.errore).slice(0, 80)}`); continue; }
+      for (const x of d.media || []) out.push({
+        piattaforma: 'instagram', id: String(x.id), url: x.permalink || '', video_url: x.media_url || null,
+        titolo: String(x.caption || '').slice(0, 200), autore: '', views: 0, likes: num(x.like_count), commenti: num(x.comments_count),
+        condivisioni: 0, durata: 0, data: x.timestamp || '',
+      });
+    } catch (e) { note.push(`#${h}: ${String(e.message).slice(0, 80)}`); }
+  }
+  return { video: out.filter((v) => v.id), nota: note.length ? 'Instagram (API ufficiale): ' + note.join('; ') : undefined };
+}
+
 export async function instagram(cfg, hashtags, perVoce = 15) {
-  if (!cfg.APIFY_TOKEN) return { video: [], nota: 'Instagram saltato: manca il token Apify' };
+  const uff = await instagramUfficiale(cfg, hashtags, perVoce);
+  if (uff && uff.video.length) return uff;
+  if (!cfg.APIFY_TOKEN) return uff || { video: [], nota: 'Instagram saltato: manca il token Apify' };
   const items = await apify(cfg, cfg.APIFY_INSTAGRAM_ACTOR, {
     directUrls: hashtags.map((h) => `https://www.instagram.com/explore/tags/${h.replace(/^#/, '')}/`),
     resultsType: 'posts', resultsLimit: perVoce, addParentData: false,
