@@ -44,10 +44,18 @@ def fotogrammi(path, ruota=0):
     return np.frombuffer(p.stdout[: n * 224 * 224 * 3], np.uint8).reshape(n, 224, 224, 3)
 
 
+def _vettore(x):
+    """transformers nuove restituiscono un oggetto, le vecchie direttamente il tensore"""
+    for k in ("text_embeds", "image_embeds", "pooler_output"):
+        if hasattr(x, k) and getattr(x, k) is not None:
+            return getattr(x, k)
+    return x
+
+
 def testo(frasi):
     m, proc, torch = modello()
     with torch.no_grad():
-        t = m.get_text_features(**proc(text=frasi, return_tensors="pt", padding=True))
+        t = _vettore(m.get_text_features(**proc(text=frasi, return_tensors="pt", padding=True)))
     return t / t.norm(dim=-1, keepdim=True)
 
 
@@ -62,7 +70,7 @@ def guarda(path, frasi, ruota=0):
     out = []
     with torch.no_grad():
         for i in range(0, len(fr), 32):
-            im = m.get_image_features(**proc(images=list(fr[i:i + 32]), return_tensors="pt"))
+            im = _vettore(m.get_image_features(**proc(images=list(fr[i:i + 32]), return_tensors="pt")))
             im = im / im.norm(dim=-1, keepdim=True)
             out.append((100.0 * im @ T.T).softmax(dim=-1).numpy())
     P = np.concatenate(out)
