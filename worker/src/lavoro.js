@@ -195,7 +195,14 @@ const snello = (L) => !J(L.link_rif, []).length && !J(L.stile, null)?.avatar && 
 async function fasePiano(env, cfg, L) {
   if (snello(L)) { await run(env, 'UPDATE lavori SET piano=?, scheda=? WHERE id=?', JSON.stringify({ obiettivo: 'reel dalle clip di Johnny' }), JSON.stringify({ richiesta_di_johnny: L.prompt }), L.id); return; }
   // reel col mio avatar: il piano è già nel copione, niente chiamata a Claude
-  if (J(L.stile, null)?.avatar) { await run(env, 'UPDATE lavori SET piano=? WHERE id=?', JSON.stringify({ settore: 'profilo personale di Johnny', obiettivo: 'reel per il profilo Instagram' }), L.id); return; }
+  // reel col mio avatar: niente Claude per il piano; si cercano i reel del tema da cui prendere spunto per il montaggio
+  if (J(L.stile, null)?.avatar) {
+    const tema = ((L.prompt || '').match(/Argomento del piano \(per la palette\): (.+)/) || [])[1]?.trim().slice(0, 80) || 'consigli';
+    await run(env, 'UPDATE lavori SET piano=? WHERE id=?', JSON.stringify({ settore: tema, obiettivo: 'reel per il profilo Instagram di Johnny',
+      youtube_query: [tema + ' shorts', tema + ' reel italiano'], tiktok_query: [tema], tiktok_hashtag: [], instagram_hashtag: [] }), L.id);
+    await log(env, L.id, 'direttore', `cerco reel su "${tema}" da cui prendere spunto per il montaggio`);
+    return;
+  }
   await log(env, L.id, 'direttore', 'leggo la richiesta e preparo la ricerca');
   const p = await S.claude(cfg, SISTEMA_PIANO, piano(L.prompt), { maxTokens: 1500 });
   // Stella: se Johnny ha chiesto uno stile (street, emozionale, natalizio…) metà della ricerca va su reel montati in quello stile
@@ -463,6 +470,16 @@ export async function ricordaScartato(env, L) {
 export { analisiClip, analisiRiferimento };
 
 async function faseScheda(env, cfg, L) {
+  // reel avatar: niente scheda da Claude (era la chiamata più cara). Al Regista arrivano i riferimenti già analizzati, in breve.
+  if (J(L.stile, null)?.avatar) {
+    const spunti = J(L.riferimenti, []).filter((r) => r.stato === 'fatto' && r.analisi).slice(0, 6).map((r) => {
+      const a = r.analisi; return { url: r.video.url, views: r.video.views, gancio: a.gancio, ritmo: a.ritmo, durata_media_inquadratura_sec: a.durata_media_inquadratura_sec, tagli_sul_beat: a.tagli_sul_beat, struttura: (a.struttura || []).slice(0, 5), testi: a.testi, sottotitoli: a.sottotitoli_parlato, grafiche: a.grafiche || a.elementi_grafici, transizioni: a.transizioni, colore: a.colore || a.color };
+    });
+    await run(env, 'UPDATE lavori SET scheda=? WHERE id=?', JSON.stringify({ richiesta_di_johnny: L.prompt, reel_di_riferimento_da_cui_prendere_spunto: spunti,
+      come_usarli: 'Prendi spunto da gancio, ritmo, grafiche, testi e transizioni di questi reel del settore (senza copiarli). Il parlato e il copione restano quelli dell\'avatar.' }), L.id);
+    await log(env, L.id, 'direttore', `${spunti.length} reel di riferimento passati al Regista come spunto`);
+    return;
+  }
   await log(env, L.id, 'direttore', 'incrocio riferimenti e clip, scrivo la scheda tecnica');
   const rif = J(L.riferimenti, []).filter((r) => r.stato === 'fatto').map((r) => ({
     piattaforma: r.video.piattaforma, url: r.video.url, views: r.video.views, likes: r.video.likes,
@@ -980,7 +997,6 @@ async function lavora(env, cfg, L, scadenza) {
     if (L.fase === 'piano' && snello(L)) { prossima = 'clip'; await log(env, L.id, 'direttore', 'modo snello: clip + prompt, niente ricerca né scheda'); }
     else if (L.fase === 'clip' && snello(L) && !J(L.riferimenti, []).length) prossima = 'regia';
     else if (L.fase === 'piano' && J(L.stile, null)?.solo_clip && !J(L.link_rif, []).length) { prossima = 'clip'; await log(env, L.id, 'direttore', 'uso solo le tue clip: niente ricerca di reel sulle piattaforme'); }
-    if (L.fase === 'piano' && J(L.stile, null)?.avatar) { prossima = 'clip'; await log(env, L.id, 'direttore', 'reel con il tuo avatar: i virali li ha già studiati Zoe, salto la ricerca dei riferimenti'); }
     await run(env, 'UPDATE lavori SET fase=?, stato=?, tentativi=0, aggiornato=? WHERE id=?',
       prossima, prossima === 'fatto' ? 'pronto' : 'in_corso', ora(), L.id);
     if (prossima === 'fatto') { await log(env, L.id, 'regia', J((await one(env, 'SELECT montaggio FROM lavori WHERE id=?', L.id))?.montaggio, null)?.stato === 'fatto' ? '✅ reel montato: aprilo e guardalo' : '✅ lavoro pronto: apri la scheda'); return; }

@@ -121,6 +121,8 @@ sblocca('avatar_piani'); await cron();
 r = await chiama('/api/avatar/' + aid); ok(r.j.fase === 'montaggio' && r.j.video.every((v) => v.stato === 'fatto'), 'video pronti');
 sblocca('avatar_piani'); await cron();
 r = await chiama('/api/avatar/' + aid); ok(r.j.stato === 'fatto' && r.j.lavori.length === 2, 'partono 2 montaggi nel comparto Reel');
+{ await cron(); const la = env.DB._db.prepare("SELECT fase, piano FROM lavori WHERE stile LIKE '%avatar%' ORDER BY id LIMIT 1").get();
+  ok(la && la.fase !== 'clip' && JSON.parse(la.piano || '{}').youtube_query?.length, 'reel avatar: cerca i reel di riferimento sul tema (fase ' + la?.fase + ')'); }
 const lav = env.DB._db.prepare("SELECT fonte, stile, pcloud FROM lavori WHERE fonte='url'").all();
 ok(lav.length >= 2 && lav.slice(-2).map((x) => JSON.parse(x.stile).genere).sort().join() === 'dietro,split' && JSON.parse(lav.at(-1).pcloud)[0].url.startsWith('https://heygen.example/'), 'i due reel alternano split e parole dietro, video da link');
 r = await chiama('/api/avatar/' + aid); ok(r.j.idee.length === 10 && r.j.idee.filter((x) => x.usata).length === 3, 'una ricerca, 10 idee: 3 scritte, 7 in riserva');
