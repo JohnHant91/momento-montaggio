@@ -672,6 +672,13 @@ def monta(lavoro):
         avvisa("motore", f"formato: {piano.get('formato') or 'montaggio'}")
         m = Classe(piano, os.path.join(cartella, "lavoro"), avvisa=avvisa)
         rep = m.monta(out)
+        # foglio per il REVISORE: un fotogramma al secondo del reel finito, così la regia controlla il racconto prima di Johnny
+        try:
+            dur = float(rep.get("durata") or 0)
+            n = int(min(24, max(8, dur)))
+            rep["foglio"] = tavola([(dur * (i + 0.5) / n, fotogramma(out, dur * (i + 0.5) / n, 360)) for i in range(n)], 6)
+        except Exception as e:
+            avvisa("revisore", f"foglio di controllo non fatto: {str(e)[:80]}", "warn")
         prev = anteprima(out, os.path.join(cartella, "anteprima.jpg"))
         invia_file(lavoro, "video", out, "video/mp4")
         invia_file(lavoro, "anteprima", prev, "image/jpeg")

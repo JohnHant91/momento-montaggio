@@ -198,7 +198,10 @@ Le misure sono frazioni dell'immagine (0,0 = in alto a sinistra). Se l'oggetto n
       mont.stato = mont.tentativi < 2 ? 'da_fare' : 'errore';
       await log(env, id, 'editor', `montaggio non riuscito: ${mont.errore.slice(0, 200)}${mont.stato === 'da_fare' ? ' — riprovo' : ''}`, 'warn');
     } else {
-      Object.assign(mont, { stato: 'fatto', revisore: d.revisore || {}, video: `lavoro-${id}/reel.mp4`, anteprima: `lavoro-${id}/anteprima.jpg`, copertina: d.copertina ? `lavoro-${id}/copertina.jpg` : null, finito: ora() });
+      const foglio = d.revisore?.foglio;
+      if (d.revisore) delete d.revisore.foglio;
+      if (foglio && env.VIDEO) await env.VIDEO.put(`lavoro-${id}/qa.jpg`, Uint8Array.from(atob(foglio), (c) => c.charCodeAt(0)), { metadata: { tipo: 'image/jpeg' } }).catch(() => {});
+      Object.assign(mont, { stato: 'fatto', qa: undefined, foglio: !!foglio, revisore: d.revisore || {}, video: `lavoro-${id}/reel.mp4`, anteprima: `lavoro-${id}/anteprima.jpg`, copertina: d.copertina ? `lavoro-${id}/copertina.jpg` : null, finito: ora() });
       delete mont.indicazioni_rimonta;
     }
     await run(env, 'UPDATE lavori SET montaggio=?, motore_pass=NULL, motore_fino=NULL, motore_visto=? WHERE id=?', JSON.stringify(mont), ora(), id);

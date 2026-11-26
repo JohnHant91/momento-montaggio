@@ -607,8 +607,8 @@ JSON: {"riprese": [{"n": 1, "fase": "gancio|sviluppo|climax|chiusura", "inquadra
     return 'salta';
   }
   const indicazioni = prima?.indicazioni_rimonta;
-  await log(env, L.id, 'regista', indicazioni ? `rimonto con le tue indicazioni: ${indicazioni.testo || ''}` : `scrivo il piano di montaggio da ${clip.length} clip`);
-  const extra = indicazioni ? `\n\nQUESTO È UN NUOVO MONTAGGIO. Piano precedente:\n${JSON.stringify(prima.piano || {})}\n\nINDICAZIONI DI JOHNNY PER IL NUOVO MONTAGGIO (hanno la precedenza sulla scheda):\n${JSON.stringify(indicazioni)}\nCambia davvero quello che chiede, il resto miglioralo se puoi.` : '';
+  await log(env, L.id, 'regista', indicazioni ? `rimonto con ${indicazioni.da === 'revisore' ? 'le correzioni del revisore' : 'le tue indicazioni'}: ${indicazioni.testo || ''}` : `scrivo il piano di montaggio da ${clip.length} clip`);
+  const extra = indicazioni ? `\n\nQUESTO È UN NUOVO MONTAGGIO. Piano precedente:\n${JSON.stringify(prima.piano || {})}\n\nINDICAZIONI ${indicazioni?.da === 'revisore' ? 'DEL REVISORE (ha bocciato il montaggio precedente)' : 'DI JOHNNY'} PER IL NUOVO MONTAGGIO (hanno la precedenza sulla scheda):\n${JSON.stringify(indicazioni)}\nCambia davvero quello che chiede, il resto miglioralo se puoi.` : '';
   const mu = brano?.c.analisi?.musica;
   const extraMusica = mu ? `\n\nMUSICA DEL REEL (brano con licenza scelto da Johnny: il montaggio si costruisce SU questa musica)
 - durata ${brano.c.tecnico?.durata_sec} s, ${mu.bpm} BPM, una battuta = ${mu.battuta_sec} s, primo battito a ${mu.primo_battito} s
@@ -804,7 +804,7 @@ almeno metà dei pezzi da clip diverse o da momenti diversi delle stesse clip (l
   const versione = (prima?.versione || 0) + 1;
   // Chiara ripassa titoli, copertina e caption prima del montaggio: la sua nota arriva a Johnny con il reel
   const notaChiara = await ripassoChiara(env, cfg, Ccl, 'reel', { titoli: (piano.titoli || []).map((t) => t.testo || t), copertina: piano.copertina?.testo, caption: piano.caption || p.caption, chiusura: piano.chiusura?.testo || p.chiusura }).catch(() => null);
-  await run(env, 'UPDATE lavori SET montaggio=? WHERE id=?', JSON.stringify({ stato: 'da_fare', piano, versione, creato: ora(), indicazioni: indicazioni || null, nota_chiara: notaChiara }), L.id);
+  await run(env, 'UPDATE lavori SET montaggio=? WHERE id=?', JSON.stringify({ stato: 'da_fare', piano, versione, creato: ora(), indicazioni: indicazioni || null, nota_chiara: notaChiara, qa_giri: indicazioni?.da === 'revisore' ? (prima?.qa_giri || 0) : 0 }), L.id);
   const tot = seg.reduce((a, s) => a + s.durata, 0);
   const nomeF = { montaggio: 'montaggio', talking_head: 'talking-head', carosello: 'carosello', split_grafico: 'split con grafiche animate', parole_dietro: 'parole giganti dietro la persona' }[formato];
   await log(env, L.id, 'regista', formato === 'carosello' ? `piano pronto: formato carosello, ${slide.length} slide` :
@@ -814,9 +814,46 @@ almeno metà dei pezzi da clip diverse o da momenti diversi delle stesse clip (l
   return true;
 }
 
+// REVISORE (controllo qualità prima di Johnny): guarda un fotogramma al secondo del reel finito e decide se è da consegnare.
+// Se non passa, rimanda il reel al Regista con le correzioni e si rimonta da solo (max 2 giri): Johnny vede solo reel promossi.
+const SISTEMA_QA = `Sei il revisore finale di Momento Produzione: un videomaker senior che decide se un reel promozionale verticale
+può andare al cliente. Guardi il foglio con un fotogramma al secondo del reel FINITO (il tempo è scritto in giallo). Sei severo ma giusto.
+Bocci solo per difetti veri che un cliente noterebbe. Rispondi SOLO con JSON valido.`;
+async function revisione(env, cfg, L, m) {
+  const img = env.VIDEO ? await env.VIDEO.get(`lavoro-${L.id}/qa.jpg`, 'arrayBuffer').catch(() => null) : null;
+  if (!img) return { passa: true, voto: null, nota: 'foglio non disponibile' };
+  let b = ''; const u = new Uint8Array(img); for (let i = 0; i < u.length; i += 0x8000) b += String.fromCharCode(...u.subarray(i, i + 0x8000));
+  const scheda = J(L.scheda, {});
+  const testo = `RICHIESTA DEL CLIENTE: ${String(L.prompt || '').slice(0, 600)}
+RACCONTO PREVISTO: ${JSON.stringify(scheda.racconto || scheda.struttura || scheda.idea || '').slice(0, 800)}
+PEZZI MONTATI (clip @ secondo): ${(m.revisore?.tratti || []).map((t) => `${t.nome}@${t.in}s/${t.dur}s`).join(', ')}
+CONTROLLI AUTOMATICI DEL MOTORE: ${JSON.stringify((m.revisore?.problemi || []).slice(0, 10))}
+
+Controlla: 1) il prodotto è protagonista e si vede bene; 2) il racconto è lineare e comprensibile (preparazione → trasformazione → prodotto finito → confezione/chiusura); 3) niente pezzi mossi, sfocati, bui, inquadrature di pavimento/soffitto/schiene; 4) niente due pezzi quasi uguali; 5) colore omogeneo fra i pezzi; 6) testi leggibili e non sopra la faccia o il prodotto; 7) il primo secondo aggancia.
+JSON: {"voto": 1-10, "passa": true se voto >= 7 e nessun difetto grave, "difetti": [{"secondo": n, "problema": "...", "gravita": "grave|medio|lieve"}], "correzioni": "istruzioni precise per il Regista per rimontarlo (quali pezzi cambiare e con cosa), vuoto se passa"}`;
+  const q = await S.claudeVisione(cfg, cfg.CLAUDE_MODEL, SISTEMA_QA, testo, [{ cosa: 'foglio del reel finito, un fotogramma al secondo', jpeg: btoa(b) }], 2500);
+  return { passa: !!q?.passa && (Number(q.voto) || 0) >= 7, voto: Number(q?.voto) || null, difetti: (q?.difetti || []).slice(0, 8), correzioni: String(q?.correzioni || '').slice(0, 700) };
+}
+
 async function faseMontaggio(env, cfg, L) {
   const m = J(L.montaggio, null);
   if (!m) return true; // niente da montare (nessuna clip)
+  if (m.stato === 'fatto' && m.foglio && !m.qa && m.piano?.formato !== 'carosello') {
+    const q = await revisione(env, cfg, L, m).catch((e) => ({ passa: true, voto: null, nota: 'revisione non riuscita: ' + String(e?.message || e).slice(0, 80) }));
+    const giri = m.qa_giri || 0;
+    m.qa = { ...q, quando: ora(), giro: giri + 1 };
+    if (q.passa || giri >= 2) {
+      await run(env, 'UPDATE lavori SET montaggio=? WHERE id=?', JSON.stringify(m), L.id);
+      await log(env, L.id, 'revisore', q.passa ? `✅ revisione superata${q.voto ? ` (voto ${q.voto}/10)` : ''}${q.nota ? ' · ' + q.nota : ''}` : `⚠️ dopo ${giri + 1} revisioni il voto è ${q.voto}/10: te lo consegno con i difetti segnati (${q.difetti.map((x) => x.problema).join('; ').slice(0, 200)})`, q.passa ? 'info' : 'warn');
+      return true;
+    }
+    // bocciato: torna al Regista con le correzioni, rimonta da solo
+    m.indicazioni_rimonta = { testo: q.correzioni || q.difetti.map((x) => `${x.secondo}s: ${x.problema}`).join('; '), da: 'revisore' };
+    m.qa_giri = giri + 1;
+    await run(env, "UPDATE lavori SET montaggio=?, fase='regia', aggiornato=? WHERE id=?", JSON.stringify(m), ora(), L.id);
+    await log(env, L.id, 'revisore', `🔁 bocciato (voto ${q.voto}/10): ${q.difetti.map((x) => `${x.secondo}s ${x.problema}`).join('; ').slice(0, 220)}. Lo rimonto da solo (giro ${giri + 1} di 2)`, 'warn');
+    return false;
+  }
   if (m.stato === 'fatto') return true;
   if (m.stato === 'errore') throw new Error('montaggio non riuscito: ' + (m.errore || ''));
   return avvisoMotore(env, L);
