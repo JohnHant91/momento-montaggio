@@ -562,6 +562,7 @@ VALORI AMMESSI
 JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel formato):
 {
   "formato": "montaggio|talking_head|carosello|split_grafico|parole_dietro",
+  "multicam": true/false (solo talking_head e parole_dietro: più camere virtuali dalla stessa ripresa dritta — larga, media, primo piano, di lato — che cambiano sull'inizio delle frasi con una frustata di 0,2 s; usalo quando la persona parla a lungo ferma in camera),
   "adesivi": [{"sulla_parola": "parola detta", "tipo": "cuore|like|fuoco|stella|soldi|razzo|check|instagram|ai"}] (solo parole_dietro, 3-5 in tutto il video),
   "durata_target": n,
   "look": "...", "intensita_look": 0.6-1.0,
@@ -884,7 +885,7 @@ almeno metà dei pezzi da clip diverse o da momenti diversi delle stesse clip (l
   }
   const piano = {
     ...p, formato: motore, titoli, riserve, evita: evita.length ? evita : undefined, look_reel: lookReel, font_reel: fontReel, pannello, cartelli, schede, grafiche, palette, font_split, tracker, adesivi,
-    ...(avatar ? { taglia_silenzi: false } : {}),
+    ...(avatar ? { taglia_silenzi: false, multicam: p.multicam !== false } : {}),
     logo: prima?.logo || (logoArch ? { archivio: logoArch } : null),
     stabilizza_tutto: !!(indicazioni?.stabilizza_tutto || prima?.piano?.stabilizza_tutto || p.stabilizza_tutto || R?.camera === 'morbida'),
     camera_ferma: R?.camera === 'a_mano' ? false : !!(indicazioni?.camera_ferma || prima?.piano?.camera_ferma || p.camera_ferma || R?.camera === 'ferma'),

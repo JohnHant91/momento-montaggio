@@ -177,22 +177,60 @@ class TalkingHead(_Base):
         a = np.median(np.array(trovati), axis=0)
         return {"cx": float(a[0]), "cy": float(a[1]), "fh": float(a[2])}
 
-    def finestra(self, s, z):
-        """Ritaglio 9:16 con zoom z: il viso resta centrato in orizzontale e al ~36% dell'altezza (spazio per i testi)."""
+    def finestra(self, s, z, fx=0.5):
+        """Ritaglio 9:16 con zoom z: il viso resta al punto fx in orizzontale (0.5 = centro) e al ~36% dell'altezza (spazio per i testi)."""
         sw, sh = s["_info"]["w"] or W, s["_info"]["h"] or H
         cw0 = min(sw, sh * W / H)
         ch0 = cw0 * H / W
         cw, ch = cw0 / z, ch0 / z
         v = s.get("_volto") or {"cx": 0.5, "cy": 0.4}
-        x = min(max(0, v["cx"] * sw - cw / 2), sw - cw)
+        x = min(max(0, v["cx"] * sw - cw * fx), sw - cw)
         y = min(max(0, v["cy"] * sh - ch * 0.36), sh - ch)
         return int(cw) // 2 * 2, int(ch) // 2 * 2, int(x), int(y)
 
+    # MULTICAM CINETICA (ispirata alla skill kinetic-multicam di aipauloshimas, MIT): da UNA ripresa dritta, più "camere"
+    # virtuali ritagliate dalla stessa inquadratura. Il cambio camera avviene sull'inizio di una frase con una frustata
+    # (whip) di ~0,2 s: l'inquadratura arriva scorrendo di lato con il mosso orizzontale e si ferma stabile.
+    # Niente video generato: il viso, il labbiale e l'audio restano quelli veri.
+    CAMERE = [("larga", 1.0, 0.5), ("media", 1.18, 0.5), ("terzo_dx", 1.24, 0.36), ("primo_piano", 1.4, 0.5), ("terzo_sx", 1.24, 0.64), ("media", 1.12, 0.5)]
+    WHIP = 0.2
+
+    def zoom_massimo(self, s):
+        """Oltre questo zoom il ritaglio è più piccolo di ~1400 px di altezza e si vede la perdita di nitidezza."""
+        sw, sh = s["_info"]["w"] or W, s["_info"]["h"] or H
+        ch0 = min(sw, sh * W / H) * H / W
+        return max(1.08, min(1.6, ch0 / 1400))
+
+    def camere(self, tratti):
+        """Assegna una camera virtuale a ogni frase: mai due uguali di fila, il gancio parte largo, zoom limitato dalla risoluzione."""
+        prec = None
+        for k, p in enumerate(tratti):
+            nome, z, fx = self.CAMERE[k % len(self.CAMERE)] if k else self.CAMERE[0]
+            if getattr(self, "NOME", "") == "parole_dietro":
+                fx = 0.5  # le parole giganti stanno dietro di lei: la persona resta al centro, cambia solo la distanza
+            z = min(z, self.zoom_massimo(p["s"]))
+            if prec and abs(prec[1] - z) < 0.04 and prec[2] == fx:
+                z = min(self.zoom_massimo(p["s"]), z + 0.1)
+            p["zoom"], p["fx"] = z, fx
+            # frustata solo se la camera cambia rispetto alla frase prima (non sul primo pezzo)
+            p["whip"] = 0 if not prec else (1 if fx < prec[2] else -1 if fx > prec[2] else (1 if k % 2 else -1))
+            p["flash"] = False
+            prec = (nome, z, fx)
+        self.report.append("multicam: " + str(len(tratti)) + " frasi su " + str(len({(round(p["zoom"], 2), p["fx"]) for p in tratti})) + " camere virtuali, cambi con frustata")
+
     def tratto(self, i, p, lut):
         s = p["s"]
-        cw, ch, x, y = self.finestra(s, p["zoom"])
+        cw, ch, x, y = self.finestra(s, p["zoom"], p.get("fx", 0.5))
         corr = s.get("_corr") or ""
-        filtri = [f"crop={cw}:{ch}:{x}:{y}", f"scale={W}:{H}:flags=lanczos", f"fps={FPS}"]
+        sw = s["_info"]["w"] or W
+        if p.get("whip"):
+            # arriva scorrendo di lato (curva che frena) col mosso orizzontale, poi resta ferma
+            d, Tw = int(p["whip"]) * int(cw * 0.35), self.WHIP
+            xe = f"'min(max(0,{x}+{d}*pow(max(0,1-t/{Tw}),2)),{sw - cw})'"
+            filtri = [f"crop={cw}:{ch}:{xe}:{y}", f"scale={W}:{H}:flags=lanczos", f"fps={FPS}",
+                      f"avgblur=sizeX=48:sizeY=1:enable='lt(t,{Tw * 0.55:.3f})'", f"avgblur=sizeX=18:sizeY=1:enable='between(t,{Tw * 0.55:.3f},{Tw:.3f})'"]
+        else:
+            filtri = [f"crop={cw}:{ch}:{x}:{y}", f"scale={W}:{H}:flags=lanczos", f"fps={FPS}"]
         if corr:
             filtri.append(corr)
         filtri.append(self.filtro_colore(lut))
@@ -273,6 +311,9 @@ class TalkingHead(_Base):
                 w["t0"] = p["reel_da"] + (w["da"] - p["src_da"])
                 w["t1"] = p["reel_da"] + (w["a"] - p["src_da"])
         totale = t
+        if P.get("multicam") and (self.ZOOM != [1.0] or getattr(self, "NOME", "") == "parole_dietro"):
+            self.avvisa("editor", "multicam: più camere virtuali dalla stessa ripresa, cambi con frustata sulle frasi")
+            self.camere(tratti)
         self.report.append(f"talking-head: {len(tratti)} frasi, {tagliati:.1f} s di pause tolte")
 
         lut = self.crea_lut(P.get("look", "naturale_vivace"), min(0.75, float(P.get("intensita_look", 0.6))))
