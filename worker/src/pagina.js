@@ -1312,7 +1312,8 @@ async function approvazioni() {
   // 2. copioni del profilo
   const bAv = avD.filter(Boolean).map((A) => A.copioni.filter((c) => c.stato === 'da_approvare').length ? '<div class="card ap"><b>🎭 ' + e(A.argomento) + '</b><div class="mut" style="margin-bottom:8px">copioni per il tuo profilo · <a href="#/profilo/' + A.id + '">apri</a></div>' +
     A.copioni.filter((c) => c.stato === 'da_approvare').map((c) => '<div class="ap-voce"><label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" class="av_ap" data-a="' + A.id + '" data-n="' + c.n + '" checked style="width:auto">' + e(c.titolo || 'Copione ' + c.n) + '</label>' +
-      '<textarea class="av_tx" data-a="' + A.id + '" data-n="' + c.n + '" style="min-height:120px">' + e(c.testo || '') + '</textarea></div>').join('') +
+      '<textarea class="av_tx" data-a="' + A.id + '" data-n="' + c.n + '" style="min-height:120px">' + e(c.testo || '') + '</textarea>' +
+      '<div class="riga" style="gap:8px;margin-top:6px"><input class="av_nota" data-a="' + A.id + '" data-n="' + c.n + '" placeholder="Dì a Nora cosa cambiare: es. aggiungi i costi, togli la parte sul tempo" style="flex:1"><button class="sec av_nora" data-a="' + A.id + '" data-n="' + c.n + '" style="width:auto">✍️ Nora, riscrivilo</button></div></div>').join('') +
     '<label>Clip tue da aggiungere, cartella pCloud (facoltativo)</label><input class="av_pc" data-a="' + A.id + '" placeholder="https://e.pcloud.link/publink/show?code=…">' +
     '<div class="riga" style="gap:6px;margin-top:8px"><button class="av_go" data-a="' + A.id + '" style="width:auto">✅ Approva i selezionati e genera</button>' + btnDel('/api/avatar/' + A.id, '“' + A.argomento + '”') + '</div></div>' : '').join('');
   // 3. copioni dei clienti
@@ -1373,6 +1374,11 @@ async function approvazioni() {
     if (err) alert(err + ' elementi non eliminati: riprova'); rotta(); };
   document.querySelectorAll('.ap_reel').forEach((b) => b.onclick = () => azione(b, () => chiama('/api/lavori/' + b.dataset.id + '/approva', { method: 'POST', body: {} })));
   document.querySelectorAll('.ap_rimb').forEach((b) => b.onclick = () => { const t = document.querySelector('.ap_rim[data-id="' + b.dataset.id + '"]').value.trim(); if (!t) return alert('Scrivi cosa vuoi cambiare'); azione(b, () => chiama('/api/lavori/' + b.dataset.id + '/rimonta', { method: 'POST', body: { testo: t } })); });
+  document.querySelectorAll('.av_nora').forEach((b) => b.onclick = async () => {
+    const nota = document.querySelector('.av_nota[data-a="' + b.dataset.a + '"][data-n="' + b.dataset.n + '"]').value.trim(); if (!nota) return;
+    b.disabled = true; b.textContent = 'Nora sta riscrivendo…';
+    try { await chiama('/api/avatar/' + b.dataset.a + '/nora', { method: 'POST', body: { n: Number(b.dataset.n), nota } }); rotta(); } catch (x) { b.disabled = false; b.textContent = '✍️ Nora, riscrivilo'; alert(x.message); }
+  });
   document.querySelectorAll('.av_go').forEach((b) => b.onclick = () => { const a = b.dataset.a; const n = [...document.querySelectorAll('.av_ap[data-a="' + a + '"]:checked')].map((x) => Number(x.dataset.n));
     const modifiche = {}; document.querySelectorAll('.av_tx[data-a="' + a + '"]').forEach((x) => { modifiche[x.dataset.n] = x.value; });
     if (!n.length) return alert('Seleziona almeno un copione'); azione(b, () => chiama('/api/avatar/' + a + '/approva', { method: 'POST', body: { n, modifiche, cartella: document.querySelector('.av_pc[data-a="' + a + '"]').value || '' } })); });
