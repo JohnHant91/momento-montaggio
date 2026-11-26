@@ -1,6 +1,126 @@
 # Transizioni ed effetti
 
-## Transizioni (20)
+## Transizioni (50)
+### `tendina_sx`
+Tendina: la nuova si scopre da destra verso sinistra.
+_✅ il motore lo sa fare_
+
+### `tendina_dx`
+Tendina da sinistra verso destra.
+_✅ il motore lo sa fare_
+
+### `tendina_su`
+Tendina dal basso verso l'alto.
+_✅ il motore lo sa fare_
+
+### `tendina_giu`
+Tendina dall'alto verso il basso.
+_✅ il motore lo sa fare_
+
+### `spingi_sx`
+La nuova spinge via la vecchia verso sinistra.
+_✅ il motore lo sa fare_
+
+### `spingi_dx`
+Spinta verso destra.
+_✅ il motore lo sa fare_
+
+### `spingi_giu`
+Spinta verso il basso.
+_✅ il motore lo sa fare_
+
+### `copri_sx`
+La nuova scorre sopra la vecchia ferma, da destra.
+_✅ il motore lo sa fare_
+
+### `copri_dx`
+Copertura da sinistra.
+_✅ il motore lo sa fare_
+
+### `copri_su`
+Copertura dal basso.
+_✅ il motore lo sa fare_
+
+### `copri_giu`
+Copertura dall'alto.
+_✅ il motore lo sa fare_
+
+### `cerchio_chiudi`
+La vecchia si chiude in un cerchio.
+_✅ il motore lo sa fare_
+
+### `rombo`
+La nuova si apre a rombo dal centro.
+_✅ il motore lo sa fare_
+
+### `rettangolo`
+La nuova si apre a rettangolo dal centro.
+_✅ il motore lo sa fare_
+
+### `apri_verticale`
+Si apre come un sipario verticale.
+_✅ il motore lo sa fare_
+
+### `apri_orizzontale`
+Si apre in orizzontale dal centro.
+_✅ il motore lo sa fare_
+
+### `diagonale_sx`
+Taglio diagonale dall'angolo in alto a sinistra.
+_✅ il motore lo sa fare_
+
+### `diagonale_dx`
+Taglio diagonale dall'angolo in alto a destra.
+_✅ il motore lo sa fare_
+
+### `strisce_orizzontali`
+Compare a strisce orizzontali.
+_✅ il motore lo sa fare_
+
+### `strisce_verticali`
+Compare a strisce verticali.
+_✅ il motore lo sa fare_
+
+### `persiana`
+Effetto persiana che si apre.
+_✅ il motore lo sa fare_
+
+### `radiale`
+Si scopre girando come una lancetta.
+_✅ il motore lo sa fare_
+
+### `schiaccia_o`
+La vecchia si schiaccia in orizzontale, la nuova si allarga.
+_✅ il motore lo sa fare_
+
+### `schiaccia_v`
+Schiacciamento in verticale.
+_✅ il motore lo sa fare_
+
+### `grigio`
+La vecchia perde colore, la nuova entra a colori.
+_✅ il motore lo sa fare_
+
+### `zoom_out`
+La nuova arriva dall'alto zoom e si assesta.
+_✅ il motore lo sa fare_
+
+### `caduta`
+La nuova cade dall'alto con rimbalzo.
+_✅ il motore lo sa fare_
+
+### `cubo_sx`
+Cubo 3D che gira verso sinistra.
+_✅ il motore lo sa fare_
+
+### `cubo_dx`
+Cubo 3D che gira verso destra.
+_✅ il motore lo sa fare_
+
+### `ribalta`
+Le clip si ribaltano come una carta.
+_✅ il motore lo sa fare_
+
 ### `taglio_netto`
 Taglio secco, il più usato: ritmo e pulizia.
 _✅ il motore lo sa fare_

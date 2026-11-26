@@ -43,8 +43,8 @@ Testo luminoso colorato con alone.
 _✅ il motore lo sa fare_
 
 ## Font disponibili
-### montserrat · inter · bebas · playfair · pacifico
-Si scelgono separati per titoli e testo.
+### Tutti i Google Fonts (~1.700) per nome
+Es. Anton, Oswald, Archivo Black, Poppins, DM Serif Display, Caveat, Permanent Marker. Si scelgono separati per titoli e testo. Di casa: montserrat, inter, bebas, playfair, pacifico.
 _✅ il motore lo sa fare_
 
 ## Posizione
