@@ -9,6 +9,7 @@ from prova_verso import chiama, UA
 
 # verso delle clip (le Sony sono girate con la camera in verticale)
 RUOTE = json.loads(os.environ.get("RUOTE") or "{}")
+FRASI = [x for x in (os.environ.get("FRASI") or "").split("|") if x]
 
 
 def una(f):
@@ -22,7 +23,11 @@ def una(f):
                 o.write(b)
         r = int(RUOTE.get(f["nome"], RUOTE.get("*sony*", 0) if f["nome"].startswith("C0") else 0))
         le = OC.leggi_scheda(OC.guarda(dest, r))
-        return {"nome": f["nome"], "ruota": r, "breve": OC.scheda_breve(le), "azioni": le["azioni"],
+        vi = None
+        if FRASI:
+            import vista as VI
+            vi = VI.momenti(VI.guarda(dest, FRASI, r))
+        return {"vista": vi, "nome": f["nome"], "ruota": r, "breve": OC.scheda_breve(le), "azioni": le["azioni"],
                 "consigliato_3s": OC.tratto_migliore(le, 3.4), "durata": le.get("durata")}
     except Exception as e:
         return {"nome": f["nome"], "errore": str(e)[:200]}
@@ -35,7 +40,10 @@ def main():
     os.makedirs("/tmp/clip", exist_ok=True)
     F = [f for f in (chiama("/api/motore/verso-prova/prendi", {}).get("file") or []) if f["nome"].lower().endswith((".mp4", ".mov"))]
     print(f"clip: {len(F)}")
-    with ThreadPoolExecutor(4) as ex:
+    if FRASI:  # carico la vista una volta sola prima dei thread
+        import vista as VI
+        VI.modello()
+    with ThreadPoolExecutor(2 if FRASI else 4) as ex:
         out = list(ex.map(una, F))
     print(f"guardate: {sum(1 for o in out if 'breve' in o)} - azioni trovate: {sum(len(o.get('azioni') or []) for o in out)}")
     os.makedirs("/tmp/tavole", exist_ok=True)

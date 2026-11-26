@@ -4,6 +4,7 @@ name: prova-occhio
 on:
   workflow_dispatch:
     inputs:
+      frasi: { required: false, default: '' }
       ruote: { required: false, default: '{"*sony*": -90, "C0050.MP4": 0, "C0061.MP4": 0, "C0062.MP4": 0, "C0060.MP4": 90}' }
 
 permissions:
@@ -22,10 +23,10 @@ jobs:
       - name: Strumenti
         run: |
           if ! command -v ffmpeg >/dev/null; then sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null; fi
-          pip install -q pillow numpy opencv-python-headless
+          pip install -q pillow numpy opencv-python-headless transformers && pip install -q torch --index-url https://download.pytorch.org/whl/cpu
       - name: Occhio del videomaker
         run: python3 motore/prova_occhio.py
-        env: { RUOTE: "${{ github.event.inputs.ruote }}" }
+        env: { RUOTE: "${{ github.event.inputs.ruote }}", FRASI: "${{ github.event.inputs.frasi }}" }
       - name: Tavole (cifrate)
         if: always()
         run: |
