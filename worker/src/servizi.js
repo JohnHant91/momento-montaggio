@@ -53,6 +53,11 @@ export async function richiesta(url, opts = {}, tentativi = 4) {
 
 // ------------------------------------------------------------------ Claude
 import { registra, daUsage } from './consumi.js';
+// I modelli 5.x "pensano" da soli prima di rispondere: quel ragionamento si paga come testo scritto e consuma max_tokens
+// (era la causa delle risposte troncate e di 2/3 del costo del Regista). Per i nostri compiti, che chiedono un JSON, lo spegniamo.
+export const senzaPensiero = (modello) => /sonnet-5-5/.test(modello || '') ? { thinking: { type: 'between_tools' } }
+  : /haiku-5-5|sonnet-5(?!-)|opus-5(?!-)/.test(modello || '') ? { thinking: { type: 'disabled' } } : {};
+
 export async function claude(cfg, sistema, messaggio, { maxTokens = 8000, json = true } = {}) {
   if (!cfg.ANTHROPIC_API_KEY) throw new Error('manca la chiave Claude (Impostazioni)');
   // in streaming (le risposte lunghe non vanno in timeout). Se la risposta non ci sta NON si ricomincia da capo
@@ -65,7 +70,7 @@ export async function claude(cfg, sistema, messaggio, { maxTokens = 8000, json =
     const r = await richiesta('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'x-api-key': cfg.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({ model: cfg.CLAUDE_MODEL, max_tokens: maxTokens, stream: true, system: sistema, messages }),
+      body: JSON.stringify({ model: cfg.CLAUDE_MODEL, max_tokens: maxTokens, stream: true, system: sistema, messages, ...senzaPensiero(cfg.CLAUDE_MODEL) }),
     });
     if (r.status !== 200) throw new Error(`Claude ${r.status}: ${(await r.text()).slice(0, 400)}`);
     if (testo) testo = testo.replace(/\s+$/, '');
@@ -115,7 +120,7 @@ export async function claudeVisione(cfg, modello, sistema, testo, immagini, maxT
   const r = await richiesta('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': cfg.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-    body: JSON.stringify({ model: modello, max_tokens: maxTokens, system: sistema, messages: [{ role: 'user', content }] }),
+    body: JSON.stringify({ model: modello, max_tokens: maxTokens, system: sistema, messages: [{ role: 'user', content }], ...senzaPensiero(modello) }),
   });
   const t = await r.text();
   if (r.status !== 200) {
