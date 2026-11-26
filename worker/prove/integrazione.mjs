@@ -269,7 +269,7 @@ console.log('\nArchivio interno (R2)');
   a = await chiama('/api/archivio?cartella=Clienti/Torretta/Panettoni'); ok(a.j.voci.filter((v) => v.tipo === 'video').length === 3, 'i video del progetto sono in elenco');
   a = await chiama('/api/archivio/file?p=' + encodeURIComponent('Musica/Natalizia/Jingle.mp3')); ok(a.status === 200, 'il file si scarica dall\'app');
   // reel: la cartella si trova dal testo, la musica arriva da Musica/<umore>, il logo dalla cartella del cliente
-  a = await chiama('/api/lavori', { method: 'POST', body: { prompt: 'Reel natalizio per la Torretta sui panettoni artigianali, 20 secondi', solo_clip: true } });
+  a = await chiama('/api/lavori', { method: 'POST', body: { prompt: 'Reel natalizio per la Torretta sui panettoni artigianali, 20 secondi, con la musica dall\'archivio', solo_clip: true } });
   const lid = a.j.id; let Lr = env.DB._db.prepare('SELECT fonte, pcloud FROM lavori WHERE id=?').get(lid);
   ok(Lr.fonte === 'archivio' && Lr.pcloud === 'Clienti/Torretta/Panettoni', 'il reel prende da solo la cartella Clienti/Torretta/Panettoni');
   for (let k = 0; k < 6; k++) { sblocca('lavori'); await cron(); Lr = env.DB._db.prepare('SELECT fase, clip FROM lavori WHERE id=?').get(lid); if (Lr.clip) break; }

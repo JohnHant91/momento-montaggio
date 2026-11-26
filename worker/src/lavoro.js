@@ -350,7 +350,8 @@ async function faseClip(env, cfg, L) {
     const lista = await fonte.elenca(L, env);
     if (!lista.filter((c) => c.tipo !== 'musica').length) throw new Error(L.fonte === 'archivio' ? `nella cartella ${L.pcloud} dell'archivio non ci sono né video né foto` : 'nella cartella pCloud non ci sono né video né foto');
     // niente brano nella cartella: Rocco ne prende uno dalla cartella Musica dell'archivio (le sottocartelle sono l'umore)
-    if (env.ARCHIVIO && !lista.some((c) => c.tipo === 'musica') && !/senza musica|musica.{0,30}(instagram|edits|la metto io)/i.test(L.prompt || '')) {
+    // nuove disposizioni: la musica la mette Johnny in approvazione; dall'archivio solo se la chiede nel prompt
+    if (env.ARCHIVIO && !lista.some((c) => c.tipo === 'musica') && /musica (dall'?|dell'?)archivio|metti (tu )?la musica|con (la )?musica/i.test(L.prompt || '')) {
       const st = J(L.stile, null);
       const b = await A.branoArchivio(env, async (brani) => {
         const r = await S.claude({ ...cfg, CLAUDE_MODEL: cfg.CLAUDE_MODEL_LIGHT || cfg.CLAUDE_MODEL }, 'Scegli la musica per un reel. Rispondi solo JSON {"i": numero}.',
@@ -688,6 +689,12 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
   if (lineaCl) await log(env, L.id, 'smm', `📣 Chiara passa a Rocco la linea editoriale di ${Ccl.nome}`);
   const regole = (await one(env, "SELECT valore FROM impostazioni WHERE chiave='REGOLE_REEL'"))?.valore || REGOLE_REEL_BASE;
   const extraRegole = `\n\nREGOLE FISSE DI JOHNNY PER TUTTI I REEL (vincolanti, valgono più di ogni altra indicazione):\n${regole}`;
+  // NUOVE DISPOSIZIONI DI JOHNNY (nov 2026): le clip le sceglie lui, lo stile lo detta lui nel prompt, la musica la mette lui
+  const extraDisposizioni = `\n\nCOME LAVORIAMO ORA (vincolante):
+- Le clip le ha GIÀ SCELTE Johnny: sono quelle da usare. Usale TUTTE, ognuna almeno una volta, salvo una clip davvero inutilizzabile (mossa o sfocata in ogni tratto): in quel caso scrivilo in "note". Non aggiungere materiale che non c'è.
+- Stile, mood, colori, sottotitoli, transizioni e titoli li detta Johnny nel prompt con i nomi dell'archivio Stili (es. "stile street, mood energico, colori nero e giallo, sottotitoli pop in bebas"): applicali alla lettera. Quello che non dice lo scegli tu coerente con il resto.
+- I colori che chiede diventano la palette di testi, titoli e grafiche (campo colori/palette).
+- MUSICA: non montarla tu${brano ? " (c'è un brano nella cartella: usa quello)" : ''}. Monta sul ritmo che chiede il mood e lascia il suono delle clip. In "musica_da_mettere" proponi 3 brani o generi precisi da cercare nella libreria audio di Instagram/Edits, con BPM, mood e il secondo da cui farla partire.`;
   // montaggi già scartati da Johnny con questo girato (+ quello precedente se è un rimontaggio): il nuovo deve essere diverso
   const scarti = J((await one(env, 'SELECT valore FROM impostazioni WHERE chiave=?', chiaveScarti(L)))?.valore, []) || [];
   const evita = scarti.flatMap((x) => x.tratti || []).slice(0, 80);
@@ -696,7 +703,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
 Il nuovo montaggio DEVE essere chiaramente diverso: apri con una clip diversa da ${aperture.join(', ') || 'quella usata'}, cambia l'ordine del racconto,
 almeno metà dei pezzi da clip diverse o da momenti diversi delle stesse clip (lontani almeno 2 s da quelli già usati), idea di gancio nuova.` : '';
   if (scarti.length) await log(env, L.id, 'regista', `con questo girato Johnny ha già scartato ${scarti.length} montaggi: ne faccio uno diverso (${evita.length} tratti da evitare)`);
-  const p = await S.claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda, clip) + extraMusica + extraStile + extraLinea + extra + extraScarti + extraRegole, { maxTokens: 12000 });
+  const p = await S.claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda, clip) + extraMusica + extraStile + extraLinea + extra + extraScarti + extraRegole + extraDisposizioni, { maxTokens: 12000 });
   // controllo del piano: valori ammessi, clip esistenti, tempi dentro le clip
   const tutte = J(L.clip, []);
   const eImm = (c) => c?.tipo === 'immagine' || c?.tecnico?.tipo === 'immagine';
