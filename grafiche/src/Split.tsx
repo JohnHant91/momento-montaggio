@@ -92,7 +92,9 @@ const Sfondo: React.FC<{ pal: Palette }> = ({ pal }) => {
 const Titolo: React.FC<{ d: any; scrivi?: boolean }> = ({ d, scrivi }) => {
   const x = React.useContext(C);
   const { f, fps } = useVita();
-  const testo = String(d.testo || "");
+  // il Regista a volte chiama il campo "titolo" o "valore": il titolo non deve mai restare vuoto
+  const testo = String(d.testo || d.titolo || d.valore || d.nome || "");
+  if (!d.sotto) d = { ...d, sotto: d.sottotitolo || (d.titolo && d.testo && d.testo !== testo ? d.testo : d.etichetta) };
   const parole = testo.split(" ");
   const acc = String(d.accento || "").toLowerCase();
   const èAccento = (p: string) => !!acc && acc.split(" ").includes(p.toLowerCase().replace(/[.,!?:]/g, ""));
@@ -501,7 +503,7 @@ export const Split: React.FC<SplitProps> = (P) => {
             if (!Comp) return null;
             const da = Math.round(s.da * fps), dur = Math.max(6, Math.round((s.a - s.da) * fps));
             // box: grafica pulita, niente decorazioni sparse (icone, lente, numero fantasma, lampi, cursore)
-            const eff = (s.effetti || EFFETTI_BASE[s.tipo] || []).filter((e) => !box || !["icone", "lente", "fantasma", "cursore"].includes(e));
+            const eff = box ? [] : (s.effetti || EFFETTI_BASE[s.tipo] || []); // box: grafica pulita, nessun effetto
             const ha = (e: string) => eff.includes(e);
             const fant = s.tipo === "numero" ? String(s.dati?.valore ?? "") : P.tracker ? String((P.tracker.voci.findIndex((v) => v.da >= s.da - 0.3 && v.da < s.a) + 1) || "") : "";
             const succ = ha("successo") ? (s.dati?.successo || (s.tipo === "terminale" ? (s.dati?.righe || []).slice(-1)[0] : s.tipo === "riepilogo" ? "fatto" : "")) : "";
@@ -511,7 +513,7 @@ export const Split: React.FC<SplitProps> = (P) => {
               <Sequence key={i} from={da} durationInFrames={dur} layout="none">
                 {ha("fantasma") && fant ? <Fantasma pal={P.palette} testo={fant} font={ctx.titoli} /> : null}
                 <div style={{ position: "absolute", inset: 0, paddingTop: P.tracker ? 120 : 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Respiro seme={i} scossa={ha("scossa") ? Math.round(fps * 1.3) : undefined}>{corpo}</Respiro>
+                  <Respiro seme={i} scossa={ha("scossa") ? Math.round(fps * 1.3) : undefined}>{box ? <div style={{ transform: "scale(1.15)" }}>{corpo}</div> : corpo}</Respiro>
                 </div>
                 {ha("icone") ? <Icone pal={P.palette} glifi={s.dati?.decor || GLIFI_BASE[s.tipo] || []} font={ctx.mono} seme={i} /> : null}
                 {ha("lente") ? <Lente pal={P.palette} /> : null}
@@ -528,11 +530,11 @@ export const Split: React.FC<SplitProps> = (P) => {
             <Fuori video={P.ritaglio} stile={stileVideo} adesivo={effOra.includes("adesivo")} pal={P.palette} mono={ctx.mono} yBox={Y_PERSONA + pieno * 160} />
           </Sequence>) : null}
         {/* coriandoli: partono dalla grafica e attraversano tutto lo schermo, persona compresa */}
-        {P.scene.map((s, i) => ((s.effetti || EFFETTI_BASE[s.tipo] || []).includes("coriandoli") ? (
+        {P.scene.map((s, i) => (!box && (s.effetti || EFFETTI_BASE[s.tipo] || []).includes("coriandoli") ? (
           <Sequence key={"c" + i} from={Math.round(s.da * fps) + 4} durationInFrames={Math.round(fps * 1.8)} layout="none">
             <Coriandoli pal={P.palette} x={540} y={zona.height * 0.5} seme={i} />
           </Sequence>) : null))}
-        {P.tracker ? <Tracker tr={P.tracker} t={t} pieno={pieno} /> : null}
+        {P.tracker ? (box ? <div style={{ position: "absolute", inset: 0, transform: "scale(1.5)", transformOrigin: "50% 70px", pointerEvents: "none" }}><Tracker tr={P.tracker} t={t} pieno={0} /></div> : <Tracker tr={P.tracker} t={t} pieno={pieno} />) : null}
         <Pillola parole={P.parole} righe={P.righe} t={t} y={box ? by - 78 : Y_PILLOLA - 40 + pieno * 640} morbida={box} />
         <Grana />
         {/* chiusura: dissolvenza al bianco (o al nero) negli ultimi 0,6 s, dopo l'ultima parola */}

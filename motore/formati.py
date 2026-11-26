@@ -935,6 +935,11 @@ class SplitGrafico(TalkingHead):
                     continue
                 sc.pop("effetti", None)
                 d0 = sc["dati"]
+                if sc["tipo"] == "riepilogo":  # nel box la chiusura è una lista semplice
+                    sc["tipo"], sc["dati"] = "lista", {"titolo": str(d0.get("titolo") or "")[:24], "voci": [str((v or {}).get("nome") if isinstance(v, dict) else v)[:28] for v in (d0.get("voci") or [])[:3]]}
+                    d0 = sc["dati"]
+                if sc["tipo"] == "lista" and isinstance(d0.get("voci"), list):
+                    d0["voci"] = d0["voci"][:3]
                 if sc["tipo"] == "numero" and len(str(d0.get("valore", ""))) > 3:  # "3 minuti" non sta nel cerchio: diventa un titolo
                     sc["tipo"], sc["dati"] = "titolo", {"testo": str(d0.get("valore"))[:24], "sotto": str(d0.get("etichetta") or d0.get("nome") or "")[:40]}
                 if sc["pieno"] and (not tenute or pieni * 3 >= len(tenute)):
