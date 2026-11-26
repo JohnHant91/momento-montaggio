@@ -472,7 +472,7 @@ export { analisiClip, analisiRiferimento };
 async function faseScheda(env, cfg, L) {
   // reel avatar: niente scheda da Claude (era la chiamata più cara). Al Regista arrivano i riferimenti già analizzati, in breve.
   if (J(L.stile, null)?.avatar) {
-    const spunti = J(L.riferimenti, []).filter((r) => r.stato === 'fatto' && r.analisi).slice(0, 6).map((r) => {
+    const spunti = J(L.riferimenti, []).filter((r) => r.stato === 'fatto' && r.analisi).slice(0, 3).map((r) => {
       const a = r.analisi; return { url: r.video.url, views: r.video.views, gancio: a.gancio, ritmo: a.ritmo, durata_media_inquadratura_sec: a.durata_media_inquadratura_sec, tagli_sul_beat: a.tagli_sul_beat, struttura: (a.struttura || []).slice(0, 5), testi: a.testi, sottotitoli: a.sottotitoli_parlato, grafiche: a.grafiche || a.elementi_grafici, transizioni: a.transizioni, colore: a.colore || a.color };
     });
     await run(env, 'UPDATE lavori SET scheda=? WHERE id=?', JSON.stringify({ richiesta_di_johnny: L.prompt, reel_di_riferimento_da_cui_prendere_spunto: spunti,
@@ -725,7 +725,9 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
 - I colori che chiede diventano la palette di testi, titoli e grafiche: se nomina una palette dell'archivio o colori che ci somigliano, metti il suo nome in "palette_nome"; altrimenti metti gli HEX in colori.accento. Palette disponibili:\n${descriviPalette()}
 - MUSICA: non montarla tu${brano ? " (c'è un brano nella cartella: usa quello)" : ''}. Monta sul ritmo che chiede il mood e lascia il suono delle clip. In "musica_da_mettere" proponi 3 brani o generi precisi da cercare nella libreria audio di Instagram/Edits, con BPM, mood e il secondo da cui farla partire.`;
   // montaggi già scartati da Johnny con questo girato (+ quello precedente se è un rimontaggio): il nuovo deve essere diverso
-  const scarti = J((await one(env, 'SELECT valore FROM impostazioni WHERE chiave=?', chiaveScarti(L)))?.valore, []) || [];
+  // i reel parlati con una clip sola (avatar) non hanno "tratti da evitare": il parlato è quello
+  const eAvatar = !!J(L.stile, null)?.avatar;
+  const scarti = eAvatar ? [] : J((await one(env, 'SELECT valore FROM impostazioni WHERE chiave=?', chiaveScarti(L)))?.valore, []) || [];
   const evita = scarti.flatMap((x) => x.tratti || []).slice(0, 80);
   const aperture = [...new Set(scarti.map((x) => x.apertura).filter(Boolean))];
   const extraScarti = scarti.length ? `\n\nMONTAGGI GIÀ SCARTATI DA JOHNNY CON QUESTO GIRATO (${scarti.length}): ${JSON.stringify(scarti.map((x) => (x.tratti || []).map((t) => `${t.nome}@${t.in.toFixed(1)}s`)))}
@@ -734,7 +736,11 @@ almeno metà dei pezzi da clip diverse o da momenti diversi delle stesse clip (l
   if (scarti.length) await log(env, L.id, 'regista', `con questo girato Johnny ha già scartato ${scarti.length} montaggi: ne faccio uno diverso (${evita.length} tratti da evitare)`);
   // Regista snello: per i reel avatar solo le regole dello stile box (niente manuali di altri formati, che confondono e costano)
   const sistema = J(L.stile, null)?.avatar ? SISTEMA_REGISTA.split('\nMANUALE DEL REGISTA')[0] + '\n' + MANUALE_BOX + '\n\n' + MANUALE_COPY : SISTEMA_REGISTA;
-  const p = await S.claude(cfg, sistema, pianoMontaggio(scheda, clip) + extraMusica + extraStile + extraLinea + extra + extraScarti + extraRegole + extraDisposizioni, { maxTokens: 12000 });
+  // avatar: prompt corto. Niente piano precedente intero (solo le indicazioni), niente elenco palette, niente disposizioni sulle clip.
+  const extraA = indicazioni ? `\n\nNUOVO MONTAGGIO. INDICAZIONI ${indicazioni?.da === 'revisore' ? 'DEL REVISORE' : 'DI JOHNNY'} (vincolanti): ${JSON.stringify(indicazioni)}\nTesti del piano precedente (non ripetere gli stessi errori): ${JSON.stringify((prima.piano?.grafiche || []).map((g) => g.dati?.titolo || g.dati?.testo || g.dati?.valore).filter(Boolean)).slice(0, 1500)}` : '';
+  const p = eAvatar
+    ? await S.claude(cfg, sistema, pianoMontaggio(scheda, clip) + extraLinea + extraA + extraRegole, { maxTokens: 8000 })
+    : await S.claude(cfg, sistema, pianoMontaggio(scheda, clip) + extraMusica + extraStile + extraLinea + extra + extraScarti + extraRegole + extraDisposizioni, { maxTokens: 12000 });
   // controllo del piano: valori ammessi, clip esistenti, tempi dentro le clip
   const tutte = J(L.clip, []);
   const eImm = (c) => c?.tipo === 'immagine' || c?.tecnico?.tipo === 'immagine';
