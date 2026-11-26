@@ -1,0 +1,38 @@
+# Guarda un reel finito: tavole di fotogrammi + audio, cifrati con la chiave dello studio.
+name: guarda
+
+on:
+  workflow_dispatch:
+    inputs:
+      chiave: { required: true, default: 'lavoro-14/reel.mp4' }
+
+permissions:
+  id-token: write
+  contents: write
+
+env:
+  REGIA: https://momento-reel.gestionalelcl.workers.dev
+
+jobs:
+  guarda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Strumenti
+        run: |
+          command -v ffmpeg >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null)
+          pip install -q numpy pillow
+      - name: Guarda
+        run: python3 motore/guarda.py
+        env: { CHIAVE: "${{ github.event.inputs.chiave }}" }
+      - name: Risultato (cifrato)
+        run: |
+          cd /tmp/tavole && tar czf /tmp/t.tgz .
+          mkdir -p /tmp/out
+          openssl rand -out /tmp/k.bin 32
+          openssl enc -aes-256-cbc -pbkdf2 -in /tmp/t.tgz -out /tmp/out/tavole.enc -pass file:/tmp/k.bin
+          openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/motore/chiave_studio.pem" -in /tmp/k.bin -out /tmp/out/k.enc
+          cd /tmp/out && git init -q && git checkout -q -b guarda && git add . \
+          && git -c user.name=motore -c user.email=motore@momento commit -qm "guarda" \
+          && git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" guarda
