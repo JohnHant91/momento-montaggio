@@ -1275,6 +1275,12 @@ class MontatoreCompleto(TalkingHead):
         except Exception:
             self.rif_colore = None
         lut = self.crea_lut(P.get("look", "naturale_vivace"), float(P.get("intensita_look", 1.0)))
+        # METODO DI JOHNNY: 1) esposizione automatica clip per clip 2) base neutra Rec.709 uguale per tutte 3) montaggio
+        # 4) color finale UNA volta sul reel intero. Così neri e colori sono identici fra le clip. Se ci sono grafiche
+        # (titoli, sottotitoli, logo) la color va sui pezzi, altrimenti tingerebbe anche le scritte.
+        sott = (P.get("sottotitoli") or {}).get("usare")
+        self.color_finale = not (P.get("titoli") or sott or P.get("logo") or P.get("cartelli") or P.get("schede") or P.get("grafiche"))
+        self._lut_look = lut
         globali = set(P.get("effetti_globali") or [])
         self.avvisa("editor", f"preparo {len(segmenti)} pezzi in parallelo: reframe sul soggetto, stabilizzazione, rallenty")
         with ThreadPoolExecutor(PARALLELO) as ex:
@@ -1387,8 +1393,17 @@ class MontatoreCompleto(TalkingHead):
             ingressi = []
             for c in clip:
                 ingressi += ["-i", os.path.join(pub, c["src"])]
+            # color finale sul reel intero (stessa LUT/look su tutte le clip, una volta sola), poi la sfumatura
+            fin = ""
+            if getattr(self, "color_finale", False):
+                fc = [self.filtro_colore(self._lut_look)]
+                nl = self.nero_lut()
+                if nl:
+                    fc.append(nl)
+                fin = "," + ",".join(x for x in fc if x)
+                self.report.append("color finale applicata una volta su tutto il reel (metodo di Johnny)")
             catena = "".join(f"[{k}:v]setsar=1,fps={FPS}[v{k}];" for k in range(len(clip))) + "".join(f"[v{k}]" for k in range(len(clip))) + \
-                     f"concat=n={len(clip)}:v=1:a=0,fade=t=out:st={max(0, totale - dfin):.3f}:d={dfin:.3f}:color={colore},format=yuv420p[out]"
+                     f"concat=n={len(clip)}:v=1:a=0{fin},fade=t=out:st={max(0, totale - dfin):.3f}:d={dfin:.3f}:color={colore},format=yuv420p[out]"
             self.ff(ingressi + ["-filter_complex", catena, "-map", "[out]", "-an"] + X264_INT + [anim], "unisco i pezzi")
             for x in os.listdir(pub):
                 if x.startswith(sigla):
@@ -1407,6 +1422,14 @@ class MontatoreCompleto(TalkingHead):
             for x in os.listdir(pub):
                 if x.startswith(sigla):
                     os.remove(os.path.join(pub, x))
+        if getattr(self, "color_finale", False) and not semplice:
+            # montato con transizioni/effetti ma senza scritte: la color finale va comunque sul reel intero
+            fc = [x for x in [self.filtro_colore(self._lut_look), self.nero_lut()] if x]
+            if fc:
+                col = os.path.join(self.tmp, "montaggio_col.mp4")
+                self.ff(["-i", anim, "-vf", ",".join(fc) + ",format=yuv420p", "-an"] + X264_INT + [col], "color finale sul reel")
+                anim = col
+                self.report.append("color finale applicata una volta su tutto il reel (metodo di Johnny)")
         # tavola di controllo cifrata (per vederla prima di consegnare)
         os.makedirs("/tmp/tavole", exist_ok=True)
         tempi = [min(totale - 0.2, c["inizio"] + c["durata"] * 0.5) for c in clip][:10]

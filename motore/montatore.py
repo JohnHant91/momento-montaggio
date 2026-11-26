@@ -521,10 +521,11 @@ class Montatore:
             self.report.append(f"pezzo {i + 1}: grana pulita (era buio, schiarito con gamma {g:.2f})")
         if corr:
             filtri.append(corr)
-        filtri.append(self.filtro_colore(lut))
-        nl = self.nero_lut()
-        if nl:
-            filtri.append(nl)
+        if not getattr(self, "color_finale", False):
+            filtri.append(self.filtro_colore(lut))
+            nl = self.nero_lut()
+            if nl:
+                filtri.append(nl)
         # rifinitura da consegna: nitidezza leggera solo sulla luminanza (sui pezzi schiariti di meno: riaccenderebbe la grana)
         filtri.append("unsharp=5:5:0.35:5:5:0" if g <= 1.15 else "unsharp=5:5:0.2:5:5:0")
         if "glow" in globali:  # alone luminoso morbido (romantico, natalizio)

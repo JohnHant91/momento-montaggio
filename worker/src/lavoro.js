@@ -547,10 +547,11 @@ Rispondi SOLO JSON: {"correzioni": [{"id": n, "testo": "testo corretto, oppure \
 }
 
 // regole fisse di Johnny per tutti i reel (modificabili in Impostazioni): Rocco le legge in ogni piano
-export const REGOLE_REEL_BASE = `- Reel di PRODOTTO: circa 20 secondi, 6-8 pezzi da 2,5-3,5 s, solo i passaggi chiave del racconto (lavorazione → trasformazione → prodotto finito → confezione/consegna). Meglio corto e pieno che lungo e lento.
+export const REGOLE_REEL_BASE = `- Vale per QUALSIASI cliente e prodotto (cibo, moda, locali, servizi, oggetti): lo stile è questo, il soggetto cambia.
+- Reel di PRODOTTO: circa 20 secondi, 6-8 pezzi da 2,5-3,5 s, solo i passaggi chiave del racconto (lavorazione → trasformazione → prodotto finito → confezione/consegna). Meglio corto e pieno che lungo e lento.
 - Il PRODOTTO è il protagonista di ogni pezzo: si vede sempre, al centro dell'attenzione. In ogni clip si prende il momento in cui il prodotto si muove o viene lavorato (glassa che cola, panettone spostato, mani che impastano), mai il prodotto fermo se nella clip c'è il gesto. Usa le AZIONI viste dall'occhio (campo "occhio" delle clip: tempi esatti dei gesti).
 - Il pezzo dura quanto il gesto: entra un attimo prima che il gesto inizi ed esce quando finisce (taglio sull'azione).
-- Colore: stessa esposizione e stessa color per tutte le clip, neri veri, niente vignettatura. La LUT la sceglie Johnny prima del montaggio.
+- Colore (metodo di Johnny): 1) esposizione automatica clip per clip, tutte uguali 2) base neutra Rec.709 3) montaggio 4) color finale UNA volta su tutto il reel. Neri e colori identici fra una clip e l'altra, niente vignettatura. La LUT la sceglie Johnny prima del montaggio.
 - Durata massima 1'30" (oltre non è più un Reel).
 - Testi, sottotitoli, loghi e il soggetto importante stanno nella zona sicura: 220 px liberi in alto, 450 px in basso, 35 px ai lati; in basso a destra, da 1220 px in giù, ci sono i pulsanti.
 - Copertina: titolo e soggetto dentro il 3:4 centrale (1080x1440, da 240 a 1680 px), perché nella griglia del profilo si vede solo quello.
