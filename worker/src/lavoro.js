@@ -839,6 +839,8 @@ almeno metà dei pezzi da clip diverse o da momenti diversi delle stesse clip (l
       ...(Array.isArray(g.effetti) && g.effetti.length ? { effetti: g.effetti.filter((e) => EFFETTI_SPLIT.includes(e)).slice(0, 5) } : {}) }))
     .map((g) => (g.pieno && g.effetti ? { ...g, effetti: g.effetti.filter((e) => !['dietro', 'esce', 'adesivo'].includes(e)) } : g)) // con la grafica a tutto schermo la persona non si vede
     .map((g) => (g.tipo === 'sito' && !/^https:\/\/[\w.-]+\.[a-z]{2,}/i.test(g.dati.url || '') ? { ...g, tipo: 'card', dati: { titolo: g.dati.titolo || g.dati.url || 'sito', testo: g.dati.testo || '' } } : g));
+  // un reel a grafiche senza grafiche è da rifare subito: non si spreca un montaggio di 15 minuti
+  if (formato === 'split_grafico' && grafiche.length < 4) throw new Error('piano senza grafiche (' + grafiche.length + '): lo riscrivo');
   const palette = !SPLITTISH(formato) ? null : Object.fromEntries(['fondo', 'inchiostro', 'accento', 'secondario', 'tenue'].map((k) => [k, hex(p.palette?.[k])]).filter(([, v]) => v));
   const font_split = !SPLITTISH(formato) ? null : Object.fromEntries(Object.entries(FONT_SPLIT).map(([k, ok]) => [k, ok.includes(p.font_split?.[k]) ? p.font_split[k] : ok[0]]));
   const tracker = formato === 'split_grafico' && p.tracker?.voci?.length ? { totale: Math.min(10, Math.max(1, Number(p.tracker.totale) || p.tracker.voci.length)), voci: p.tracker.voci.slice(0, 10).map((v) => ({ etichetta: String(v.etichetta || '').slice(0, 24), sulla_parola: String(v.sulla_parola || '').slice(0, 40) })).filter((v) => v.sulla_parola) } : null;

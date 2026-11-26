@@ -241,4 +241,17 @@ Tu decidi SOLO i tratti di parlato e le "grafiche". Regole:
 7. CHIUSURA: l'ultima grafica è la chiamata all'azione (cosa fare adesso), "pieno": true, max 4 parole + una riga piccola.
 8. PALETTE: fondo chiarissimo (#F7F5EF o simile), inchiostro quasi nero, UN accento vivo scelto per l'argomento, secondario = accento tenue.
    font_split.titoli: "Manrope" o "Space Grotesk" (sans grassetto), mai serif.
-9. Solo parole e fatti detti nel video. Italiano corretto, niente maiuscole urlate.`;
+9. Solo parole e fatti detti nel video. Italiano corretto, niente maiuscole urlate.
+
+COME COMPILI IL PIANO (obbligatorio)
+- "formato": "split_grafico", "riquadro": "box".
+- "segmenti": TUTTO il parlato della clip, in ordine, senza tagliare frasi né cambiare l'ordine (è un copione già scritto):
+  un segmento per frase o gruppo di frasi, "in" e "durata" sui tempi della trascrizione. Togli solo pause e ripetizioni.
+- "grafiche": OBBLIGATORIE, 10-14 per 60 s (mai meno di 1 ogni 6 s). Ognuna: {"tipo", "sulla_parola": la parola DETTA
+  (scritta come nella trascrizione) su cui entra, in ordine di tempo, "pieno": bool, "dati": {...}}.
+  dati per tipo → titolo: {"testo": "2-3 parole", "sotto": "max 5 parole"} · numero: {"valore": "1-3 caratteri", "etichetta"} ·
+  lista: {"titolo", "voci": ["..."]} · card: {"titolo", "testo", "icona": "ph:nome-bold", "etichetta"} ·
+  confronto: {"prima": {"titolo", "voci": []}, "dopo": {"titolo", "voci": []}} · barre: {"titolo", "unita", "voci": [{"etichetta", "valore"}]} ·
+  contatore: {"da", "a", "etichetta", "prefisso", "suffisso"}.
+- "tracker", "palette", "font_split", "evidenzia" (4-8 parole chiave da colorare nei sottotitoli), "copertina", "caption".
+- Non compilare: titoli, cartelli, schede, broll, pannello, elementi, adesivi, transizioni, musica.`;
