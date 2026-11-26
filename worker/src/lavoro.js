@@ -932,7 +932,7 @@ CONTROLLI AUTOMATICI DEL MOTORE: ${JSON.stringify((m.revisore?.problemi || []).s
 
 Controlla: 1) il prodotto è protagonista e si vede bene; 2) il racconto è lineare e comprensibile (preparazione → trasformazione → prodotto finito → confezione/chiusura); 3) niente pezzi mossi, sfocati, bui, inquadrature di pavimento/soffitto/schiene; 4) niente due pezzi quasi uguali; 5) colore omogeneo fra i pezzi; 6) testi leggibili e non sopra la faccia o il prodotto; 7) il primo secondo aggancia.
 JSON: {"voto": 1-10, "passa": true se voto >= 7 e nessun difetto grave, "difetti": [{"secondo": n, "problema": "...", "gravita": "grave|medio|lieve"}], "correzioni": "istruzioni precise per il Regista per rimontarlo (quali pezzi cambiare e con cosa), vuoto se passa"}`;
-  const q = await S.claudeVisione(cfg, cfg.CLAUDE_MODEL, SISTEMA_QA, testo, [{ cosa: 'foglio del reel finito, un fotogramma al secondo', jpeg: btoa(b) }], 2500);
+  const q = await S.claudeVisione(cfg, cfg.CLAUDE_MODEL, SISTEMA_QA, testo, [{ cosa: 'foglio del reel finito, un fotogramma al secondo', jpeg: btoa(b) }], 6000);
   return { passa: !!q?.passa && (Number(q.voto) || 0) >= 7, voto: Number(q?.voto) || null, difetti: (q?.difetti || []).slice(0, 8), correzioni: String(q?.correzioni || '').slice(0, 700) };
 }
 
@@ -945,7 +945,7 @@ async function faseMontaggio(env, cfg, L) {
     m.qa = { ...q, quando: ora(), giro: giri + 1 };
     if (q.passa || giri >= 1) {
       await run(env, 'UPDATE lavori SET montaggio=? WHERE id=?', JSON.stringify(m), L.id);
-      await log(env, L.id, 'revisore', q.passa ? `✅ revisione superata${q.voto ? ` (voto ${q.voto}/10)` : ''}${q.nota ? ' · ' + q.nota : ''}` : `⚠️ dopo ${giri + 1} revisioni il voto è ${q.voto}/10: te lo consegno con i difetti segnati (${q.difetti.map((x) => x.problema).join('; ').slice(0, 200)})`, q.passa ? 'info' : 'warn');
+      await log(env, L.id, 'revisore', q.passa && q.voto == null && q.nota ? `⚠️ ${q.nota}: il reel ti arriva senza controllo` : q.passa ? `✅ revisione superata${q.voto ? ` (voto ${q.voto}/10)` : ''}${q.nota ? ' · ' + q.nota : ''}` : `⚠️ dopo ${giri + 1} revisioni il voto è ${q.voto}/10: te lo consegno con i difetti segnati (${q.difetti.map((x) => x.problema).join('; ').slice(0, 200)})`, q.passa ? 'info' : 'warn');
       return true;
     }
     // bocciato su pezzi precisi: Johnny taglia lui quei pezzi dal telefono (una volta per reel), il resto resta com'è

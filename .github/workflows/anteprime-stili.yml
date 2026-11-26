@@ -3,7 +3,7 @@ name: anteprime-stili
 on:
   workflow_dispatch:
     inputs:
-      sezioni: { required: false, default: 'sottotitoli font transizioni animazioni elementi' }
+      sezioni: { required: false, default: 'sottotitoli font transizioni animazioni elementi dietro' }
 permissions:
   contents: write
 jobs:
@@ -59,6 +59,22 @@ jobs:
             echo "{\"tipo\":\"$e\",\"da\":0,\"a\":2,\"x\":0.55,\"y\":0.45,\"testo\":\"NOVITÀ\",\"numero\":3}" > e.json
             npx remotion still src/index.ts ProvaElemento out/el/$e.png --props=e.json --frame=20 --log=error || echo "ERRORE $e"
           done
+      - name: Parole dietro
+        if: contains(github.event.inputs.sezioni, 'dietro')
+        working-directory: grafiche
+        run: |
+          mkdir -p public out/dt
+          D="drawbox=x=380:y=60:w=320:h=420:color=0xD9A27A@1:t=fill,drawbox=x=180:y=470:w=720:h=1450:color=0x9FC9D6@1:t=fill"
+          ffmpeg -v error -f lavfi -i "color=c=0x6E78C8:s=1080x1920:r=30:d=3" -vf "$D" -pix_fmt yuv420p -y public/base.mp4
+          ffmpeg -v error -f lavfi -i "color=c=black@0.0:s=1080x1920:r=30:d=3,format=rgba,$D" -c:v libvpx-vp9 -pix_fmt yuva420p -auto-alt-ref 0 -y public/ritaglio.webm
+          cat > d.json <<'J'
+          {"durata":3,"fps":30,"video":"base.mp4","ritaglio":"ritaglio.webm","volto":{"cx":0.5,"cy":0.2},
+           "palette":{"fondo":"#F1EFEA","inchiostro":"#17171A","accento":"#0E9F9A","secondario":"#CFE9E7","tenue":"rgba(0,0,0,.08)"},
+           "parole":[{"t":"La","da":0.1,"a":0.3},{"t":"casa","da":0.3,"a":0.6},{"t":"decide","da":0.6,"a":0.9,"k":true},{"t":"da","da":0.9,"a":1.0},{"t":"sola","da":1.0,"a":1.4}],
+           "righe":[{"da":0.1,"a":2.8,"p":[0,1,2,3,4]}],
+           "scene":[{"da":1.0,"a":2.9,"tipo":"card","dati":{"etichetta":"Vantaggi","titolo":"Comfort, tempo, controllo","testo":"Luci, tapparelle e termostato"}}],"adesivi":[{"da":1.2,"tipo":"ai"}]}
+          J
+          for fr in 20 60; do npx remotion still src/index.ts Dietro out/dt/dietro_$fr.png --props=d.json --frame=$fr --log=error || echo "ERRORE dietro"; done
       - name: Tavola
         run: |
           pip install -q pillow && python3 grafiche/tavola.py && cd grafiche/out

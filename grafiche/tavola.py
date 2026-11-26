@@ -28,3 +28,4 @@ griglia(sorted(x for x in os.listdir(".") if x.startswith("font_")), "font.jpg",
 griglia(dirf("tr"), "transizioni.jpg", (180, 320), 8)
 griglia(dirf("an"), "animazioni.jpg", (270, 200), 4, (0, 760, 1080, 1160))
 griglia(dirf("el"), "elementi.jpg", (270, 480), 5)
+griglia(dirf("dt"), "dietro.jpg", (540, 960), 2)

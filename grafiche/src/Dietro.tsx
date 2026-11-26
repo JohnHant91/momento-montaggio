@@ -27,7 +27,7 @@ export type DietroProps = {
 const viva = (pal: Palette) => ["#FFFFFF", pal.accento, "#3FA9F5", "#FF8A1F"];
 
 // ------------------------------------------------------------------ la frase gigante dietro la persona
-const FraseDietro: React.FC<{ parole: Parola[]; idx: number[]; t0: number; t1: number; pal: Palette; serif: string; y: number; n: number }> = ({ parole, idx, t0, t1, pal, serif, y, n }) => {
+const FraseDietro: React.FC<{ parole: Parola[]; idx: number[]; t0: number; t1: number; pal: Palette; serif: string; y: number; n: number; maxH?: number }> = ({ parole, idx, t0, t1, pal, serif, y, n, maxH = 9999 }) => {
   const f = useCurrentFrame();
   const { fps } = useVideoConfig();
   const dur = Math.round((t1 - t0) * fps);
@@ -43,6 +43,9 @@ const FraseDietro: React.FC<{ parole: Parola[]; idx: number[]; t0: number; t1: n
   }
   if (cur.length) righe.push(cur);
   const colori = viva(pal);
+  // le righe devono stare nella fascia libera sopra la testa: se non ci stanno, si rimpicciolisce tutto il blocco
+  const altezza = righe.reduce((a, r, ri) => a + (r.some((i) => parole[i].k) ? 210 : (ri + n) % 3 === 1 ? 120 : 130) * 0.92, 0);
+  const fit = Math.max(0.5, Math.min(1, maxH / Math.max(1, altezza)));
   return (
     <div style={{ position: "absolute", left: 0, right: 0, top: y, display: "flex", flexDirection: "column", alignItems: "center", gap: 0, opacity: 1 - usc,
       transform: `scale(${1 + usc * 0.15})`, filter: `blur(${usc * 6}px)` }}>
@@ -50,7 +53,7 @@ const FraseDietro: React.FC<{ parole: Parola[]; idx: number[]; t0: number; t1: n
         const chiave = r.some((i) => parole[i].k);
         const stile = (ri + n) % 3; // 0: sans nero-bianco maiuscolo, 1: serif corsivo, 2: sans colorato
         const col = chiave ? colori[1 + ((n + ri) % 3)] : stile === 1 ? "#FFFFFF" : colori[(ri + n) % 2 === 0 ? 0 : 2];
-        const size = chiave ? 210 : stile === 1 ? 120 : 130;
+        const size = (chiave ? 210 : stile === 1 ? 120 : 130) * fit;
         return (
           <div key={ri} style={{ display: "flex", gap: 22, lineHeight: 0.92, whiteSpace: "nowrap" }}>
             {r.map((i, wi) => {
@@ -87,7 +90,7 @@ const Adesivo: React.FC<{ tipo: string; lato: "sx" | "dx"; pal: Palette }> = ({ 
   const s = spring({ frame: f, fps, config: molle.bouncy });
   const usc = interpolate(f, [dur - 6, dur], [1, 0], clamp);
   const onda = interpolate(f, [0, 16], [0, 1], { ...clamp, easing: ease.out });
-  const x = lato === "sx" ? 120 : 640, y = 330;
+  const x = lato === "sx" ? 40 : 720, y = 980; // ai lati del busto, sotto la fascia delle parole
   return (
     <div style={{ position: "absolute", left: x, top: y + Math.sin(f / 10) * 8, width: 320, height: 320, transform: `scale(${s * usc}) rotate(${(1 - s) * -40 + Math.sin(f / 14) * 5}deg)` }}>
       {[0, 1].map((i) => <div key={i} style={{ position: "absolute", inset: -80 * onda - i * 40, borderRadius: "50%", border: `${10 - i * 4}px solid ${pal.accento}`, opacity: (1 - onda) * 0.8 }} />)}
@@ -97,14 +100,14 @@ const Adesivo: React.FC<{ tipo: string; lato: "sx" | "dx"; pal: Palette }> = ({ 
 };
 
 // ------------------------------------------------------------------ scheda di vetro che fluttua di lato (davanti)
-const Vetro: React.FC<{ d: any; lato: "sx" | "dx"; serif: string }> = ({ d, lato, serif }) => {
+const Vetro: React.FC<{ d: any; lato: "sx" | "dx"; serif: string; top?: number }> = ({ d, lato, serif, top = 1200 }) => {
   const f = useCurrentFrame();
   const { fps, durationInFrames: dur } = useVideoConfig();
   const s = spring({ frame: f, fps, config: molle.snappy });
   const usc = interpolate(f, [dur - 10, dur], [0, 1], clamp);
   const ry = (lato === "sx" ? 22 : -22) + Math.sin(f / 30) * 3;
   return (
-    <div style={{ position: "absolute", top: 380 + Math.sin(f / 18) * 10, [lato === "sx" ? "left" : "right"]: 50, width: 430, perspective: 900, opacity: s * (1 - usc) } as React.CSSProperties}>
+    <div style={{ position: "absolute", top: top + Math.sin(f / 18) * 10, [lato === "sx" ? "left" : "right"]: 50, width: 430, perspective: 900, opacity: s * (1 - usc) } as React.CSSProperties}>
       <div style={{ transform: `rotateY(${ry}deg) translateX(${(1 - s) * (lato === "sx" ? -300 : 300)}px)`, background: "rgba(255,255,255,.22)", backdropFilter: "blur(14px)",
         border: "2px solid rgba(255,255,255,.55)", borderRadius: 28, padding: "26px 28px", boxShadow: "0 30px 60px -20px rgba(0,0,0,.45)", color: "#fff" }}>
         {d.etichetta ? <div style={{ fontFamily: SANS, fontWeight: 800, fontSize: 22, letterSpacing: 2, textTransform: "uppercase", opacity: 0.85 }}>{d.etichetta}</div> : null}
@@ -145,11 +148,17 @@ export const Dietro: React.FC<DietroProps> = (P) => {
   const stileV: React.CSSProperties = { position: "absolute", inset: 0, width: 1080, height: 1920, objectFit: "cover" };
   const capitoli = P.scene.filter((s) => s.pieno);
   const inCapitolo = capitoli.some((s) => t >= s.da && t < s.a);
-  const yFrase = Math.max(160, cy * 1920 - 210); // le parole stanno dietro testa e spalle
+  // Le parole giganti devono LEGGERSI: se la testa arriva in alto, la persona (video + ritaglio) scende e la fascia
+  // sopra la testa resta libera per le frasi; la testa ne copre solo il bordo basso ("dietro", non "coperte").
+  const testa = Math.max(0, (cy - 0.17) * 1920); // dove inizia la testa (capelli) nel fotogramma
+  const giu = Math.min(480, Math.max(0, 560 - testa)); // quanto scende la persona
+  const yFrase = 210; // sotto l'interfaccia di Instagram
+  const hFrase = testa + giu + 90 - yFrase; // la testa copre al massimo l'ultima riga di 90 px
   const parolaOra = P.parole.find((p) => t >= p.da && t < p.a + 0.08);
-  const strato = (contenuto: React.ReactNode) => <div style={{ position: "absolute", inset: 0, transform: `scale(${scala * punch})`, transformOrigin: `50% ${cy * 100}%` }}>{contenuto}</div>;
+  const strato = (contenuto: React.ReactNode) => <div style={{ position: "absolute", inset: 0, transform: `translateY(${giu}px) scale(${scala * punch})`, transformOrigin: `50% ${cy * 100}%` }}>{contenuto}</div>;
   return (
     <AbsoluteFill style={{ background: "#000", overflow: "hidden" }}>
+      {giu > 0 ? <OffthreadVideo src={staticFile(P.video)} muted style={{ ...stileV, transform: "scale(1.35)", transformOrigin: "50% 0%", filter: "blur(40px) brightness(0.75) saturate(1.2)" }} /> : null}
       {strato(<OffthreadVideo src={staticFile(P.video)} style={stileV} />)}
       {/* adesivi: dietro la persona */}
       {(P.adesivi || []).map((a, i) => (
@@ -160,18 +169,18 @@ export const Dietro: React.FC<DietroProps> = (P) => {
       {/* frasi giganti: dietro la persona */}
       {P.righe.map((r, i) => (
         <Sequence key={"r" + i} from={Math.round(r.da * fps) - 2} durationInFrames={Math.max(6, Math.round((r.a - r.da) * fps) + 6)} layout="none">
-          <FraseDietro parole={P.parole} idx={r.p} t0={r.da} t1={r.a + 0.15} pal={P.palette} serif={serif} y={yFrase} n={i} />
+          <FraseDietro parole={P.parole} idx={r.p} t0={r.da} t1={r.a + 0.15} pal={P.palette} serif={serif} y={yFrase} n={i} maxH={hFrase} />
         </Sequence>
       ))}
       {/* la persona ritagliata davanti alle scritte */}
       {P.ritaglio ? strato(<OffthreadVideo src={staticFile(P.ritaglio)} transparent style={stileV} />) : null}
       {/* la parola detta, piccola, sul petto */}
-      {parolaOra && !inCapitolo ? <div style={{ position: "absolute", left: 0, right: 0, top: Math.min(1180, cy * 1920 + 520), textAlign: "center", fontFamily: SANS, fontWeight: 800,
+      {parolaOra && !inCapitolo ? <div style={{ position: "absolute", left: 0, right: 0, top: Math.min(1500, cy * 1920 + 520 + giu), textAlign: "center", fontFamily: SANS, fontWeight: 800,
         fontSize: 54, color: "#fff", textShadow: "0 4px 18px rgba(0,0,0,.6)" }}>{parolaOra.t.replace(/[.,!?;:]/g, "").toLowerCase()}</div> : null}
       {/* schede di vetro (davanti) */}
       {P.scene.filter((s) => !s.pieno && (s.tipo === "card" || s.tipo === "titolo" || s.tipo === "lista")).map((s, i) => (
         <Sequence key={"v" + i} from={Math.round(s.da * fps)} durationInFrames={Math.max(8, Math.min(Math.round((s.a - s.da) * fps), Math.round(fps * 3.2)))} layout="none">
-          <Vetro d={s.tipo === "lista" ? { titolo: s.dati?.titolo, testo: (s.dati?.voci || []).join(" · ") } : s.tipo === "titolo" ? { titolo: s.dati?.testo, testo: s.dati?.sotto } : s.dati || {}} lato={i % 2 ? "dx" : "sx"} serif={serif} />
+          <Vetro d={s.tipo === "lista" ? { titolo: s.dati?.titolo, testo: (s.dati?.voci || []).join(" · ") } : s.tipo === "titolo" ? { titolo: s.dati?.testo, testo: s.dati?.sotto } : s.dati || {}} lato={i % 2 ? "dx" : "sx"} serif={serif} top={Math.min(1420, cy * 1920 + giu + 380)} />
         </Sequence>
       ))}
       {/* capitoli a tutto schermo */}
