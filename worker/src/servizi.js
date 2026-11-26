@@ -405,8 +405,19 @@ async function instagramUfficiale(cfg, hashtags, perVoce) {
   for (const h of hashtags.slice(0, 2)) {
     if (out.length >= 5) break;
     try {
-      const r = await env.IG.fetch(`https://momento-instagram/hashtag?tag=${encodeURIComponent(h.replace(/^#/, ''))}&n=${perVoce}`, { headers: { 'x-admin-key': env.IG_INTERNO_KEY } });
-      const d = await r.json();
+      // stesso cliente, stesso hashtag nella settimana (3 reel): riuso i risultati per 7 giorni, niente nuova ricerca
+      const chiave = 'IG_TAG_' + h.replace(/^#/, '').toLowerCase().slice(0, 60);
+      let d = null;
+      try {
+        const c = await env.DB.prepare('SELECT valore FROM impostazioni WHERE chiave=?').bind(chiave).first();
+        const v = c && JSON.parse(c.valore);
+        if (v && Date.now() - v.t < 7 * 864e5) d = v.d;
+      } catch (_) { /* cache facoltativa */ }
+      if (!d) {
+        const r = await env.IG.fetch(`https://momento-instagram/hashtag?tag=${encodeURIComponent(h.replace(/^#/, ''))}&n=${perVoce}`, { headers: { 'x-admin-key': env.IG_INTERNO_KEY } });
+        d = await r.json();
+        if (!d.errore) await env.DB.prepare('INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES (?, ?)').bind(chiave, JSON.stringify({ t: Date.now(), d })).run().catch(() => {});
+      }
       if (d.errore) { note.push(`#${h}: ${String(d.errore).slice(0, 80)}`); continue; }
       for (const x of d.media || []) out.push({
         piattaforma: 'instagram', id: String(x.id), url: x.permalink || '', video_url: x.media_url || null,
