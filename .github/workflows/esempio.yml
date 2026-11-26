@@ -1,0 +1,45 @@
+# Studia un reel di esempio (link pubblico): tavole di fotogrammi + audio, cifrati con la chiave dello studio.
+name: esempio
+
+on:
+  workflow_dispatch:
+    inputs:
+      url: { required: true }
+
+permissions:
+  contents: write
+
+jobs:
+  esempio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Strumenti
+        run: |
+          command -v ffmpeg >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null)
+          pip install -q -U yt-dlp
+      - name: Scarica e prepara
+        env: { URL: "${{ github.event.inputs.url }}" }
+        run: |
+          mkdir -p /tmp/tavole
+          yt-dlp -q --no-warnings -f "bv*+ba/b" --merge-output-format mp4 -o /tmp/es.mp4 "$URL" || yt-dlp -q -f b -o /tmp/es.mp4 "$URL"
+          dest=/tmp/es.mp4
+          dur=$(ffprobe -v error -show_entries format=duration -of csv=p=0 $dest); echo "durata $dur"
+          ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate -of csv=p=0 $dest
+          for t in $(seq 0 10 ${dur%.*}); do
+            ffmpeg -v error -ss $t -t 10 -i $dest -vf "fps=4,scale=216:384:force_original_aspect_ratio=decrease,pad=216:384:(ow-iw)/2:(oh-ih)/2,drawtext=text='%{eif\:t+$t\:d}.%{eif\:mod((t+$t)*100\,100)\:d\:2}s':x=4:y=4:fontsize=20:fontcolor=yellow:box=1:boxcolor=black@0.6,tile=8x5" -frames:v 1 -y /tmp/tavole/t$(printf %03d $t).jpg
+          done
+          for s in 1 3 6 10; do ffmpeg -v error -ss $s -i $dest -frames:v 1 -vf scale=540:-2 -y /tmp/tavole/grande_$s.jpg || true; done
+          ffmpeg -v error -i $dest -vn -ac 1 -ar 16000 -b:a 32k -y /tmp/tavole/audio.mp3
+          ls /tmp/tavole | wc -l
+      - name: Risultato (cifrato)
+        run: |
+          cd /tmp/tavole && tar czf /tmp/t.tgz .
+          mkdir -p /tmp/out
+          openssl rand -out /tmp/k.bin 32
+          openssl enc -aes-256-cbc -pbkdf2 -in /tmp/t.tgz -out /tmp/out/tavole.enc -pass file:/tmp/k.bin
+          openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/motore/chiave_studio.pem" -in /tmp/k.bin -out /tmp/out/k.enc
+          cd /tmp/out && git init -q && git checkout -q -b esempio && git add . \
+          && git -c user.name=motore -c user.email=motore@momento commit -qm "esempio" \
+          && git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" esempio
