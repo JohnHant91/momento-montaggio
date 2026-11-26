@@ -37,7 +37,7 @@ JSON:
   "youtube_query": ["3-4 ricerche"],
   "tiktok_query": ["2-3 ricerche"],
   "tiktok_hashtag": ["2-3 hashtag senza #"],
-  "instagram_hashtag": ["3 hashtag senza #"],
+  "instagram_hashtag": ["2 hashtag senza #: il PRIMO è il più preciso per la nicchia del cliente (es. panettoneartigianale), si usa solo quello; il secondo è di riserva"],
   "stile_montaggio": {"descrizione": "lo stile/mood di montaggio che Johnny chiede, con parole sue (es. street emozionale) o null se non lo dice",
                       "ricerca_en": ["2 ricerche in inglese per trovare reel MONTATI in quello stile, anche fuori settore (es. emotional street cinematic edit)"]}
 }`;
@@ -202,7 +202,7 @@ async function fasePiano(env, cfg, L) {
     const q = ricercaStile(stile, p.settore), R = ricetta(stile);
     p.youtube_query = [...q.yt, ...(p.youtube_query || [])].slice(0, 4);
     p.tiktok_query = [...q.tt, ...(p.tiktok_query || [])].slice(0, 4);
-    p.instagram_hashtag = [...q.ig, ...(p.instagram_hashtag || [])].slice(0, 5);
+    p.instagram_hashtag = [...(p.instagram_hashtag || []), ...q.ig].slice(0, 3); // prima la nicchia del cliente, poi lo stile
     await run(env, 'UPDATE lavori SET stile=? WHERE id=?', JSON.stringify(stile), L.id);
     await log(env, L.id, 'stella', `🎨 stile ${R.nome}: cerco reel montati così (${[...q.yt, ...q.tt].join(' · ')}) e ne estraggo la ricetta da applicare alle tue clip`);
   }
@@ -217,7 +217,7 @@ async function faseRicerca(env, cfg, L) {
   if (!J(L.stile, null)?.solo_clip) await log(env, L.id, 'scout_yt', `${cfg.YOUTUBE_API_KEY ? 'cerco Shorts' : 'cerco Shorts sul web'}: ${(p.youtube_query || []).join(' · ')}`);
   if (cfg.APIFY_TOKEN && !J(L.stile, null)?.solo_clip) {
     await log(env, L.id, 'scout_tt', `cerco su TikTok: ${[...(p.tiktok_query || []), ...(p.tiktok_hashtag || []).map((h) => '#' + h)].join(' · ')}`);
-    await log(env, L.id, 'scout_ig', `cerco reel: ${(p.instagram_hashtag || []).map((h) => '#' + h).join(' · ')}`);
+    await log(env, L.id, 'scout_ig', `cerco reel su Instagram (API ufficiale, 1 hashtag): #${(p.instagram_hashtag || [])[0] || '?'}`);
   }
   const solo = !!J(L.stile, null)?.solo_clip; // Johnny ha chiesto solo le sue clip: si studiano solo i suoi reel modello
   const esiti = await Promise.allSettled([

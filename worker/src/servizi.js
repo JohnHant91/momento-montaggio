@@ -401,7 +401,9 @@ async function instagramUfficiale(cfg, hashtags, perVoce) {
   const env = cfg._rec;
   if (!env?.IG || !env?.IG_INTERNO_KEY) return null;
   const out = [], note = [];
-  for (const h of hashtags.slice(0, 5)) {
+  // Meta: max 30 hashtag diversi ogni 7 giorni → UN hashtag a reel (il più preciso, il primo); il secondo solo se il primo trova meno di 5 reel
+  for (const h of hashtags.slice(0, 2)) {
+    if (out.length >= 5) break;
     try {
       const r = await env.IG.fetch(`https://momento-instagram/hashtag?tag=${encodeURIComponent(h.replace(/^#/, ''))}&n=${perVoce}`, { headers: { 'x-admin-key': env.IG_INTERNO_KEY } });
       const d = await r.json();
