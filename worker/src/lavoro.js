@@ -494,8 +494,8 @@ const FONT_SPLIT = { titoli: ['Instrument Serif', 'Playfair Display', 'Fraunces'
 const SISTEMA_REGISTA = `Sei il Regista e il Copy di Momento Produzione. Trasformi la SCHEDA TECNICA del Direttore creativo in un
 PIANO DI MONTAGGIO preciso che un montatore automatico eseguirà alla lettera. Scegli i pezzi migliori dalle clip analizzate
 (usa solo momenti con qualità alta e senza problemi, rispetta i tempi da/a dei momenti), costruisci gancio → sviluppo → climax →
-chiusura, alterna inquadrature (totale/dettaglio/primo piano), non ripetere lo stesso momento. REGOLA DI JOHNNY: ogni clip si usa UNA SOLA
-VOLTA nel reel (mai due pezzi dalla stessa clip), tranne la clip del parlato nei formati talking head e split; se le clip non bastano, fai un reel più corto. Il rallenty va su clip girate a
+chiusura, alterna inquadrature (totale/dettaglio/primo piano), non ripetere lo stesso momento. REGOLA DI JOHNNY: una clip lunga con più momenti
+si può usare più volte, ma solo per momenti DIVERSI (almeno 2 s fra un tratto e l'altro, mai lo stesso tratto due volte); se le clip non bastano, fai un reel più corto. Il rallenty va su clip girate a
 48 fps o più (rallenty_possibile). Testi brevi, in italiano corretto, niente formule abusate. Rispondi SOLO JSON COMPATTO
 (niente a capo né spazi superflui; ogni "motivo" al massimo 8 parole; ometti i campi null): ogni parola scritta costa.
 
@@ -617,7 +617,7 @@ Rispondi SOLO JSON: {"correzioni": [{"id": n, "testo": "testo corretto, oppure \
 
 // regole fisse di Johnny per tutti i reel (modificabili in Impostazioni): Rocco le legge in ogni piano
 export const REGOLE_REEL_BASE = `- Vale per QUALSIASI cliente e prodotto (cibo, moda, locali, servizi, oggetti): lo stile è questo, il soggetto cambia.
-- Reel di PRODOTTO (misurato sul montaggio vero di Johnny, panettone Nonno Enrico: 48 s, 16 pezzi): 30-50 secondi, 12-16 pezzi (ognuno da una clip diversa).
+- Reel di PRODOTTO (misurato sul montaggio vero di Johnny, panettone Nonno Enrico: 48 s, 16 pezzi): 30-50 secondi, 12-16 pezzi.
   APERTURA lenta e d'atmosfera: una inquadratura lunga 4-8 s sulla lavorazione. CENTRO a ritmo: pezzi da 1-3 s che seguono il processo in ordine
   (lavorazione → trasformazione → prodotto finito). CHIUSURA sul prodotto confezionato: 2 inquadrature lunghe da 4-6 s (la scatola, il prodotto in mano/portato verso la camera).
   Momenti che NON possono mancare se sono nel girato: il prodotto che viene spostato/portato, la decorazione finale (granella, glassa), la confezione.
@@ -628,7 +628,7 @@ export const REGOLE_REEL_BASE = `- Vale per QUALSIASI cliente e prodotto (cibo, 
 - Testi, sottotitoli, loghi e il soggetto importante stanno nella zona sicura: 220 px liberi in alto, 450 px in basso, 35 px ai lati; in basso a destra, da 1220 px in giù, ci sono i pulsanti.
 - Copertina: titolo e soggetto dentro il 3:4 centrale (1080x1440, da 240 a 1680 px), perché nella griglia del profilo si vede solo quello.
 - Le clip orizzontali dritte restano orizzontali: si ritaglia il 9:16 sul soggetto. Si raddrizzano solo quelle girate con la camera in verticale (immagine coricata).
-- Mai due volte la stessa clip nello stesso reel.
+- Una clip lunga con più momenti si può usare più volte, ma solo per momenti DIVERSI: almeno 2 s di distanza fra un tratto e l'altro, mai lo stesso tratto due volte.
 - Quando chiedo dove deve stare l'attenzione (es. "nel finale l'attenzione sulla scatola"), quell'oggetto deve stare al centro del 9:16 nei pezzi dove compare (campo "fuoco").
 - Niente emoji nei testi a schermo.`;
 
@@ -737,10 +737,17 @@ almeno metà dei pezzi da clip diverse o da momenti diversi delle stesse clip (l
       zoom_fisso: s.zoom_fisso?.z > 1 ? { z: Math.min(2.5, Number(s.zoom_fisso.z)), cx: Math.min(1, Math.max(0, Number(s.zoom_fisso.cx ?? 0.5))), cy: Math.min(1, Math.max(0, Number(s.zoom_fisso.cy ?? 0.5))) } : undefined,
     };
   });
-  // regola di Johnny: mai due volte la stessa clip (il parlato dei talking head/split invece si spezza in tanti pezzi)
+  // regola di Johnny: la stessa clip solo per momenti diversi (il parlato dei talking head/split invece si spezza in tanti pezzi)
   if (!(formato === 'talking_head' || SPLITTISH(formato))) {
-    const viste = new Set();
-    const tenuti = seg.filter((x) => { const id = x.fileid || x.url || x.clip; if (viste.has(id)) return false; viste.add(id); return true; });
+    // la stessa clip può tornare solo per un momento diverso: almeno 2 s fra un tratto e l'altro
+    const viste = {};
+    const tenuti = seg.filter((x) => {
+      const id = x.fileid || x.url || x.clip, a = Number(x.in) || 0, b = a + (Number(x.durata) || 0) * (x.rallenty ? 0.6 : 1);
+      const prima = viste[id] || [];
+      if (prima.some(([p, q]) => a < q + 2 && b > p - 2)) return false;
+      viste[id] = [...prima, [a, b]];
+      return true;
+    });
     seg.splice(0, seg.length, ...tenuti);
     if (seg[0]) seg[0].transizione_in = null;
   }

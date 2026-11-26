@@ -1266,7 +1266,8 @@ class MontatoreCompleto(TalkingHead):
                     s["_scarta"] = True
                     self.report.append(f"pezzo {k + 1}: {s.get('nome') or 'clip'} mossa in ogni tratto e nessuna ripresa ferma di quel momento: tolto")
                     continue
-            usati.setdefault(s["file"], []).append((float(s["in"]), float(s["in"]) + serve))
+            # regola di Johnny: la stessa clip torna solo per un momento diverso, almeno 2 s lontano
+            usati.setdefault(s["file"], []).append((float(s["in"]) - 2.0, float(s["in"]) + serve + 2.0))
         self.niente_doppioni(segmenti, riserve, migliore)
         if vietati:
             uguali = sum(1 for s in segmenti if not s.get("_scarta") and any(a < float(s["in"]) < b for a, b in vietati.get(s["file"], [])))
