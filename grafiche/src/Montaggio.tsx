@@ -5,7 +5,8 @@
 // Regole fisse: la faccia resta sempre libera (le grafiche stanno ai lati, sopra la testa o dietro), i sottotitoli
 // stanno sotto, tutto dentro la safe zone di Reels / TikTok / Shorts.
 import React from "react";
-import { AbsoluteFill, Audio, Easing, OffthreadVideo, Img, Sequence, continueRender, delayRender, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Audio, Easing, OffthreadVideo, Img, Sequence, continueRender, delayRender, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { interpolate } from "./sicuro";
 import { getAvailableFonts } from "@remotion/google-fonts";
 import { loadFont as sansMontserrat } from "@remotion/google-fonts/Montserrat";
 import { loadFont as sansInter } from "@remotion/google-fonts/Inter";

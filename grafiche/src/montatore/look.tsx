@@ -2,7 +2,8 @@
 // light leak caldi in momenti scelti, bande cinema, colore finale (tinta leggera), polvere/neve/coriandoli per gli
 // stili stagionali (es. spot natalizio: neve che cade e bagliori).
 import React from "react";
-import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
+import { interpolate } from "../sicuro";
 
 export type LookProps = {
   grana?: number; vignetta?: number; bande?: boolean; tinta?: string; tinta_forza?: number;

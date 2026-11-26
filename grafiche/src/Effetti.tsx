@@ -2,7 +2,8 @@
 // Ricavati dal reel di riferimento: niente resta fermo, ogni grafica ha un oggetto in movimento, un cursore che clicca,
 // coriandoli che attraversano lo schermo, una cornice "da programma di design", numeri giganti sullo sfondo, icone che fluttuano.
 import React from "react";
-import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { interpolate } from "./sicuro";
 import { ease, molle } from "./theme";
 
 export type Pal = { fondo: string; inchiostro: string; accento: string; secondario: string; tenue: string };

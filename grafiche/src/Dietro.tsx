@@ -3,7 +3,8 @@
 // la parola detta in piccolo davanti sul petto, adesivi che esplodono (cuore, fuoco, like, logo), schede di vetro che
 // fluttuano ai lati, capitoli a tutto schermo col numero enorme, lampi di luce e push-in sulla persona.
 import React from "react";
-import { AbsoluteFill, Easing, OffthreadVideo, Sequence, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Easing, OffthreadVideo, Sequence, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { interpolate } from "./sicuro";
 import { loadFont as sansMontserrat } from "@remotion/google-fonts/Montserrat";
 import { loadFont as serifInstrument } from "@remotion/google-fonts/InstrumentSerif";
 import { loadFont as serifPlayfair } from "@remotion/google-fonts/PlayfairDisplay";

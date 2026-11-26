@@ -91,9 +91,10 @@ jobs:
            "righe":[{"da":0.2,"a":1.5,"p":[0,1,2,3]},{"da":3.0,"a":4.6,"p":[4,5,6,7]}],
            "scene":[{"da":0,"a":2.8,"tipo":"titolo","dati":{"testo":"Casa smart?","sotto":"non sai da dove partire?"}},
                     {"da":2.8,"a":6,"tipo":"lista","dati":{"titolo":"Ci dici","voci":["Luci","Clima","Sicurezza"]}},
-                    {"da":6,"a":9,"tipo":"numero","pieno":true,"dati":{"valore":"3 minuti","etichetta":"senza impegno"}}],"tracker":null}
+                    {"da":6,"a":6.5,"tipo":"card","pieno":true,"dati":{"etichetta":"Prova","titolo":"Scena corta","testo":"mezzo secondo"}},
+                    {"da":6.5,"a":9,"tipo":"titolo","pieno":true,"dati":{"testo":"3 minuti","sotto":"senza impegno"}}],"tracker":null}
           J
-          for fr in 30 120 220; do npx remotion still src/index.ts Split out/bx/box_$fr.png --props=b.json --frame=$fr --log=error || echo "ERRORE box"; done
+          for fr in 30 120 188 240; do npx remotion still src/index.ts Split out/bx/box_$fr.png --props=b.json --frame=$fr --log=error || echo "ERRORE box"; done
       - name: Tavola
         run: |
           pip install -q pillow && python3 grafiche/tavola.py && cd grafiche/out

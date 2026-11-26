@@ -3,7 +3,8 @@
 // sotto la persona che parla. Ogni tanto la grafica prende tutto lo schermo. Colori e font cambiano con l'argomento:
 // li sceglie il Regista nella "palette"; lo stile (impaginazione, movimenti, ritmo) resta sempre lo stesso.
 import React from "react";
-import { AbsoluteFill, Easing, Img, OffthreadVideo, Sequence, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Easing, Img, OffthreadVideo, Sequence, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { interpolate } from "./sicuro";
 import { loadFont as serifInstrument } from "@remotion/google-fonts/InstrumentSerif";
 import { loadFont as serifPlayfair } from "@remotion/google-fonts/PlayfairDisplay";
 import { loadFont as serifFraunces } from "@remotion/google-fonts/Fraunces";
@@ -446,7 +447,7 @@ export const Split: React.FC<SplitProps> = (P) => {
   const f = useCurrentFrame();
   const { fps } = useVideoConfig();
   const t = f / fps;
-  const ctx: Ctx = { pal: P.palette, fps, titoli: famiglia(FONT_TITOLI, P.font?.titoli || (P.riquadro === "box" ? "Manrope" : undefined), "Instrument Serif"), testo: famiglia(FONT_TESTO, P.font?.testo, "Inter"), mono: famiglia(FONT_MONO, P.font?.mono, "JetBrains Mono") };
+  const ctx: Ctx = { pal: P.palette, fps, titoli: famiglia(FONT_TITOLI, P.riquadro === "box" ? (["Inter", "Space Grotesk", "Manrope"].includes(P.font?.titoli || "") ? P.font?.titoli : "Manrope") : P.font?.titoli, "Instrument Serif"), testo: famiglia(FONT_TESTO, P.font?.testo, "Inter"), mono: famiglia(FONT_MONO, P.font?.mono, "JetBrains Mono") };
   // quanto la grafica è "a tutto schermo" adesso (0-1), con passaggi morbidi
   const pieno = P.scene.reduce((m, s) => (s.pieno ? Math.max(m, interpolate(t, [s.da - 0.35, s.da + 0.25, s.a - 0.25, s.a + 0.15], [0, 1, 1, 0], { ...clamp, easing: Easing.inOut(Easing.cubic) })) : m), 0);
   const zona = { top: 0, height: ALTO_GRAFICA + pieno * (1650 - ALTO_GRAFICA) };

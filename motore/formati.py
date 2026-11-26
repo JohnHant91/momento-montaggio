@@ -921,10 +921,37 @@ class SplitGrafico(TalkingHead):
             if eff:
                 sc["effetti"] = eff[:5]
             scene.append(sc)
+        box = P.get("riquadro") == "box"
+        if box:
+            # REGOLE DEL BOX (dal reel di esempio "Casa smart?"): grafiche pulite, una idea alla volta, ognuna resta almeno 1,8 s,
+            # la prima parte da 0 (il titolo c'è già sul gancio), niente effetti addosso, a tutto schermo al massimo 1 su 3 e mai la prima.
+            PULITE = ("titolo", "numero", "lista", "card", "confronto", "barre", "riepilogo", "contatore", "oggetto")
+            tenute, pieni = [], 0
+            for sc in scene:
+                if sc["tipo"] not in PULITE:
+                    self.report.append(f"box: grafica {sc['tipo']} saltata (non è nello stile pulito)")
+                    continue
+                if tenute and sc["da"] - tenute[-1]["da"] < 1.8:
+                    continue
+                sc.pop("effetti", None)
+                d0 = sc["dati"]
+                if sc["tipo"] == "numero" and len(str(d0.get("valore", ""))) > 3:  # "3 minuti" non sta nel cerchio: diventa un titolo
+                    sc["tipo"], sc["dati"] = "titolo", {"testo": str(d0.get("valore"))[:24], "sotto": str(d0.get("etichetta") or d0.get("nome") or "")[:40]}
+                if sc["pieno"] and (not tenute or pieni * 3 >= len(tenute)):
+                    sc["pieno"] = False
+                pieni += 1 if sc["pieno"] else 0
+                tenute.append(sc)
+            scene = tenute
+            if scene:
+                scene[0]["da"] = 0.0
+                if totale - scene[-1]["da"] < 1.8 and len(scene) > 1:
+                    scene.pop()
         for i, s in enumerate(scene):
             s["a"] = round(scene[i + 1]["da"] if i + 1 < len(scene) else totale, 3)
             s["da"] = round(s["da"], 3)
         scene = [s for s in scene if s["a"] - s["da"] >= 0.5]
+        for i, s in enumerate(scene[:-1]):  # nessun buco: ogni grafica resta fino alla successiva
+            s["a"] = scene[i + 1]["da"]
         if not scene:
             scene = [{"da": 0, "a": totale, "tipo": "titolo", "pieno": False, "dati": {"testo": (P.get("titolo") or " ".join(p["t"] for p in parole[:5]))[:40]}}]
         # barra 1/N: le voci della lista entrano sulle loro parole
@@ -947,7 +974,7 @@ class SplitGrafico(TalkingHead):
         base = os.path.join(pub, f"{sigla}_base.mp4")
         self.ff(["-i", video, "-an", "-c:v", "copy", base], "persona")
         rit = None
-        if self.RITAGLIO_SEMPRE or any(set(s.get("effetti") or []) & EFFETTI_ADDOSSO for s in scene):
+        if not box and (self.RITAGLIO_SEMPRE or any(set(s.get("effetti") or []) & EFFETTI_ADDOSSO for s in scene)):
             rit = ritaglia_persona(base, os.path.join(pub, f"{sigla}_ritaglio.webm"), self.avvisa)
         volto = segmenti[0].get("_volto") or {"cx": 0.5, "cy": 0.32}
         props = {"durata": round(totale, 3), "fps": FPS, "video": os.path.basename(base), "volto": {"cx": volto["cx"], "cy": volto["cy"]},

@@ -223,3 +223,22 @@ FORMATO "AVATAR" (profilo Instagram di Johnny, video generati con il suo avatar 
 - Pensa al set: lista delle riprese spuntabile, B-roll di scorta (ambiente, insegna, dettagli, persone di spalle),
   oggetti e persone da preparare, orario con la luce migliore. Musica sempre da libreria con licenza.
 - Nessuna promessa falsa, nessun prezzo o dato inventato: usa solo quello che Johnny ha scritto negli argomenti.`;
+
+// Regole ricavate fotogramma per fotogramma dal reel di esempio mandato da Johnny ("Casa smart?", 16 s, persona nel riquadro).
+export const MANUALE_BOX = `STILE BOX (il reel di esempio scelto da Johnny: vince su ogni altra regola di stile)
+Formato "split_grafico" con "riquadro": "box". Lo schermo: sfondo chiaro, in alto UNA grafica alla volta, sotto la pillola
+dei sottotitoli, in basso la persona in un riquadro. Il montatore fa da solo riquadro, sfondo, sottotitoli e tracker.
+Tu decidi SOLO i tratti di parlato e le "grafiche". Regole:
+1. GANCIO (primi 2-3 s): la prima grafica è un "titolo" di 2-3 parole che dice il tema (es. "Casa smart?") con un
+   sottotitolo di max 5 parole. Entra sulla PRIMA parola detta.
+2. UNA IDEA PER GRAFICA: ogni passaggio del discorso ha una grafica sola, che resta 2,5-5 s. In 60 s: 10-14 grafiche, mai di più.
+3. TITOLI CORTI: titolo max 3 parole (max 18 caratteri), sottotitolo max 5 parole. Mai frasi intere: la frase la dice la voce.
+4. TIPI AMMESSI: titolo, numero, lista (max 3 voci di 1-2 parole), card, confronto, barre, contatore, riepilogo.
+   Vietati: sito, terminale, chat, oggetto. Niente "effetti": la grafica è pulita.
+5. PASSAGGI: se il discorso ha 3-5 punti, metti il "tracker" con le voci (etichette di 1 parola) e apri ogni punto con un
+   "titolo" o "numero" col nome del punto.
+6. "pieno": true solo per 1-2 momenti chiave (un numero forte, la chiusura). Mai sul gancio.
+7. CHIUSURA: l'ultima grafica è la chiamata all'azione (cosa fare adesso), "pieno": true, max 4 parole + una riga piccola.
+8. PALETTE: fondo chiarissimo (#F7F5EF o simile), inchiostro quasi nero, UN accento vivo scelto per l'argomento, secondario = accento tenue.
+   font_split.titoli: "Manrope" o "Space Grotesk" (sans grassetto), mai serif.
+9. Solo parole e fatti detti nel video. Italiano corretto, niente maiuscole urlate.`;

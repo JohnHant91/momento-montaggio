@@ -1,7 +1,8 @@
 // Animazioni di ENTRATA del testo, sul modello delle classi di animate.css (MIT) e delle preset di testo dei
 // programmi di montaggio. Ogni preset dice da dove parte il testo (spostamento, scala, rotazione, sfocatura...)
 // e con che curva arriva al suo posto. Si applica a lettere, parole o riga intera (campo "unita" del titolo).
-import { Easing, interpolate } from "remotion";
+import { Easing } from "remotion";
+import { interpolate } from "../sicuro";
 import type React from "react";
 
 type Da = { x?: number; y?: number; s?: number; sx?: number; sy?: number; r?: number; rx?: number; ry?: number; b?: number; k?: number; o?: number };

@@ -3,7 +3,8 @@
 // effetto (flash, light leak, glitch). Idee e parametri dai preset del claude-code-video-toolkit (zoom-blur, glitch,
 // rgb-split, light-leak; MIT) e da @remotion/transitions, riscritti per funzionare fotogramma per fotogramma.
 import React from "react";
-import { AbsoluteFill, Easing, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Easing, useCurrentFrame, useVideoConfig } from "remotion";
+import { interpolate } from "../sicuro";
 
 export const TIPI_TRANSIZIONE = ["taglio", "dissolvenza", "zoom_blur", "whip_sx", "whip_dx", "whip_su", "glitch", "rgb_split", "flash_bianco",
   "light_leak", "scorri_su", "zoom_in", "spin", "iris", "sfocatura", "flash_nero",

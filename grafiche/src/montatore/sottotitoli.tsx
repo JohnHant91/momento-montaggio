@@ -5,7 +5,8 @@
 // contorno (lettere vuote con bordo d'accento, la parola detta si riempie), macchina (lettere che si scrivono col cursore),
 // mano (scritto a mano, minuscolo, sottolineatura a pennello). Le parole chiave si colorano con l'accento.
 import React from "react";
-import { AbsoluteFill, Easing, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Easing, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { interpolate } from "../sicuro";
 
 export type ParolaS = { t: string; da: number; a: number; k?: boolean };
 export type SottotitoliProps = {

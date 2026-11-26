@@ -2,7 +2,8 @@
 // dettaglio, sottolineature, spunte e croci, scintille, lente su un dettaglio, conto alla rovescia, barra di avanzamento,
 // adesivo-etichetta. Ogni elemento ha posizione x,y (0-1 del fotogramma) e colore; la faccia la protegge il motore.
 import React from "react";
-import { AbsoluteFill, Easing, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Easing, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { interpolate } from "../sicuro";
 
 export type ElementoM = {
   tipo: "freccia" | "freccia_curva" | "cerchio" | "riquadro" | "sottolinea" | "scarabocchio" | "spunta" | "croce" | "scintille" | "lente" | "conto_rovescia" | "etichetta" | "punto" | "stelle";

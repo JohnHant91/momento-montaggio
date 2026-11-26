@@ -2,7 +2,8 @@
 // (linea con contatore, barre che crescono, oppure passi numerati) e un badge col risultato.
 // Fondo trasparente fuori dalla card: il montatore lo sovrappone al video.
 import React from "react";
-import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { interpolate } from "./sicuro";
 import { loadFont } from "@remotion/google-fonts/Montserrat";
 import { ease, molle, temi } from "./theme";
 

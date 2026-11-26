@@ -11,7 +11,7 @@ import { SKILL as SKILL_V } from './skill_testi.js';
 import { clientePerNome, lineaCliente, testoLinea, ripassoChiara } from './chiara.js';
 import { rilevaStile, ricetta, ricercaStile } from './stili.js';
 import { LUT, LUT_NOMI, lutPerStile, descriviLut, voceLut } from './lut.js';
-import { MANUALE_AUDIO, MANUALE_COPY, MANUALE_DIRETTORE, MANUALE_FORMATI, MANUALE_IRIS, MANUALE_MODELLO, MANUALE_PUBBLICAZIONE, MANUALE_REGISTA, MANUALE_SPOT } from './manuali.js';
+import { MANUALE_AUDIO, MANUALE_COPY, MANUALE_DIRETTORE, MANUALE_FORMATI, MANUALE_IRIS, MANUALE_MODELLO, MANUALE_PUBBLICAZIONE, MANUALE_REGISTA, MANUALE_SPOT, MANUALE_BOX } from './manuali.js';
 import { chi } from './consumi.js';
 
 const FASI = ['piano', 'ricerca', 'riferimenti', 'clip', 'scheda', 'regia', 'montaggio', 'fatto'];
@@ -732,7 +732,9 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
 Il nuovo montaggio DEVE essere chiaramente diverso: apri con una clip diversa da ${aperture.join(', ') || 'quella usata'}, cambia l'ordine del racconto,
 almeno metà dei pezzi da clip diverse o da momenti diversi delle stesse clip (lontani almeno 2 s da quelli già usati), idea di gancio nuova.` : '';
   if (scarti.length) await log(env, L.id, 'regista', `con questo girato Johnny ha già scartato ${scarti.length} montaggi: ne faccio uno diverso (${evita.length} tratti da evitare)`);
-  const p = await S.claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda, clip) + extraMusica + extraStile + extraLinea + extra + extraScarti + extraRegole + extraDisposizioni, { maxTokens: 12000 });
+  // Regista snello: per i reel avatar solo le regole dello stile box (niente manuali di altri formati, che confondono e costano)
+  const sistema = J(L.stile, null)?.avatar ? SISTEMA_REGISTA.split('\nMANUALE DEL REGISTA')[0] + '\n' + MANUALE_BOX + '\n\n' + MANUALE_COPY : SISTEMA_REGISTA;
+  const p = await S.claude(cfg, sistema, pianoMontaggio(scheda, clip) + extraMusica + extraStile + extraLinea + extra + extraScarti + extraRegole + extraDisposizioni, { maxTokens: 12000 });
   // controllo del piano: valori ammessi, clip esistenti, tempi dentro le clip
   const tutte = J(L.clip, []);
   const eImm = (c) => c?.tipo === 'immagine' || c?.tecnico?.tipo === 'immagine';

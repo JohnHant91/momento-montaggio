@@ -4,7 +4,8 @@
 // Posizioni ammesse (la faccia resta libera): alto (sopra la testa), sx / dx (ai lati del viso), basso (sopra i
 // sottotitoli), centro (solo sulle clip senza persone, decide il motore).
 import React from "react";
-import { AbsoluteFill, Easing, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Easing, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { interpolate } from "../sicuro";
 import { animaStile } from "./animazioni";
 
 export type TitoloProps = {
