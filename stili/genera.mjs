@@ -1,0 +1,66 @@
+import { GENERI, MOOD } from '../worker/src/stili.js';
+import { LUT } from '../worker/src/lut.js';
+import fs from 'fs';
+const OK = '✅ il motore lo sa fare', NO = '🛠️ da costruire';
+const out = {};
+const riga = (n, d, s = OK, extra = '') => `### ${n}\n${d}${extra ? '\n' + extra : ''}\n_${s}_\n`;
+
+// ---------------- MONTAGGIO
+let m = `# Stili di montaggio\nCome si gira e si taglia (GENERE) e che emozione dà (MOOD). Nel prompt scrivi il nome, es. "stile street, mood energico".\n\n## Generi (${Object.keys(GENERI).length})\n`;
+for (const [k, v] of Object.entries(GENERI)) {
+  m += riga(`${v.nome} \`${k}\``, v.regole || '', OK,
+    [v.durata ? `Durata pezzi: ${v.durata.join('-')} s` : '', v.transizioni ? `Transizioni: ${v.transizioni.join(', ')}` : '', v.effetti ? `Effetti: ${v.effetti.join(', ')}` : '', v.look ? `Look: ${v.look}` : '', v.musica ? `Musica: ${v.musica}` : ''].filter(Boolean).join(' · '));
+}
+m += `\n## Mood (${Object.keys(MOOD).length})\n`;
+for (const [k, v] of Object.entries(MOOD)) m += riga(`${v.nome} \`${k}\``, v.regole || '', OK, [v.look ? `Look: ${v.look}` : '', v.musica ? `Musica: ${v.musica}` : ''].filter(Boolean).join(' · '));
+m += `\n## Da costruire (trend 2026)\n` + [
+  ['Collage / mixed media', 'Ritagli di foto, carta, adesivi e video insieme in stile collage animato.'],
+  ['Effetto pellicola retrò', 'Grana, fotogrammi bruciati, bordi pellicola, salti di fotogramma.'],
+  ['Loop perfetto', 'Ultimo fotogramma che si collega al primo: il reel si rivede senza accorgersene.'],
+].map(([n, d]) => riga(n, d, NO)).join('\n');
+out['Stili/01-montaggio.md'] = m;
+
+// ---------------- TRANSIZIONI ED EFFETTI
+const TR = { taglio_netto: 'Taglio secco, il più usato: ritmo e pulizia.', dissolvenza: 'Una clip sfuma nell\'altra: morbido, emozionale.', flash_bianco: 'Lampo bianco sul cambio: accento, energia, sul battito.', whip_pan: 'Frustata laterale con mosso: dinamico, street.', whip_sx: 'Frustata verso sinistra.', whip_dx: 'Frustata verso destra.', whip_su: 'Frustata verso l\'alto.', zoom: 'Zoom veloce dentro la clip successiva.', zoom_blur: 'Zoom con sfocatura di movimento.', zoom_in: 'Entra zoomando nella nuova inquadratura.', spin: 'Rotazione rapida tra le due clip.', glitch: 'Disturbo digitale: tech, giovane, energico.', rgb_split: 'Canali colore sdoppiati: glitch elegante.', slide: 'La clip nuova scorre e spinge via la vecchia.', scorri_su: 'Scorrimento verso l\'alto come lo scroll del telefono.', fadenero: 'Passa dal nero: chiusura di capitolo, pausa.', flash_nero: 'Lampo nero rapido.', light_leak: 'Bagliore di luce calda sul cambio: pellicola, nostalgia.', iris: 'Apertura/chiusura a cerchio: vintage, ironico.', sfocatura: 'Sfoca e rimette a fuoco sulla nuova clip.' };
+const EP = { dolly_in: 'Avanzamento lento verso il soggetto (finto carrello).', slider_dx: 'Scorrimento laterale verso destra.', slider_sx: 'Scorrimento laterale verso sinistra.', punch_in: 'Zoom secco sul battito o sulla parola chiave.', zoom_lento: 'Zoom lentissimo per tutto il pezzo: cinema.', zoom_out: 'Allarga l\'inquadratura: rivela.', shake: 'Scossa di camera sul colpo.', nessuno: 'Inquadratura ferma.' };
+const EG = { grana: 'Grana pellicola su tutto il reel.', vignettatura: 'Bordi scuri.', bande_cinema: 'Bande nere sopra e sotto (cinemascope).', light_leak: 'Bagliori di luce sparsi.', glow: 'Alone luminoso sulle alte luci: sogno, feste.', vhs: 'Look videocassetta anni 90.' };
+let t = `# Transizioni ed effetti\n\n## Transizioni (${Object.keys(TR).length})\n` + Object.entries(TR).map(([k, d]) => riga(`\`${k}\``, d)).join('\n');
+t += `\n## Movimenti sul pezzo (${Object.keys(EP).length})\n` + Object.entries(EP).map(([k, d]) => riga(`\`${k}\``, d)).join('\n');
+t += `\n## Effetti su tutto il reel (${Object.keys(EG).length})\n` + Object.entries(EG).map(([k, d]) => riga(`\`${k}\``, d)).join('\n');
+t += `\n## Altri strumenti\n` + [['Rallenty', 'Su clip girate a 48 fps o più.'], ['Speed ramp', 'Veloce-lento-veloce sullo stesso pezzo.'], ['Tagli sul battito', 'Ogni taglio cade su un colpo della musica.'], ['Stabilizzazione', 'Toglie il tremolio della camera a mano.'], ['Reframe sul soggetto', 'Il 9:16 segue il soggetto o l\'oggetto indicato.'], ['Apertura/chiusura nel bianco o nel nero', '']].map(([n, d]) => riga(n, d)).join('\n');
+t += `\n## Da costruire\n` + [['Mask transition', 'Passaggio dentro un oggetto che attraversa l\'inquadratura (porta, mano, persona).'], ['Match cut', 'Due clip unite su una forma o un gesto uguale.'], ['Freeze frame', 'Fermo immagine con scritta sopra.'], ['Split screen', 'Due o tre clip affiancate.']].map(([n, d]) => riga(n, d, NO)).join('\n');
+out['Stili/02-transizioni-effetti.md'] = t;
+
+// ---------------- MOTION GRAPHICS
+const TIT = { blur: 'Il testo entra sfocato e va a fuoco.', sale: 'Le lettere salgono una a una.', rotazione: 'Una parola che cambia ruotando (es. "più veloce / più bello").', numero: 'Numero che conta fino al valore (es. 0→48 ore).', evidenziatore: 'Parola evidenziata come con un pennarello.', macchina: 'Effetto macchina da scrivere.', hyper: 'Entrata ipercinetica a scatti: energico.', scintille: 'Testo con scintille: feste, lancio.', aurora: 'Testo con sfumatura di colore che si muove.', impatto: 'Entra grande e "sbatte" sullo schermo con scossa.', etichetta: 'Testo su un\'etichetta/pill colorata.', comic: 'Fumetto con contorno e ombra pop.', flip3d: 'Ribaltamento 3D delle lettere.', ombra: 'Testo con ombra lunga.' };
+const GR = { titolo: 'Titolo grande con parola accento colorata.', numero: 'Numero gigante con etichetta.', sito: 'Pagina web vera con zona evidenziata.', terminale: 'Finestra di comandi che si scrivono.', contatore: 'Contatore animato da/a.', lista: 'Lista con spunte o icone che appaiono una a una.', confronto: 'Prima/dopo in due colonne.', card: 'Card con icona, titolo e testo.', oggetto: 'Simbolo grande con titolo.', chat: 'Conversazione a messaggi.', barre: 'Grafico a barre animato.', riepilogo: 'Riepilogo nome/valore.' };
+const AD = ['cuore', 'like', 'fuoco', 'stella', 'soldi', 'razzo', 'check', 'instagram', 'ai'];
+const ES = { scrivi: 'Il testo si scrive da solo.', cornice: 'Cornice che si disegna.', cursore: 'Cursore che clicca.', coriandoli: 'Esplosione di coriandoli.', fantasma: 'Elemento che appare in trasparenza.', icone: 'Icone che volano in scena.', lente: 'Lente d\'ingrandimento su un dettaglio.', successo: 'Barra verde di successo.', scossa: 'Scossa sull\'elemento.', dietro: 'Parola gigante dietro la persona.', esce: 'L\'elemento esce di scena.', adesivo: 'Adesivo che si attacca.' };
+let g = `# Motion graphics\n\n## Titoli animati (${Object.keys(TIT).length})\n` + Object.entries(TIT).map(([k, d]) => riga(`\`${k}\``, d)).join('\n');
+g += `\n## Grafiche animate (${Object.keys(GR).length})\n` + Object.entries(GR).map(([k, d]) => riga(`\`${k}\``, d)).join('\n');
+g += `\n## Effetti delle grafiche (${Object.keys(ES).length})\n` + Object.entries(ES).map(([k, d]) => riga(`\`${k}\``, d)).join('\n');
+g += `\n## Adesivi animati (${AD.length})\n` + riga(AD.map((a) => `\`${a}\``).join(' · '), 'Piccole icone animate che compaiono su un momento.');
+g += `\n## Formati con grafiche\n` + [['Talking head + cartelli', 'Parole chiave grandi su fasce colorate inclinate mentre le dici.'], ['Split educativo', 'Pannello grafico in alto e la persona sotto.'], ['Parole giganti dietro la persona', 'Testo enorme tra lo sfondo e la persona scontornata.']].map(([n, d]) => riga(n, d)).join('\n');
+g += `\n## Da costruire (trend 2026)\n` + [['Kinetic typography a schermo pieno', 'Il testo animato è il protagonista del reel, sincronizzato alla musica: è il trend più citato del 2026.'], ['Frecce e cerchi su un dettaglio', 'Freccia disegnata a mano o cerchio che indica qualcosa nella clip.'], ['Barra di avanzamento', 'Barra in alto che si riempie: tiene chi guarda fino alla fine.'], ['Lower third / nome', 'Nome e ruolo in basso quando parla qualcuno.'], ['Conto alla rovescia', 'Numeri 3-2-1 o giorni che mancano.'], ['Mappa / percorso', 'Mappa con pin e linea che si disegna.'], ['Cutout / collage animato', 'Ritagli di carta e foto che si muovono.'], ['Effetto vetro liquido', 'Riquadri trasparenti con rifrazione, stile interfaccia moderna.'], ['Logo animato in chiusura', 'Il logo entra con movimento e suono.']].map(([n, d]) => riga(n, d, NO)).join('\n');
+out['Stili/03-motion-graphics.md'] = g;
+
+// ---------------- SOTTOTITOLI
+const SO = { karaoke: 'La parola detta si accende mentre le altre restano chiare.', box: 'Testo su riquadro colorato che segue le parole (box che scorre).', pop: '1-3 parole alla volta che saltano fuori: il più usato nei reel.', grassetto: 'Bianco grande in grassetto con contorno scuro.', minimal: 'Frase pulita, piccola, elegante: contenuti estetici.', neon: 'Testo luminoso colorato con alone.' };
+let s = `# Sottotitoli\nI più usati nei reel che rendono sono il blocco grande al centro e il riquadro colorato. Sui contenuti eleganti una frase pulita funziona meglio delle animazioni pesanti.\n\n## Stili (${Object.keys(SO).length})\n` + Object.entries(SO).map(([k, d]) => riga(`\`${k}\``, d)).join('\n');
+s += `\n## Font disponibili\n` + riga('montserrat · inter · bebas · playfair · pacifico', 'Si scelgono separati per titoli e testo.');
+s += `\n## Posizione\n` + riga('In alto, al centro o in basso', 'Sempre dentro la zona sicura: 220 px liberi in alto, 450 in basso. Mai sopra la faccia o il prodotto.');
+s += `\n## Da costruire\n` + [['Parola chiave colorata', 'Tutta la frase bianca, una parola in colore e più grande.'], ['Emoji automatiche', 'Un\'emoji accanto alle parole chiave.'], ['Scritto a mano', 'Font corsivo/pennarello, per contenuti personali.'], ['Macchina da scrivere', 'Le lettere compaiono una a una.'], ['Contorno colorato', 'Testo vuoto con bordo colorato.'], ['Doppia lingua', 'Italiano sopra, inglese sotto.']].map(([n, d]) => riga(n, d, NO)).join('\n');
+out['Stili/04-sottotitoli.md'] = s;
+
+// ---------------- COLORE
+const LK = ['neon_notte', 'estate_luminosa', 'autunno_caldo', 'inverno_freddo', 'street_urbano', 'emozionale_film', 'romantico_soft', 'amichevole_solare', 'natalizio_caldo', 'spot_contrasto', 'moody_caldo', 'caldo_cinematico', 'pulito_commerciale', 'teal_orange', 'moody_scuro', 'naturale_vivace', 'bn_contrasto', 'pastello_soft', 'vintage_film'];
+let c = `# Colore\nMetodo di Johnny: esposizione uguale su ogni clip → base neutra Rec.709 → montaggio → color finale una sola volta su tutto il reel.\n\n## Look (${LK.length})\n` + riga(LK.map((x) => `\`${x}\``).join(' · '), 'Look completi (contrasto, saturazione, tinta) applicati dal motore.');
+c += `\n## LUT pellicola (${Object.keys(LUT).length})\n` + Object.entries(LUT).map(([k, v]) => `- \`${k}\`: ${v[1]} (intensità ${v[2]})`).join('\n') + `\n\n_${OK}. Nel prompt: "LUT kodak_portra_400" oppure lasci scegliere al mood._\n`;
+out['Stili/05-colore.md'] = c;
+
+const conta = (txt) => ({ ok: (txt.match(/✅/g) || []).length, no: (txt.match(/🛠️/g) || []).length });
+let ind = `# Archivio stili\nTutto quello che puoi chiedere nel prompt di un reel. Esempio:\n> Queste sono le clip. Stile **street**, mood **energico**, colori **nero e giallo**, sottotitoli **pop** in **bebas**, transizioni **whip_pan** e **flash_bianco**, titolo **impatto** all'inizio.\n\n| Sezione | Pronti | Da costruire |\n|---|---|---|\n`;
+for (const [f, txt] of Object.entries(out)) { const n = f.includes('colore') ? { ok: LK.length + Object.keys(LUT).length, no: 0 } : conta(txt); ind += `| [${f.split('/')[1]}](${f.split('/')[1]}) | ${n.ok} | ${n.no} |\n`; }
+out['Stili/00-INDICE.md'] = ind;
+for (const [f, txt] of Object.entries(out)) { fs.mkdirSync('./out/Stili', { recursive: true }); fs.writeFileSync('./out/' + f, txt); }
+console.log(ind);
