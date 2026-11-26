@@ -706,6 +706,25 @@ def monta(lavoro):
             avvisa("caroselli", f"🎨 Pietro: copertina pronta{': ' + cop['testo'] if cop.get('testo') else ''}")
         except Exception as e:
             avvisa("caroselli", f"copertina non riuscita: {str(e)[:120]}", "warn")
+        # copie leggere (540 px, già raddrizzate) delle clip di ogni pezzo: Johnny le guarda dal telefono e taglia lui se serve
+        try:
+            per_nome = {x.get("nome"): x["file"] for x in (piano.get("segmenti") or []) + (piano.get("riserve") or []) if x.get("nome") and x.get("file")}
+
+            def proxy(a):
+                k, t = a
+                f = per_nome.get(t.get("nome"))
+                if not f or not os.path.exists(f):
+                    return False
+                o = os.path.join(cartella, f"proxy-{k}.mp4")
+                subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", f, "-an", "-vf", "scale=540:-2", "-c:v", "libx264", "-preset", "ultrafast",
+                                "-crf", "30", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-fs", "19M", o], check=True, timeout=300)
+                invia_file(lavoro, f"proxy-{k}", o, "video/mp4")
+                return True
+            with ThreadPoolExecutor(3) as ex:
+                fatti = sum(ex.map(proxy, list(enumerate(rep.get("tratti") or [])[:20])))
+            rep["proxy"] = fatti == len(rep.get("tratti") or []) and fatti > 0
+        except Exception as e:
+            avvisa("editor", f"copie per il taglio dal telefono non fatte: {str(e)[:80]}", "warn")
         regia(lavoro, "esito", corpo={"revisore": rep, "copertina": cop_ok})
         avvisa("motore", f"🎬 reel consegnato: {rep['durata']} s, {rep['mb']} MB")
     except Exception as e:

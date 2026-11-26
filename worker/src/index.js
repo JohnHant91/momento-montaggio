@@ -2,7 +2,7 @@ import { REGOLE_REEL_BASE } from './lavoro.js';
 import { persone } from './persone.js';
 // Momento Reel · Worker Cloudflare: pagina regia + API + cron che fa lavorare gli agenti.
 import { CHIAVI_OPZIONI, CHIAVI_SEGRETE, J, all, configurazione, log, one, ora, run, schema } from './db.js';
-import { avanza, ricordaScartato } from './lavoro.js';
+import { avanza, ricordaScartato, pezziReel, applicaTagli } from './lavoro.js';
 import { rilevaStile } from './stili.js';
 import { apiPiani, avanzaPiani, schemaPiani } from './copioni.js';
 import { apiAgenzia, avanzaUffici, schemaAgenzia } from './agenzia.js';
@@ -222,14 +222,14 @@ async function api(req, env, url) {
     await log(env, r.id, 'regia', '🎬 nuovo lavoro in coda: il Direttore creativo parte entro un minuto');
     return json({ id: r.id });
   }
-  const vv = p.match(/^\/api\/lavori\/(\d+)\/(reel\.mp4|anteprima\.jpg|copertina\.jpg)$/);
+  const vv = p.match(/^\/api\/lavori\/(\d+)\/(reel\.mp4|anteprima\.jpg|copertina\.jpg|proxy-\d{1,2}\.mp4)$/);
   if (vv && m === 'GET') {
     if (!env.VIDEO) return json({ errore: 'archivio video non collegato' }, 404);
     const chiave = `lavoro-${vv[1]}/${vv[2]}`;
     const { value, metadata } = await env.VIDEO.getWithMetadata(chiave, { type: 'arrayBuffer' });
     if (!value) return json({ errore: 'non ancora pronto' }, 404);
     if ((metadata?.parti || 1) > 1) return videoAPezzi(env, req, url, chiave, value, metadata, vv);
-    const h = new Headers({ 'content-type': metadata?.tipo || (vv[2] === 'reel.mp4' ? 'video/mp4' : 'image/jpeg'), 'accept-ranges': 'bytes', 'cache-control': 'private, max-age=3600' });
+    const h = new Headers({ 'content-type': metadata?.tipo || (vv[2].endsWith('.mp4') ? 'video/mp4' : 'image/jpeg'), 'accept-ranges': 'bytes', 'cache-control': 'private, max-age=3600' });
     if (url.searchParams.get('scarica')) h.set('content-disposition', `attachment; filename="${vv[2] === 'reel.mp4' ? 'reel' : 'copertina'}-${vv[1]}.${vv[2].split('.')[1]}"`);
     const tot = value.byteLength;
     const rg = /bytes=(\d*)-(\d*)/.exec(req.headers.get('range') || '');
@@ -243,7 +243,7 @@ async function api(req, env, url) {
     h.set('content-length', String(tot));
     return new Response(value, { headers: h });
   }
-  const mm = p.match(/^\/api\/lavori\/(\d+)(?:\/(riprova|registro|girato|rimonta|pausa|riprendi|approva))?$/);
+  const mm = p.match(/^\/api\/lavori\/(\d+)(?:\/(riprova|registro|girato|rimonta|pausa|riprendi|approva|pezzi|taglio))?$/);
   if (mm) {
     const id = Number(mm[1]);
     if (!mm[2] && m === 'GET') {
@@ -253,6 +253,17 @@ async function api(req, env, url) {
       delete L.candidati;
       L.registro = await all(env, 'SELECT agente, messaggio, livello, quando FROM registro WHERE lavoro_id=? ORDER BY id DESC LIMIT 200', id);
       return json(L);
+    }
+    if (mm[2] === 'pezzi' && m === 'GET') {
+      const L = await one(env, 'SELECT id, montaggio, clip FROM lavori WHERE id=?', id);
+      if (!L) return json({ errore: 'non trovato' }, 404);
+      return json(await pezziReel(env, new URL(req.url).origin, L));
+    }
+    if (mm[2] === 'taglio' && m === 'POST') {
+      const d = await req.json().catch(() => ({}));
+      const L = await one(env, 'SELECT id, montaggio, clip FROM lavori WHERE id=?', id);
+      if (!L) return json({ errore: 'non trovato' }, 404);
+      try { return json({ ok: true, fatti: await applicaTagli(env, L, d.tagli) }); } catch (x) { return json({ errore: x.message }, 400); }
     }
     if (!mm[2] && m === 'DELETE') {
       const Ld = await one(env, 'SELECT * FROM lavori WHERE id=?', id);

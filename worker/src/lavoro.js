@@ -4,6 +4,7 @@ import { J, all, log, one, ora, run, configurazione } from './db.js';
 import { libreriaTesto } from './libreria.js';
 import * as S from './servizi.js';
 import * as A from './archivio.js';
+import { inviaPush } from './notifiche.js';
 import { SKILL as SKILL_V } from './skill_testi.js';
 import { clientePerNome, lineaCliente, testoLinea, ripassoChiara } from './chiara.js';
 import { rilevaStile, ricetta, ricercaStile } from './stili.js';
@@ -391,6 +392,56 @@ export function trattiDi(m) {
   const t = m?.revisore?.tratti;
   if (Array.isArray(t) && t.length) return t.map((x) => ({ nome: x.nome, in: Number(x.in) || 0, dur: Number(x.dur) || 0 }));
   return (m?.piano?.segmenti || []).map((x) => ({ nome: x.nome, in: Number(x.in) || 0, dur: Number(x.durata) || 0 })).filter((x) => x.nome);
+}
+// TAGLIO DI JOHNNY: i pezzi del reel finito, con il link per guardare la clip intera dal telefono
+export async function pezziReel(env, origine, L) {
+  const m = J(L.montaggio, null), tutte = J(L.clip, []) || [];
+  const tr = m?.revisore?.tratti || [];
+  const segs = m?.piano?.segmenti || [];
+  const out = [];
+  for (const [k, t] of tr.entries()) {
+    const c = tutte.find((x) => x.nome === t.nome);
+    const seg = segs.find((x) => x.nome === t.nome) || {};
+    const proxy = !!m.revisore?.proxy;
+    const link = proxy ? `/api/lavori/${L.id}/proxy-${k}.mp4?v=${m.versione || 1}` : c?.sorgente?.tipo === 'archivio' ? await A.linkFirmato(env, origine, c.sorgente.percorso) : (c?.sorgente?.tipo === 'url' ? c.sorgente.url : null);
+    out.push({ pezzo: k, nome: t.nome, in: t.in, dur: t.dur, durata_clip: Number(c?.tecnico?.durata_sec) || null, link, ruota: proxy ? 0 : (seg.ruota ?? c?.analisi?.rotazione ?? 0),
+      problema: (m.taglio?.pezzi || []).find((x) => x.pezzo === k)?.problema || null });
+  }
+  return { pezzi: out, taglio: m?.taglio || null };
+}
+export async function applicaTagli(env, L, tagli) {
+  const m = J(L.montaggio, null), tutte = J(L.clip, []) || [];
+  const tr = m?.revisore?.tratti || [], segs = m?.piano?.segmenti || [];
+  if (!tr.length || !segs.length) throw new Error('questo reel non ha ancora i pezzi da tagliare');
+  const usati = new Set();
+  // ricostruisco il montaggio com'è uscito, pezzo per pezzo, tutto bloccato: cambia solo quello che tagli tu
+  const nuovi = tr.map((t, i) => {
+    let j = segs.findIndex((x, k) => !usati.has(k) && x.nome === t.nome);
+    if (j < 0 && i < segs.length && !usati.has(i)) j = i;
+    if (j >= 0) usati.add(j);
+    const base = segs[j >= 0 ? j : Math.min(i, segs.length - 1)];
+    const c = tutte.find((x) => x.nome === t.nome);
+    const src = base.nome === t.nome || !c ? {} : { clip: tutte.indexOf(c), ...rifSorgente(c), nome: c.nome };
+    return { ...base, ...src, in: Number(t.in) || 0, durata: Number(t.dur) || base.durata, in_bloccato: true };
+  });
+  const fatti = [];
+  for (const x of tagli || []) {
+    const s = nuovi[Number(x.pezzo)];
+    const da = Number(x.da), a = Number(x.a);
+    if (!s || !(a > da) || da < 0) continue;
+    const vel = s.rallenty ? 0.5 : Number(s.velocita) || 1;
+    s.in = Math.round(da * 100) / 100;
+    s.durata = Math.round(Math.min(12, Math.max(0.4, (a - da) / vel)) * 100) / 100;
+    s.in_bloccato = true;
+    fatti.push(`pezzo ${Number(x.pezzo) + 1} (${s.nome}) da ${da.toFixed(1)} a ${a.toFixed(1)} s`);
+  }
+  if (!fatti.length) throw new Error('nessun taglio valido: segna inizio e fine');
+  m.piano.segmenti = nuovi;
+  Object.assign(m, { stato: 'da_fare', tentativi: 0, errore: null, salta_qa: true, versione: (m.versione || 1) + 1, taglio: null });
+  delete m.qa;
+  await run(env, "UPDATE lavori SET montaggio=?, stato='in_corso', fase='montaggio', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(m), ora(), L.id);
+  await log(env, L.id, 'editor', `✂️ tagli di Johnny: ${fatti.join(' · ')}. Rimonto solo con questi, il resto resta uguale`);
+  return fatti;
 }
 export async function ricordaScartato(env, L) {
   const m = J(L.montaggio, null);
@@ -838,7 +889,7 @@ JSON: {"voto": 1-10, "passa": true se voto >= 7 e nessun difetto grave, "difetti
 async function faseMontaggio(env, cfg, L) {
   const m = J(L.montaggio, null);
   if (!m) return true; // niente da montare (nessuna clip)
-  if (m.stato === 'fatto' && m.foglio && !m.qa && m.piano?.formato !== 'carosello') {
+  if (m.stato === 'fatto' && m.foglio && !m.qa && !m.salta_qa && m.piano?.formato !== 'carosello') {
     const q = await revisione(env, cfg, L, m).catch((e) => ({ passa: true, voto: null, nota: 'revisione non riuscita: ' + String(e?.message || e).slice(0, 80) }));
     const giri = m.qa_giri || 0;
     m.qa = { ...q, quando: ora(), giro: giri + 1 };
@@ -846,6 +897,24 @@ async function faseMontaggio(env, cfg, L) {
       await run(env, 'UPDATE lavori SET montaggio=? WHERE id=?', JSON.stringify(m), L.id);
       await log(env, L.id, 'revisore', q.passa ? `✅ revisione superata${q.voto ? ` (voto ${q.voto}/10)` : ''}${q.nota ? ' · ' + q.nota : ''}` : `⚠️ dopo ${giri + 1} revisioni il voto è ${q.voto}/10: te lo consegno con i difetti segnati (${q.difetti.map((x) => x.problema).join('; ').slice(0, 200)})`, q.passa ? 'info' : 'warn');
       return true;
+    }
+    // bocciato su pezzi precisi: Johnny taglia lui quei pezzi dal telefono (una volta per reel), il resto resta com'è
+    const tr = m.revisore?.tratti || [];
+    let acc = 0; const fine = tr.map((t) => (acc += Number(t.dur) || 0));
+    const pezzi = {};
+    for (const d of q.difetti || []) {
+      const sec = Number(d.secondo);
+      if (d.gravita === 'lieve' || !Number.isFinite(sec) || !tr.length) continue;
+      let k = fine.findIndex((f) => sec < f); if (k < 0) k = tr.length - 1;
+      pezzi[k] = [pezzi[k], d.problema].filter(Boolean).join('; ').slice(0, 200);
+    }
+    if (Object.keys(pezzi).length && !m.taglio_chiesto) {
+      m.taglio = { pezzi: Object.entries(pezzi).map(([k, problema]) => ({ pezzo: Number(k), nome: tr[k]?.nome, problema })), quando: ora(), voto: q.voto };
+      m.taglio_chiesto = true;
+      await run(env, "UPDATE lavori SET montaggio=?, stato='pausa', aggiornato=? WHERE id=?", JSON.stringify(m), ora(), L.id);
+      await log(env, L.id, 'revisore', `✂️ voto ${q.voto}/10: ${m.taglio.pezzi.map((x) => `pezzo ${x.pezzo + 1} (${x.nome}) ${x.problema}`).join(' · ').slice(0, 260)}. Aspetto il tuo taglio (se premi Riprendi va avanti così)`, 'warn');
+      await inviaPush(env, `✂️ Reel #${L.id}: serve il tuo taglio`, `${m.taglio.pezzi.length} ${m.taglio.pezzi.length === 1 ? 'pezzo' : 'pezzi'} da sistemare: ${m.taglio.pezzi[0].problema}`.slice(0, 140), `#/lavoro/${L.id}`).catch(() => 0);
+      return false;
     }
     // bocciato: torna al Regista con le correzioni, rimonta da solo
     m.indicazioni_rimonta = { testo: q.correzioni || q.difetti.map((x) => `${x.secondo}s: ${x.problema}`).join('; '), da: 'revisore' };

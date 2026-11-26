@@ -505,6 +505,10 @@ function vistaReel(L) {
     (p.caption ? '<p style="white-space:pre-wrap"><b>Caption</b><br>' + e(p.caption) + '</p>' : '') +
     ((p.hashtag || []).length ? '<p class="mut">' + e(p.hashtag.map((h) => '#' + String(h).replace(/^#/, '')).join(' ')) + '</p>' : '') +
     ((p.ganci_alternativi || []).length ? '<p><b>Ganci alternativi da provare</b></p>' + lst(p.ganci_alternativi.map((g) => g.testo + ' (' + g.meccanismo + ')')) : '') + '</div>' +
+    ((r.tratti || []).length ? '<div class="card" id="pz_card"' + (m.taglio ? ' style="border:2px solid var(--err)"' : '') + '><b>✂️ I pezzi del reel</b>' +
+      (m.taglio ? '<p class="err">Il revisore ha trovato un problema: taglia tu i pezzi segnati e premi Rimonta con i miei tagli.</p>' : '<p class="mut">Tocca Taglia su un pezzo, guarda la clip intera e scegli tu inizio e fine. Il resto del reel resta uguale.</p>') +
+      '<div id="pz_lista" class="mut">carico i pezzi…</div><div id="pz_ed"></div>' +
+      '<div style="margin-top:10px"><button id="pz_ok" disabled>Rimonta con i miei tagli</button> <span id="pz_er" class="err"></span></div></div>' : '') +
     '<div class="card"><b>Rimonta</b><p class="mut">Rifà solo piano e montaggio (niente nuova ricerca né analisi).</p>' +
     '<label>Cosa cambiare</label><textarea id="rim_t" style="min-height:70px" placeholder="Es. più veloce, gancio con la tazza, meno testi, chiusura con il logo"></textarea>' +
     '<div class="riga"><div style="flex:1"><label>Look</label><select id="rim_l">' + LOOKS_UI.map(([v, n]) => '<option value="' + v + '">' + n + '</option>').join('') + '</select></div>' +
@@ -535,6 +539,52 @@ function vistaClip(C) {
   }).join('') + '</table></div>';
 }
 
+// TAGLIO DI JOHNNY: guardi la clip intera, segni inizio e fine, il montatore rimonta solo con i tuoi tagli
+async function editorTagli(id) {
+  let D;
+  try { D = await chiama('/api/lavori/' + id + '/pezzi'); } catch (x) { $('#pz_lista').textContent = x.message; return; }
+  const tagli = {};
+  const disegna = () => {
+    $('#pz_lista').innerHTML = D.pezzi.map((p) => {
+      const t = tagli[p.pezzo];
+      return '<div class="riga" style="padding:6px 0;border-bottom:1px solid var(--bordo,#2a2a2a);' + (p.problema ? 'color:var(--err)' : '') + '"><div style="flex:1;min-width:0"><b>' + (p.pezzo + 1) + '.</b> ' + e(p.nome) +
+        ' <span class="mut">da ' + Number(t ? t.da : p.in).toFixed(1) + ' s per ' + Number(t ? t.a - t.da : p.dur).toFixed(1) + ' s</span>' + (t ? ' <span class="pill">tagliato da te</span>' : '') +
+        (p.problema ? '<div>⚠︎ ' + e(p.problema) + '</div>' : '') + '</div>' +
+        (p.link ? '<button class="sec pz_t" data-k="' + p.pezzo + '">✂️ Taglia</button>' : '<span class="mut">clip non visibile qui</span>') + '</div>';
+    }).join('');
+    $('#pz_ok').disabled = !Object.keys(tagli).length;
+    document.querySelectorAll('.pz_t').forEach((b) => b.onclick = () => apri(Number(b.dataset.k)));
+  };
+  const apri = (k) => {
+    const p = D.pezzi.find((x) => x.pezzo === k);
+    const t = tagli[k] || { da: p.in, a: p.in + p.dur };
+    const r = Number(p.ruota) || 0;
+    const giro = r === 90 || r === -90;
+    $('#pz_ed').innerHTML = '<div class="card" style="margin-top:10px"><b>Pezzo ' + (k + 1) + ' · ' + e(p.nome) + '</b>' +
+      '<div style="display:flex;justify-content:center;align-items:center;overflow:hidden;' + (giro ? 'height:420px' : '') + '"><video id="pz_v" src="' + e(p.link) + '#t=' + t.da + '" controls playsinline preload="metadata" style="background:#000;border-radius:10px;' +
+      (giro ? 'width:420px;max-width:none;transform:rotate(' + r + 'deg)' : 'width:100%;max-width:360px') + '"></video></div>' +
+      '<div class="riga" style="justify-content:center;margin-top:8px"><button class="sec" id="pz_m1">−0,1 s</button><button class="sec" id="pz_p1">+0,1 s</button></div>' +
+      '<div class="riga" style="justify-content:center;margin-top:8px"><button id="pz_in">Inizio qui</button><button id="pz_out">Fine qui</button><button class="sec" id="pz_prova">▶ Riguarda il taglio</button></div>' +
+      '<p style="text-align:center" id="pz_info"></p><div style="text-align:center"><button id="pz_tieni">Tieni questo taglio</button> <button class="sec" id="pz_chiudi">Annulla</button></div></div>';
+    const v = $('#pz_v');
+    const info = () => { $('#pz_info').textContent = 'da ' + t.da.toFixed(1) + ' s a ' + t.a.toFixed(1) + ' s (' + (t.a - t.da).toFixed(1) + ' s)' + (t.a - t.da < 0.5 ? ' · troppo corto' : ''); };
+    info();
+    $('#pz_m1').onclick = () => { v.currentTime = Math.max(0, v.currentTime - 0.1); };
+    $('#pz_p1').onclick = () => { v.currentTime = v.currentTime + 0.1; };
+    $('#pz_in').onclick = () => { t.da = Math.round(v.currentTime * 10) / 10; if (t.a <= t.da) t.a = t.da + Math.max(1, p.dur); info(); };
+    $('#pz_out').onclick = () => { t.a = Math.round(v.currentTime * 10) / 10; info(); };
+    $('#pz_prova').onclick = () => { v.currentTime = t.da; v.play(); const st = () => { if (v.currentTime >= t.a) { v.pause(); v.removeEventListener('timeupdate', st); } }; v.addEventListener('timeupdate', st); };
+    $('#pz_tieni').onclick = () => { if (t.a - t.da < 0.5) return alert('Il pezzo deve durare almeno mezzo secondo'); tagli[k] = { pezzo: k, da: t.da, a: t.a }; $('#pz_ed').innerHTML = ''; disegna(); };
+    $('#pz_chiudi').onclick = () => { $('#pz_ed').innerHTML = ''; };
+    $('#pz_ed').scrollIntoView({ behavior: 'smooth' });
+  };
+  $('#pz_ok').onclick = async () => {
+    $('#pz_ok').disabled = true;
+    try { await chiama('/api/lavori/' + id + '/taglio', { method: 'POST', body: { tagli: Object.values(tagli) } }); rotta(); } catch (x) { $('#pz_er').textContent = x.message; $('#pz_ok').disabled = false; }
+  };
+  disegna();
+}
+
 async function dettaglio(id) {
   const L = await chiama('/api/lavori/' + id);
   const i = FASI.findIndex((f) => f[0] === L.fase);
@@ -548,6 +598,7 @@ async function dettaglio(id) {
     '<h2>Cosa stanno facendo gli agenti</h2><div class="log">' + L.registro.map((r) => { const A = AGENTI[AGID(r.agente)]; return '<div class="' + r.livello + '"><span class="mut">' + new Date(r.quando).toLocaleTimeString('it-IT') + '</span> ' + A.i + ' <b>' + e(A.n) + '</b> ' + e(r.messaggio) + '</div>'; }).join('') + '</div>';
   if ($('#gir_ok')) $('#gir_ok').onclick = async () => { try { await chiama('/api/lavori/' + id + '/girato', { method: 'POST', body: { pcloud: $('#gir').value } }); rotta(); } catch (x) { $('#gir_er').textContent = x.message; } };
   if ($('#rim_ok')) $('#rim_ok').onclick = async () => { try { await chiama('/api/lavori/' + id + '/rimonta', { method: 'POST', body: { testo: $('#rim_t').value, look: $('#rim_l').value || null, durata: $('#rim_d').value || null, formato: $('#rim_f').value || null, lut: $('#rim_lut').value || null } }); rotta(); } catch (x) { $('#rim_er').textContent = x.message; } };
+  if ($('#pz_card')) editorTagli(id);
   if ($('#rip')) $('#rip').onclick = async () => { await chiama('/api/lavori/' + id + '/riprova', { method: 'POST', body: {} }); rotta(); };
   if ($('#dl')) $('#dl').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(L.scheda, null, 2)], { type: 'application/json' })); a.download = 'scheda-' + id + '.json'; a.click(); };
   $('#del').onclick = async () => { if (confirm('Eliminare questo lavoro?')) { await chiama('/api/lavori/' + id, { method: 'DELETE' }); location.hash = '#/'; } };

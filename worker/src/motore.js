@@ -134,7 +134,7 @@ export async function motoreApi(req, env, url) {
     return json({ id: L.id, tipo, pass, pcloud_code: codice(L.pcloud), pcloud_eu: /(^|\/\/)e\.|eapi/.test(L.pcloud || ''), elementi });
   }
 
-  const mm = p.match(/^\/api\/motore\/(\d+)\/(elemento|errore|fine|scarica|log|video|anteprima|copertina|esito|logo|fuoco|verso)$/);
+  const mm = p.match(/^\/api\/motore\/(\d+)\/(elemento|errore|fine|scarica|log|video|anteprima|copertina|esito|logo|fuoco|verso|proxy-\d{1,2})$/);
   if (!mm) return json({ errore: 'non trovato' }, 404);
   const id = Number(mm[1]);
   const L = await one(env, 'SELECT id, prompt, piano, fase, riferimenti, clip, montaggio, motore_pass FROM lavori WHERE id=?', id);
@@ -176,13 +176,13 @@ Le misure sono frazioni dell'immagine (0,0 = in alto a sinistra). Se l'oggetto n
     await run(env, 'UPDATE lavori SET motore_visto=? WHERE id=?', ora(), id);
     return json({ ok: true });
   }
-  if ((mm[2] === 'video' || mm[2] === 'anteprima' || mm[2] === 'copertina') && m === 'POST') {
+  if ((mm[2] === 'video' || mm[2] === 'anteprima' || mm[2] === 'copertina' || /^proxy-\d+$/.test(mm[2])) && m === 'POST') {
     if (!env.VIDEO) return json({ errore: 'archivio video non collegato' }, 500);
     const lunghezza = Number(req.headers.get('content-length') || 0);
     // archivio: KV (max 25 MB a file: un reel a 1080p di 30-60 s sta sui 10-20 MB)
     if (!lunghezza || lunghezza > 25 * 1024 * 1024) return json({ errore: `file di ${Math.round(lunghezza / 1048576)} MB: oltre il limite di 25 MB` }, 400);
-    const chiave = `lavoro-${id}/${mm[2] === 'video' ? 'reel.mp4' : mm[2] + '.jpg'}`;
-    const tipo = mm[2] === 'video' ? 'video/mp4' : 'image/jpeg';
+    const chiave = `lavoro-${id}/${mm[2] === 'video' ? 'reel.mp4' : mm[2].startsWith('proxy-') ? mm[2] + '.mp4' : mm[2] + '.jpg'}`;
+    const tipo = mm[2] === 'video' || mm[2].startsWith('proxy-') ? 'video/mp4' : 'image/jpeg';
     // master oltre 20 MB: arriva a pezzi (parte 0 = chiave principale con i dati del file intero)
     const parte = Number(url.searchParams.get('parte') || 0), parti = Number(url.searchParams.get('parti') || 1);
     const k = parte ? `${chiave}#${parte}` : chiave;
