@@ -72,11 +72,12 @@ async function scriviScheda(cfg, testo) {
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': cfg.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-    body: JSON.stringify({ model: cfg.CLAUDE_MODEL, max_tokens: 6000, system: SISTEMA, tools: [{ type: cfg.WEB_SEARCH_TOOL, name: 'web_search', max_uses: 5 }], messages: [{ role: 'user', content: testo }] }),
+    body: JSON.stringify({ model: cfg.CLAUDE_MODEL, max_tokens: 14000, system: SISTEMA, tools: [{ type: cfg.WEB_SEARCH_TOOL, name: 'web_search', max_uses: 5 }], messages: [{ role: 'user', content: testo }] }),
   });
   if (r.status !== 200) throw new Error(`Claude ${r.status}: ${(await r.text()).slice(0, 300)}`);
   const d = await r.json();
   await registra(cfg, 'claude', cfg.CLAUDE_MODEL, daUsage(d.usage));
+  if (d.stop_reason === 'max_tokens') throw new Error('scheda troncata');
   const md = (d.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
   const i = md.indexOf('# ');
   return i >= 0 ? md.slice(i) : md;
