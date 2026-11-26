@@ -3,7 +3,7 @@ name: anteprime-stili
 on:
   workflow_dispatch:
     inputs:
-      sezioni: { required: false, default: 'sottotitoli font transizioni animazioni elementi dietro' }
+      sezioni: { required: false, default: 'sottotitoli font transizioni animazioni elementi dietro box' }
 permissions:
   contents: write
 jobs:
@@ -76,6 +76,24 @@ jobs:
            "scene":[{"da":1.0,"a":2.9,"tipo":"card","dati":{"etichetta":"Vantaggi","titolo":"Comfort, tempo, controllo","testo":"Luci, tapparelle e termostato"}}],"adesivi":[{"da":1.2,"tipo":"ai"}]}
           J
           for fr in 20 60; do npx remotion still src/index.ts Dietro out/dt/dietro_$fr.png --props=d.json --frame=$fr --log=error || echo "ERRORE dietro"; done
+      - name: Split box
+        if: contains(github.event.inputs.sezioni, 'box')
+        working-directory: grafiche
+        run: |
+          mkdir -p public out/bx
+          command -v ffmpeg >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null)
+          D="drawbox=x=380:y=420:w=320:h=420:color=0xD9A27A@1:t=fill,drawbox=x=180:y=830:w=720:h=1090:color=0x9FC9D6@1:t=fill"
+          ffmpeg -v error -f lavfi -i "color=c=0x4A5A50:s=1080x1920:r=30:d=9" -vf "$D" -pix_fmt yuv420p -y public/base.mp4
+          cat > b.json <<'J'
+          {"durata":9,"fps":30,"video":"base.mp4","riquadro":"box","volto":{"cx":0.5,"cy":0.33},
+           "palette":{"fondo":"#F7F5EF","inchiostro":"#10241A","accento":"#1FD17A","secondario":"#9BE8C0","tenue":"rgba(0,0,0,.06)"},
+           "parole":[{"t":"Vuoi","da":0.2,"a":0.5},{"t":"la","da":0.5,"a":0.6},{"t":"casa","da":0.6,"a":0.9},{"t":"smart","da":0.9,"a":1.4,"k":true},{"t":"Ci","da":3.0,"a":3.2},{"t":"dici","da":3.2,"a":3.6},{"t":"com'è","da":3.6,"a":4.0},{"t":"casa","da":4.0,"a":4.4}],
+           "righe":[{"da":0.2,"a":1.5,"p":[0,1,2,3]},{"da":3.0,"a":4.6,"p":[4,5,6,7]}],
+           "scene":[{"da":0,"a":2.8,"tipo":"titolo","dati":{"testo":"Casa smart?","sotto":"non sai da dove partire?"}},
+                    {"da":2.8,"a":6,"tipo":"lista","dati":{"titolo":"Ci dici","voci":["Luci","Clima","Sicurezza"]}},
+                    {"da":6,"a":9,"tipo":"numero","pieno":true,"dati":{"valore":"3 minuti","etichetta":"senza impegno"}}],"tracker":null}
+          J
+          for fr in 30 120 220; do npx remotion still src/index.ts Split out/bx/box_$fr.png --props=b.json --frame=$fr --log=error || echo "ERRORE box"; done
       - name: Tavola
         run: |
           pip install -q pillow && python3 grafiche/tavola.py && cd grafiche/out

@@ -35,6 +35,7 @@ export type SplitProps = {
   tracker?: { totale: number; voci: { da: number; etichetta: string }[] } | null;
   ritaglio?: string | null; // la persona ritagliata (video con trasparenza) per gli effetti addosso
   finale?: string; // bianco | nero: dissolvenza finale (mai troncato)
+  riquadro?: "pieno" | "box"; // box: la persona in un riquadro piccolo centrato in basso (stile reel "Casa smart?"), sfondo chiaro a macchie
 };
 
 const ALTO_GRAFICA = 1000; // la metà alta (con un po' di aria) è delle grafiche
@@ -60,6 +61,16 @@ const Entra: React.FC<{ ritardo?: number; da?: "basso" | "alto" | "scala"; style
 };
 
 // ------------------------------------------------------------------ sfondo: carta, griglia, crocette
+const Macchie: React.FC<{ pal: Palette }> = ({ pal }) => {
+  const f = useCurrentFrame();
+  const m = [[180, 260, 520, pal.accento], [900, 620, 460, pal.secondario], [240, 1250, 560, pal.secondario], [880, 1550, 520, pal.accento]] as const;
+  return (
+    <AbsoluteFill style={{ background: pal.fondo, overflow: "hidden" }}>
+      {m.map(([x, y, r, c], i) => <div key={i} style={{ position: "absolute", left: x - r / 2 + Math.sin(f / (70 + i * 13) + i) * 40, top: y - r / 2 + Math.cos(f / (80 + i * 11) + i) * 40,
+        width: r, height: r, borderRadius: "50%", background: c, opacity: 0.22, filter: "blur(110px)" }} />)}
+    </AbsoluteFill>
+  );
+};
 const Sfondo: React.FC<{ pal: Palette }> = ({ pal }) => {
   const f = useCurrentFrame();
   const croci = [[90, 140], [990, 210], [180, 760], [930, 880], [540, 120], [70, 1500], [1010, 1350]];
@@ -377,12 +388,20 @@ const Tracker: React.FC<{ tr: NonNullable<SplitProps["tracker"]>; t: number; pie
 };
 
 // ------------------------------------------------------------------ sottotitolo a pillola
-const Pillola: React.FC<{ parole: Parola[]; righe: Riga[]; t: number; y: number }> = ({ parole, righe, t, y }) => {
+const Pillola: React.FC<{ parole: Parola[]; righe: Riga[]; t: number; y: number; morbida?: boolean }> = ({ parole, righe, t, y, morbida }) => {
   const x = React.useContext(C);
   const f = useCurrentFrame();
   const r = righe.find((q) => t >= q.da - 0.04 && t < q.a + 0.12) || null;
   if (!r) return null;
   const s = spring({ frame: Math.max(0, f - Math.round(r.da * x.fps)), fps: x.fps, config: molle.bouncy });
+  if (morbida) return ( // karaoke: frase in minuscolo, la parola detta adesso si accende
+    <div style={{ position: "absolute", top: y, left: 0, right: 0, display: "flex", justifyContent: "center", zIndex: 20 }}>
+      <div style={{ background: "#10241A", borderRadius: 999, padding: "10px 26px", transform: `scale(${0.9 + 0.1 * s})`, boxShadow: "0 12px 26px -14px rgba(0,0,0,.5)",
+        fontFamily: x.testo, fontWeight: 800, fontSize: 40, whiteSpace: "nowrap" }}>
+        {r.p.map((i, k) => { const w = parole[i]; const ora = w && t >= w.da - 0.03; return <span key={k} style={{ color: ora && t < (w?.a ?? 0) + 0.1 ? x.pal.accento : "#fff", marginRight: k < r.p.length - 1 ? 12 : 0 }}>{(w?.t || "").replace(/[;:…]+$/, "")}</span>; })}
+      </div>
+    </div>
+  );
   return (
     <div style={{ position: "absolute", top: y, left: 0, right: 0, display: "flex", justifyContent: "center", zIndex: 20 }}>
       <div style={{ background: "#141416", borderRadius: 14, padding: "12px 22px", transform: `scale(${0.85 + 0.15 * s})`, boxShadow: "0 14px 30px -14px rgba(0,0,0,.6)",
@@ -442,16 +461,28 @@ export const Split: React.FC<SplitProps> = (P) => {
   // punch: le frasi con una parola chiave fanno avvicinare un poco la persona
   const rk = P.righe.find((q) => t >= q.da && t < q.a && q.p.some((i) => P.parole[i]?.k));
   const punch = rk ? 1 + 0.035 * spring({ frame: Math.round((t - rk.da) * fps), fps, config: molle.snappy }) : 1;
-  const hPersona = 1920 - Y_PERSONA;
-  const yVideo = Math.max(hPersona - 1920 * scala, Math.min(0, 330 - cy * 1920 * scala)); // il viso a ~1/3 del riquadro
-  stileVideo.top = yVideo;
+  const box = P.riquadro === "box";
+  // BOX: si apre con la persona grande (gancio), poi si stringe in un riquadro centrato con bordo colorato; sulle scene piene si stringe ancora
+  const inizioBox = P.scene.find((q) => q.da > 1.2)?.da ?? 2.8;
+  const kb = box ? interpolate(t, [inizioBox - 0.25, inizioBox + 0.35], [0, 1], { ...clamp, easing: Easing.inOut(Easing.cubic) }) : 0;
+  const stretto = 1 - 0.35 * pieno;
+  const bw = interpolate(kb, [0, 1], [1080, 560 * stretto]), bh = interpolate(kb, [0, 1], [1440, 740 * stretto]);
+  const bx = (1080 - bw) / 2, by = interpolate(kb, [0, 1], [480, 1920 - 740 * stretto - 150]);
+  const geo = box ? { left: bx, top: by, width: bw, height: bh } : { left: 0, top: Y_PERSONA, width: 1080, height: 1920 - Y_PERSONA };
+  const hPersona = geo.height;
+  if (box) { // il video copre il riquadro, viso a ~1/3
+    const wv = bw * 1.06, hv = wv * 1920 / 1080;
+    Object.assign(stileVideo, { left: (bw - wv) / 2, width: wv, height: hv, top: Math.max(bh - hv, Math.min(0, bh * 0.36 - cy * hv)) });
+  } else stileVideo.top = Math.max(hPersona - 1920 * scala, Math.min(0, 330 - cy * 1920 * scala)); // il viso a ~1/3 del riquadro
+  if (box) { zona.top = 0; zona.height = by - 110; }
   return (
     <C.Provider value={ctx}>
       <AbsoluteFill>
-        <Sfondo pal={P.palette} />
+        {box ? <Macchie pal={P.palette} /> : <Sfondo pal={P.palette} />}
         {/* la persona, sotto (piccolo "punch" sulle frasi con parole chiave) */}
-        <div style={{ position: "absolute", left: 0, top: Y_PERSONA, width: 1080, height: 1920 - Y_PERSONA, overflow: "hidden",
-          opacity: 1 - pieno, transform: `translateY(${pieno * 160}px)`, borderTop: `2px solid ${P.palette.tenue}` }}>
+        <div style={{ position: "absolute", ...geo, overflow: "hidden", zIndex: 5,
+          ...(box ? { borderRadius: 40 * kb, border: `${6 * kb}px solid ${P.palette.accento}`, boxShadow: `0 30px 60px -30px rgba(0,0,0,${0.45 * kb})` }
+            : { opacity: 1 - pieno, transform: `translateY(${pieno * 160}px)`, borderTop: `2px solid ${P.palette.tenue}` }) }}>
           <div style={{ position: "absolute", inset: 0, transform: `scale(${punch})`, transformOrigin: "50% 35%" }}>
             <OffthreadVideo src={staticFile(P.video)} style={stileVideo} />
             {/* scritta gigante DIETRO la persona: la persona ritagliata ci passa davanti */}
@@ -460,7 +491,7 @@ export const Split: React.FC<SplitProps> = (P) => {
               <OffthreadVideo src={staticFile(P.ritaglio)} transparent style={stileVideo} />
             </> : null}
           </div>
-          <AbsoluteFill style={{ background: "radial-gradient(ellipse at 50% 30%, transparent 60%, rgba(0,0,0,.25) 100%)" }} />
+          {box ? null : <AbsoluteFill style={{ background: "radial-gradient(ellipse at 50% 30%, transparent 60%, rgba(0,0,0,.25) 100%)" }} />}
         </div>
         {/* le grafiche, sopra */}
         <div style={{ position: "absolute", left: 0, right: 0, ...zona }}>
@@ -490,7 +521,7 @@ export const Split: React.FC<SplitProps> = (P) => {
           })}
         </div>
         {/* la persona che esce dal riquadro (la testa passa sopra le grafiche) oppure l'adesivo con contorno e cornice */}
-        {P.ritaglio && scenaOra && (effOra.includes("esce") || effOra.includes("adesivo")) ? (
+        {!box && P.ritaglio && scenaOra && (effOra.includes("esce") || effOra.includes("adesivo")) ? (
           <Sequence from={Math.round(scenaOra.da * fps)} durationInFrames={Math.max(6, Math.round((scenaOra.a - scenaOra.da) * fps))} layout="none">
             <Fuori video={P.ritaglio} stile={stileVideo} adesivo={effOra.includes("adesivo")} pal={P.palette} mono={ctx.mono} yBox={Y_PERSONA + pieno * 160} />
           </Sequence>) : null}
@@ -500,7 +531,7 @@ export const Split: React.FC<SplitProps> = (P) => {
             <Coriandoli pal={P.palette} x={540} y={zona.height * 0.5} seme={i} />
           </Sequence>) : null))}
         {P.tracker ? <Tracker tr={P.tracker} t={t} pieno={pieno} /> : null}
-        <Pillola parole={P.parole} righe={P.righe} t={t} y={Y_PILLOLA - 40 + pieno * 640} />
+        <Pillola parole={P.parole} righe={P.righe} t={t} y={box ? by - 78 : Y_PILLOLA - 40 + pieno * 640} morbida={box} />
         <Grana />
         {/* chiusura: dissolvenza al bianco (o al nero) negli ultimi 0,6 s, dopo l'ultima parola */}
         {P.finale === "bianco" || P.finale === "nero" ? <AbsoluteFill style={{ background: P.finale === "nero" ? "#000" : "#fff", pointerEvents: "none",
