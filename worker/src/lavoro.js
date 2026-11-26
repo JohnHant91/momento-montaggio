@@ -598,6 +598,7 @@ JSON (i campi "solo talking_head" e "solo carosello" mettili solo per quel forma
                 "effetti": ["2-3 tra scrivi|cornice|cursore|coriandoli|fantasma|icone|lente|successo|scossa|dietro|esce|adesivo (vedi le regole del formato)"],
                 "dati": {"titolo: testo, accento (parola in corsivo colorato), sotto | numero: valore, etichetta | sito: url VERO e completo del sito citato, evidenzia {x,y,w,h 0-1} | terminale: comando, righe[] | contatore: da, a, etichetta, prefisso, suffisso | lista: titolo, voci[], spunte, icone[] (facoltative, una icona Iconify ph:...-bold per voce) | confronto: prima {titolo, voci[]}, dopo {titolo, voci[]} | card: titolo, testo, icona (nome icona Iconify del set Phosphor, es. ph:coffee-bold, ph:fire-bold, ph:map-pin-bold, ph:clock-bold, ph:star-bold — mai emoji), etichetta | oggetto: simbolo (1-3 caratteri), titolo, accento | chat: messaggi [{chi: tu|ai, testo}] | barre: titolo, unita, voci [{etichetta, valore}] | riepilogo: titolo, voci [{nome, valore}] | in tutti: dietro (parola gigante dietro Johnny), decor [simboli delle icone], successo (testo barra verde)"}}],
   "palette": {"fondo": "#hex chiaro tipo carta", "inchiostro": "#hex testo", "accento": "#hex unico colore forte, scelto per l'argomento", "secondario": "#hex tenue dell'accento", "tenue": "rgba(...) per la griglia"} (solo split_grafico),
+  "riquadro": "pieno|box" (solo split_grafico: box = persona in un riquadro piccolo centrato in basso col bordo colorato, sfondo chiaro a macchie, titoli grandi in alto, sottotitolo karaoke a pillola; pieno = persona su tutta la metà bassa),
   "font_split": {"titoli": "...", "testo": "...", "mono": "..."} (solo split_grafico),
   "tracker": {"totale": n, "voci": [{"etichetta": "nome breve", "sulla_parola": "parola su cui entra"}]} oppure null (solo split_grafico, per i video a lista),
   "slide": [{"clip": indice di una foto/slide, "durata": secondi}],
@@ -886,6 +887,7 @@ almeno metà dei pezzi da clip diverse o da momenti diversi delle stesse clip (l
   const piano = {
     ...p, formato: motore, titoli, riserve, evita: evita.length ? evita : undefined, look_reel: lookReel, font_reel: fontReel, pannello, cartelli, schede, grafiche, palette, font_split, tracker, adesivi,
     ...(avatar ? { taglia_silenzi: false, multicam: p.multicam !== false } : {}),
+    ...(formato === 'split_grafico' ? { riquadro: avatar || p.riquadro === 'box' ? 'box' : 'pieno' } : {}),
     logo: prima?.logo || (logoArch ? { archivio: logoArch } : null),
     stabilizza_tutto: !!(indicazioni?.stabilizza_tutto || prima?.piano?.stabilizza_tutto || p.stabilizza_tutto || R?.camera === 'morbida'),
     camera_ferma: R?.camera === 'a_mano' ? false : !!(indicazioni?.camera_ferma || prima?.piano?.camera_ferma || p.camera_ferma || R?.camera === 'ferma'),

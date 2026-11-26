@@ -954,6 +954,7 @@ class SplitGrafico(TalkingHead):
                  "palette": pal, "font": P.get("font_split") or {}, "parole": parole, "righe": rr, "scene": scene, "tracker": tracker,
                  "ritaglio": os.path.basename(rit) if rit else None,
                  "finale": (P.get("finale") or "bianco").lower(),  # chiusura con dissolvenza (bianco di base), mai troncata
+                 "riquadro": "box" if P.get("riquadro") == "box" else "pieno",
                  "adesivi": self.adesivi(parole)}
         pj = os.path.join(self.tmp, "split.json")
         with open(pj, "w") as f:

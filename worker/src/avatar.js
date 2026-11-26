@@ -235,10 +235,12 @@ async function faseMontaggio(env, cfg, A) {
     const c = copioni.find((x) => x.n === v.n) || {};
     // si alternano i due stili dei reel di riferimento di Johnny (contando tutti i reel avatar già fatti)
     const fatti = (await one(env, `SELECT count(*) AS n FROM lavori WHERE stile LIKE '%"avatar":true%'`))?.n || 0;
-    const formato = fatti % 2 ? 'split_grafico' : 'parole_dietro';
+    // parole_dietro sospeso per l'avatar: l'inquadratura ha la testa attaccata al bordo e le parole non si leggono.
+    // Stile di riferimento scelto da Johnny: split con la persona in un riquadro piccolo (variante box), sfondo chiaro.
+    const formato = 'split_grafico';
     const prompt = `Cliente: Johnny · profilo Instagram. Reel con l'avatar di Johnny. ${formato === 'parole_dietro'
       ? 'Formato parole_dietro (come i reel di riferimento di Johnny: lui a tutto schermo, le frasi diventano parole GIGANTI e colorate dietro di lui, adesivi che esplodono, schede di vetro ai lati, capitoli col numero enorme)'
-      : 'Formato split_grafico (sopra le grafiche animate che seguono il discorso, al centro la pillola dei sottotitoli, sotto Johnny)'}, palette e font scelti in base all'argomento, effetti da super montatore, nessuna pausa.
+      : 'Formato split_grafico variante BOX (stile reel "Casa smart?" scelto da Johnny): sfondo chiaro a macchie morbide del colore accento, in alto titolo GRANDE di 1-3 parole + sottotitolo piccolo che cambiano a ogni passaggio del discorso, al centro icone e schede semplici e pulite (lista, card, numero, riepilogo), tracker dei passaggi se il discorso ha 3-5 punti, sottotitolo karaoke a pillola sopra il riquadro di Johnny, che si apre grande sul gancio e poi si stringe in basso al centro col bordo colorato'}, palette e font scelti in base all'argomento, effetti da super montatore, nessuna pausa.
 Argomento del piano (per la palette): ${A.argomento}
 Titolo: ${c.titolo}. Gancio: ${c.gancio}. Soluzione finale: ${c.soluzione}.
 Testo detto: ${c.testo}${A.cartella ? '\nJohnny ha caricato su pCloud delle clip SUE da usare (b-roll, foto, schermate): usale nei punti giusti del discorso, il parlato resta quello dell\'avatar.' : ''}

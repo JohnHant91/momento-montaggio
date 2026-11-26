@@ -446,7 +446,7 @@ export const Split: React.FC<SplitProps> = (P) => {
   const f = useCurrentFrame();
   const { fps } = useVideoConfig();
   const t = f / fps;
-  const ctx: Ctx = { pal: P.palette, fps, titoli: famiglia(FONT_TITOLI, P.font?.titoli, "Instrument Serif"), testo: famiglia(FONT_TESTO, P.font?.testo, "Inter"), mono: famiglia(FONT_MONO, P.font?.mono, "JetBrains Mono") };
+  const ctx: Ctx = { pal: P.palette, fps, titoli: famiglia(FONT_TITOLI, P.font?.titoli || (P.riquadro === "box" ? "Manrope" : undefined), "Instrument Serif"), testo: famiglia(FONT_TESTO, P.font?.testo, "Inter"), mono: famiglia(FONT_MONO, P.font?.mono, "JetBrains Mono") };
   // quanto la grafica è "a tutto schermo" adesso (0-1), con passaggi morbidi
   const pieno = P.scene.reduce((m, s) => (s.pieno ? Math.max(m, interpolate(t, [s.da - 0.35, s.da + 0.25, s.a - 0.25, s.a + 0.15], [0, 1, 1, 0], { ...clamp, easing: Easing.inOut(Easing.cubic) })) : m), 0);
   const zona = { top: 0, height: ALTO_GRAFICA + pieno * (1650 - ALTO_GRAFICA) };
@@ -494,12 +494,13 @@ export const Split: React.FC<SplitProps> = (P) => {
           {box ? null : <AbsoluteFill style={{ background: "radial-gradient(ellipse at 50% 30%, transparent 60%, rgba(0,0,0,.25) 100%)" }} />}
         </div>
         {/* le grafiche, sopra */}
-        <div style={{ position: "absolute", left: 0, right: 0, ...zona }}>
+        <div style={{ position: "absolute", left: 0, right: 0, ...zona, ...(box ? { fontWeight: 800, letterSpacing: -1 } : {}) }}>
           {P.scene.map((s, i) => {
             const Comp = SCENE[s.tipo];
             if (!Comp) return null;
             const da = Math.round(s.da * fps), dur = Math.max(6, Math.round((s.a - s.da) * fps));
-            const eff = s.effetti || EFFETTI_BASE[s.tipo] || [];
+            // box: grafica pulita, niente decorazioni sparse (icone, lente, numero fantasma, lampi, cursore)
+            const eff = (s.effetti || EFFETTI_BASE[s.tipo] || []).filter((e) => !box || !["icone", "lente", "fantasma", "cursore"].includes(e));
             const ha = (e: string) => eff.includes(e);
             const fant = s.tipo === "numero" ? String(s.dati?.valore ?? "") : P.tracker ? String((P.tracker.voci.findIndex((v) => v.da >= s.da - 0.3 && v.da < s.a) + 1) || "") : "";
             const succ = ha("successo") ? (s.dati?.successo || (s.tipo === "terminale" ? (s.dati?.righe || []).slice(-1)[0] : s.tipo === "riepilogo" ? "fatto" : "")) : "";
@@ -515,7 +516,7 @@ export const Split: React.FC<SplitProps> = (P) => {
                 {ha("lente") ? <Lente pal={P.palette} /> : null}
                 {ha("cursore") ? <Cursore pal={P.palette} x={620} y={(zona.height + (P.tracker ? 120 : 0)) / 2 + 60} /> : null}
                 {succ ? <Successo testo={String(succ).slice(0, 40)} font={ctx.testo} /> : null}
-                {i > 0 ? <Lampo pal={P.palette} /> : null}
+                {i > 0 && !box ? <Lampo pal={P.palette} /> : null}
               </Sequence>
             );
           })}
