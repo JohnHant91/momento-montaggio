@@ -320,7 +320,7 @@ export async function apiAvatar(req, env, p, m, json) {
     if (k < 0 || copioni[k].stato !== 'da_approvare') return json({ errore: 'copione non modificabile' }, 400);
     const cfg = chi(await configurazione(env), { area: 'profilo', piano_id: A.id, agente: 'idee' });
     const out = await S.claude(cfg, `Sei Nora, Idee e copioni di AGENZIA MOMENTO AI. Riscrivi un copione dell'avatar di Johnny applicando ESATTAMENTE le sue indicazioni (aggiungi o togli argomenti come dice). Il resto resta com'è. Formato AVATAR: GANCIO → PROBLEMA → TENSIONE → SOLUZIONE alla fine → CTA, 120-180 parole. Usa solo fatti della ricerca o detti da Johnny.`,
-      `ARGOMENTO: ${A.argomento}\nFATTI DELLA RICERCA: ${JSON.stringify(J(A.ricerca, {})).slice(0, 4000)}\nCOPIONE ATTUALE: ${JSON.stringify(copioni[k])}\nINDICAZIONI DI JOHNNY: ${nota}\n\nRispondi SOLO JSON: ${FORMATO_COPIONE}`, { maxTokens: 2500 });
+      `ARGOMENTO: ${A.argomento}\nFATTI DELLA RICERCA: ${JSON.stringify(J(A.ricerca, {})).slice(0, 4000)}\nCOPIONE ATTUALE: ${JSON.stringify(copioni[k])}\nINDICAZIONI DI JOHNNY: ${nota}\n\nRispondi SOLO JSON: ${FORMATO_COPIONE}`, { maxTokens: 5000 });
     copioni[k] = { ...copioni[k], ...out, n: copioni[k].n, idea: copioni[k].idea, stato: 'da_approvare', parole: String(out.testo || '').split(/\s+/).filter(Boolean).length, nota_johnny: nota };
     await run(env, 'UPDATE avatar_piani SET copioni=?, aggiornato=? WHERE id=?', JSON.stringify(copioni), ora(), A.id);
     await log(env, null, 'idee', `✍️ Nora ha riscritto il copione "${String(out.titolo || '').slice(0, 60)}" con le tue indicazioni`);

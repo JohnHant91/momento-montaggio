@@ -60,7 +60,8 @@ export async function claude(cfg, sistema, messaggio, { maxTokens = 8000, json =
   let testo = '';
   for (let giro = 0; giro < 3; giro++) {
     const messages = [{ role: 'user', content: messaggio }];
-    if (testo) messages.push({ role: 'assistant', content: testo.replace(/\s+$/, '') });
+    // il modello non accetta il prefill: il pezzo già scritto va come messaggio dell'assistente e si chiede di continuare
+    if (testo) messages.push({ role: 'assistant', content: testo.replace(/\s+$/, '') }, { role: 'user', content: 'Ti sei interrotto. Continua ESATTAMENTE dal punto in cui ti sei fermato, senza ripetere niente e senza commenti: solo il seguito del testo.' });
     const r = await richiesta('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'x-api-key': cfg.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },

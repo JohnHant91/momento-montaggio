@@ -125,7 +125,7 @@ Rispondi SOLO JSON:
      "avatar": {"argomento": "...", "numero": 5, "note": "..."} o null (SOLO per i reel del PROFILO PERSONALE di Johnny fatti col suo avatar HeyGen: Sofia ricerca, Zoe studia i virali, Nora scrive i copioni, Ava genera, il comparto Reel monta),
      "note_gestionale": null}}],
  "messaggio": "1 frase di Alba a Johnny: cosa parte"}
-"proposte" contiene UNA sola proposta.`, { maxTokens: 5000 });
+"proposte" contiene UNA sola proposta.`, { maxTokens: 10000 });
   const proposte = (out.proposte || []).slice(0, 1);
   if (!proposte.length) throw new Error('nessun piano prodotto');
   const fine = ora(); // niente sala meeting
