@@ -72,10 +72,20 @@ export async function motoreApi(req, env, url) {
     if (p.endsWith('/reel')) {
       const id = Number(new URL(req.url).searchParams.get('id')) || 0;
       const n = Number(new URL(req.url).searchParams.get('n')) || 0;
-      const chiave = `lavoro-${id}/reel.mp4` + (n ? '#' + n : '');
+      const kk = new URL(req.url).searchParams.get('k') || '';
+      const base = /^(lavoro-\d+|backup\/lavoro-\d+-v\d+)\/reel\.mp4$/.test(kk) ? kk : `lavoro-${id}/reel.mp4`;
+      const chiave = base + (n ? '#' + n : '');
       const { value, metadata } = await env.VIDEO.getWithMetadata(chiave, { type: 'arrayBuffer' });
       if (!value) return json({ errore: 'non trovato' }, 404);
       return new Response(value, { headers: { 'content-type': 'application/octet-stream', 'x-parti': String(metadata?.parti || 1) } });
+    }
+    // il reel montato a mano da Johnny (link pCloud salvato nelle impostazioni, mai nei log pubblici)
+    if (p.endsWith('/umano')) {
+      const link = (await one(env, "SELECT valore FROM impostazioni WHERE chiave='PROVA_UMANO'"))?.valore;
+      if (!link) return json({});
+      const F = (await S.pcloudClip(link)).filter((f) => f.tipo !== 'musica' && f.tipo !== 'immagine');
+      if (!F.length) return json({ errore: 'nessun video nel link' });
+      return json({ nome: F[0].nome, url: await S.pcloudLinkDownload(link, F[0].fileid) });
     }
     if (p.endsWith('/esito')) {
       const d = await req.json().catch(() => ({}));
