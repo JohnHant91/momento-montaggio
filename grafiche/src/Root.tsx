@@ -5,6 +5,11 @@ import { FPS } from "./theme";
 import { Split, SplitProps } from "./Split";
 import { Dietro, DietroProps } from "./Dietro";
 import { Montaggio, MontaggioProps } from "./Montaggio";
+import { AbsoluteFill } from "remotion";
+import { Sottotitoli, SottotitoliProps } from "./montatore/sottotitoli";
+
+// anteprima di uno stile di sottotitoli su sfondo neutro (per l'archivio Stili)
+const ProvaSottotitoli: React.FC<SottotitoliProps> = (p) => (<AbsoluteFill style={{ background: "linear-gradient(160deg,#3a4a5a,#1b2330)" }}><Sottotitoli {...p} y={960} /></AbsoluteFill>);
 
 const esempio: PannelloProps = {
   chip: "TIP",
@@ -64,6 +69,15 @@ export const Root: React.FC = () => (
     durationInFrames={FPS * 6}
     defaultProps={{ fps: 30, durata: 6, clip: [] } as MontaggioProps}
     calculateMetadata={({ props }) => ({ fps: props.fps || FPS, width: props.larghezza || 1080, height: props.altezza || 1920, durationInFrames: Math.max(30, Math.ceil((props.durata || 6) * (props.fps || FPS))) })}
+  />
+  <Composition
+    id="ProvaSottotitoli"
+    component={ProvaSottotitoli}
+    width={1080}
+    height={1920}
+    fps={30}
+    durationInFrames={90}
+    defaultProps={{ stile: "box", accento: "#FFD60A", font: "Montserrat, Arial, sans-serif", parole: [{ t: "Questo", da: 0.1, a: 0.4 }, { t: "panettone", da: 0.4, a: 0.9, k: true }, { t: "cambia", da: 0.9, a: 1.3 }, { t: "tutto", da: 1.3, a: 1.8 }] } as SottotitoliProps}
   />
   <Composition
     id="Pannello"

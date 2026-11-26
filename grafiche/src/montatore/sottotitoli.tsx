@@ -1,13 +1,15 @@
 // Sottotitoli animati, sempre SOTTO il viso (fascia 1180-1480, dentro la safe zone di Reels/TikTok/Shorts).
 // Stili: karaoke (pillola, la parola detta si accende), box (riquadro colorato che scorre di parola in parola, come la
 // skill talking-head-reel), pop (1-3 parole che saltano fuori), grassetto (bianco con bordo, parole chiave colorate),
-// minimal (pulito con ombra), neon (parola detta che si illumina). Le parole chiave si colorano con l'accento.
+// minimal (pulito con ombra), neon (parola detta che si illumina), chiave (frase bianca, parola chiave grande e colorata),
+// contorno (lettere vuote con bordo d'accento, la parola detta si riempie), macchina (lettere che si scrivono col cursore),
+// mano (scritto a mano, minuscolo, sottolineatura a pennello). Le parole chiave si colorano con l'accento.
 import React from "react";
 import { AbsoluteFill, Easing, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 
 export type ParolaS = { t: string; da: number; a: number; k?: boolean };
 export type SottotitoliProps = {
-  stile?: "karaoke" | "box" | "pop" | "grassetto" | "minimal" | "neon";
+  stile?: "karaoke" | "box" | "pop" | "grassetto" | "minimal" | "neon" | "chiave" | "contorno" | "macchina" | "mano";
   parole: ParolaS[];
   gruppi?: number[][];     // indici delle parole per riga (se manca: 3 parole a gruppo, spezzate sulle pause)
   y?: number;              // centro verticale (px); il motore lo mette sotto il mento
@@ -43,7 +45,7 @@ export const Sottotitoli: React.FC<SottotitoliProps> = (S) => {
   const g = gruppi[gi];
   const ent = t - (P[g[0]].da - 0.06);
   const y = Math.min(S.y || 1100, 1100); // il riquadro (±110) resta sopra la colonna dei pulsanti (da 1220)
-  const up = (s: string) => (S.maiuscolo === false || stile === "minimal" ? s : s.toUpperCase());
+  const up = (s: string) => (S.maiuscolo === false || stile === "minimal" || stile === "mano" ? (stile === "mano" ? s.toLowerCase() : s) : s.toUpperCase());
   const attiva = g.findIndex((i) => t >= P[i].da - 0.03 && t < (P[i + 1] ? Math.max(P[i].a, P[i + 1].da - 0.03) : P[i].a + 0.3));
   const fs = stile === "pop" ? 92 : stile === "minimal" ? 58 : 70;
   const base: React.CSSProperties = { fontFamily: S.font, fontWeight: 900, fontSize: fs, lineHeight: 1.1, letterSpacing: -0.5 };
@@ -66,6 +68,27 @@ export const Sottotitoli: React.FC<SottotitoliProps> = (S) => {
   } else if (stile === "minimal") {
     corpo = <div style={{ ...base, fontWeight: 700, color: "#fff", textShadow: "0 3px 14px rgba(0,0,0,.75)", maxWidth: 900, textAlign: "center", opacity: interpolate(ent, [0, 0.12], [0, 1], clamp) }}>
       {g.map((i) => <span key={i} style={{ color: P[i].k ? S.accento : "#fff" }}>{up(P[i].t) + " "}</span>)}</div>;
+  } else if (stile === "chiave") {
+    corpo = <div style={{ ...base, fontWeight: 800, display: "flex", gap: "0 16px", flexWrap: "wrap", justifyContent: "center", alignItems: "baseline", maxWidth: 940, opacity: comparsa }}>
+      {g.map((i) => { const s = spring({ frame: Math.round((t - P[i].da + 0.04) * fps), fps, config: { damping: 10, stiffness: 220 } });
+        return <span key={i} style={P[i].k
+          ? { color: S.accento, fontSize: fs * 1.4, display: "inline-block", transform: `scale(${t < P[i].da - 0.04 ? 0.6 : 0.8 + 0.2 * s})`, textShadow: "0 6px 20px rgba(0,0,0,.5)" }
+          : { color: "#fff", textShadow: "0 4px 16px rgba(0,0,0,.65)" }}>{up(P[i].t)}</span>; })}</div>;
+  } else if (stile === "contorno") {
+    corpo = <div style={{ ...base, fontSize: 80, display: "flex", gap: "0 18px", flexWrap: "wrap", justifyContent: "center", maxWidth: 960, transform: `scale(${0.94 + 0.06 * comparsa})`, opacity: comparsa }}>
+      {g.map((i, k) => { const piena = k <= attiva;
+        return <span key={i} style={{ color: piena ? S.accento : "transparent", WebkitTextStroke: `3px ${S.accento}`, textShadow: piena ? "0 6px 22px rgba(0,0,0,.45)" : "none" }}>{up(P[i].t)}</span>; })}</div>;
+  } else if (stile === "macchina") {
+    const testo = g.map((i) => up(P[i].t)).join(" ");
+    const finoA = g.reduce((n, i, k) => { if (t >= P[i].a) return testo.split(" ").slice(0, k + 1).join(" ").length; if (t >= P[i].da) { const pre = k ? testo.split(" ").slice(0, k).join(" ").length + 1 : 0; return pre + Math.ceil(P[i].t.length * Math.min(1, (t - P[i].da) / Math.max(0.08, P[i].a - P[i].da))); } return n; }, 0);
+    const cursore = Math.floor(t * 2.5) % 2 === 0;
+    corpo = <div style={{ ...base, fontFamily: S.font || "monospace", fontWeight: 700, fontSize: 60, color: "#fff", background: "rgba(10,10,10,.72)", borderRadius: 14, padding: "12px 26px", maxWidth: 940, textAlign: "left" }}>
+      {testo.slice(0, finoA)}<span style={{ color: S.accento, opacity: cursore ? 1 : 0 }}>▍</span></div>;
+  } else if (stile === "mano") {
+    corpo = <div style={{ ...base, fontWeight: 400, fontSize: 76, display: "flex", gap: "0 18px", flexWrap: "wrap", justifyContent: "center", maxWidth: 920, transform: `rotate(-3deg) translateY(${(1 - comparsa) * 18}px)`, opacity: comparsa }}>
+      {g.map((i, k) => { const on = k === attiva; const l = interpolate(t - P[i].da, [0, 0.25], [0, 100], clamp);
+        return <span key={i} style={{ position: "relative", display: "inline-block", color: "#fff", textShadow: "0 4px 14px rgba(0,0,0,.6)" }}>{up(P[i].t)}
+          {on || P[i].k ? <span style={{ position: "absolute", left: -4, bottom: 2, height: 14, width: `${on ? l : 100}%`, background: S.accento, borderRadius: 8, transform: "skewX(-12deg)", zIndex: -1, opacity: 0.9 }} /> : null}</span>; })}</div>;
   } else { // box: riquadro d'accento che scorre sotto la parola detta
     corpo = <div style={{ ...base, display: "flex", gap: "0 10px", flexWrap: "wrap", justifyContent: "center", maxWidth: 960, transform: `scale(${0.92 + 0.08 * comparsa})` }}>
       {g.map((i, k) => { const on = k === attiva;
