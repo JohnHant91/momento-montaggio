@@ -918,7 +918,8 @@ async function faseMontaggio(env, cfg, L) {
       let k = fine.findIndex((f) => sec < f); if (k < 0) k = tr.length - 1;
       pezzi[k] = [pezzi[k], d.problema].filter(Boolean).join('; ').slice(0, 200);
     }
-    if (Object.keys(pezzi).length && !m.taglio_chiesto) {
+    // reel rotto o molto lontano dal piano (voto sotto 5): non è un taglio da chiedere a Johnny, si rifà da solo
+    if (Object.keys(pezzi).length && !m.taglio_chiesto && (Number(q.voto) || 0) >= 5) {
       m.taglio = { pezzi: Object.entries(pezzi).map(([k, problema]) => ({ pezzo: Number(k), nome: tr[k]?.nome, problema })), quando: ora(), voto: q.voto };
       m.taglio_chiesto = true;
       await run(env, "UPDATE lavori SET montaggio=?, stato='pausa', aggiornato=? WHERE id=?", JSON.stringify(m), ora(), L.id);

@@ -587,7 +587,10 @@ def monta(lavoro):
         def ident(s):
             if s.get("fileid"):
                 return hashlib.sha256(("pcloud:" + str(s["fileid"])).encode()).hexdigest()[:32]
-            return hashlib.sha256(urllib.parse.urlsplit(s["url"]).path.encode()).hexdigest()[:32]
+            # link firmati dell'Archivio: il file è nel parametro p (il percorso dell'URL è uguale per tutti!), la firma s/f cambia ogni giorno
+            u = urllib.parse.urlsplit(s["url"])
+            q = [(k, v) for k, v in urllib.parse.parse_qsl(u.query) if k not in ("s", "f")]
+            return hashlib.sha256(("v2:" + u.netloc + u.path + "?" + urllib.parse.urlencode(sorted(q))).encode()).hexdigest()[:32]
 
         def integro(path, nome=""):
             """il file si apre ed è completo? (un download troncato dà 'moov atom not found' a metà montaggio)"""
@@ -748,7 +751,7 @@ def monta(lavoro):
                 invia_file(lavoro, f"proxy-{k}", o, "video/mp4")
                 return True
             with ThreadPoolExecutor(3) as ex:
-                fatti = sum(ex.map(proxy, list(enumerate(rep.get("tratti") or [])[:20])))
+                fatti = sum(ex.map(proxy, list(enumerate(rep.get("tratti") or []))[:20]))
             rep["proxy"] = fatti == len(rep.get("tratti") or []) and fatti > 0
         except Exception as e:
             avvisa("editor", f"copie per il taglio dal telefono non fatte: {str(e)[:80]}", "warn")
