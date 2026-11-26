@@ -90,7 +90,7 @@ const Adesivo: React.FC<{ tipo: string; lato: "sx" | "dx"; pal: Palette }> = ({ 
   const s = spring({ frame: f, fps, config: molle.bouncy });
   const usc = interpolate(f, [dur - 6, dur], [1, 0], clamp);
   const onda = interpolate(f, [0, 16], [0, 1], { ...clamp, easing: ease.out });
-  const x = lato === "sx" ? 40 : 720, y = 980; // ai lati del busto, sotto la fascia delle parole
+  const x = lato === "sx" ? 40 : 720, y = 800; // ai lati del busto, sotto la fascia delle parole
   return (
     <div style={{ position: "absolute", left: x, top: y + Math.sin(f / 10) * 8, width: 320, height: 320, transform: `scale(${s * usc}) rotate(${(1 - s) * -40 + Math.sin(f / 14) * 5}deg)` }}>
       {[0, 1].map((i) => <div key={i} style={{ position: "absolute", inset: -80 * onda - i * 40, borderRadius: "50%", border: `${10 - i * 4}px solid ${pal.accento}`, opacity: (1 - onda) * 0.8 }} />)}
