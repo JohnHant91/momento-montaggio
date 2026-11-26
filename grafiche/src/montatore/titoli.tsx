@@ -5,10 +5,11 @@
 // sottotitoli), centro (solo sulle clip senza persone, decide il motore).
 import React from "react";
 import { AbsoluteFill, Easing, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { animaStile } from "./animazioni";
 
 export type TitoloProps = {
   da: number; a: number; testo: string;
-  stile?: "blur" | "sale" | "rotazione" | "numero" | "evidenziatore" | "macchina" | "hyper" | "scintille" | "aurora" | "impatto" | "etichetta" | "comic" | "flip3d" | "ombra";
+  stile?: "anima" | "blur" | "sale" | "rotazione" | "numero" | "evidenziatore" | "macchina" | "hyper" | "scintille" | "aurora" | "impatto" | "etichetta" | "comic" | "flip3d" | "ombra";
   posizione?: "alto" | "basso" | "sx" | "dx" | "centro";
   chiave?: string[];        // parole da colorare con l'accento
   parole?: string[];        // per "rotazione": le parole che si alternano
@@ -16,6 +17,8 @@ export type TitoloProps = {
   sotto?: string;           // riga piccola sotto il titolo
   accento?: string; font?: string; fontTesto?: string;
   dimensione?: number;      // px; se manca la sceglie in base alla lunghezza
+  animazione?: string;      // stile "anima": nome della preset di animazioni.tsx (es. rimbalzo_su, gira_x, scatola)
+  unita?: "lettere" | "parole" | "riga"; // stile "anima": cosa si anima, una dopo l'altra
 };
 
 const clamp = { extrapolateLeft: "clamp" as const, extrapolateRight: "clamp" as const };
@@ -52,6 +55,16 @@ export const Titolo: React.FC<TitoloProps> = (T) => {
   let corpo: React.ReactNode = null;
 
   switch (T.stile) {
+    case "anima": { // animazioni di testo sul modello di animate.css: lettera per lettera, parola per parola o riga intera
+      const un = T.unita || "parole", passo = un === "lettere" ? 1.4 : un === "parole" ? 3.5 : 0;
+      let k = 0;
+      corpo = <div style={{ ...base, display: "flex", flexWrap: "wrap", gap: "0 0.25em", justifyContent: lato ? (T.posizione === "sx" ? "flex-start" : "flex-end") : "center" }}>
+        {un === "riga" ? <span style={animaStile(T.animazione || "dissolvi_su", f, 18)}>{parole.map((w, i) => <span key={i} style={{ color: col(w) }}>{w + (i < parole.length - 1 ? " " : "")}</span>)}</span>
+          : parole.map((w, i) => un === "parole"
+            ? <span key={i} style={{ ...animaStile(T.animazione || "dissolvi_su", f - (k++) * passo, 16), color: col(w) }}>{w}</span>
+            : <span key={i} style={{ display: "inline-block", color: col(w) }}>{w.split("").map((ch, j) => <span key={j} style={animaStile(T.animazione || "dissolvi_su", f - (k++) * passo, 14)}>{ch}</span>)}</span>)}
+      </div>; break;
+    }
     case "sale": // text-animate slideUp: parola per parola dal basso
       corpo = <div style={{ ...base, display: "flex", flexWrap: "wrap", gap: "0 0.25em", justifyContent: lato ? (T.posizione === "sx" ? "flex-start" : "flex-end") : "center" }}>
         {parole.map((w, i) => { const s = spring({ frame: f - i * 3, fps, config: { damping: 16, stiffness: 170 } });

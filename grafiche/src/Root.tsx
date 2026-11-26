@@ -8,6 +8,10 @@ import { Montaggio, MontaggioProps, caricaFont, font } from "./Montaggio";
 import { AbsoluteFill } from "remotion";
 import { Sottotitoli, SottotitoliProps } from "./montatore/sottotitoli";
 import { PresenzaClip, Transizione } from "./montatore/transizioni";
+import { Titolo, TitoloProps } from "./montatore/titoli";
+
+// anteprima di un titolo animato (per l'archivio Stili)
+const ProvaTitolo: React.FC<TitoloProps> = (p) => (<AbsoluteFill style={{ background: "linear-gradient(160deg,#3a4a5a,#1b2330)" }}><Titolo {...p} posizione="centro" font={font(p.font)} fontTesto={font(p.font)} /></AbsoluteFill>);
 
 // anteprima di una transizione: la clip A (arancio) esce, la B (blu) entra; il fotogramma 15 è a metà passaggio
 const Pannello2: React.FC<{ c: string; l: string }> = ({ c, l }) => (<AbsoluteFill style={{ background: c, alignItems: "center", justifyContent: "center", fontSize: 520, fontWeight: 900, color: "rgba(255,255,255,.9)", fontFamily: "Arial Black, Arial" }}>{l}</AbsoluteFill>);
@@ -88,6 +92,15 @@ export const Root: React.FC = () => (
     fps={30}
     durationInFrames={30}
     defaultProps={{ tipo: "tendina_sx" }}
+  />
+  <Composition
+    id="ProvaTitolo"
+    component={ProvaTitolo}
+    width={1080}
+    height={1920}
+    fps={30}
+    durationInFrames={60}
+    defaultProps={{ da: 0, a: 2, testo: "Panettone fatto a mano", stile: "anima", animazione: "rimbalzo_su", unita: "parole", accento: "#FFD60A", chiave: ["mano"] } as TitoloProps}
   />
   <Composition
     id="ProvaSottotitoli"

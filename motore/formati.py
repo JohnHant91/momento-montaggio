@@ -1047,7 +1047,7 @@ TRANSIZIONI_REMOTION = ["taglio", "dissolvenza", "zoom_blur", "whip_sx", "whip_d
                         "tendina_sx", "tendina_dx", "tendina_su", "tendina_giu", "spingi_sx", "spingi_dx", "spingi_giu", "copri_sx", "copri_dx", "copri_su", "copri_giu", "cerchio_chiudi", "rombo", "rettangolo", "apri_verticale", "apri_orizzontale", "diagonale_sx", "diagonale_dx", "strisce_orizzontali", "strisce_verticali", "radiale", "schiaccia_o", "schiaccia_v", "grigio", "cubo_sx", "cubo_dx", "ribalta", "caduta", "zoom_out", "persiana"]
 # nomi delle transizioni del vecchio montatore → nuove
 VECCHIE_TR = {"taglio_netto": "taglio", "whip_pan": "whip_dx", "zoom": "zoom_blur", "fadenero": "flash_nero", "flash": "flash_bianco"}
-STILI_TITOLO = ["blur", "sale", "rotazione", "numero", "evidenziatore", "macchina", "hyper", "scintille", "aurora", "impatto", "etichetta", "comic", "flip3d", "ombra"]
+STILI_TITOLO = ["anima", "blur", "sale", "rotazione", "numero", "evidenziatore", "macchina", "hyper", "scintille", "aurora", "impatto", "etichetta", "comic", "flip3d", "ombra"]
 STILI_SOTTOTITOLI = ["karaoke", "box", "pop", "grassetto", "minimal", "neon", "chiave", "contorno", "macchina", "mano"]
 
 
@@ -1359,7 +1359,7 @@ class MontatoreCompleto(TalkingHead):
             stile = x.get("stile") if x.get("stile") in STILI_TITOLO else "blur"
             ti = {"da": round(da, 3), "a": round(min(a, totale - 0.1), 3), "testo": str(x["testo"])[:80], "stile": stile, "posizione": pos,
                   "chiave": [w for w in str(x["testo"]).split() if norm(w) in evid] or x.get("evidenzia") or []}
-            for campo in ("sotto", "parole", "numero"):
+            for campo in ("sotto", "parole", "numero", "animazione", "unita", "font"):
                 if x.get(campo):
                     ti[campo] = x[campo]
             titoli.append(ti)

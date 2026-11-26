@@ -6,6 +6,7 @@ import * as S from './servizi.js';
 import * as A from './archivio.js';
 import { inviaPush } from './notifiche.js';
 import { PALETTE, descriviPalette } from './palette.js';
+import { ANIMAZIONI } from './animazioni.js';
 import { SKILL as SKILL_V } from './skill_testi.js';
 import { clientePerNome, lineaCliente, testoLinea, ripassoChiara } from './chiara.js';
 import { rilevaStile, ricetta, ricercaStile } from './stili.js';
@@ -483,7 +484,7 @@ const TRANSIZIONI = ['taglio_netto', 'dissolvenza', 'flash_bianco', 'whip_pan', 
   'tendina_sx', 'tendina_dx', 'tendina_su', 'tendina_giu', 'spingi_sx', 'spingi_dx', 'spingi_giu', 'copri_sx', 'copri_dx', 'copri_su', 'copri_giu', 'cerchio_chiudi', 'rombo', 'rettangolo', 'apri_verticale', 'apri_orizzontale', 'diagonale_sx', 'diagonale_dx', 'strisce_orizzontali', 'strisce_verticali', 'radiale', 'schiaccia_o', 'schiaccia_v', 'grigio', 'cubo_sx', 'cubo_dx', 'ribalta', 'caduta', 'zoom_out', 'persiana'];
 // famiglie: lo stile che permette "whip_pan" permette anche whip_sx/dx/su, e così via
 const FAMIGLIA_TR = { tendina_sx: 'slide', tendina_dx: 'slide', tendina_su: 'slide', tendina_giu: 'slide', spingi_sx: 'slide', spingi_dx: 'slide', spingi_giu: 'slide', copri_sx: 'slide', copri_dx: 'slide', copri_su: 'slide', copri_giu: 'slide', cerchio_chiudi: 'dissolvenza', rombo: 'dissolvenza', rettangolo: 'dissolvenza', apri_verticale: 'dissolvenza', apri_orizzontale: 'dissolvenza', diagonale_sx: 'dissolvenza', diagonale_dx: 'dissolvenza', strisce_orizzontali: 'slide', strisce_verticali: 'slide', radiale: 'dissolvenza', schiaccia_o: 'zoom', schiaccia_v: 'zoom', grigio: 'dissolvenza', cubo_sx: 'zoom', cubo_dx: 'zoom', ribalta: 'zoom', caduta: 'zoom', zoom_out: 'zoom', persiana: 'slide', whip_sx: 'whip_pan', whip_dx: 'whip_pan', whip_su: 'whip_pan', zoom_blur: 'zoom', zoom_in: 'zoom', spin: 'zoom', rgb_split: 'glitch', light_leak: 'dissolvenza', sfocatura: 'dissolvenza', iris: 'dissolvenza', scorri_su: 'slide', flash_nero: 'fadenero' };
-const STILI_TITOLO = ['blur', 'sale', 'rotazione', 'numero', 'evidenziatore', 'macchina', 'hyper', 'scintille', 'aurora', 'impatto', 'etichetta', 'comic', 'flip3d', 'ombra'];
+const STILI_TITOLO = ['anima', 'blur', 'sale', 'rotazione', 'numero', 'evidenziatore', 'macchina', 'hyper', 'scintille', 'aurora', 'impatto', 'etichetta', 'comic', 'flip3d', 'ombra'];
 const STILI_SOTT = ['karaoke', 'box', 'pop', 'grassetto', 'minimal', 'neon', 'chiave', 'contorno', 'macchina', 'mano'];
 const FONT_REEL = ['montserrat', 'inter', 'bebas', 'playfair', 'pacifico'];
 const EFFETTI_PEZZO = ['dolly_in', 'slider_dx', 'slider_sx', 'punch_in', 'zoom_lento', 'zoom_out', 'shake', 'nessuno'];
@@ -532,7 +533,7 @@ VALORI AMMESSI
 - stile testi: titolo_grande_centrale, etichetta_box, sottotitolo_classico; posizione: alto, centro, terzo_inferiore
 - REGOLA FERREA DI JOHNNY: nei titoli e nei testi usa SOLO informazioni che Johnny ha scritto nella richiesta o che si sentono nel girato. Mai inventare numeri, tempi (es. "48 ore di lievitazione"), prezzi, ingredienti, premi o promesse: se non hai informazioni, titoli di atmosfera col nome del prodotto o del cliente, oppure nessun titolo.
 - REGOLA DEL GIRATO: mai pezzi mossi, con scatti di camera o problemi; scegli il tratto fermo della clip o un'altra ripresa dello stesso momento.
-- MONTATORE (formato montaggio): "titoli" in motion graphics, stile ${STILI_TITOLO.join(', ')}; posizione alto (sopra la testa), sx / dx (ai lati del viso), basso, centro (SOLO su clip senza persone: la faccia deve restare sempre libera); sottotitoli.stile: ${STILI_SOTT.join(', ')}; font_reel: {titoli, testo} con il NOME di qualsiasi Google Font (es. Anton, Archivo Black, Oswald, Poppins, Space Grotesk, DM Serif Display, Caveat, Permanent Marker; i nostri di casa: ${FONT_REEL.join(', ')}); look_reel.particelle: neve, polvere, coriandoli, bokeh (es. neve per lo spot di Natale)
+- MONTATORE (formato montaggio): "titoli" in motion graphics, stile ${STILI_TITOLO.join(', ')} (con stile "anima" scegli anche "animazione" tra: ${Object.entries(ANIMAZIONI).map(([k, v]) => k + ' = ' + v[1]).join('; ')} e "unita": lettere|parole|riga; ogni titolo può avere un suo "font" Google); posizione alto (sopra la testa), sx / dx (ai lati del viso), basso, centro (SOLO su clip senza persone: la faccia deve restare sempre libera); sottotitoli.stile: ${STILI_SOTT.join(', ')}; font_reel: {titoli, testo} con il NOME di qualsiasi Google Font (es. Anton, Archivo Black, Oswald, Poppins, Space Grotesk, DM Serif Display, Caveat, Permanent Marker; i nostri di casa: ${FONT_REEL.join(', ')}); look_reel.particelle: neve, polvere, coriandoli, bokeh (es. neve per lo spot di Natale)
 - formato: montaggio, talking_head, carosello, split_grafico, parole_dietro (vedi FORMATI DEL MONTATORE)
 - adesivi (solo parole_dietro): ${ADESIVI.join(', ')}
 - grafiche (solo split_grafico): ${TIPI_GRAFICA.join(', ')}; effetti delle grafiche: ${EFFETTI_SPLIT.join(', ')}; font_split.titoli: ${FONT_SPLIT.titoli.join(', ')}; testo: ${FONT_SPLIT.testo.join(', ')}; mono: ${FONT_SPLIT.mono.join(', ')}
@@ -817,7 +818,9 @@ almeno metà dei pezzi da clip diverse o da momenti diversi delle stesse clip (l
     testo: String(x.testo).slice(0, 80), da: Math.max(0, Number(x.da) || 0), a: Math.max(Number(x.a) || 0, (Number(x.da) || 0) + 1.2),
     stile: STILI_TITOLO.includes(x.stile) ? x.stile : 'blur', posizione: ['alto', 'basso', 'sx', 'dx', 'centro'].includes(x.posizione) ? x.posizione : 'alto',
     sotto: x.sotto ? String(x.sotto).slice(0, 50) : undefined, parole: Array.isArray(x.parole) ? x.parole.slice(0, 6).map((w) => String(w).slice(0, 24)) : undefined,
-    numero: x.numero && Number.isFinite(Number(x.numero.valore)) ? { valore: Number(x.numero.valore), prima: String(x.numero.prima || '').slice(0, 4), dopo: String(x.numero.dopo || '').slice(0, 10), decimali: Number(x.numero.decimali) || 0 } : undefined }));
+    numero: x.numero && Number.isFinite(Number(x.numero.valore)) ? { valore: Number(x.numero.valore), prima: String(x.numero.prima || '').slice(0, 4), dopo: String(x.numero.dopo || '').slice(0, 10), decimali: Number(x.numero.decimali) || 0 } : undefined,
+    animazione: ANIMAZIONI[x.animazione] ? x.animazione : undefined, unita: ['lettere', 'parole', 'riga'].includes(x.unita) ? x.unita : undefined,
+    font: typeof x.font === 'string' && /^[A-Za-z0-9 ]{2,40}$/.test(x.font) ? x.font : undefined }));
   // REGOLA DI JOHNNY: nei video niente informazioni inventate. Un titolo con un numero (ore, prezzi, quantità, anni…)
   // resta solo se quel numero l'ha scritto Johnny nella richiesta o si sente nel girato; il resto lo rilegge il correttore.
   const fonteFatti = (L.prompt + ' ' + clip.flatMap((c) => (c.trascrizione || []).map((x) => (typeof x === 'string' ? x : x.testo || x.t || ''))).join(' ')).toLowerCase();
