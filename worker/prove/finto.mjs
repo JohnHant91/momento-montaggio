@@ -73,7 +73,7 @@ function rispostaClaude(body) {
   if (sys.includes('Valuti foto')) return { foto: [{ nome: 'a.jpg', descrizione: 'tazzina', qualita: 9, spazio_testo: 'alto', uso: 'copertina' }, { nome: 'b.jpg', descrizione: 'mosso', qualita: 3, uso: 'scarta' }] };
   if (sys.startsWith('Sei Pietro (caroselli e grafiche) con Giulia')) return { stile: { palette: ['#1a1a1a', '#e9d9bc', '#0e9f9a'], font_titoli: 'Inter Bold', font_testo: 'Inter', mood: 'caldo', regole: 'foto piene' },
     post: [1, 2, 3, 4].map((n) => ({ titolo: 'Carosello ' + n, tipo: 'carosello', obiettivo: 'salvataggi', slide: [{ n: 1, ruolo: 'copertina', titolo: 'Gancio ' + n, testo: '', foto: 'a.jpg', layout: 'testo in alto' }, { n: 2, ruolo: 'cta', titolo: 'Salva', testo: 'seguici', foto: null, layout: 'centrato' }], caption: 'Caption ' + n, hashtag: ['caffe', 'salerno'], alt: 'foto' })) };
-  if (sys.includes('RIUNIONE PREVENTIVA')) return {
+  if (sys.includes('UN piano eseguibile subito')) return ((o) => (msg.includes('RICHIESTA DI JOHNNY: Reel e copioni') ? { ...o, proposte: [...o.proposte].reverse() } : o))({
     titolo: 'Post di dicembre per Villetta Prova',
     verbale: [{ chi: 'capo', testo: 'Apro la riunione.' }, { chi: 'stratega', testo: 'Serve la strategia.' }, { chi: 'calendario', testo: 'Calendario pronto in un giorno.' }, { chi: 'capo', testo: 'Chiudo.' }],
     proposte: [
@@ -83,7 +83,7 @@ function rispostaClaude(body) {
         piano: { cliente_id: null, nuovo_cliente: null, incarichi: [{ agente: 'copywriter', titolo: 'post', brief: 'b', dopo: null }], reel: { prompt: 'reel romantico', pcloud: null }, copioni: { argomenti: ['camere', 'colazione'], numero: 4, mesi: 1 } } },
     ],
     consigliata: 0, messaggio: 'Riunione finita, vi consiglio la prima.',
-  };
+  });
   if (sys.includes('RIUNIONE OPERATIVA SETTIMANALE')) return {
     titolo: 'Riunione operativa settimana 47', sintesi: 'Settimana tranquilla.', numeri: [{ etichetta: 'Incarichi fatti', valore: '3' }],
     reparti: [{ ufficio: 'Social', capo: 'Rita', fatto: '6 post', problemi: 'nessuno', prossima_settimana: 'calendario' }],

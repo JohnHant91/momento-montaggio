@@ -39,8 +39,22 @@ const squadraTesto = () => CAPI.map(([u, id, n, r]) => {
 }).join('\n');
 
 // ------------------------------------------------------------------ la richiesta di Johnny arriva alla Direttrice
+// inizio della settimana (lunedì 00:00, ora di Roma) in ISO UTC
+function inizioSettimana() {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' }).formatToParts(new Date()).map((x) => [x.type, x.value]));
+  const dow = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(p.weekday);
+  const d = new Date(Date.UTC(+p.year, +p.month - 1, +p.day - dow, 0, 0) - 2 * 3600e3); // margine sul fuso (CET/CEST)
+  return d.toISOString();
+}
+// la riunione operativa (report) si fa UNA volta a settimana: al primo comando di creazione contenuti della settimana
+async function settimanaleSeServe(env) {
+  const u = await one(env, "SELECT id FROM riunioni WHERE tipo='settimanale' AND creato >= ? LIMIT 1", inizioSettimana());
+  if (!u) await convocaSettimanale(env);
+}
+
 export async function chiediDirettrice(env, testo, clienteId) {
   await run(env, 'INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)', 'capo', 'user', testo, ora());
+  await settimanaleSeServe(env);
   // contenuti per il profilo personale di Johnny: niente riunione preventiva, parte subito tutta la catena del Profilo IG
   const prof = richiestaProfilo(testo);
   if (prof && !prof.argomento) {
@@ -68,9 +82,9 @@ export async function chiediDirettrice(env, testo, clienteId) {
   }
   const r = await one(env, `INSERT INTO riunioni (tipo, stato, richiesta, cliente_id, partecipanti, titolo, creato, aggiornato) VALUES ('richiesta','in_corso',?,?,?,?,?,?) RETURNING id`,
     testo, clienteId || null, JSON.stringify(PER_RICHIESTA), testo.split('\n')[0].slice(0, 80), ora(), ora());
-  const risposta = 'Ricevuto. Convoco subito i capireparto in sala meeting: tra qualche minuto ti porto le proposte e scegli tu come procedere.';
+  const risposta = 'Ricevuto. Passo subito il lavoro ai reparti: ti arriva da approvare quando è pronto.';
   await run(env, 'INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)', 'capo', 'assistant', risposta, ora());
-  await log(env, null, 'capo', `🗣️ riunione #${r.id} in sala meeting: ${testo.slice(0, 80)}`);
+  await log(env, null, 'capo', `📨 richiesta #${r.id} ai reparti: ${testo.slice(0, 80)}`);
   return { risposta, riunione: r.id, incarichi: [] };
 }
 
@@ -78,9 +92,9 @@ async function svolgiRichiesta(env, cfg, R) {
   const clienti = await all(env, 'SELECT id, nome, nicchia, (scheda IS NOT NULL) AS ha_scheda FROM clienti ORDER BY nome');
   const C = R.cliente_id ? await cliente(env, R.cliente_id) : null;
   const precedente = J(R.esito, {})?.rifai_da;
-  const out = await S.claude(cfg, `Sei il verbale vivo della RIUNIONE PREVENTIVA dei capireparto di AGENZIA MOMENTO AI (Momento Produzione: video, foto, social, siti ed e-commerce per clienti di ogni nicchia).
-Johnny (il titolare) ha fatto una richiesta alla Direttrice. Prima di far partire qualsiasi lavoro, i capireparto si riuniscono e preparano 2 o 3 PROPOSTE davvero diverse
-(per esempio: essenziale e veloce / completa / più ambiziosa, oppure strade creative diverse). Johnny sceglierà.
+  const out = await S.claude(cfg, `Sei Alba, Direttrice di AGENZIA MOMENTO AI (Momento Produzione: video, foto, social, siti ed e-commerce).
+Johnny (il titolare) ti ha dato un comando. Niente riunione e niente proposte alternative: trasformi il comando in UN piano eseguibile subito dai reparti.
+Johnny approva solo il risultato finale. Sii essenziale: solo gli incarichi necessari, brief brevi e completi.
 
 CAPIREPARTO PRESENTI E I LORO UFFICI:
 ${squadraTesto()}
@@ -89,22 +103,20 @@ STILI DI VIDEO CHE IL COMPARTO REEL SA MONTARE (nel "prompt" del reel scrivi il 
 Per un "Talking head educativo con grafiche" la proposta include: copione di Nora (gancio, 3 punti numerati, limiti, CTA), set da preparare (luci colorate, scrivania, tazza col logo), elenco di screenshot/foto da caricare con il girato; Johnny gira, il comparto Reel monta.
 
 REGOLE
-- La discussione è concreta e breve: ogni capo parla solo per il suo reparto, dice cosa serve, rischi, tempi. Niente frasi di circostanza.
-- Le proposte devono essere fattibili con gli agenti che esistono. Per ogni proposta scrivi anche il "piano" esatto da eseguire se Johnny la sceglie.
-- Se mancano informazioni importanti, dillo nella proposta (campo "domande"), non inventare dati del cliente.
+- Il piano deve essere fattibile con gli agenti che esistono. Attiva SOLO i reparti che servono al comando.
+- Se mancano informazioni, scegli tu la soluzione più ragionevole e scrivila in "domande"; non inventare dati del cliente.
 - Se il cliente non ha la scheda, il primo incarico del piano è a "brand" e gli altri che ne hanno bisogno lo aspettano ("dopo").
 - Gestionale e contabilità (Gino, Dora) li attivi solo se la richiesta lo riguarda: in quel caso nel piano scrivi cosa fare in "note_gestionale".`,
   `OGGI: ${new Date().toISOString().slice(0, 10)}
 CLIENTI DELL'AGENZIA: ${clienti.map((c) => `#${c.id} ${c.nome}${c.nicchia ? ' (' + c.nicchia + ')' : ''}${c.ha_scheda ? '' : ' [senza scheda]'}`).join('; ') || 'nessuno'}
 ${C ? `CLIENTE SELEZIONATO DA JOHNNY: #${C.id} ${C.nome}\n${(C.scheda || '').slice(0, 3000)}` : ''}
-${precedente ? `\nPROPOSTE DELLA RIUNIONE PRECEDENTE (Johnny le ha rimandate indietro):\n${precedente}` : ''}
+${precedente ? `\nPIANO PRECEDENTE (Johnny l'ha rimandato indietro):\n${precedente}` : ''}
 
 RICHIESTA DI JOHNNY: ${R.richiesta}
 
 Rispondi SOLO JSON:
-{"titolo": "titolo breve della riunione",
- "verbale": [{"chi": "id del capo (${PER_RICHIESTA.join(', ')})", "testo": "intervento di 1-3 frasi"}],
- "proposte": [{"titolo": "...", "sintesi": "2-3 frasi", "passi": ["cosa fa ogni reparto, in ordine"], "reparti": ["marketing", "social", ...], "tempi": "es. 2 giorni", "pro": "...", "contro": "...", "domande": ["..."],
+{"titolo": "titolo breve del lavoro",
+ "proposte": [{"titolo": "...", "sintesi": "1-2 frasi", "reparti": ["social", ...], "domande": ["..."],
    "piano": {"cliente_id": numero o null, "nuovo_cliente": {"nome": "...", "nicchia": "..."} o null,
      "incarichi": [{"agente": "uno di: ${DELEGABILI.join(', ')}", "titolo": "...", "brief": "brief completo e autonomo", "dopo": null}],
      "reel": {"prompt": "descrizione completa del reel", "pcloud": "link o null"} o null,
@@ -112,17 +124,16 @@ Rispondi SOLO JSON:
      "post": {"tipo": "carosello | post | misto", "numero": 3, "slide": 7, "brief": "di cosa parlano e per chi", "pcloud": "link della cartella foto o null"} o null (comparto Post e caroselli: Ines e Tea cercano i virali della nicchia, Iris li studia, Ada sceglie le foto, Pietro e Giulia scrivono, Johnny approva, si impaginano su Canva),
      "avatar": {"argomento": "...", "numero": 5, "note": "..."} o null (SOLO per i reel del PROFILO PERSONALE di Johnny fatti col suo avatar HeyGen: Sofia ricerca, Zoe studia i virali, Nora scrive i copioni, Ava genera, il comparto Reel monta),
      "note_gestionale": null}}],
- "consigliata": indice della proposta che la riunione consiglia,
- "messaggio": "messaggio di Alba a Johnny: com'è andata la riunione e cosa consiglia, in 2-3 frasi"}
-Il verbale ha 6-12 interventi; parlano solo i capi presenti; Alba apre e chiude.`, { maxTokens: 14000 });
-  const proposte = (out.proposte || []).slice(0, 3);
-  if (!proposte.length) throw new Error('la riunione non ha prodotto proposte');
-  const fine = new Date(Math.max(Date.now() + 30e3, new Date(R.creato).getTime() + DURATA_VISIVA)).toISOString();
+ "messaggio": "1 frase di Alba a Johnny: cosa parte"}
+"proposte" contiene UNA sola proposta.`, { maxTokens: 5000 });
+  const proposte = (out.proposte || []).slice(0, 1);
+  if (!proposte.length) throw new Error('nessun piano prodotto');
+  const fine = ora(); // niente sala meeting
   await run(env, `UPDATE riunioni SET stato='proposte', titolo=?, verbale=?, proposte=?, consigliata=?, messaggio=?, errore=NULL, blocco_fino=NULL, fine_visiva=?, aggiornato=? WHERE id=?`,
-    String(out.titolo || R.titolo).slice(0, 120), JSON.stringify(out.verbale || []), JSON.stringify(proposte), Number(out.consigliata) || 0, String(out.messaggio || ''), fine, ora(), R.id);
-  await run(env, 'INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)', 'capo', 'assistant',
-    `${out.messaggio || 'Riunione finita.'} Le proposte sono qui: #/riunione/${R.id}`, ora());
-  await log(env, null, 'capo', `📋 riunione #${R.id} finita: ${proposte.length} proposte da scegliere`);
+    String(out.titolo || R.titolo).slice(0, 120), '[]', JSON.stringify(proposte), 0, String(out.messaggio || ''), fine, ora(), R.id);
+  // parte subito: Johnny approva solo il risultato
+  await scegli(env, await one(env, 'SELECT * FROM riunioni WHERE id=?', R.id), 0, null);
+  await log(env, null, 'capo', `🚀 richiesta #${R.id}: piano eseguito (${proposte[0].titolo || ''})`);
 }
 
 // ------------------------------------------------------------------ riunione operativa settimanale
@@ -163,7 +174,7 @@ Rispondi SOLO JSON:
  "decisioni": ["..."], "priorita": ["le 3-5 priorità della settimana"], "per_johnny": ["cosa serve da Johnny: approvazioni, materiali, decisioni"],
  "verbale": [{"chi": "id del capo (${SETTIMANALE.join(', ')})", "testo": "intervento di 1-3 frasi"}],
  "messaggio": "messaggio di Alba a Johnny in 2 frasi"}`, { maxTokens: 10000 });
-  const fine = new Date(Math.max(Date.now() + 30e3, new Date(R.creato).getTime() + DURATA_VISIVA)).toISOString();
+  const fine = ora(); // niente sala meeting
   await run(env, `UPDATE riunioni SET stato='report', titolo=?, verbale=?, report=?, messaggio=?, errore=NULL, blocco_fino=NULL, fine_visiva=?, aggiornato=? WHERE id=?`,
     String(out.titolo || 'Riunione operativa settimanale').slice(0, 120), JSON.stringify(out.verbale || []), JSON.stringify({ ...out, verbale: undefined, dati: N }), String(out.messaggio || ''), fine, ora(), R.id);
   await run(env, 'INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)', 'capo', 'assistant', `${out.messaggio || 'Riunione operativa finita.'} Il report è qui: #/riunione/${R.id}`, ora());
@@ -179,19 +190,10 @@ export async function convocaSettimanale(env, manuale = false) {
   return r.id;
 }
 
-function oraRoma() {
-  const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Rome', weekday: 'short', hour: '2-digit', hour12: false }).formatToParts(new Date()).map((x) => [x.type, x.value]));
-  return { giorno: p.weekday, ora: Number(p.hour) };
-}
 
-// cron: ogni lunedì dalle 9 la riunione operativa; poi svolge le riunioni aperte
+// cron: svolge le riunioni aperte (la settimanale la apre il primo comando della settimana)
 export async function avanzaRiunioni(env) {
   await schemaRiunioni(env);
-  const { giorno, ora: h } = oraRoma();
-  if (giorno === 'Mon' && h >= 9) {
-    const ultima = await one(env, "SELECT creato FROM riunioni WHERE tipo='settimanale' ORDER BY id DESC LIMIT 1");
-    if (!ultima || Date.now() - new Date(ultima.creato).getTime() > 6 * 864e5) await convocaSettimanale(env);
-  }
   const adesso = ora();
   const aperte = await all(env, "SELECT * FROM riunioni WHERE stato='in_corso' AND (blocco_fino IS NULL OR blocco_fino < ?) ORDER BY id LIMIT 2", adesso);
   if (!aperte.length) return;

@@ -960,6 +960,9 @@ function chiudiLato() { const l = $('#lato'); if (l) l.classList.remove('aperto'
 
 async function apriLato(a) {
   const A = AGENTI[a], R = SALA.dati, I = SALA.info;
+  // l'aggiornamento periodico della sala ridisegna il pannello: il testo che Johnny sta scrivendo non deve sparire
+  const vecchio = $('#lato_t'), bozza = vecchio && SALA.selPrima === a ? { v: vecchio.value, f: document.activeElement === vecchio, i: vecchio.selectionStart, j: vecchio.selectionEnd, r: $('#lato_r') ? $('#lato_r').innerHTML : '' } : null;
+  SALA.selPrima = a;
   const s = I.st[a];
   const testoStato = { lavora: 'al lavoro', coda: 'parte a breve', errore: 'bloccato' }[s] || 'libero';
   const miei = R.feed.filter((r) => AGID(r.agente) === a).slice(0, 8);
@@ -967,7 +970,7 @@ async function apriLato(a) {
     '<div class="ora"><b>Adesso</b>' + (I.ultimo[a] ? 'Ultima cosa fatta: ' + e(I.ultimo[a].messaggio) + ' <span class="mut">(' + fa(I.ultimo[a].quando) + ')</span>' : 'Libero, aspetta un lavoro.') + '</div>';
   // Johnny parla solo con la Direttrice: a chiunque scriva, il messaggio arriva ad Alba che convoca la riunione
   const azione = a === 'capo' ? '<a class="btn" href="#/riunioni">Riunioni e proposte</a>' : A.chat ? '<a class="btn" href="#/chat/' + a + '">Scrivi a ' + e(A.n) + '</a>' : R.squadra[a] ? '<a class="btn sec" href="#/agente/' + a + '">I suoi lavori</a>' : a === 'idee' ? '<a class="btn sec" href="#/copioni">I suoi piani</a>' : '<a class="btn sec" href="#/reel">Comparto Reel</a>';
-  const via = a === 'capo' || A.chat ? '' : '<div class="mut" style="font-size:13px;margin-bottom:6px">Il messaggio arriva ad Alba: i capireparto ne parlano in riunione e ti portano le proposte.</div>';
+  const via = a === 'capo' || A.chat ? '' : '<div class="mut" style="font-size:13px;margin-bottom:6px">Il messaggio arriva ad Alba, che lo passa subito al reparto giusto.</div>';
   $('#lato').style.setProperty('--c', A.c || '#888');
   $('#lato').innerHTML = '<button class="sec x" id="lato_x">✕</button><div class="riga"><div class="faccia">' + A.i + '</div><div><h1 style="font-size:21px">' + e(A.n) + '</h1><div class="mut">' + e(A.r) + ' · <b style="color:' + (s === 'lavora' ? 'var(--ok)' : s === 'errore' ? 'var(--err)' : 'var(--mut)') + '">' + testoStato + '</b></div></div></div>' +
     ora + '<p style="font-size:14px;line-height:1.5;color:#4d4b46">' + e(A.d || '') + '</p>' +
@@ -976,6 +979,7 @@ async function apriLato(a) {
     '<div class="scrivi"><h2>' + (a === 'capo' || A.chat ? 'Scrivi a ' + e(A.n) : 'Chiedi qualcosa a ' + e(A.n)) + '</h2>' + via + '<textarea id="lato_t" placeholder="Cosa deve fare? Es. ' + (A.chat ? 'segnami uno shooting il 12' : 'prepara 3 idee per il weekend') + '"></textarea><div class="riga"><button id="lato_go">Manda</button><span class="mut" id="lato_r"></span></div></div>' +
     (miei.length ? '<h2>Ultime attività</h2><div class="log" style="max-height:none">' + miei.map((r) => '<div class="' + r.livello + '"><span class="mut">' + new Date(r.quando).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) + '</span> ' + e(r.messaggio) + '</div>').join('') + '</div>' : '');
   $('#lato').classList.add('aperto');
+  if (bozza) { const t = $('#lato_t'); t.value = bozza.v; if ($('#lato_r')) $('#lato_r').innerHTML = bozza.r; if (bozza.f) { t.focus(); try { t.setSelectionRange(bozza.i, bozza.j); } catch (x) {} } }
   $('#lato_x').onclick = () => { chiudiLato(); SALA.sel = null; if (SALA.ufficio) entraUfficio(SALA.ufficio); else grandangolo(); };
   $('#lato_go').onclick = async () => {
     const testo = $('#lato_t').value.trim(); if (!testo) return;
@@ -1179,7 +1183,7 @@ async function profiloDettaglio(id) {
   const copioni = A.copioni.map((c) => '<div class="card"><div class="riga"><b style="flex:1">' + c.n + '. ' + e(c.titolo || '') + '</b><span class="pill">' + (c.parole || 0) + ' parole</span>' +
     (A.stato === 'da_approvare' && c.stato === 'da_approvare' ? '<label style="display:flex;gap:6px;font-weight:400"><input type="checkbox" class="av_ok" data-n="' + c.n + '" checked style="width:auto"> approva</label>' : '<span class="pill ' + (c.stato === 'approvato' ? 'pronto' : '') + '">' + e(c.stato) + '</span>') + '</div>' +
     '<p class="mut" style="margin:6px 0">' + e(c.angolo || '') + '</p>' +
-    (A.stato === 'da_approvare' && c.stato === 'da_approvare' ? '<textarea class="av_t" data-n="' + c.n + '" style="min-height:160px">' + e(c.testo || '') + '</textarea>' : '<div style="white-space:pre-wrap">' + e(c.testo || '') + '</div>') +
+    (A.stato === 'da_approvare' && c.stato === 'da_approvare' ? '<textarea class="av_t" data-n="' + c.n + '" style="min-height:160px">' + e(c.testo || '') + '</textarea>' + '<div class="riga" style="gap:8px;margin-top:6px"><input class="av_nota" data-n="' + c.n + '" placeholder="Dì a Nora cosa cambiare: es. aggiungi i costi, togli la parte sul tempo" style="flex:1"><button class="sec av_nora" data-n="' + c.n + '" style="width:auto">✍️ Nora, riscrivilo</button></div>' : '<div style="white-space:pre-wrap">' + e(c.testo || '') + '</div>') +
     '<p class="mut"><b>Cartelli:</b> ' + (c.cartelli || []).map((k) => e(k.testo) + (k.stile === 'barrato' ? ' (barrato)' : '')).join(' · ') + '</p>' +
     '<p class="mut"><b>Caption:</b> ' + e(c.caption || '') + ' ' + e((c.hashtag || []).join(' ')) + '</p>' +
     (vid(c.n) ? '<p>🎭 Avatar: ' + e(vid(c.n).stato) + (vid(c.n).url ? ' · <a href="' + e(vid(c.n).url) + '" target="_blank" rel="noopener">video grezzo</a>' : '') + '</p>' : '') +
@@ -1199,6 +1203,11 @@ async function profiloDettaglio(id) {
     (R ? '<h2>Ricerca di Sofia</h2><div class="card"><p>' + e(R.sintesi || '') + '</p><b>Fatti verificati</b><ul>' + lista(R.fatti) + '</ul><b>Numeri</b><ul>' + lista(R.numeri) + '</ul><b>Errori comuni</b><ul>' + lista(R.errori_comuni) + '</ul><b>Domande della gente</b><ul>' + lista(R.domande_della_gente) + '</ul></div>' : '') +
     (V ? '<h2>Video virali studiati da Zoe</h2><div class="card"><b>Ganci che funzionano</b><ul>' + lista(V.ganci_che_funzionano) + '</ul><b>Angoli scoperti</b><ul>' + lista(V.angoli_scoperti) + '</ul><b>Da evitare</b><ul>' + lista(V.da_evitare) + '</ul><b>I video</b><ul>' + (V.video || []).map((v) => '<li><a href="' + e(v.url) + '" target="_blank" rel="noopener">' + e((v.titolo || v.url).slice(0, 90)) + '</a> <span class="mut">' + e(v.piattaforma || '') + (v.views ? ' · ' + Number(v.views).toLocaleString('it-IT') + ' views' : '') + '</span></li>').join('') + '</ul></div>' : '') +
     '<div class="riga" style="margin-top:14px"><button class="sec" id="av_del">Elimina</button></div>';
+  document.querySelectorAll('.av_nora').forEach((b) => b.onclick = async () => {
+    const nota = document.querySelector('.av_nota[data-n="' + b.dataset.n + '"]').value.trim(); if (!nota) return;
+    b.disabled = true; b.textContent = 'Nora sta riscrivendo…';
+    try { await chiama('/api/avatar/' + id + '/nora', { method: 'POST', body: { n: Number(b.dataset.n), nota } }); rotta(); } catch (x) { b.disabled = false; b.textContent = '✍️ Nora, riscrivilo'; alert(x.message); }
+  });
   if ($('#av_ok')) $('#av_ok').onclick = async () => {
     const n = [...document.querySelectorAll('.av_ok')].filter((x) => x.checked).map((x) => Number(x.dataset.n));
     const modifiche = {}; document.querySelectorAll('.av_t').forEach((x) => { const c = A.copioni.find((k) => k.n === Number(x.dataset.n)); if (c && x.value !== c.testo) modifiche[c.n] = x.value; });

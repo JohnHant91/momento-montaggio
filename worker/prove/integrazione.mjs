@@ -32,21 +32,20 @@ console.log('\n2) agenzia e sala');
 r = await chiama('/api/azienda'); ok(r.status === 200 && r.j.squadra?.capo?.r?.includes('Direttrice'), 'Alba è la Direttrice');
 r = await chiama('/api/riunioni'); ok(r.status === 200 && Array.isArray(r.j), 'elenco riunioni vuoto ok');
 
-console.log('\n3) richiesta → riunione in sala meeting');
+console.log('\n3) richiesta → piano eseguito subito (niente riunione preventiva)');
 r = await chiama('/api/capo', { method: 'POST', body: { testo: '6 post di dicembre per Villetta Prova, romantici' } });
-ok(r.status === 200 && r.j.riunione, 'la richiesta apre una riunione (#' + r.j.riunione + ')');
+ok(r.status === 200 && r.j.riunione, 'la richiesta apre un lavoro (#' + r.j.riunione + ')');
 const rid = r.j.riunione;
-r = await chiama('/api/incarichi'); ok(r.j.length === 0, 'nessun incarico parte prima della scelta');
-r = await chiama('/api/riunioni'); ok(r.j[0]?.in_sala && r.j[0].partecipanti.length === 7, 'i 7 capireparto sono in sala');
+r = await chiama('/api/riunioni'); ok(r.j.some((x) => x.tipo === 'settimanale'), 'primo comando della settimana: parte la riunione operativa (report)');
+await chiama('/api/capo', { method: 'POST', body: { testo: 'Ciao Alba' } });
+r = await chiama('/api/riunioni'); ok(r.j.filter((x) => x.tipo === 'settimanale').length === 1, 'la riunione operativa si fa una sola volta a settimana');
+env.DB._db.prepare("UPDATE riunioni SET stato='report' WHERE tipo='settimanale'").run();
+env.DB._db.prepare("DELETE FROM riunioni WHERE richiesta='Ciao Alba'").run();
 await cron();
-r = await chiama('/api/riunioni/' + rid); ok(r.j.stato === 'proposte' && r.j.proposte.length === 2 && r.j.verbale.length >= 4, 'dopo la riunione: proposte e verbale');
-ok(r.j.nomi?.regista?.startsWith('Rocco'), 'i nomi dei capi arrivano alla pagina');
-r = await chiama('/api/chat/capo'); ok(r.j.some((c) => c.testo.includes('#/riunione/' + rid)), 'Alba scrive in chat con il link alle proposte');
-r = await chiama('/api/riunioni/' + rid + '/scegli', { method: 'POST', body: { indice: 0 } });
-ok(r.status === 200 && r.j.incarichi.length === 3, 'scelta la prima: partono 3 incarichi (agente inesistente scartato)');
+r = await chiama('/api/riunioni/' + rid); ok(r.j.stato === 'decisa' && r.j.proposte.length === 1, 'un solo piano, eseguito senza aspettare la scelta');
 const inc = (await chiama('/api/incarichi')).j;
+ok(inc.length === 3, 'partono 3 incarichi (agente inesistente scartato)');
 ok(inc.every((i) => i.cliente) , 'il nuovo cliente è stato creato e collegato');
-r = await chiama('/api/riunioni/' + rid + '/scegli', { method: 'POST', body: { indice: 1 } }); ok(r.status === 400, 'non si può scegliere due volte');
 const dip = env.DB._db.prepare('SELECT id, agente, dipende_da, stato FROM incarichi ORDER BY id').all();
 ok(dip[1].dipende_da === dip[0].id && dip[2].dipende_da === dip[0].id, 'copy e caroselli aspettano la scheda del brand');
 
@@ -64,22 +63,16 @@ const c1 = r.j[0];
 r = await chiama('/api/contenuti/' + c1.id, { method: 'POST', body: { azione: 'approva' } }); ok(r.status === 200, 'approvo un contenuto');
 ok(env.DB._db.prepare('SELECT stato FROM contenuti WHERE id=?').get(c1.id).stato === 'programmato', 'approvato con data → programmato');
 
-console.log('\n5) proposta con modifiche e rifacimento');
+console.log('\n5) altre richieste: partono da sole');
 r = await chiama('/api/capo', { method: 'POST', body: { testo: 'Altra richiesta di prova' } }); const rid2 = r.j.riunione;
 await cron();
-r = await chiama('/api/riunioni/' + rid2 + '/rifai', { method: 'POST', body: { nota: 'più ironiche' } }); ok(r.status === 200 && r.j.id, 'rifai riunione');
-const rid3 = r.j.id;
-ok((await chiama('/api/riunioni/' + rid2)).j.stato === 'chiusa', 'la vecchia riunione è chiusa');
-await cron();
-r = await chiama('/api/riunioni/' + rid3); ok(r.j.stato === 'proposte', 'la nuova riunione ha le proposte');
-r = await chiama('/api/riunioni/' + rid3 + '/scegli', { method: 'POST', body: { indice: 1, modifica: 'tono ironico, niente reel' } });
-ok(r.status === 200 && r.j.incarichi.length === 1 && !r.j.reel, 'scelta con modifiche: piano aggiornato da Alba');
+ok((await chiama('/api/riunioni/' + rid2)).j.stato === 'decisa', 'seconda richiesta eseguita senza riunione');
 
-console.log('\n6) seconda proposta con reel e copioni');
+console.log('\n6) richiesta con reel e copioni');
 r = await chiama('/api/capo', { method: 'POST', body: { testo: 'Reel e copioni' } }); const rid4 = r.j.riunione;
 await cron();
-r = await chiama('/api/riunioni/' + rid4 + '/scegli', { method: 'POST', body: { indice: 1 } });
-ok(r.status === 200 && r.j.reel && r.j.piano, 'parte un reel e un piano copioni (' + JSON.stringify(r.j).slice(0, 120) + ')');
+r = await chiama('/api/riunioni/' + rid4);
+ok(r.j.stato === 'decisa' && r.j.esito?.reel && r.j.esito?.piano, 'parte un reel e un piano copioni (' + JSON.stringify(r.j.esito || {}).slice(0, 120) + ')');
 
 console.log('\n7) riunione operativa settimanale');
 r = await chiama('/api/riunioni/settimanale', { method: 'POST' }); ok(r.status === 200 && r.j.id, 'convocata a mano');
@@ -97,7 +90,7 @@ r = await chiama('/api/riunioni/' + rid5); ok(r.j.stato === 'in_corso' && /Credi
 ok(r.j.tentativi === 0, 'i tentativi non si consumano');
 stato.modoClaude = 'ok'; sblocca('riunioni');
 await cron();
-r = await chiama('/api/riunioni/' + rid5); ok(r.j.stato === 'proposte', 'ricaricato il credito, la riunione riparte da sola');
+r = await chiama('/api/riunioni/' + rid5); ok(r.j.stato === 'decisa', 'ricaricato il credito, la richiesta riparte da sola');
 
 console.log('\n9) chat del gestionale (Gino)');
 r = await chiama('/api/chat/gestionale', { method: 'POST', body: { testo: 'segnami uno shooting il 12' } });

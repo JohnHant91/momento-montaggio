@@ -301,7 +301,7 @@ export async function apiAvatar(req, env, p, m, json) {
     try { return json({ collegato: true, stato: await instagram(env, 'GET', '/stato'), coda: await instagram(env, 'GET', '/coda') }); }
     catch (e) { return json({ collegato: false, errore: String(e.message || e) }); }
   }
-  const mm = p.match(/^\/api\/avatar\/(\d+)(?:\/(approva|video|riprova|pubblica|idea))?$/);
+  const mm = p.match(/^\/api\/avatar\/(\d+)(?:\/(approva|video|riprova|pubblica|idea|nora))?$/);
   if (!mm) return null;
   const A = await one(env, 'SELECT * FROM avatar_piani WHERE id=?', mm[1]);
   if (!A) return json({ errore: 'non trovato' }, 404);
@@ -310,6 +310,21 @@ export async function apiAvatar(req, env, p, m, json) {
     for (const l of lavori) l.stato = (await one(env, 'SELECT stato FROM lavori WHERE id=?', l.lavoro))?.stato || 'sparito';
     if (lavori.some((l) => l.ig_id)) try { const coda = await instagram(env, 'GET', '/coda'); for (const l of lavori) { const q = coda.find((x) => x.id === l.ig_id); if (q) Object.assign(l, { ig_stato: q.stato, ig_link: q.permalink || null, ig_errore: q.errore || null }); } } catch (_) {}
     return json({ ...A, ricerca: J(A.ricerca), virali: J(A.virali), idee: J(A.idee, []), copioni: J(A.copioni, []), video: J(A.video, []), lavori, orari: orariPubblicazione(lavori.filter((l) => !l.ig_id).length) });
+  }
+  if (m === 'POST' && mm[2] === 'nora') { // {n, nota}: Johnny dice a Nora cosa cambiare (aggiungere/togliere argomenti) in un copione
+    const d = await corpo();
+    const nota = String(d.nota || '').trim().slice(0, 1500);
+    if (nota.length < 3) return json({ errore: 'scrivi cosa deve cambiare Nora' }, 400);
+    const copioni = J(A.copioni, []) || [];
+    const k = copioni.findIndex((c) => c.n === Number(d.n));
+    if (k < 0 || copioni[k].stato !== 'da_approvare') return json({ errore: 'copione non modificabile' }, 400);
+    const cfg = chi(await configurazione(env), { area: 'profilo', piano_id: A.id, agente: 'idee' });
+    const out = await S.claude(cfg, `Sei Nora, Idee e copioni di AGENZIA MOMENTO AI. Riscrivi un copione dell'avatar di Johnny applicando ESATTAMENTE le sue indicazioni (aggiungi o togli argomenti come dice). Il resto resta com'è. Formato AVATAR: GANCIO → PROBLEMA → TENSIONE → SOLUZIONE alla fine → CTA, 120-180 parole. Usa solo fatti della ricerca o detti da Johnny.`,
+      `ARGOMENTO: ${A.argomento}\nFATTI DELLA RICERCA: ${JSON.stringify(J(A.ricerca, {})).slice(0, 4000)}\nCOPIONE ATTUALE: ${JSON.stringify(copioni[k])}\nINDICAZIONI DI JOHNNY: ${nota}\n\nRispondi SOLO JSON: ${FORMATO_COPIONE}`, { maxTokens: 2500 });
+    copioni[k] = { ...copioni[k], ...out, n: copioni[k].n, idea: copioni[k].idea, stato: 'da_approvare', parole: String(out.testo || '').split(/\s+/).filter(Boolean).length, nota_johnny: nota };
+    await run(env, 'UPDATE avatar_piani SET copioni=?, aggiornato=? WHERE id=?', JSON.stringify(copioni), ora(), A.id);
+    await log(env, null, 'idee', `✍️ Nora ha riscritto il copione "${String(out.titolo || '').slice(0, 60)}" con le tue indicazioni`);
+    return json({ ok: true, copione: copioni[k] });
   }
   if (m === 'POST' && mm[2] === 'approva') { // {n: [numeri approvati], modifiche: {n: testo}}
     const d = await corpo();
