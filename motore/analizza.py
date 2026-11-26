@@ -11,8 +11,9 @@ Per ogni video da guardare (reel di riferimento o clip grezza da pCloud):
 Qui non c'è nessuna chiave: il motore si presenta con l'identità OIDC firmata da GitHub
 e ogni lavoro ha un lasciapassare usa-e-getta.
 """
-import base64, io, json, math, os, re, shutil, subprocess, sys, tempfile, time, urllib.parse, urllib.request
+import base64, hashlib, io, json, math, os, re, shutil, subprocess, sys, tempfile, time, urllib.parse, urllib.request
 from concurrent.futures import ThreadPoolExecutor
+CACHE_CLIP = "/tmp/cache_clip"  # cache cifrata del girato fra un giro e l'altro dello stesso lavoro (actions/cache)
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -574,15 +575,42 @@ def monta(lavoro):
             voci.setdefault(chiave(cop), cop)
         avvisa("motore", f"scarico {len(voci)} clip")
 
+        # CACHE DELLE CLIP (cifrata): rimontare lo stesso lavoro non riscarica niente. Identità della clip = percorso
+        # nell'Archivio senza la firma del link (che cambia a ogni giro) oppure l'id pCloud.
+        ck = lavoro.get("cache_key")
+        os.makedirs(CACHE_CLIP, exist_ok=True)
+        usati_cache = set()
+
+        def ident(s):
+            if s.get("fileid"):
+                return hashlib.sha256(("pcloud:" + str(s["fileid"])).encode()).hexdigest()[:32]
+            return hashlib.sha256(urllib.parse.urlsplit(s["url"]).path.encode()).hexdigest()[:32]
+
         def prendi(k):
             s = voci[k]
             dest = os.path.join(cartella, "src_" + re.sub(r"\W+", "_", k)[-40:])
+            cf = os.path.join(CACHE_CLIP, ident(s) + ".enc")
+            usati_cache.add(os.path.basename(cf))
+            if ck and os.path.exists(cf):
+                r = subprocess.run(["openssl", "enc", "-d", "-aes-256-ctr", "-pbkdf2", "-iter", "1000", "-in", cf, "-out", dest, "-pass", "env:CCK"],
+                                   env=dict(os.environ, CCK=ck), capture_output=True)
+                if r.returncode == 0 and os.path.getsize(dest) > 0:
+                    return k, dest, True
             scarica_url(link_pcloud(lavoro, s["fileid"]) if s.get("fileid") else s["url"], dest)
-            return k, dest
+            if ck:
+                subprocess.run(["openssl", "enc", "-aes-256-ctr", "-pbkdf2", "-iter", "1000", "-in", dest, "-out", cf, "-pass", "env:CCK"],
+                               env=dict(os.environ, CCK=ck), capture_output=True)
+            return k, dest, False
         file_per_id = {}
+        t_dl, da_cache = time.time(), 0
         with ThreadPoolExecutor(6) as ex:
-            for k, dest in ex.map(prendi, list(voci)):
+            for k, dest, cache in ex.map(prendi, list(voci)):
                 file_per_id[k] = dest
+                da_cache += cache
+        for x in os.listdir(CACHE_CLIP):  # in cache resta solo il girato di questo lavoro
+            if x not in usati_cache:
+                os.remove(os.path.join(CACHE_CLIP, x))
+        avvisa("motore", f"clip pronte in {time.time() - t_dl:.0f} s ({da_cache} dalla cache, {len(voci) - da_cache} scaricate)")
         # verso del girato: le clip orizzontali girate con la camera in verticale escono coricate. Claude guarda un
         # fotogramma di ognuna (una sola chiamata) e dice di quanto girarle; quelle dritte restano orizzontali
         try:

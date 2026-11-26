@@ -97,6 +97,14 @@ jobs:
           pip install -q -r motore/requirements.txt
           ffmpeg -version | head -1
 
+      - name: Girato già scaricato (cache cifrata del lavoro)
+        if: steps.coda.outputs.lavoro == 'si' && github.event.inputs.lavoro != ''
+        uses: actions/cache@v4
+        with:
+          path: /tmp/cache_clip
+          key: clip-${{ github.event.inputs.lavoro }}-${{ github.run_id }}
+          restore-keys: clip-${{ github.event.inputs.lavoro }}-
+
       - name: Guarda i video e monta i reel
         if: steps.coda.outputs.lavoro == 'si'
         env:

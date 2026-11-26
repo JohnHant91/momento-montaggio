@@ -116,7 +116,13 @@ export async function motoreApi(req, env, url) {
     if (tipo === 'montaggio') {
       const m = J(L.montaggio, {});
       await log(env, L.id, 'motore', `⚙️ motore GitHub al lavoro: scarico ${new Set([...(m.piano.segmenti || []), ...(m.piano.broll || []), ...(m.piano.slide || [])].map((s) => s.fileid || s.url)).size} file e monto il reel (${m.piano.formato || 'montaggio'})`);
-      return json({ id: L.id, tipo, pass, pcloud_code: codice(L.pcloud), pcloud_eu: /(^|\/\/)e\.|eapi/.test(L.pcloud || ''), piano: await firmaSorgenti(env, url.origin, m.piano) });
+      // chiave per cifrare la cache delle clip sul motore (repo pubblico: le clip dei clienti in cache sono sempre cifrate)
+      let cache_key = null;
+      if (env.IG_INTERNO_KEY) {
+        const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.IG_INTERNO_KEY), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+        cache_key = [...new Uint8Array(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode('clipcache-v1')))].map((b) => b.toString(16).padStart(2, '0')).join('');
+      }
+      return json({ id: L.id, tipo, pass, cache_key, pcloud_code: codice(L.pcloud), pcloud_eu: /(^|\/\/)e\.|eapi/.test(L.pcloud || ''), piano: await firmaSorgenti(env, url.origin, m.piano) });
     }
     const elenco = J(tipo === 'riferimenti' ? L.riferimenti : L.clip, []);
     const elementi = await Promise.all(elenco.map((x, i) => [x, i]).filter(([x]) => x.stato === 'da_guardare').map(async ([x, i]) => tipo === 'riferimenti'
