@@ -16,6 +16,7 @@ import { Transizione, PresenzaClip, TIPI_TRANSIZIONE } from "./montatore/transiz
 import { Titolo, TitoloProps } from "./montatore/titoli";
 import { Sottotitoli, SottotitoliProps } from "./montatore/sottotitoli";
 import { Look, LookProps } from "./montatore/look";
+import { Elemento, ElementoM, BarraAvanzamento } from "./montatore/elementi";
 
 const FONT: Record<string, string> = {
   montserrat: sansMontserrat().fontFamily,
@@ -62,6 +63,8 @@ export type MontaggioProps = {
   palette?: { accento?: string; testo?: string; sfondo?: string; secondario?: string };
   font?: { titoli?: string; testo?: string };
   finale?: { tipo: "bianco" | "nero" | "taglio"; durata?: number; logo?: string | null; coda?: number } | null;
+  elementi?: ElementoM[];   // frecce, cerchi, spunte, conto alla rovescia… (montatore/elementi.tsx)
+  barra?: boolean;          // barra di avanzamento in alto
 };
 
 const clamp = { extrapolateLeft: "clamp" as const, extrapolateRight: "clamp" as const };
@@ -134,6 +137,12 @@ export const Montaggio: React.FC<MontaggioProps> = (P) => {
           <Titolo {...t} accento={t.accento || accento} font={font(t.font || P.font?.titoli)} fontTesto={font(P.font?.testo)} />
         </Sequence>
       ))}
+      {(P.elementi || []).map((e, i) => (
+        <Sequence key={"e" + i} from={Math.round(e.da * fps)} durationInFrames={Math.max(1, Math.round((e.a - e.da) * fps))}>
+          <Elemento {...e} accento={accento} font={font(P.font?.titoli)} />
+        </Sequence>
+      ))}
+      {P.barra ? <BarraAvanzamento colore={accento} durata={P.durata} /> : null}
       {P.sottotitoli ? <Sottotitoli {...P.sottotitoli} accento={P.sottotitoli.accento || accento} font={font(P.sottotitoli.font || P.font?.testo)} /> : null}
       {/* audio: musica (con ducking sotto la voce e chiusura sfumata) ed effetti sonori sui tagli */}
       {P.audio?.musica ? <Musica {...P.audio.musica} durata={P.durata} /> : null}

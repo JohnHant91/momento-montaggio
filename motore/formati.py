@@ -1401,13 +1401,34 @@ class MontatoreCompleto(TalkingHead):
             totale = round(totale + 2.2, 3)
             props["durata"] = totale
             self.report.append("chiusura: sfumato al bianco con il logo")
+        # elementi grafici (frecce, cerchi, spunte, conto alla rovescia…) e barra di avanzamento chiesti dal Regista
+        TIPI_EL = ("freccia", "freccia_curva", "cerchio", "riquadro", "sottolinea", "scarabocchio", "spunta", "croce", "scintille", "lente",
+                   "conto_rovescia", "etichetta", "punto", "stelle")
+        el = []
+        for e in (P.get("elementi") or [])[:12]:
+            if e.get("tipo") not in TIPI_EL:
+                continue
+            da = max(0.0, float(e.get("da", 0) or 0))
+            a = min(totale - 0.05, float(e.get("a", 0) or 0) or da + 1.8)
+            if a - da < 0.4:
+                continue
+            x = min(0.9, max(0.1, float(e.get("x", 0.5) or 0.5)))
+            y = min(0.74, max(0.13, float(e.get("y", 0.5) or 0.5)))  # zona sicura dei Reel
+            el.append({"tipo": e["tipo"], "da": round(da, 3), "a": round(a, 3), "x": x, "y": y, "dimensione": min(2.0, max(0.4, float(e.get("dimensione", 1) or 1))),
+                       **({"colore": e["colore"]} if re.match(r"^#[0-9a-fA-F]{6}$", str(e.get("colore", ""))) else {}),
+                       **({"testo": str(e["testo"])[:30]} if e.get("testo") else {}), **({"verso": e["verso"]} if e.get("verso") in ("sx", "dx", "su", "giu") else {}),
+                       **({"numero": int(e["numero"])} if str(e.get("numero", "")).isdigit() else {})})
+        if el:
+            props["elementi"] = el
+        if P.get("barra"):
+            props["barra"] = True
         pj = os.path.join(self.tmp, "montaggio.json")
         with open(pj, "w") as f:
             json.dump(props, f, ensure_ascii=False)
         self.avvisa("vfx", f"monto con Remotion: {len(clip)} clip, {sum(1 for c in clip if c.get('ingresso', {}).get('tipo', 'taglio') != 'taglio')} transizioni, "
                            f"{len(titoli)} titoli animati" + (f", sottotitoli {props['sottotitoli']['stile']}" if parole else ""))
         anim = os.path.join(self.tmp, "montaggio.mp4")
-        semplice = (not titoli and not parole and not props["finale"].get("logo") and all(c.get("ingresso", {}).get("tipo", "taglio") == "taglio" for c in clip)
+        semplice = (not titoli and not parole and not props.get("elementi") and not props.get("barra") and not props["finale"].get("logo") and all(c.get("ingresso", {}).get("tipo", "taglio") == "taglio" for c in clip)
                     and not props["look"]["particelle"] and not props["look"]["light_leaks"] and not props["look"]["bande"] and not props["look"]["tinta"])
         if semplice:
             # nessuna grafica: unisco i pezzi con ffmpeg, fotogramma per fotogramma, e sfumo il finale

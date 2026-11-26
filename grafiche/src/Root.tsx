@@ -9,6 +9,9 @@ import { AbsoluteFill } from "remotion";
 import { Sottotitoli, SottotitoliProps } from "./montatore/sottotitoli";
 import { PresenzaClip, Transizione } from "./montatore/transizioni";
 import { Titolo, TitoloProps } from "./montatore/titoli";
+import { Elemento, ElementoM, BarraAvanzamento } from "./montatore/elementi";
+
+const ProvaElemento: React.FC<ElementoM> = (e) => (<AbsoluteFill style={{ background: "linear-gradient(160deg,#3a4a5a,#1b2330)" }}><Elemento {...e} accento="#FFD60A" font={font("Anton")} /><BarraAvanzamento colore="#FFD60A" durata={2} /></AbsoluteFill>);
 
 // anteprima di un titolo animato (per l'archivio Stili)
 const ProvaTitolo: React.FC<TitoloProps> = (p) => (<AbsoluteFill style={{ background: "linear-gradient(160deg,#3a4a5a,#1b2330)" }}><Titolo {...p} posizione="centro" font={font(p.font)} fontTesto={font(p.font)} /></AbsoluteFill>);
@@ -101,6 +104,15 @@ export const Root: React.FC = () => (
     fps={30}
     durationInFrames={60}
     defaultProps={{ da: 0, a: 2, testo: "Panettone fatto a mano", stile: "anima", animazione: "rimbalzo_su", unita: "parole", accento: "#FFD60A", chiave: ["mano"] } as TitoloProps}
+  />
+  <Composition
+    id="ProvaElemento"
+    component={ProvaElemento}
+    width={1080}
+    height={1920}
+    fps={30}
+    durationInFrames={60}
+    defaultProps={{ tipo: "freccia", da: 0, a: 2, x: 0.6, y: 0.45 } as ElementoM}
   />
   <Composition
     id="ProvaSottotitoli"

@@ -1,7 +1,9 @@
 # Anteprime dell'archivio Stili: renderizza ogni stile di sottotitoli e pubblica una tavola sul ramo anteprime-stili.
 name: anteprime-stili
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      sezioni: { required: false, default: 'sottotitoli font transizioni animazioni elementi' }
 permissions:
   contents: write
 jobs:
@@ -16,6 +18,7 @@ jobs:
         working-directory: grafiche
         run: npm install --no-audit --no-fund --loglevel=error
       - name: Sottotitoli
+        if: contains(github.event.inputs.sezioni, 'sottotitoli')
         working-directory: grafiche
         run: |
           mkdir -p out
@@ -30,6 +33,7 @@ jobs:
           done
           ls out
       - name: Transizioni
+        if: contains(github.event.inputs.sezioni, 'transizioni')
         working-directory: grafiche
         run: |
           mkdir -p out/tr
@@ -38,6 +42,7 @@ jobs:
             npx remotion still src/index.ts ProvaTransizione out/tr/$t.png --props=t.json --frame=12 --log=error || echo "ERRORE $t"
           done
       - name: Animazioni di testo
+        if: contains(github.event.inputs.sezioni, 'animazioni')
         working-directory: grafiche
         run: |
           mkdir -p out/an
@@ -45,33 +50,18 @@ jobs:
             echo "{\"da\":0,\"a\":2,\"testo\":\"Panettone fatto a mano\",\"stile\":\"anima\",\"animazione\":\"$a\",\"unita\":\"parole\",\"accento\":\"#FFD60A\",\"chiave\":[\"mano\"]}" > a.json
             npx remotion still src/index.ts ProvaTitolo out/an/$a.png --props=a.json --frame=9 --log=error || echo "ERRORE $a"
           done
+      - name: Elementi
+        if: contains(github.event.inputs.sezioni, 'elementi')
+        working-directory: grafiche
+        run: |
+          mkdir -p out/el
+          for e in freccia freccia_curva cerchio riquadro sottolinea scarabocchio spunta croce scintille lente conto_rovescia etichetta punto stelle; do
+            echo "{\"tipo\":\"$e\",\"da\":0,\"a\":2,\"x\":0.55,\"y\":0.45,\"testo\":\"NOVITÀ\",\"numero\":3}" > e.json
+            npx remotion still src/index.ts ProvaElemento out/el/$e.png --props=e.json --frame=20 --log=error || echo "ERRORE $e"
+          done
       - name: Tavola
         run: |
-          cd grafiche/out && pip install -q pillow
-          python3 -c "
-          from PIL import Image, ImageDraw
-          n=['karaoke','box','pop','grassetto','minimal','neon','chiave','contorno','macchina','mano']
-          ims=[Image.open(f'{s}.png').convert('RGB').crop((0,660,1080,1260)).resize((540,300)) for s in n]
-          out=Image.new('RGB',(1080,300*5),(0,0,0)); d=ImageDraw.Draw(out)
-          for i,(s,im) in enumerate(zip(n,ims)):
-              x,y=(i%2)*540,(i//2)*300; out.paste(im,(x,y)); d.text((x+10,y+10),s,fill=(255,255,255))
-          out.save('sottotitoli.jpg',quality=85)
-          import os
-          tt=sorted(os.listdir('tr')); W,H=180,320; col=8
-          out=Image.new('RGB',(W*col,(H+24)*((len(tt)+col-1)//col)),(0,0,0)); d=ImageDraw.Draw(out)
-          for i,f in enumerate(tt):
-              x,y=(i%col)*W,(i//col)*(H+24); out.paste(Image.open('tr/'+f).convert('RGB').resize((W,H)),(x,y+24)); d.text((x+4,y+6),f[:-4],fill=(255,255,255))
-          out.save('transizioni.jpg',quality=82)
-          ff=sorted(x for x in os.listdir('.') if x.startswith('font_'))
-          out=Image.new('RGB',(540*2,300*((len(ff)+1)//2)),(0,0,0)); d=ImageDraw.Draw(out)
-          for i,f in enumerate(ff):
-              x,y=(i%2)*540,(i//2)*300; out.paste(Image.open(f).convert('RGB').crop((0,660,1080,1260)).resize((540,300)),(x,y)); d.text((x+8,y+8),f,fill=(255,255,255))
-          out.save('font.jpg',quality=85)
-          aa=sorted(os.listdir('an')); W,H=270,200; col=4
-          out=Image.new('RGB',(W*col,(H+22)*((len(aa)+col-1)//col)),(0,0,0)); d=ImageDraw.Draw(out)
-          for i,f in enumerate(aa):
-              x,y=(i%col)*W,(i//col)*(H+22); out.paste(Image.open('an/'+f).convert('RGB').crop((0,760,1080,1160)).resize((W,H)),(x,y+22)); d.text((x+4,y+5),f[:-4],fill=(255,255,255))
-          out.save('animazioni.jpg',quality=82)"
-          mkdir -p /tmp/pub && cp sottotitoli.jpg transizioni.jpg font.jpg animazioni.jpg /tmp/pub/ && cd /tmp/pub
+          pip install -q pillow && python3 grafiche/tavola.py && cd grafiche/out
+          mkdir -p /tmp/pub && cp *.jpg /tmp/pub/ && cd /tmp/pub
           git init -q && git checkout -q -b anteprime-stili && git add . && git -c user.name=motore -c user.email=motore@momento commit -qm anteprime
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" anteprime-stili
