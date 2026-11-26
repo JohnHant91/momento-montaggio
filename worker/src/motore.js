@@ -239,7 +239,13 @@ Le misure sono frazioni dell'immagine (0,0 = in alto a sinistra). Se l'oggetto n
     try {
       const sistema = rif ? analisiRiferimento(J(L.piano, {}).settore || '') : analisiClip(L.prompt);
       const testo = `MISURE ESATTE (ffmpeg + Whisper):\n${JSON.stringify(mis)}\n\nRispondi SOLO con il JSON richiesto.`;
-      const analisi = await S.claudeVisione(cfg, rif ? cfg.CLAUDE_MODEL : cfg.CLAUDE_MODEL_LIGHT, sistema, testo, d.immagini.slice(0, 3), rif ? 7000 : 7000);
+      // reel di riferimento = video pubblici: li guarda Gemini col piano gratuito (zero costi); Claude solo se Gemini non risponde.
+      // Le clip dei CLIENTI restano a Claude: il piano gratuito di Gemini usa i dati per addestrarsi.
+      let analisi = null;
+      if (rif && cfg.GEMINI_API_KEY) {
+        try { analisi = await S.geminiVisione(cfg, sistema, testo, d.immagini.slice(0, 3)); } catch (e) { await log(env, id, agente, 'Gemini gratuito non disponibile (' + String(e.message).slice(0, 80) + '): uso Claude', 'warn'); }
+      }
+      if (!analisi) analisi = await S.claudeVisione(cfg, rif ? cfg.CLAUDE_MODEL : cfg.CLAUDE_MODEL_LIGHT, sistema, testo, d.immagini.slice(0, 3), rif ? 7000 : 7000);
       if (rif) { // i numeri misurati vincono sempre sulle stime
         Object.assign(analisi, { numero_tagli: mis.numero_tagli, durata_media_inquadratura_sec: mis.durata_media_inquadratura_sec, durata_sec: mis.tecnico?.durata_sec });
         analisi.audio = { ...(analisi.audio || {}), bpm_stimato: mis.bpm_stimato ?? analisi.audio?.bpm_stimato ?? null, volume_lufs: mis.volume_lufs };

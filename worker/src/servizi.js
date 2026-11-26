@@ -93,6 +93,16 @@ export async function claude(cfg, sistema, messaggio, { maxTokens = 8000, json =
 }
 
 // Claude con immagini (tavole di fotogrammi preparate dal motore GitHub)
+// Gemini con immagini: per i REEL DI RIFERIMENTO (video pubblici, non materiale dei clienti) → piano gratuito, costo zero.
+export async function geminiVisione(cfg, sistema, testo, immagini) {
+  const parti = [{ text: sistema }];
+  for (const im of immagini) parti.push({ text: `Immagine: ${im.cosa}` }, { inline_data: { mime_type: im.tipo || 'image/jpeg', data: im.jpeg } });
+  parti.push({ text: testo });
+  const out = await geminiGenera(cfg, parti);
+  await registra(cfg, 'gemini', cfg.GEMINI_MODELS[0] || 'gemini', {}, 0);
+  return out;
+}
+
 export async function claudeVisione(cfg, modello, sistema, testo, immagini, maxTokens = 4000) {
   if (!cfg.ANTHROPIC_API_KEY) throw new Error('manca la chiave Claude (Impostazioni)');
   const content = [];
