@@ -2,7 +2,7 @@ import { REGOLE_REEL_BASE } from './lavoro.js';
 import { persone } from './persone.js';
 // Momento Reel · Worker Cloudflare: pagina regia + API + cron che fa lavorare gli agenti.
 import { CHIAVI_OPZIONI, CHIAVI_SEGRETE, J, all, configurazione, log, one, ora, run, schema } from './db.js';
-import { avanza } from './lavoro.js';
+import { avanza, ricordaScartato } from './lavoro.js';
 import { rilevaStile } from './stili.js';
 import { apiPiani, avanzaPiani, schemaPiani } from './copioni.js';
 import { apiAgenzia, avanzaUffici, schemaAgenzia } from './agenzia.js';
@@ -255,6 +255,8 @@ async function api(req, env, url) {
       return json(L);
     }
     if (!mm[2] && m === 'DELETE') {
+      const Ld = await one(env, 'SELECT * FROM lavori WHERE id=?', id);
+      if (Ld) await ricordaScartato(env, Ld).catch(() => 0);
       await env.DB.batch([env.DB.prepare('DELETE FROM lavori WHERE id=?').bind(id), env.DB.prepare('DELETE FROM registro WHERE lavoro_id=?').bind(id)]);
       if (env.VIDEO) { const k = await env.VIDEO.list({ prefix: `lavoro-${id}/` }).catch(() => ({ keys: [] })); for (const x of k.keys) await env.VIDEO.delete(x.name).catch(() => {}); }
       return json({ ok: true });
@@ -288,9 +290,10 @@ async function api(req, env, url) {
     // rifare il montaggio con indicazioni (look, durata, ritmo, note) senza rifare ricerca e analisi
     if (mm[2] === 'rimonta' && m === 'POST') {
       const d = await req.json().catch(() => ({}));
-      const L = await one(env, 'SELECT montaggio, clip FROM lavori WHERE id=?', id);
+      const L = await one(env, 'SELECT montaggio, clip, fonte, pcloud FROM lavori WHERE id=?', id);
       const mont = J(L?.montaggio, null);
       if (!mont?.piano) return json({ errore: 'questo lavoro non ha ancora un montaggio da rifare' }, 400);
+      await ricordaScartato(env, L).catch(() => 0); // il montaggio che Johnny vuole rifare non deve tornare uguale
       mont.indicazioni_rimonta = { testo: String(d.testo || '').slice(0, 800), look: d.look || null, durata: Number(d.durata) || null, ritmo: d.ritmo || null, formato: ['montaggio', 'talking_head', 'carosello'].includes(d.formato) ? d.formato : null, lut: d.lut || null };
       // "rimontalo romantico", "più street": se nelle indicazioni c'è uno stile, diventa lo stile del lavoro
       const nuovoStile = rilevaStile(String(d.testo || ''), d.stile);

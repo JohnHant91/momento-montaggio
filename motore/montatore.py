@@ -871,7 +871,7 @@ class Montatore:
         except Exception:
             pass
         problemi += getattr(self, "qc", [])
-        return {"durata": round(info["dur"], 2), "lufs": lufs, "mb": round(mb, 1), "problemi": problemi, "note": self.report}
+        return {"durata": round(info["dur"], 2), "lufs": lufs, "mb": round(mb, 1), "problemi": problemi, "note": self.report, "tratti": getattr(self, "tratti_usati", [])}
 
     def chiusura_bianca(self, video, totale):
         """L'ultima immagine sfuma nel bianco, poi compare piano il logo del cliente (se c'è)."""

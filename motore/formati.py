@@ -1129,6 +1129,19 @@ class MontatoreCompleto(TalkingHead):
         quella girata più vicino) che abbia un tratto fermo."""
         riserve = [dict(r, _info=self.probe(r["file"])) for r in (self.p.get("riserve") or []) if r.get("file")]
         usati = {}  # file -> intervalli già usati (per non montare due volte lo stesso tratto)
+        # MONTAGGI SCARTATI DA JOHNNY: i tratti già usati nei reel eliminati/rimontati sono vietati (margine 2 s),
+        # così il nuovo montaggio è diverso. Se una clip non ha altro di buono, solo per quel pezzo si ignora il divieto.
+        per_nome = {x.get("nome"): x["file"] for x in segmenti + riserve if x.get("nome") and x.get("file")}
+        vietati = {}
+        for e in (self.p.get("evita") or []):
+            f = per_nome.get(e.get("nome"))
+            if f:
+                a = float(e.get("in") or 0)
+                vietati.setdefault(f, []).append((a - 2.0, a + float(e.get("dur") or 0) + 2.0))
+        stato = {"divieto": bool(vietati)}
+
+        def occupati(src):
+            return usati.get(src, []) + (vietati.get(src, []) if stato["divieto"] else [])
         # L'OCCHIO DEL VIDEOMAKER (gratis, OpenCV): ogni clip guardata 10 volte al secondo -> camera, azione sul soggetto,
         # fuoco, luce. Così si sceglie il GESTO sul prodotto (intero) e non il tratto dove non succede niente.
         occhi = {}
@@ -1155,7 +1168,7 @@ class MontatoreCompleto(TalkingHead):
             r = OC.tratto_migliore(le, serve, vicino, preferisci_azione=azione)
             if not r:
                 return None
-            occ = usati.get(src, [])
+            occ = occupati(src)
             if any(a - serve < r["in"] < b for a, b in occ):
                 return None
             v = round(1 - r["voto"], 3)
@@ -1175,7 +1188,7 @@ class MontatoreCompleto(TalkingHead):
             # velocità: se il tratto scelto dal Regista è già fermo lo tengo senza misurare tutta la clip
             fine = max(0.0, info["dur"] - serve - 0.05)
             t0 = round(min(fine, max(0.0, vicino)), 2)
-            occ0 = usati.get(src, [])
+            occ0 = occupati(src)
             if not any(a - serve < t0 < b for a, b in occ0):
                 v0 = voto_tratto(misura_camera(src, t0, serve, info, rit))
                 if v0 <= self.BUONO * 0.8:
@@ -1183,7 +1196,7 @@ class MontatoreCompleto(TalkingHead):
             cand = candidati(src, info, serve, vicino)
             with ThreadPoolExecutor(PARALLELO) as ex:
                 voti = list(ex.map(lambda t: (voto_tratto(misura_camera(src, t, serve, info, rit)), t), cand))
-            occ = usati.get(src, [])
+            occ = occupati(src)
             voti = [(v + 0.02 * abs(t - vicino), v, t) for v, t in voti if not any(a - serve < t < b for a, b in occ)]
             return min(voti) if voti else (99, 99, vicino)
 
@@ -1201,6 +1214,12 @@ class MontatoreCompleto(TalkingHead):
             # il Regista ha chiesto una pausa/inquadratura ferma? allora l'occhio non cerca l'azione
             azione = not re.search(r"pausa|ferm|statico|senza mani|still", str(s.get("motivo") or ""), re.I)
             _, voto, t = migliore(s["file"], info, serve, float(s.get("in", 0)), s.get("zoom_fisso"), azione)
+            if voto > self.BUONO and s["file"] in vietati:  # fuori dai tratti scartati non c'è niente di buono: per questo pezzo riapro
+                stato["divieto"] = False
+                _, voto, t = migliore(s["file"], info, serve, float(s.get("in", 0)), s.get("zoom_fisso"), azione)
+                stato["divieto"] = bool(vietati)
+                if voto <= self.BUONO:
+                    self.report.append(f"pezzo {k + 1}: {s.get('nome') or ''} ha un solo tratto buono, già usato in un montaggio scartato")
             if voto <= self.BUONO:
                 oc = con_occhio(s["file"], serve, float(s.get("in", 0)), azione)
                 if oc and abs(oc[2] - t) < 0.01:
@@ -1249,6 +1268,9 @@ class MontatoreCompleto(TalkingHead):
                     continue
             usati.setdefault(s["file"], []).append((float(s["in"]), float(s["in"]) + serve))
         self.niente_doppioni(segmenti, riserve, migliore)
+        if vietati:
+            uguali = sum(1 for s in segmenti if not s.get("_scarta") and any(a < float(s["in"]) < b for a, b in vietati.get(s["file"], [])))
+            self.avvisa("editor", f"diverso dai montaggi scartati: {len(segmenti) - uguali} pezzi nuovi su {len(segmenti)}")
         tolti = [s for s in segmenti if s.get("_scarta")]
         if tolti and len(segmenti) - len(tolti) >= 4:
             segmenti[:] = [s for s in segmenti if not s.get("_scarta")]
@@ -1269,6 +1291,7 @@ class MontatoreCompleto(TalkingHead):
         self.aggancia_ai_battiti(segmenti)
         self.qc = []
         self.scegli_tratti_fermi(segmenti)
+        self.tratti_usati = [{"nome": s.get("nome"), "in": round(float(s.get("in", 0)), 2), "dur": round(float(s["durata"]), 2)} for s in segmenti if s.get("nome")]
         self.avvisa("color", f"look {P.get('look', 'naturale_vivace')}: porto i {len(segmenti)} pezzi alla stessa luce")
         try:
             self.rif_colore = self.riferimento(segmenti)

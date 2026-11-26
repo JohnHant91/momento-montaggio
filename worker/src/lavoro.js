@@ -384,6 +384,24 @@ async function faseClip(env, cfg, L) {
 }
 
 export const chiaveClip = (c) => `clip2:${c.hash}:${c.dimensione}`;
+// MONTAGGI SCARTATI: quando Johnny elimina un reel (o chiede di rimontarlo) i tratti usati restano in memoria per quel girato,
+// così il montaggio successivo sulle stesse clip è per forza diverso
+export const chiaveScarti = (L) => 'SCARTATI:' + (L.pcloud ? L.fonte + ':' + L.pcloud : (J(L.clip, []) || []).map((c) => c.nome).filter(Boolean).sort().join('|').slice(0, 400));
+export function trattiDi(m) {
+  const t = m?.revisore?.tratti;
+  if (Array.isArray(t) && t.length) return t.map((x) => ({ nome: x.nome, in: Number(x.in) || 0, dur: Number(x.dur) || 0 }));
+  return (m?.piano?.segmenti || []).map((x) => ({ nome: x.nome, in: Number(x.in) || 0, dur: Number(x.durata) || 0 })).filter((x) => x.nome);
+}
+export async function ricordaScartato(env, L) {
+  const m = J(L.montaggio, null);
+  const tratti = trattiDi(m);
+  if (!tratti.length) return 0;
+  const k = chiaveScarti(L);
+  const vecchi = J((await one(env, 'SELECT valore FROM impostazioni WHERE chiave=?', k))?.valore, []) || [];
+  vecchi.unshift({ quando: ora(), tratti, apertura: tratti[0]?.nome || null });
+  await run(env, 'INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES (?,?)', k, JSON.stringify(vecchi.slice(0, 5)));
+  return tratti.length;
+}
 export { analisiClip, analisiRiferimento };
 
 async function faseScheda(env, cfg, L) {
@@ -616,7 +634,15 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
   if (lineaCl) await log(env, L.id, 'smm', `📣 Chiara passa a Rocco la linea editoriale di ${Ccl.nome}`);
   const regole = (await one(env, "SELECT valore FROM impostazioni WHERE chiave='REGOLE_REEL'"))?.valore || REGOLE_REEL_BASE;
   const extraRegole = `\n\nREGOLE FISSE DI JOHNNY PER TUTTI I REEL (vincolanti, valgono più di ogni altra indicazione):\n${regole}`;
-  const p = await S.claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda, clip) + extraMusica + extraStile + extraLinea + extra + extraRegole, { maxTokens: 12000 });
+  // montaggi già scartati da Johnny con questo girato (+ quello precedente se è un rimontaggio): il nuovo deve essere diverso
+  const scarti = J((await one(env, 'SELECT valore FROM impostazioni WHERE chiave=?', chiaveScarti(L)))?.valore, []) || [];
+  const evita = scarti.flatMap((x) => x.tratti || []).slice(0, 80);
+  const aperture = [...new Set(scarti.map((x) => x.apertura).filter(Boolean))];
+  const extraScarti = scarti.length ? `\n\nMONTAGGI GIÀ SCARTATI DA JOHNNY CON QUESTO GIRATO (${scarti.length}): ${JSON.stringify(scarti.map((x) => (x.tratti || []).map((t) => `${t.nome}@${t.in.toFixed(1)}s`)))}
+Il nuovo montaggio DEVE essere chiaramente diverso: apri con una clip diversa da ${aperture.join(', ') || 'quella usata'}, cambia l'ordine del racconto,
+almeno metà dei pezzi da clip diverse o da momenti diversi delle stesse clip (lontani almeno 2 s da quelli già usati), idea di gancio nuova.` : '';
+  if (scarti.length) await log(env, L.id, 'regista', `con questo girato Johnny ha già scartato ${scarti.length} montaggi: ne faccio uno diverso (${evita.length} tratti da evitare)`);
+  const p = await S.claude(cfg, SISTEMA_REGISTA, pianoMontaggio(scheda, clip) + extraMusica + extraStile + extraLinea + extra + extraScarti + extraRegole, { maxTokens: 12000 });
   // controllo del piano: valori ammessi, clip esistenti, tempi dentro le clip
   const tutte = J(L.clip, []);
   const eImm = (c) => c?.tipo === 'immagine' || c?.tecnico?.tipo === 'immagine';
@@ -758,7 +784,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
     }
   }
   const piano = {
-    ...p, formato: motore, titoli, riserve, look_reel: lookReel, font_reel: fontReel, pannello, cartelli, schede, grafiche, palette, font_split, tracker, adesivi,
+    ...p, formato: motore, titoli, riserve, evita: evita.length ? evita : undefined, look_reel: lookReel, font_reel: fontReel, pannello, cartelli, schede, grafiche, palette, font_split, tracker, adesivi,
     ...(avatar ? { taglia_silenzi: false } : {}),
     logo: prima?.logo || (logoArch ? { archivio: logoArch } : null),
     stabilizza_tutto: !!(indicazioni?.stabilizza_tutto || prima?.piano?.stabilizza_tutto || p.stabilizza_tutto || R?.camera === 'morbida'),
