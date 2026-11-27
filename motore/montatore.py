@@ -225,6 +225,72 @@ class Montatore:
             filtro += f",curves=all='{min(p2 - 10, 40) / 255:.3f}/0 1/1'"
         return filtro
 
+    def togli_difetti(self, segmenti, pezzi):
+        """Ultimo controllo del montatore prima di montare, come farebbe Johnny guardando la timeline:
+        1) un pezzo che trema ancora in modo evidente dopo la stabilizzazione NON entra nel reel;
+        2) due pezzi di fila con la stessa inquadratura (stessa scena, stesso soggetto, stessa distanza) sono un doppione: ne resta uno.
+        Non tocca i pezzi scelti da Johnny (in_bloccato), non scende sotto il 60% dei pezzi né sotto il 70% della durata."""
+        n = len(pezzi)
+        if n < 5:
+            return segmenti, pezzi
+        durate = [self.probe(p)["dur"] for p in pezzi]
+        tot, tieni = sum(durate), [True] * n
+        minimo_n, minimo_d = max(4, int(n * 0.6 + 0.999)), max(8.0, tot * 0.7)
+
+        def posso(k):
+            if segmenti[k].get("in_bloccato") or k == n - 1:
+                return False
+            return sum(tieni) - 1 >= minimo_n and sum(d for d, t in zip(durate, tieni) if t) - durate[k] >= minimo_d
+
+        tolti = []
+        # 1) i pezzi che tremano davvero (sopra 1.0 si vede a occhio), dal peggiore
+        for k in sorted(range(n), key=lambda i: -float(segmenti[i].get("_trema") or 0)):
+            tr = float(segmenti[k].get("_trema") or 0)
+            if tr > 1.0 and segmenti[k].get("effetto") != "shake" and posso(k):
+                tieni[k] = False
+                tolti.append(f"pezzo {k + 1} ({segmenti[k].get('nome') or ''}) tremava troppo ({tr:.1f})")
+        # 2) doppioni di fila: firma visiva di ogni pezzo (2 fotogrammi piccoli in grigio), confronto con il pezzo tenuto prima
+        def firma(p, dur):
+            out = []
+            try:
+                for _, im in self.fotogrammi(p, dur * 0.15, dur * 0.7, 2, 24) or []:  # 24 px di lato: conta la composizione, non il dettaglio
+                    g = im.astype(np.float32).mean(axis=2).ravel()
+                    g = (g - g.mean()) / (g.std() + 1e-3)
+                    out.append(g)
+            except Exception:
+                pass
+            return out
+        firme = [firma(p, d) if t else [] for p, d, t in zip(pezzi, durate, tieni)]
+
+        def uguali(a, b):
+            if segmenti[a].get("file") == segmenti[b].get("file") and abs(float(segmenti[a].get("_in", segmenti[a].get("in", 0))) - float(segmenti[b].get("_in", segmenti[b].get("in", 0)))) < 2.5:
+                return True
+            return any(len(x) == len(y) and float(np.dot(x, y)) / len(x) > 0.9 for x in firme[a] for y in firme[b])
+
+        prima = None
+        for k in range(n):
+            if not tieni[k]:
+                continue
+            if prima is not None and uguali(prima, k):
+                via = k if posso(k) else prima if posso(prima) else None
+                if via is not None:
+                    tieni[via] = False
+                    tolti.append(f"pezzo {via + 1} ({segmenti[via].get('nome') or ''}) ripeteva l'inquadratura del pezzo {(prima if via == k else k) + 1}")
+                    if via == prima:
+                        prima = k
+                    continue
+            prima = k
+        if not tolti:
+            return segmenti, pezzi
+        self.avvisa("editor", "controllo prima di montare: " + " · ".join(tolti[:6]) + (f" (+{len(tolti) - 6})" if len(tolti) > 6 else "") + ". Tolti dal reel")
+        segmenti[:] = [s for s, t in zip(segmenti, tieni) if t]
+        pezzi = [p for p, t in zip(pezzi, tieni) if t]
+        self.qc = [x for x in self.qc if "trema ancora" not in x]  # rifaccio gli avvisi con i numeri nuovi, solo per chi è rimasto
+        for i, s in enumerate(segmenti):
+            if float(s.get("_trema") or 0) > 0.6 and s.get("effetto") != "shake":
+                self.qc.append(f"pezzo {i + 1} trema ancora (tremolio {float(s['_trema']):.2f}): meglio un'altra clip")
+        return segmenti, pezzi
+
     def pareggia(self, pezzi):
         """Shot matching sui pezzi FINITI (dopo pulizia, curve e LUT): misuro tinta, colore e luce di ognuno e porto
         quelli fuori dal gruppo verso la mediana. Regola di Johnny: tutte le clip con la stessa color."""
@@ -552,6 +618,7 @@ class Montatore:
         # controllo qualità del pezzo montato: se trema ancora lo segnalo al revisore
         try:
             dopo = self.movimento_camera(out, 0, dur)
+            s["_trema"] = float(dopo["tremolio"])
             if dopo["tremolio"] > 0.6 and s.get("effetto") != "shake":
                 self.qc.append(f"pezzo {i + 1} trema ancora (tremolio {dopo['tremolio']:.2f}): meglio un'altra clip")
         except Exception:

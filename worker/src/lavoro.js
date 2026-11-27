@@ -336,11 +336,12 @@ async function avvisoMotore(env, L) {
     const ok = await svegliaMotore(env, '', L.id).catch(() => false);
     if (ok && !L.motore_svegliato) {
       await run(env, 'UPDATE lavori SET motore_svegliato=1 WHERE id=?', L.id).catch(() => {});
-      await log(env, L.id, 'motore', '⚡ motore GitHub avviato: parte entro un minuto');
+      await log(env, L.id, 'motore', '⚡ motore avviato: parte entro un minuto');
     }
   }
-  if (L.motore_visto && Date.now() - new Date(L.motore_visto) > 75 * 60e3 && !(L.motore_fino && L.motore_fino > ora())) {
-    await log(env, L.id, 'motore', 'il motore GitHub non si fa vivo da più di un\'ora: controlla GitHub → momento-montaggio → Actions', 'warn');
+  // l'avviso vale solo se QUESTO montaggio aspetta da un pezzo: un rimontaggio lanciato ore dopo l'ultimo non è un motore fermo
+  if (L.motore_visto && Date.now() - new Date(L.motore_visto) > 75 * 60e3 && Date.now() - new Date(L.aggiornato || 0) > 12 * 60e3 && !(L.motore_fino && L.motore_fino > ora())) {
+    await log(env, L.id, 'motore', 'il motore (Mac o GitHub) non prende questo lavoro da più di 10 minuti: controlla che il Mac sia acceso, oppure GitHub → momento-montaggio → Actions', 'warn');
     await run(env, 'UPDATE lavori SET motore_visto=? WHERE id=?', ora(), L.id);
   }
   return false;
@@ -484,7 +485,7 @@ Rispondi SOLO JSON: {"pezzi": [{"pezzo": numero, "cambi": {solo i campi che camb
       for (const k of campi) if (r.cambi && k in r.cambi) s[k] = r.cambi[k];
       if (s.effetto && !EFFETTI[s.effetto]) s.effetto = null;
       if (s.transizione_in && !TRANSIZIONI.includes(s.transizione_in)) delete s.transizione_in;
-      if ('ruota' in (r.cambi || {})) { s.ruota = [0, 90, -90, 180].includes(Number(s.ruota)) ? Number(s.ruota) : 0; for (const y of nuovi) if (y !== s && y.nome === s.nome) y.ruota = s.ruota; } // la clip gira tutta, in ogni pezzo dove torna
+      if ('ruota' in (r.cambi || {})) { s.ruota = [0, 90, -90, 180].includes(Number(s.ruota)) ? Number(s.ruota) : 0; for (const y of nuovi) if (y !== s && y.nome === s.nome) y.ruota = s.ruota;  m.ruote = { ...(m.ruote || {}), [s.nome]: s.ruota }; } // la clip gira tutta, in ogni pezzo dove torna
       fatti.push(`pezzo ${Number(r.pezzo) + 1}: ${String(r.detto || 'modificato').slice(0, 120)}${r.non_posso ? ' (⚠️ non fatto: ' + String(r.non_posso).slice(0, 160) + ')' : ''}`);
     }
     if (!out) fatti.push('⚠️ le note scritte non sono state lette (errore): riprova');
@@ -763,6 +764,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
   const extraDisposizioni = `\n\nCOME LAVORIAMO ORA (vincolante):
 - REGOLE DEL MONTATORE PROFESSIONISTA (un controllo automatico corregge chi non le rispetta):
   · TAGLI: ogni pezzo inizia e finisce su un'immagine che serve (un gesto che parte, il soggetto ben visibile, un movimento che si chiude). Usa i "momenti" e l'"occhio" di ogni clip: l'"in" cade dentro un momento/azione, mai su tratti mossi, sfocati o vuoti. Entra un attimo prima del gesto, esci quando è finito.
+  · MAI DOPPIONI: due pezzi di fila non mostrano mai la stessa inquadratura (stessa clip, o stesso soggetto alla stessa distanza). I primi 4 pezzi vengono da 4 clip diverse e cambiano soggetto o distanza a ogni taglio: totale → dettaglio → mani → prodotto. Una clip torna al massimo 2 volte nel reel, mai vicine.
   · RACCONTO: gancio (l'immagine più forte nei primi 2 s) → sviluppo in ordine logico → chiusura sul risultato. Alterna le inquadrature (totale, dettaglio, primo piano): mai due pezzi quasi uguali di fila.
   · TRANSIZIONI: il taglio netto è la regola. Una transizione solo quando cambia luogo, tempo o fase del racconto (es. dalla lavorazione al prodotto finito), mai nel ritmo veloce, mai dentro la stessa clip, al massimo una ogni 5 pezzi e tutte della stessa famiglia.
   · EFFETTI: rallenty solo su un gesto bello che dura (max 2 nel reel). Nessun effetto messo per riempire.
@@ -973,6 +975,21 @@ almeno metà dei pezzi da clip diverse o da momenti diversi delle stesse clip (l
   if (formato === 'montaggio' && !eAvatar) {
     const S2 = piano.segmenti, note = [];
     const durTot = S2.reduce((x, y) => x + y.durata, 0);
+    // 0) NIENTE DOPPIONI: mai due pezzi di fila dalla stessa clip (è la stessa inquadratura) e i primi 4 pezzi tutti da clip diverse:
+    //    l'apertura deve cambiare immagine a ogni taglio. Il pezzo ripetuto scambia posto con il primo più avanti che non crea doppioni.
+    let scambi = 0;
+    const male0 = (A, i) => i > 0 && i < A.length && (A[i].clip === A[i - 1].clip || (i < 4 && A.slice(0, i).some((y) => y.clip === A[i].clip)));
+    for (let i = 1; i < S2.length - 1; i++) {
+      if (!male0(S2, i) || S2[i].in_bloccato) continue;
+      for (let j = i + 1; j < S2.length - 1; j++) { // l'ultimo pezzo (la chiusura) non si sposta
+        if (S2[j].in_bloccato) continue;
+        const A = S2.slice(); [A[i], A[j]] = [A[j], A[i]];
+        if (male0(A, i) || male0(A, i + 1) || male0(A, j) || male0(A, j + 1)) continue;
+        const tr = [S2[i].transizione_in, S2[j].transizione_in];
+        [S2[i], S2[j]] = [S2[j], S2[i]]; S2[i].transizione_in = tr[0]; S2[j].transizione_in = tr[1]; scambi++; break;
+      }
+    }
+    if (scambi) note.push(`${scambi} pezzi spostati per non ripetere la stessa inquadratura di fila`);
     // 1) TAGLI SULLE IMMAGINI CHE SERVONO: ogni pezzo deve cadere su un momento visto nella clip (azione, gesto, soggetto),
     //    non a caso, e non su un tratto mosso o sfocato. Se cade fuori, si sposta sul momento buono più vicino.
     let spostati = 0;
@@ -1042,7 +1059,9 @@ almeno metà dei pezzi da clip diverse o da momenti diversi delle stesse clip (l
   const versione = (prima?.versione || 0) + 1;
   // Chiara ripassa titoli, copertina e caption prima del montaggio: la sua nota arriva a Johnny con il reel
   const notaChiara = await ripassoChiara(env, cfg, Ccl, 'reel', { titoli: (piano.titoli || []).map((t) => t.testo || t), copertina: piano.copertina?.testo, caption: piano.caption || p.caption, chiusura: piano.chiusura?.testo || p.chiusura }).catch(() => null);
-  await run(env, 'UPDATE lavori SET montaggio=? WHERE id=?', JSON.stringify({ stato: 'da_fare', piano, versione, creato: ora(), indicazioni: indicazioni || null, nota_chiara: notaChiara, qa_giri: indicazioni?.da === 'revisore' ? (prima?.qa_giri || 0) : 0 }), L.id);
+  // il verso che Johnny ha dato a una clip ("girala") vale anche per i montaggi dopo: non deve ridirlo
+  if (prima?.ruote) for (const x of piano.segmenti || []) if (x.nome in prima.ruote) x.ruota = prima.ruote[x.nome];
+  await run(env, 'UPDATE lavori SET montaggio=? WHERE id=?', JSON.stringify({ stato: 'da_fare', piano, versione, ruote: prima?.ruote || undefined, creato: ora(), indicazioni: indicazioni || null, nota_chiara: notaChiara, qa_giri: indicazioni?.da === 'revisore' ? (prima?.qa_giri || 0) : 0 }), L.id);
   const tot = seg.reduce((a, s) => a + s.durata, 0);
   const nomeF = { montaggio: 'montaggio', talking_head: 'talking-head', carosello: 'carosello', split_grafico: 'split con grafiche animate', parole_dietro: 'parole giganti dietro la persona' }[formato];
   await log(env, L.id, 'regista', formato === 'carosello' ? `piano pronto: formato carosello, ${slide.length} slide` :

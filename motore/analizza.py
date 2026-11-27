@@ -189,15 +189,20 @@ def raddrizza(path, ruota, avvisa=None):
         return path
 
 
-def inquadra_su(lavoro, path, t, oggetto):
+def inquadra_su(lavoro, path, t, oggetto, durata=0):
     """Dove tagliare il 9:16 perché l'oggetto (es. "la scatola") stia al centro: Claude lo trova sul fotogramma INTERO
     (l'orizzontale resta orizzontale), il montatore sposta lì il ritaglio e, se l'oggetto è piccolo, stringe un po'."""
-    p = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{max(0, t):.2f}", "-i", path, "-frames:v", "1",
-                        "-vf", "scale=960:960:force_original_aspect_ratio=decrease", "-q:v", "4", "-f", "image2", "-"],
-                       capture_output=True, timeout=120)
-    if not p.stdout:
+    # tre fotogrammi del pezzo (inizio, metà, fine): l'oggetto si muove, il riquadro deve contenerlo per tutta la durata
+    foto = []
+    for tt in ([t] if not durata else [t - durata * 0.35, t, t + durata * 0.35]):
+        p = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{max(0, tt):.2f}", "-i", path, "-frames:v", "1",
+                            "-vf", "scale=768:768:force_original_aspect_ratio=decrease", "-q:v", "5", "-f", "image2", "-"],
+                           capture_output=True, timeout=120)
+        if p.stdout:
+            foto.append(base64.b64encode(p.stdout).decode())
+    if not foto:
         return None
-    r = regia(lavoro, "fuoco", corpo={"jpeg": base64.b64encode(p.stdout).decode(), "oggetto": oggetto}, timeout=120)
+    r = regia(lavoro, "fuoco", corpo={"jpeg": foto[len(foto) // 2], "fotogrammi": foto, "oggetto": oggetto}, timeout=180)
     if not r.get("trovato"):
         return None
     tt = tecnico(path)
@@ -700,12 +705,12 @@ def monta(lavoro):
         for s in piano.get("segmenti") or []:
             if s.get("fuoco") and s.get("file") and not s.get("zoom_fisso"):
                 try:
-                    kf = hashlib.sha256(f"{ident(s)}|{float(s.get('in', 0)):.1f}|{float(s.get('durata', 1)):.1f}|{s['fuoco']}".encode()).hexdigest()[:24]
+                    kf = hashlib.sha256(f"{ident(s)}|{float(s.get('in', 0)):.1f}|{float(s.get('durata', 1)):.1f}|{s['fuoco']}|v2".encode()).hexdigest()[:24]
                     if kf in fuochi:
                         if fuochi[kf]:
                             s.update(fuochi[kf])
                         continue
-                    inq = inquadra_su(lavoro, s["file"], float(s.get("in", 0)) + float(s.get("durata", 1)) / 2, s["fuoco"])
+                    inq = inquadra_su(lavoro, s["file"], float(s.get("in", 0)) + float(s.get("durata", 1)) / 2, s["fuoco"], float(s.get("durata", 1)))
                     fuochi[kf] = inq or None
                     if inq:
                         s.update(inq)

@@ -1414,6 +1414,7 @@ class MontatoreCompleto(TalkingHead):
         self.avvisa("editor", f"preparo {len(segmenti)} pezzi in parallelo: reframe sul soggetto, stabilizzazione, rallenty")
         with ThreadPoolExecutor(PARALLELO) as ex:
             pezzi = list(ex.map(lambda a: self.pezzo(a[0], a[1], lut, globali), enumerate(segmenti)))
+        segmenti, pezzi = self.togli_difetti(segmenti, pezzi)  # niente pezzi che tremano, niente doppioni di fila
         pezzi = self.pareggia(pezzi)
         # CORREZIONI CHIESTE DA JOHNNY su un pezzo (più chiaro, più contrasto, specchiato...): dopo il pareggio, così non vengono annullate
         for k, (sg, pz) in enumerate(zip(segmenti, pezzi)):
