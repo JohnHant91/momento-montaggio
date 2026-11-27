@@ -319,7 +319,7 @@ const ICO = {
   agenzia: '<path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/>',
   riunioni: '<circle cx="12" cy="8" r="3"/><path d="M5 20c.8-3.5 3.6-5.5 7-5.5s6.2 2 7 5.5M4.5 10.5a2.3 2.3 0 1 0 0-.1M19.5 10.5a2.3 2.3 0 1 0 0-.1"/>',
   profilo: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".6"/>',
-  approvazioni: '<path d="M20 6 9 17l-5-5"/>',
+  approvazioni: '<path d="M20 6 9 17l-5-5"/>', approvati: '<path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><path d="M22 4 12 14l-3-3"/>',
   calendario: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M8 14h3M13 14h3M8 17h3"/>',
   archivio: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
   clienti: '<path d="M16 20v-1.5a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4V20M9.5 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M21 20v-1.5a4 4 0 0 0-3-3.9M15.5 3.6a3.5 3.5 0 0 1 0 6.8"/>',
@@ -330,8 +330,8 @@ const ICO = {
   gestionale: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   impostazioni: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'
 };
-const VOCI = [['agenzia', 'Agenzia', '#/'], ['riunioni', 'Riunioni', '#/riunioni'], ['approvazioni', 'Approvazioni', '#/approvazioni'], ['calendario', 'Calendario', '#/calendario'], ['profilo', 'Profilo IG', '#/profilo'], ['clienti', 'Clienti', '#/clienti'], ['archivio', 'Archivio', '#/archivio']];
-const STRUMENTI = [ ['gestionale', 'Gestionale', '#/gestionale'], ['costi', 'Costi', '#/costi']];
+const VOCI = [['agenzia', 'Home', '#/'], ['riunioni', 'Proposte', '#/riunioni'], ['approvazioni', 'Da approvare', '#/approvazioni'], ['approvati', 'Approvati', '#/approvati'], ['calendario', 'Calendario', '#/calendario'], ['clienti', 'Clienti', '#/clienti'], ['archivio', 'Archivio', '#/archivio']];
+const STRUMENTI = [['profilo', 'Profilo IG', '#/profilo'], ['gestionale', 'Gestionale', '#/gestionale'], ['costi', 'Costi', '#/costi']];
 const voce = (v) => '<a class="vm" href="' + v[2] + '" data-k="' + v[0] + '"><svg viewBox="0 0 24 24">' + ICO[v[0]] + '</svg><span class="tx">' + v[1] + '</span>' + (v[0] === 'costi' ? '<span class="num" id="num_costi"></span>' : '') + '</a>';
 function menu(on) {
   document.body.classList.toggle('dentro', !!on);
@@ -350,7 +350,7 @@ async function aggiornaNumCosti() {
 const soldi = (usd, cambio) => '€ ' + (usd * (cambio || 0.86)).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 function evidenzia() {
   const h = location.hash || '#/';
-  const k = h === '#/' || h.startsWith('#/agente') || h.startsWith('#/ufficio') || h.startsWith('#/incarico') || h === '#/chat/capo' ? 'agenzia' : h.startsWith('#/riunion') ? 'riunioni' : h.startsWith('#/profilo') ? 'profilo' : h.startsWith('#/archivio') ? 'archivio' : h.startsWith('#/calendario') ? 'calendario' : h.startsWith('#/approvazion') ? 'approvazioni' : h.startsWith('#/client') ? 'clienti' :
+  const k = h === '#/' || h.startsWith('#/agente') || h.startsWith('#/ufficio') || h.startsWith('#/incarico') || h === '#/chat/capo' ? 'agenzia' : h.startsWith('#/riunion') ? 'riunioni' : h.startsWith('#/profilo') ? 'profilo' : h.startsWith('#/archivio') ? 'archivio' : h.startsWith('#/calendario') ? 'calendario' : h.startsWith('#/approvati') ? 'approvati' : h.startsWith('#/approvazion') ? 'approvazioni' : h.startsWith('#/client') ? 'clienti' :
     h.startsWith('#/reel') || h.startsWith('#/lavoro') || h.startsWith('#/nuovo') || h.startsWith('#/post') || h.startsWith('#/copion') || h.startsWith('#/piano') ? 'approvazioni' : h.startsWith('#/chat/gestionale') || h.startsWith('#/chat/contabile') || h === '#/gestionale' ? 'gestionale' : h.startsWith('#/costi') ? 'costi' : h.startsWith('#/impostazioni') ? 'impostazioni' : '';
   document.querySelectorAll('#nav .vm[data-k]').forEach((a) => a.classList.toggle('att', a.dataset.k === k));
   const tutte = VOCI.concat(STRUMENTI, [['impostazioni', 'Impostazioni']]).find((v) => v[0] === k);
@@ -1315,6 +1315,46 @@ async function riunionePagina(id) {
 
 // APPROVAZIONI: un'unica casella con tutto quello che aspetta Johnny, e si approva da qui senza andare a cercare:
 // reel finiti, copioni (profilo e clienti), caroselli, post del calendario, proposte delle riunioni, documenti degli agenti
+// CONTENUTI APPROVATI: tutto ciò che Johnny ha approvato, pronto da scaricare e consegnare al cliente
+async function approvatiPagina() {
+  const nulla = () => [];
+  const [Re, Po, Co, Pi, Av] = await Promise.all([chiama('/api/lavori').catch(nulla), chiama('/api/post').catch(nulla), chiama('/api/contenuti').catch(nulla), chiama('/api/piani').catch(nulla), chiama('/api/avatar').catch(nulla)]);
+  const reel = Re.filter((l) => l.approvato);
+  const post = await Promise.all(Po.filter((x) => x.stato === 'fatto').slice(0, 20).map((x) => chiama('/api/post/' + x.id).catch(() => null)));
+  const testi = Co.filter((c) => ['approvato', 'da_pubblicare', 'pubblicato'].includes(c.stato));
+  const copioni = Pi.filter((x) => x.approvato).map((x) => ({ t: x.cliente || 'copioni', link: '#/copioni/' + x.id, q: x.aggiornato }))
+    .concat(Av.filter((x) => x.stato === 'fatto').map((x) => ({ t: 'Profilo · ' + (x.argomento || ''), link: '#/profilo/' + x.id, q: x.aggiornato })));
+  const cliDi = (l) => { const m = /^Cliente: ([^.·\\n]+)/.exec(l.prompt || ''); return m ? m[1].trim() : (l.avatar ? 'Profilo di Johnny' : ''); };
+  const giorno = (q) => q ? new Date(q).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) : '';
+  const bReel = reel.map((l) => '<div class="card ap" data-cli="' + e(cliDi(l).toLowerCase()) + '"><div class="riga" style="align-items:flex-start;gap:14px">' +
+    '<video src="/api/lavori/' + l.id + '/reel.mp4" controls playsinline preload="none" poster="' + (l.copertina ? '/api/lavori/' + l.id + '/copertina.jpg' : '') + '" style="width:130px;aspect-ratio:9/16;border-radius:12px;background:#000;flex:0 0 130px"></video>' +
+    '<div style="flex:1;min-width:0"><b>#' + l.id + ' · ' + e(l.titolo || (l.prompt || '').slice(0, 90)) + '</b><div class="mut" style="margin:4px 0 10px">' + e(cliDi(l)) + ' · approvato il ' + giorno(l.approvato) + '</div>' +
+    '<div class="riga" style="gap:6px;flex-wrap:wrap"><a class="btn" href="/api/lavori/' + l.id + '/reel.mp4?scarica=1">⬇︎ Scarica il reel</a>' + (l.copertina ? '<a class="btn sec" href="/api/lavori/' + l.id + '/copertina.jpg" target="_blank">🖼 Copertina</a>' : '') + '<a class="btn sec" href="#/lavoro/' + l.id + '">Apri</a></div></div></div></div>').join('');
+  const bPost = post.filter(Boolean).map((P) => {
+    const per = {}; (P.slide_file || []).forEach((k) => { const m = k.match(/\\/(\\d+)-(\\d+)\\.png$/); if (m) (per[m[1]] ||= []).push([Number(m[2]), k]); });
+    return ((P.contenuti || {}).post || []).filter((x) => x.stato === 'approvato').map((x) => '<div class="card ap" data-cli="' + e(String(P.cliente || '').toLowerCase()) + '"><b>' + e(x.titolo || 'Post ' + x.n) + '</b><div class="mut" style="margin:4px 0 8px">' + e(P.cliente || '') + ' · ' + e(x.tipo || P.tipo || '') + ' · ' + giorno(P.aggiornato) + ' · <a href="#/post/' + P.id + '">apri</a></div>' +
+      '<div style="display:flex;gap:6px;overflow-x:auto">' + (per[x.n] || []).sort((a, b) => a[0] - b[0]).map(([, k]) => '<a href="/api/post/' + P.id + '/slide/' + k.split('/')[1] + '" target="_blank" download><img loading="lazy" src="/api/post/' + P.id + '/slide/' + k.split('/')[1] + '" style="height:190px;border-radius:8px"></a>').join('') + '</div>' +
+      (x.caption ? '<details style="margin-top:8px"><summary>Caption e hashtag</summary><div style="white-space:pre-wrap;font-size:14px;margin-top:6px">' + e(x.caption) + (x.hashtag ? '\\n\\n' + e((x.hashtag || []).map((h) => '#' + h).join(' ')) : '') + '</div><button class="sec copia" data-t="' + e(x.caption + (x.hashtag ? '\\n\\n' + (x.hashtag || []).map((h) => '#' + h).join(' ') : '')) + '" style="width:auto;margin-top:6px">📋 Copia</button></details>' : '') + '</div>').join('');
+  }).join('');
+  const bTesti = testi.map((c) => '<div class="card ap" data-cli="' + e(String(c.cliente || '').toLowerCase()) + '"><b>' + e(c.titolo || c.tipo || 'contenuto') + '</b><div class="mut" style="margin:4px 0 8px">' + e(c.cliente || '') + ' · ' + e(c.tipo || '') + (c.data ? ' · ' + e(c.data) : '') + ' · ' + (c.stato === 'pubblicato' ? 'pubblicato' : 'da pubblicare') + '</div>' +
+    '<details><summary>Testo</summary><div style="white-space:pre-wrap;font-size:14px;margin-top:6px">' + e(c.testo || '') + '</div><button class="sec copia" data-t="' + e(c.testo || '') + '" style="width:auto;margin-top:6px">📋 Copia</button></details></div>').join('');
+  const bCop = copioni.map((x) => '<a class="card ap" href="' + x.link + '" data-cli="' + e(x.t.toLowerCase()) + '" style="display:block;text-decoration:none;color:inherit"><b>📝 ' + e(x.t) + '</b><div class="mut">' + giorno(x.q) + ' · apri i copioni</div></a>').join('');
+  const sez = (ic, t, n, corpo, cat) => n ? '<div class="apsez" data-cat="' + cat + '"><h2 class="ap-h">' + ic + ' ' + t + ' <span class="pill">' + n + '</span></h2>' + corpo + '</div>' : '';
+  const nPost = (bPost.match(/class="card ap"/g) || []).length;
+  const tot = reel.length + nPost + testi.length + copioni.length;
+  $('#app').innerHTML = '<h1>Approvati <span class="pill pronto">' + tot + '</span></h1><p class="mut">Tutto quello che hai approvato, pronto da scaricare e consegnare.</p>' +
+    '<div class="riga" style="gap:8px;flex-wrap:wrap;margin:10px 0"><div class="filtri" id="apf"><button class="on" data-f="">Tutto</button><button data-f="reel">🎬 Reel</button><button data-f="post">🗂️ Post e caroselli</button><button data-f="testi">✍️ Testi</button><button data-f="copioni">📝 Copioni</button></div>' +
+    '<input id="apq" placeholder="Filtra per cliente…" style="max-width:240px"></div>' +
+    (tot ? sez('🎬', 'Reel', reel.length, bReel, 'reel') + sez('🗂️', 'Post e caroselli', nPost, bPost, 'post') + sez('✍️', 'Testi', testi.length, bTesti, 'testi') + sez('📝', 'Copioni', copioni.length, bCop, 'copioni')
+      : '<div class="card"><b>Ancora niente di approvato.</b><p class="mut">Quando approvi un reel, un post o un carosello in “Da approvare”, lo ritrovi qui.</p></div>');
+  const filtra = () => { const f = (document.querySelector('#apf .on') || {}).dataset.f || '', q = $('#apq').value.trim().toLowerCase();
+    document.querySelectorAll('.apsez').forEach((s) => { s.style.display = !f || s.dataset.cat === f ? '' : 'none'; });
+    document.querySelectorAll('.card.ap').forEach((c) => { c.style.display = !q || (c.dataset.cli || '').includes(q) ? '' : 'none'; }); };
+  document.querySelectorAll('#apf button').forEach((b) => b.onclick = () => { document.querySelectorAll('#apf button').forEach((x) => x.classList.toggle('on', x === b)); filtra(); });
+  $('#apq').oninput = filtra;
+  document.querySelectorAll('.copia').forEach((b) => b.onclick = async () => { try { await navigator.clipboard.writeText(b.dataset.t); b.textContent = '✅ Copiato'; } catch (x) { b.textContent = 'Non riesco a copiare'; } });
+}
+
 async function approvazioni() {
   if (!AGENTI.capo) { const R = await chiama('/api/azienda'); Object.assign(AGENTI, R.squadra); }
   const nulla = () => [];
@@ -1704,6 +1744,7 @@ async function rotta(ev) {
     else if (h.startsWith('#/agente/')) await agentePagina(h.split('/')[2]);
     else if (h.startsWith('#/incarico/')) await incarico(h.split('/')[2]);
     else if (h === '#/approvazioni') await approvazioni();
+    else if (h === '#/approvati') await approvatiPagina();
     else if (h === '#/calendario') await calendarioPagina();
     else if (h === '#/archivio' || h.startsWith('#/archivio/')) await archivioPagina(decodeURIComponent(h.slice(11)));
     else if (h === '#/riunioni') await riunioniPagina();
