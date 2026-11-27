@@ -1063,17 +1063,23 @@ async function azienda() {
     '<div class="lato" id="lato"></div>';
   $('#saluto').onclick = (ev) => { const b = ev.target.closest('[data-va]'); if (!b) return; $('#sala').scrollIntoView({ behavior: 'smooth', block: 'center' }); vaiAgente(b.dataset.va); };
   const D = datiSala(R);
+  const accendiSala = () => {
   import('/sala3d.js').then((m) => {
-    if (!$('#sala')) return;
-    SALA3D = m; window.__sala = m;
-    m.avvia($('#sala'), D, {
-      agente: (a) => { SALA.sel = a; $('#torna').style.display = ''; apriLato(a); },
-      ufficio: (u) => { SALA.ufficio = u; SALA.sel = null; chiudiLato(); $('#torna').style.display = ''; },
-      vista: () => { SALA.ufficio = null; SALA.sel = null; chiudiLato(); $('#torna').style.display = 'none'; },
-      cervello: apriCervello,
-    });
-    $('#carico').remove();
-  }).catch((x) => { $('#carico').textContent = 'La sala 3D non si è caricata (' + x.message + '). Ricarica la pagina.'; });
+      if (!$('#sala')) return;
+      SALA3D = m; window.__sala = m;
+      m.avvia($('#sala'), D, {
+        agente: (a) => { SALA.sel = a; $('#torna').style.display = ''; apriLato(a); },
+        ufficio: (u) => { SALA.ufficio = u; SALA.sel = null; chiudiLato(); $('#torna').style.display = ''; },
+        vista: () => { SALA.ufficio = null; SALA.sel = null; chiudiLato(); $('#torna').style.display = 'none'; },
+        cervello: apriCervello,
+      });
+      $('#carico').remove();
+    }).catch((x) => { $('#carico').textContent = 'La sala 3D non si è caricata (' + x.message + '). Ricarica la pagina.'; });
+  };
+  // sul telefono la sala 3D pesa (scarica un motore grafico e disegna di continuo): si accende solo se la chiedi
+  let vuole3d = innerWidth >= 900; try { const v = localStorage.getItem('sala3d'); if (v) vuole3d = v === 'si'; } catch (x) {}
+  if (vuole3d) accendiSala();
+  else { $('#sala').style.minHeight = '0'; $('#sala').style.height = 'auto'; $('#carico').innerHTML = '<button class="sec" id="accendi3d" style="width:auto">🏢 Mostra la sala 3D degli agenti</button>'; $('#accendi3d').onclick = () => { try { localStorage.setItem('sala3d', 'si'); } catch (x) {} rotta(); }; }
   document.querySelectorAll('#filtri button').forEach((b) => b.onclick = () => {
     document.querySelectorAll('#filtri button').forEach((x) => x.classList.toggle('on', x === b));
     if (b.dataset.f) entraUfficio(b.dataset.f); else grandangolo();

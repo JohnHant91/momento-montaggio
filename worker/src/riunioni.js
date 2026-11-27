@@ -86,7 +86,7 @@ export async function chiediDirettrice(env, testo, clienteId) {
   }
   const r = await one(env, `INSERT INTO riunioni (tipo, stato, richiesta, cliente_id, partecipanti, titolo, creato, aggiornato) VALUES ('richiesta','in_corso',?,?,?,?,?,?) RETURNING id`,
     testo, clienteId || null, JSON.stringify(PER_RICHIESTA), testo.split('\n')[0].slice(0, 80), ora(), ora());
-  const risposta = 'Ricevuto. Passo subito il lavoro ai reparti: ti arriva da approvare quando è pronto.';
+  const risposta = 'Ricevuto. Faccio la riunione operativa: tra un paio di minuti ti porto le 10 proposte e scegli tu.';
   await run(env, 'INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)', 'capo', 'assistant', risposta, ora());
   await log(env, null, 'capo', `📨 richiesta #${r.id} ai reparti: ${testo.slice(0, 80)}`);
   return { risposta, riunione: r.id, incarichi: [] };

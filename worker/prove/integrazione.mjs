@@ -9,6 +9,7 @@ const ok = (cond, cosa) => { if (cond) console.log('  ✓', cosa); else { consol
 console.log('\n1) pagina e accesso');
 let r = await chiama('/'); ok(r.status === 200 && String(r.j).includes('<html'), 'la pagina si apre');
 r = await chiama('/api/azienda'); ok(r.status === 401 || r.status === 403, 'senza accesso le API sono chiuse (' + r.status + ')');
+env.DB._db.prepare("INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES ('APPROVAZIONI_INTERMEDIE','si')").run(); // la suite copre il percorso con le approvazioni
 r = await chiama('/api/stato'); ok(r.j.configurato === false, 'accesso ancora da creare');
 r = await chiama('/api/accedi', { method: 'POST', body: { email: 'johnny@prova.it', password: 'corta' } }); ok(r.status === 400, 'password troppo corta rifiutata al primo accesso');
 r = await chiama('/api/accedi', { method: 'POST', body: { email: 'johnny@prova.it', password: 'provaprova' } }); ok(r.status === 200 && /^[A-Z0-9]{4}(-[A-Z0-9]{4}){3}$/.test(r.j.codice_recupero || ''), 'primo accesso: email e password salvate, codice di recupero dato');

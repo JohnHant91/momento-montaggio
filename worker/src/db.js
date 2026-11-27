@@ -64,3 +64,9 @@ export async function configurazione(env) {
     _rec: env, _salvate: salvate, _env: Object.fromEntries(CHIAVI_SEGRETE.map((k) => [k, !!env[k]])),
   };
 }
+
+// Johnny approva SOLO il risultato finale: copioni e testi passano da soli alla produzione.
+// Per rimettere le approvazioni intermedie: impostazione APPROVAZIONI_INTERMEDIE = si
+export async function intermedie(env) {
+  return (await one(env, "SELECT valore FROM impostazioni WHERE chiave='APPROVAZIONI_INTERMEDIE'").catch(() => null))?.valore === 'si';
+}

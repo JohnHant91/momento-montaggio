@@ -4,7 +4,7 @@
 //  3. Ada guarda le foto che Johnny ha scattato (cartella pCloud) e sceglie le migliori, con lo spazio per i testi.
 //  4. Pietro scrive i caroselli slide per slide (con la foto di ogni slide), Giulia caption e hashtag. Johnny approva.
 //  5. Canva: i caroselli si impaginano su Canva (li crea Claude con Canva collegato) e tornano qui come PNG + link modificabile.
-import { all, one, run, J, ora, configurazione, log } from './db.js';
+import { all, one, run, J, ora, configurazione, log, intermedie } from './db.js';
 import * as S from './servizi.js';
 import { SKILL } from './skill_testi.js';
 import { chi } from './consumi.js';
@@ -203,6 +203,13 @@ Rispondi SOLO JSON:
   // Chiara ripassa ogni post prima che arrivi a Johnny
   for (const x of post) x.nota_chiara = await ripassoChiara(env, cfg, C, x.tipo || 'carosello', { titolo: x.titolo, slide: (x.slide || []).map((s) => [s.titolo, s.testo].filter(Boolean).join(' — ')), caption: x.caption });
   if (post.some((x) => x.nota_chiara)) await log(env, null, 'smm', `📣 Chiara ha ripassato ${post.length} contenuti di ${P.cliente}: le sue note sono in Approvazioni`);
+  // i testi non passano più da Johnny: si impaginano subito e lui approva le grafiche finite
+  if (!(await intermedie(env))) {
+    post.forEach((x) => { x.stato = 'approvato'; });
+    await run(env, "UPDATE post_lavori SET contenuti=?, canva=NULL, slide_file=NULL, fase='impagina', stato='in_corso', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify({ stile: out.stile || {}, post }), ora(), P.id);
+    await log(env, null, 'caroselli', `🎨 post #${P.id}: ${post.length} ${P.tipo === 'post' ? 'post' : 'caroselli'} scritti, li impagino subito (approvi il risultato finito)`);
+    return;
+  }
   await run(env, "UPDATE post_lavori SET contenuti=?, fase='approvazione', stato='da_approvare', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify({ stile: out.stile || {}, post }), ora(), P.id);
   await log(env, null, 'caroselli', `🗂️ post #${P.id}: ${post.length} ${P.tipo === 'post' ? 'post' : 'caroselli'} scritti (${post.reduce((s, p) => s + (p.slide || []).length, 0)} slide). Johnny, tocca a te approvarli`);
 }

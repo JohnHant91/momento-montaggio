@@ -5,7 +5,7 @@
 //  3. Nora scrive i copioni GANCIO → PROBLEMA → TENSIONE → SOLUZIONE → CTA, con i cartelli. Johnny li approva.
 //  4. Ava genera i video con l'avatar HeyGen (serve la chiave API; senza chiave li genera Claude dalla chat).
 //  5. Il comparto Reel li monta con lo stile "Talking head educativo con grafiche".
-import { all, one, run, J, ora, configurazione, log } from './db.js';
+import { all, one, run, J, ora, configurazione, log, intermedie } from './db.js';
 import * as S from './servizi.js';
 import { SKILL } from './skill_testi.js';
 import { MANUALE_COPIONI } from './manuali.js';
@@ -164,7 +164,9 @@ Rispondi SOLO JSON: ${FORMATO_COPIONE}`, { maxTokens: 4000 });
     const n = Math.max(0, ...copioni.map((c) => c.n)) + 1;
     copioni.push({ n, ...out, idea: A.idea_scelta, parole: String(out.testo || '').split(/\s+/).filter(Boolean).length, stato: 'da_approvare' });
     idee[A.idea_scelta].usata = n;
-    await run(env, "UPDATE avatar_piani SET copioni=?, idee=?, idea_scelta=NULL, fase='approvazione', stato='da_approvare', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(copioni), JSON.stringify(idee), ora(), A.id);
+    const auto1 = !(await intermedie(env));
+    if (auto1) copioni[copioni.length - 1].stato = 'approvato';
+    await run(env, `UPDATE avatar_piani SET copioni=?, idee=?, idea_scelta=NULL, fase='${auto1 ? 'avatar' : 'approvazione'}', stato='${auto1 ? 'in_corso' : 'da_approvare'}', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?`, JSON.stringify(copioni), JSON.stringify(idee), ora(), A.id);
     await log(env, null, 'idee', `✍️ copione "${out.titolo}" scritto dall'idea in riserva (senza nuova ricerca): aspetta la tua approvazione`);
     return;
   }
@@ -184,7 +186,10 @@ Rispondi SOLO JSON:
   if (!nuovi.length) throw new Error('Nora non ha prodotto copioni');
   nuovi.forEach((c) => { if (c.idea != null && lista[c.idea]) lista[c.idea].usata = c.n; });
   const virali = { ...J(A.virali, {}), ...(out.virali && typeof out.virali === 'object' ? out.virali : {}) };
-  await run(env, "UPDATE avatar_piani SET copioni=?, idee=?, virali=?, fase='approvazione', stato='da_approvare', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(nuovi), JSON.stringify(lista), JSON.stringify(virali), ora(), A.id);
+  const auto = !(await intermedie(env));
+  if (auto) nuovi.forEach((c) => { c.stato = 'approvato'; });
+  await run(env, `UPDATE avatar_piani SET copioni=?, idee=?, virali=?, fase='${auto ? 'avatar' : 'approvazione'}', stato='${auto ? 'in_corso' : 'da_approvare'}', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?`, JSON.stringify(nuovi), JSON.stringify(lista), JSON.stringify(virali), ora(), A.id);
+  if (auto) await log(env, null, 'avatar', `🎭 ${nuovi.length} copioni di Nora passati alla produzione senza approvazione intermedia`);
   await log(env, null, 'idee', `💡 10 idee su "${A.argomento.slice(0, 60)}": Nora ha scelto le ${nuovi.length} migliori e ne ha scritto il copione, le altre ${lista.length - nuovi.length} restano in riserva`);
 }
 
