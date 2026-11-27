@@ -530,7 +530,7 @@ function vistaReel(L) {
     ((r.tratti || []).length ? '<div class="card" id="pz_card"' + (m.taglio ? ' style="border:2px solid var(--err)"' : '') + '><b>✂️ I pezzi del reel</b>' +
       (m.taglio ? '<p class="err">Il revisore ha trovato un problema: taglia tu i pezzi segnati e premi Rimonta con i miei tagli.</p>' : '<p class="mut">Tocca Taglia su un pezzo, guarda la clip intera e scegli tu inizio e fine. Il resto del reel resta uguale.</p>') +
       '<div id="pz_lista" class="mut">carico i pezzi…</div><div id="pz_ed"></div>' +
-      '<div style="margin-top:10px"><button id="pz_ok" disabled>Rimonta con i miei tagli</button> <span id="pz_er" class="err"></span></div></div>' : '') +
+      '<div style="margin-top:10px"><button id="pz_ok" disabled>Rimonta con le mie modifiche</button> <span id="pz_er" class="err"></span></div></div>' : '') +
     '<div class="card"><b>Rimonta</b><p class="mut">Rifà solo piano e montaggio (niente nuova ricerca né analisi).</p>' +
     '<label>Cosa cambiare</label><textarea id="rim_t" style="min-height:70px" placeholder="Es. più veloce, gancio con la tazza, meno testi, chiusura con il logo"></textarea>' +
     '<div class="riga"><div style="flex:1"><label>Look</label><select id="rim_l">' + LOOKS_UI.map(([v, n]) => '<option value="' + v + '">' + n + '</option>').join('') + '</select></div>' +
@@ -572,24 +572,26 @@ async function editorTagli(id) {
       return '<div class="riga" style="padding:6px 0;border-bottom:1px solid var(--bordo,#2a2a2a);' + (p.problema ? 'color:var(--err)' : '') + '"><div style="flex:1;min-width:0"><b>' + (p.pezzo + 1) + '.</b> ' + e(p.nome) +
         (t && t.elimina ? ' <span class="pill errore">eliminato</span>' : ' <span class="mut">da ' + Number(t ? t.da : p.in).toFixed(1) + ' s per ' + Number(t ? t.a - t.da : p.dur).toFixed(1) + ' s</span>' + (t ? ' <span class="pill">tagliato da te</span>' : '')) +
         (p.problema ? '<div>⚠︎ ' + e(p.problema) + '</div>' : '') + '</div>' +
-        (t && t.elimina ? '' : (p.link ? '<button class="sec pz_t" data-k="' + p.pezzo + '">✂️ Taglia</button>' : '<span class="mut">clip non visibile qui</span>')) +
-        '<button class="sec pz_x" data-k="' + p.pezzo + '" style="margin-left:6px">' + (t && t.elimina ? '↩︎ Rimetti' : '🗑 Elimina') + '</button></div>';
+        (p.link ? '<button class="sec pz_t" data-k="' + p.pezzo + '">▾ Guarda e taglia</button>' : '<span class="mut">clip non visibile qui</span>') +
+        '<button class="sec pz_x" data-k="' + p.pezzo + '" style="margin-left:6px">' + (t && t.elimina ? '↩︎ Rimetti' : '🗑 Elimina') + '</button></div><div class="pz_d" id="pz_d' + p.pezzo + '"></div>';
     }).join('');
     $('#pz_ok').disabled = !Object.keys(tagli).length;
-    document.querySelectorAll('.pz_t').forEach((b) => b.onclick = () => apri(Number(b.dataset.k)));
-    document.querySelectorAll('.pz_x').forEach((b) => b.onclick = () => { const k = Number(b.dataset.k); if (tagli[k] && tagli[k].elimina) delete tagli[k]; else { if (D.pezzi.filter((x) => !(tagli[x.pezzo] && tagli[x.pezzo].elimina)).length <= 1) return alert('Deve restare almeno un pezzo'); tagli[k] = { pezzo: k, elimina: true }; } $('#pz_ed').innerHTML = ''; disegna(); });
+    document.querySelectorAll('.pz_t').forEach((b) => b.onclick = () => { const k = Number(b.dataset.k), aperto = !!$('#pz_d' + k).innerHTML; chiudi(); if (!aperto) apri(k); });
+    document.querySelectorAll('.pz_x').forEach((b) => b.onclick = () => { const k = Number(b.dataset.k); if (tagli[k] && tagli[k].elimina) delete tagli[k]; else { if (D.pezzi.filter((x) => !(tagli[x.pezzo] && tagli[x.pezzo].elimina)).length <= 1) return alert('Deve restare almeno un pezzo'); tagli[k] = { pezzo: k, elimina: true }; } disegna(); });
   };
+  const chiudi = () => { document.querySelectorAll('.pz_d').forEach((x) => { x.innerHTML = ''; }); document.querySelectorAll('.pz_t').forEach((b) => { b.textContent = '▾ Guarda e taglia'; }); };
   const apri = (k) => {
     const p = D.pezzi.find((x) => x.pezzo === k);
     const t = tagli[k] && !tagli[k].elimina ? tagli[k] : { da: p.in, a: p.in + p.dur };
     const r = Number(p.ruota) || 0;
     const giro = r === 90 || r === -90;
-    $('#pz_ed').innerHTML = '<div class="card" style="margin-top:10px"><b>Pezzo ' + (k + 1) + ' · ' + e(p.nome) + '</b>' +
+    $('#pz_d' + k).innerHTML = '<div class="card" style="margin:8px 0 12px"><b>Pezzo ' + (k + 1) + ' · ' + e(p.nome) + '</b>' +
       '<div style="display:flex;justify-content:center;align-items:center;overflow:hidden;' + (giro ? 'height:420px' : '') + '"><video id="pz_v" src="' + e(p.link) + '#t=' + t.da + '" controls playsinline preload="metadata" style="background:#000;border-radius:10px;' +
       (giro ? 'width:420px;max-width:none;transform:rotate(' + r + 'deg)' : 'width:100%;max-width:360px') + '"></video></div>' +
       '<div class="riga" style="justify-content:center;margin-top:8px"><button class="sec" id="pz_m1">−0,1 s</button><button class="sec" id="pz_p1">+0,1 s</button></div>' +
       '<div class="riga" style="justify-content:center;margin-top:8px"><button id="pz_in">Inizio qui</button><button id="pz_out">Fine qui</button><button class="sec" id="pz_prova">▶ Riguarda il taglio</button></div>' +
-      '<p style="text-align:center" id="pz_info"></p><div style="text-align:center"><button id="pz_tieni">Tieni questo taglio</button> <button class="sec" id="pz_chiudi">Annulla</button></div></div>';
+      '<p style="text-align:center" id="pz_info"></p><div style="text-align:center"><button id="pz_tieni">Tieni questo taglio</button> <button class="sec" id="pz_via">🗑 Elimina questa clip</button> <button class="sec" id="pz_chiudi">Chiudi</button></div></div>';
+    const bt = document.querySelector('.pz_t[data-k="' + k + '"]'); if (bt) bt.textContent = '▴ Chiudi';
     const v = $('#pz_v');
     const info = () => { $('#pz_info').textContent = 'da ' + t.da.toFixed(1) + ' s a ' + t.a.toFixed(1) + ' s (' + (t.a - t.da).toFixed(1) + ' s)' + (t.a - t.da < 0.5 ? ' · troppo corto' : ''); };
     info();
@@ -598,9 +600,10 @@ async function editorTagli(id) {
     $('#pz_in').onclick = () => { t.da = Math.round(v.currentTime * 10) / 10; if (t.a <= t.da) t.a = t.da + Math.max(1, p.dur); info(); };
     $('#pz_out').onclick = () => { t.a = Math.round(v.currentTime * 10) / 10; info(); };
     $('#pz_prova').onclick = () => { v.currentTime = t.da; v.play(); const st = () => { if (v.currentTime >= t.a) { v.pause(); v.removeEventListener('timeupdate', st); } }; v.addEventListener('timeupdate', st); };
-    $('#pz_tieni').onclick = () => { if (t.a - t.da < 0.5) return alert('Il pezzo deve durare almeno mezzo secondo'); tagli[k] = { pezzo: k, da: t.da, a: t.a }; $('#pz_ed').innerHTML = ''; disegna(); };
-    $('#pz_chiudi').onclick = () => { $('#pz_ed').innerHTML = ''; };
-    $('#pz_ed').scrollIntoView({ behavior: 'smooth' });
+    $('#pz_tieni').onclick = () => { if (t.a - t.da < 0.5) return alert('Il pezzo deve durare almeno mezzo secondo'); tagli[k] = { pezzo: k, da: t.da, a: t.a }; disegna(); };
+    $('#pz_via').onclick = () => { const x = document.querySelector('.pz_x[data-k="' + k + '"]'); if (x) x.click(); };
+    $('#pz_chiudi').onclick = chiudi;
+    $('#pz_d' + k).scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   };
   $('#pz_ok').onclick = async () => {
     $('#pz_ok').disabled = true;
