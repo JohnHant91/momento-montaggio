@@ -140,7 +140,9 @@ export async function motoreApi(req, env, url) {
 
   // 1) il motore chiede lavoro
   if (p === '/api/motore/prossimo' && m === 'POST') {
-    if (!(await identitaGitHub(req.headers.get('authorization')))) return json({ errore: 'motore non riconosciuto' }, 401);
+    const chiE = await identitaGitHub(req.headers.get('authorization'));
+    if (!chiE) return json({ errore: 'motore non riconosciuto' }, 401);
+    const DOVE = chiE.runner_environment === 'self-hosted' ? 'il tuo Mac' : 'motore GitHub'; // dove sta girando davvero
     const adesso = ora();
     const solo = Number(url.searchParams.get('lavoro')) || 0; // motore dedicato a un reel: prende solo quello
     const pass = [...crypto.getRandomValues(new Uint8Array(24))].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -155,7 +157,7 @@ export async function motoreApi(req, env, url) {
     const tipo = L.fase;
     if (tipo === 'montaggio') {
       const m = J(L.montaggio, {});
-      await log(env, L.id, 'motore', `⚙️ motore GitHub al lavoro: scarico ${new Set([...(m.piano.segmenti || []), ...(m.piano.broll || []), ...(m.piano.slide || [])].map((s) => s.fileid || s.url)).size} file e monto il reel (${m.piano.formato || 'montaggio'})`);
+      await log(env, L.id, 'motore', `⚙️ ${DOVE} al lavoro: scarico ${new Set([...(m.piano.segmenti || []), ...(m.piano.broll || []), ...(m.piano.slide || [])].map((s) => s.fileid || s.url)).size} file e monto il reel (${m.piano.formato || 'montaggio'})`);
       // chiave per cifrare la cache delle clip sul motore (repo pubblico: le clip dei clienti in cache sono sempre cifrate)
       let cache_key = null;
       if (env.IG_INTERNO_KEY) {
@@ -170,7 +172,7 @@ export async function motoreApi(req, env, url) {
           // i file di Apify li scarica la regia (ha il token), il motore passa da qui
           video_url: x.video.video_url ? (x.video.video_url.includes('api.apify.com') ? `${url.origin}/api/motore/${L.id}/scarica?i=${i}&tipo=riferimenti&pass=${pass}` : x.video.video_url) : null }
       : { indice: i, nome: x.nome, tipo: x.tipo || x.tecnico?.tipo || 'video', fileid: x.sorgente?.tipo === 'pcloud' || !x.sorgente ? x.fileid : null, video_url: x.sorgente?.tipo === 'url' ? x.sorgente.url : x.sorgente?.tipo === 'archivio' ? await linkFirmato(env, url.origin, x.sorgente.percorso) : null, dimensione: x.dimensione }));
-    await log(env, L.id, 'motore', `⚙️ motore GitHub al lavoro: ${elementi.length} ${tipo === 'riferimenti' ? 'reel da scaricare e misurare' : 'clip da scaricare e misurare'}`);
+    await log(env, L.id, 'motore', `⚙️ ${DOVE} al lavoro: ${elementi.length} ${tipo === 'riferimenti' ? 'reel da scaricare e misurare' : 'clip da scaricare e misurare'}`);
     return json({ id: L.id, tipo, pass, pcloud_code: codice(L.pcloud), pcloud_eu: /(^|\/\/)e\.|eapi/.test(L.pcloud || ''), elementi });
   }
 
