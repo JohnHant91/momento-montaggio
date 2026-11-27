@@ -1719,6 +1719,7 @@ async function clientePagina(id) {
     '<h2>Scheda cliente</h2><div class="card">' + (C.scheda ? md(C.scheda) : '<p class="mut">Non ancora scritta.</p>') + '</div>' +
     '<h2>📣 Linea editoriale (Chiara)</h2><div class="card" id="c_linea">' + (C.linea ? (() => { const L = JSON.parse(C.linea); return '<div class="kv"><b>Obiettivo</b><span>' + e(L.obiettivo || '') + '</span><b>Pubblico</b><span>' + e(L.pubblico || '') + '</span><b>Voce</b><span>' + e(L.voce || '') + '</span><b>Pilastri</b><span>' + e((L.pilastri || []).join(' · ')) + '</span><b>Da evitare</b><span>' + e((L.cosa_evitare || []).join(' · ')) + '</span><b>Mix del mese</b><span>' + e(Object.entries(L.mix_mese || {}).map(([k, v]) => v + ' ' + k.replace(/_/g, ' ')).join(', ')) + '</span><b>Stile visivo</b><span>' + e(L.stile_visivo || '') + '</span>' + ((L.da_chiedere || []).length ? '<b>Mi serve sapere</b><span>' + e(L.da_chiedere.join(' · ')) + '</span>' : '') + '</div>'; })() : '<p class="mut">Chiara la scrive al primo lavoro social per questo cliente, oppure adesso.</p>') +
       '<button class="sec" id="c_lin" style="width:auto;margin-top:10px">' + (C.linea ? 'Chiara, riscrivila' : 'Chiara, scrivila adesso') + '</button></div>' +
+    '<h2>📸 Instagram del cliente</h2><div class="card">' + (C.ig_user_id ? '<p style="margin-top:0">Collegato: <b>@' + e(C.ig_username || C.ig_user_id) + '</b>. I suoi post e caroselli approvati si possono programmare su questo account.</p><button class="sec" id="c_igno" style="width:auto">Scollega</button>' : '<p class="mut" style="margin-top:0">Nessun account collegato. Cerco gli account Instagram professionali che l’agenzia può già usare (quelli delle pagine Facebook che gestisci).</p><button class="sec" id="c_igc" style="width:auto">Cerca gli account</button>') + '<div id="c_igl" style="margin-top:10px"></div><div id="c_iger" class="err"></div></div>' +
     '<h2>🎨 Colori del cliente</h2><div class="card"><p class="mut" style="margin-top:0">Valgono per tutti i suoi caroselli, post e reel. Cambia lo stile grafico, i colori restano questi.' + (C.colori ? (C.colori.fissati === 'johnny' ? ' Li hai scelti tu.' : ' Li ha fissati l’agenzia dalla nicchia: cambiali se il cliente ha colori di marca.') : ' Non ancora fissati: al primo contenuto l’agenzia sceglie una palette adatta alla nicchia.') + '</p>' +
       '<div class="riga" style="gap:14px;flex-wrap:wrap;align-items:end"><div><label>Accento</label><input type="color" id="c_ca" value="' + e(C.colori?.accento || '#0E9F9A') + '" style="width:70px;height:44px;padding:2px"></div><div><label>Fondo chiaro</label><input type="color" id="c_cc" value="' + e(C.colori?.chiaro || '#F6F4EF') + '" style="width:70px;height:44px;padding:2px"></div><div><label>Scuro</label><input type="color" id="c_cs" value="' + e(C.colori?.scuro || '#16181A') + '" style="width:70px;height:44px;padding:2px"></div>' +
       '<button id="c_csal" style="width:auto">Salva i colori di marca</button></div>' +
@@ -1730,6 +1731,21 @@ async function clientePagina(id) {
     '<h2>Contenuti</h2>' + (C.contenuti.map((c) => '<div class="card"><span class="pill">' + e(c.tipo) + '</span> <b>' + e(c.titolo || '') + '</b> <span class="mut">' + e(c.data || '') + ' · ' + e(c.stato.replace('_', ' ')) + '</span></div>').join('') || '<p class="mut">Nessuno.</p>');
   $('#c_lin').onclick = async () => { const b = $('#c_lin'); b.disabled = true; b.textContent = 'Chiara ci sta lavorando…'; try { await chiama('/api/clienti/' + id + '/linea', { method: 'POST', body: {} }); rotta(); } catch (x) { alert(x.message); b.disabled = false; } };
   $('#c_salva').onclick = async () => { await chiama('/api/clienti/' + id, { method: 'PUT', body: { scheda: $('#c_sc').value } }); rotta(); };
+  const salvaIg = async (ig) => { try { await chiama('/api/clienti/' + id, { method: 'PUT', body: { ig } }); rotta(); } catch (x) { $('#c_iger').textContent = x.message; } };
+  if ($('#c_igno')) $('#c_igno').onclick = () => salvaIg(null);
+  if ($('#c_igc')) $('#c_igc').onclick = async () => {
+    $('#c_igc').disabled = true; $('#c_iger').textContent = '';
+    try {
+      const R = await chiama('/api/instagram/conti');
+      const K = (R.conti || []).filter((x) => x.ig_user_id);
+      const senza = (R.conti || []).filter((x) => x.senza_instagram).map((x) => x.pagina);
+      $('#c_igl').innerHTML = (K.map((x) => '<div class="riga" style="gap:10px;margin:6px 0"><b style="flex:1">@' + e(x.username || '') + '</b><span class="mut">' + e(x.predefinito ? 'il tuo profilo' : (x.pagina || '')) + '</span><button class="c_igs" data-i="' + e(x.ig_user_id) + '" style="width:auto">Collega</button></div>').join('') || '<p class="mut">Nessun account trovato.</p>') +
+        (senza.length ? '<p class="mut">Pagine Facebook senza Instagram professionale collegato: ' + e(senza.join(', ')) + '</p>' : '') +
+        '<p class="mut">Non vedi l’account giusto? Il suo Instagram deve essere professionale, collegato a una pagina Facebook che gestisci, e quella pagina va aggiunta al permesso dell’agenzia.</p>';
+      document.querySelectorAll('.c_igs').forEach((b) => { b.onclick = () => salvaIg({ ig_user_id: b.dataset.i }); });
+    } catch (x) { $('#c_iger').textContent = x.message; }
+    $('#c_igc').disabled = false;
+  };
   const salvaColori = async (colori) => { try { await chiama('/api/clienti/' + id, { method: 'PUT', body: { colori } }); rotta(); } catch (x) { $('#c_cer').textContent = x.message; } };
   $('#c_csal').onclick = () => salvaColori({ accento: $('#c_ca').value, chiaro: $('#c_cc').value, scuro: $('#c_cs').value });
   $('#c_cpal').onclick = () => { if ($('#c_cp').value) salvaColori({ palette: $('#c_cp').value }); };

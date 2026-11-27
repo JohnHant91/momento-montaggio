@@ -5,7 +5,7 @@
 import { all, one, run, J, ora, configurazione, log } from './db.js';
 import * as S from './servizi.js';
 import { SKILL } from './skill_testi.js';
-import { nuovoPianoAvatar } from './avatar.js';
+import { nuovoPianoAvatar, instagram } from './avatar.js';
 import { nuovoLavoroPost } from './post.js';
 import { registra, daUsage, chi } from './consumi.js';
 
@@ -493,6 +493,10 @@ export async function apiAgenzia(req, env, p, m, json) {
     const r = (await env.GEST.prepare("SELECT id, data FROM records WHERE store='clienti' ORDER BY updated DESC").all()).results;
     return json(r.map((x) => { const d = J(x.data, {}); return { id: x.id, nome: d.nome, servizi: d.servizi, stato: d.stato }; }));
   }
+  // gli account Instagram che il token dell'agenzia può usare (per collegare Momento Produzione o un cliente)
+  if (p === '/api/instagram/conti' && m === 'GET') {
+    try { return json(await instagram(env, 'GET', '/conti')); } catch (e) { return json({ errore: String(e.message || e) }, 502); }
+  }
   const kc = p.match(/^\/api\/clienti\/(\d+)(?:\/(scheda))?$/);
   if (kc && m === 'GET') {
     const C = await cliente(env, kc[1]);
@@ -503,6 +507,15 @@ export async function apiAgenzia(req, env, p, m, json) {
   }
   if (kc && m === 'PUT') {
     const d = await corpo();
+    if (d.ig !== undefined) { // {ig_user_id} per collegare un account Instagram al cliente, null per scollegarlo
+      await schemaChiara(env);
+      if (d.ig) {
+        const K = (await instagram(env, 'GET', '/conti')).conti || [];
+        const k = K.find((x) => x.ig_user_id && x.ig_user_id === String(d.ig.ig_user_id));
+        if (!k) return json({ errore: 'questo account non è tra quelli che l\u2019agenzia può usare' }, 400);
+        await run(env, 'UPDATE clienti SET ig_user_id=?, ig_username=?, aggiornato=? WHERE id=?', k.ig_user_id, k.username || '', ora(), kc[1]);
+      } else await run(env, 'UPDATE clienti SET ig_user_id=NULL, ig_username=NULL, aggiornato=? WHERE id=?', ora(), kc[1]);
+    }
     if (d.colori !== undefined) { // {palette:'nome'} dall'archivio, {chiaro,scuro,accento} di marca, o null per farli riscegliere
       await schemaChiara(env);
       const k = d.colori && (d.colori.accento ? { chiaro: d.colori.chiaro, scuro: d.colori.scuro, accento: d.colori.accento, fissati: 'johnny' } : PALETTE[d.colori.palette] ? { palette: d.colori.palette, fissati: 'johnny' } : null);

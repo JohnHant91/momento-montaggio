@@ -316,7 +316,7 @@ export async function apiPost(req, env, p, m, json) {
     if (Ct?.post?.some((x) => x.ig_id)) try { const coda = await instagram(env, 'GET', '/coda'); for (const x of Ct.post) { const q = coda.find((c) => c.id === x.ig_id); if (q) Object.assign(x, { ig_stato: q.stato, ig_link: q.permalink || null, ig_errore: q.errore || null }); } } catch (_) {}
     const tipi = {}; for (const k of file) { const v = await env.VIDEO.getWithMetadata(k, { type: 'stream' }); tipi[k] = v.metadata?.tipo || ''; v.value?.cancel?.(); }
     return json({ ...P, esempi: J(P.esempi, []), virali: J(P.virali), studio: J(P.studio), foto: J(P.foto), contenuti: Ct, canva: J(P.canva), slide_file: file, slide_tipi: tipi, fasi: FASI_POST,
-      instagram: { collegato: !!(env.IG && env.IG_INTERNO_KEY), suo_profilo: String(P.cliente_id || '') === String(cfg.IG_CLIENTE_ID) } });
+      instagram: { collegato: !!(env.IG && env.IG_INTERNO_KEY), suo_profilo: String(P.cliente_id || '') === String(cfg.IG_CLIENTE_ID) || !!(P.cliente_id && (await cliente(env, P.cliente_id))?.ig_user_id) } });
   }
   if (m === 'POST' && mm[2] === 'approva') { // {n:[approvati], modifiche:{n: {slide:[...], caption}}}
     const d = await corpo();
@@ -366,7 +366,10 @@ export async function apiPost(req, env, p, m, json) {
   }
   if (m === 'POST' && mm[2] === 'pubblica') { // {n:[numeri], quando:{n: ISO}} → in coda sul profilo Instagram collegato (solo dopo l'ok di Johnny)
     const cfg = await configurazione(env);
-    if (String(P.cliente_id || '') !== String(cfg.IG_CLIENTE_ID)) return json({ errore: 'per questo cliente non c\'è un account Instagram collegato: si pubblica solo sul tuo profilo' }, 400);
+    const Cig = P.cliente_id ? await cliente(env, P.cliente_id) : null;
+    const mioProfilo = String(P.cliente_id || '') === String(cfg.IG_CLIENTE_ID);
+    if (!mioProfilo && !Cig?.ig_user_id) return json({ errore: 'per questo cliente non c\'è un account Instagram collegato: collegalo dalla sua scheda cliente' }, 400);
+    const igConto = mioProfilo ? {} : { ig_user_id: Cig.ig_user_id }; // il tuo profilo è quello predefinito del modulo
     const d = await corpo();
     const Ct = J(P.contenuti, {}), file = J(P.slide_file, {}) || {}, cv = J(P.canva, {});
     const origine = new URL(req.url).origin, fatti = [];
@@ -381,7 +384,7 @@ export async function apiPost(req, env, p, m, json) {
       const quando = d.quando?.[x.n] && !isNaN(new Date(d.quando[x.n])) ? new Date(d.quando[x.n]).toISOString() : new Date(Date.now() + 3600e3).toISOString();
       const caption = [x.caption || '', (x.hashtag || []).map((h) => '#' + String(h).replace(/^#/, '')).join(' ')].filter(Boolean).join('\n\n').slice(0, 2200);
       try {
-        const it = await instagram(env, 'POST', '/coda', link.length > 1 ? { type: 'carousel', media_urls: link, caption, publish_at: quando } : { type: 'image', media_url: link[0], caption, publish_at: quando });
+        const it = await instagram(env, 'POST', '/coda', link.length > 1 ? { type: 'carousel', media_urls: link, caption, publish_at: quando, ...igConto } : { type: 'image', media_url: link[0], caption, publish_at: quando, ...igConto });
         Object.assign(x, { ig_id: it.id, ig_quando: it.publish_at }); fatti.push({ n: x.n, quando: it.publish_at });
       } catch (e) { fatti.push({ n: x.n, errore: String(e.message || e) }); }
     }
