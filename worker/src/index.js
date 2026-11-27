@@ -324,6 +324,7 @@ async function api(req, env, url) {
         const it = await instagram(env, 'POST', '/coda', { type: 'reel', media_url: await link('reel.mp4'), cover_url: J(L.montaggio, {})?.copertina ? await link('copertina.jpg') : undefined, caption, ai_generated: avatar, publish_at: quando, ...conto });
         await run(env, 'UPDATE lavori SET pubblicazione=?, aggiornato=? WHERE id=?', JSON.stringify({ ig_id: it.id, ig_quando: it.publish_at, ...conto }), ora(), id);
         await log(env, id, 'social', `📲 reel ${d.subito ? 'in pubblicazione adesso' : 'programmato per ' + it.publish_at.slice(0, 16).replace('T', ' ')} su Instagram`);
+        if (d.subito) await Promise.race([instagram(env, 'POST', '/esegui').catch(() => {}), new Promise((r) => setTimeout(r, 25000))]); // parte adesso
         return json({ ok: true, quando: it.publish_at });
       } catch (e) { return json({ errore: String(e.message || e) }, 502); }
     }

@@ -100,7 +100,12 @@ async function avanza(env, item) {
       item.stato = "in_elaborazione";
       await salva(env, item);
     }
-    const st = await graph(env, "GET", item.container_id, { fields: "status_code,status" }, io);
+    let st = await graph(env, "GET", item.container_id, { fields: "status_code,status" }, io);
+    // Instagram di solito elabora in pochi secondi: aspetto un po' qui invece di rimandare al giro dopo (5 minuti)
+    for (let k = 0; k < 5 && st.status_code === "IN_PROGRESS"; k++) {
+      await new Promise((r) => setTimeout(r, 4000));
+      st = await graph(env, "GET", item.container_id, { fields: "status_code,status" }, io);
+    }
     if (st.status_code === "IN_PROGRESS") {
       item.tentativi = (item.tentativi || 0) + 1;
       if (item.tentativi > 24) throw new Error("Elaborazione oltre 2 ore, annullato");

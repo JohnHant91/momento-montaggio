@@ -392,6 +392,7 @@ export async function apiPost(req, env, p, m, json) {
     }
     await run(env, 'UPDATE post_lavori SET contenuti=?, aggiornato=? WHERE id=?', JSON.stringify(Ct), ora(), P.id);
     const ok = fatti.filter((f) => f.quando);
+    if (d.subito && ok.length) await Promise.race([instagram(env, 'POST', '/esegui').catch(() => {}), new Promise((r) => setTimeout(r, 25000))]); // parte adesso, senza aspettare il giro dei 5 minuti
     if (ok.length) await log(env, null, 'social', `📲 ${ok.length} ${ok.length === 1 ? 'carosello programmato' : 'caroselli programmati'} su Instagram: ${ok.map((f) => `#${f.n} ${f.quando.slice(0, 16).replace('T', ' ')}`).join(', ')}`);
     return json({ ok: ok.length > 0, fatti });
   }

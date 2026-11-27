@@ -1401,7 +1401,7 @@ async function approvatiPagina() {
     const n = Number(b.dataset.n), er = b.closest('.pubbl').querySelector('.pb_er'); er.textContent = '';
     const q = document.querySelector('.pb_q[data-p="' + b.dataset.p + '"][data-n="' + n + '"]').value;
     if (!subito && (!q || new Date(q) < new Date())) { er.textContent = 'scegli una data futura'; return; }
-    if (!confirm(subito ? 'Pubblicare ADESSO su Instagram? Esce entro 5 minuti.' : 'Programmare su Instagram per ' + new Date(q).toLocaleString('it-IT', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) + '?')) return;
+    if (!confirm(subito ? 'Pubblicare ADESSO su Instagram? Di solito esce in un minuto, al massimo in 10.' : 'Programmare su Instagram per ' + new Date(q).toLocaleString('it-IT', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) + '?')) return;
     b.disabled = true;
     try { const r = await chiama('/api/post/' + b.dataset.p + '/pubblica', { method: 'POST', body: { n: [n], subito, quando: { [n]: subito ? null : new Date(q).toISOString() }, di_nuovo: !!b.dataset.r } }); const ko = (r.fatti || []).filter((f) => f.errore); if (ko.length) { er.textContent = ko[0].errore; b.disabled = false; } else rotta(); }
     catch (x) { er.textContent = x.message; b.disabled = false; }
@@ -1410,7 +1410,7 @@ async function approvatiPagina() {
     const er = b.closest('.pubbl').querySelector('.pb_er'); er.textContent = '';
     const q = document.querySelector('.pb_q[data-id="' + b.dataset.id + '"]').value;
     if (!subito && (!q || new Date(q) < new Date())) { er.textContent = 'scegli una data futura'; return; }
-    if (!confirm(subito ? 'Pubblicare ADESSO il reel su Instagram? Esce entro pochi minuti.' : 'Programmare il reel su Instagram per ' + new Date(q).toLocaleString('it-IT', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) + '?')) return;
+    if (!confirm(subito ? 'Pubblicare ADESSO il reel su Instagram? I reel richiedono qualche minuto di elaborazione.' : 'Programmare il reel su Instagram per ' + new Date(q).toLocaleString('it-IT', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) + '?')) return;
     b.disabled = true;
     try { await chiama('/api/lavori/' + b.dataset.id + '/pubblica', { method: 'POST', body: { subito, quando: subito ? null : new Date(q).toISOString(), di_nuovo: !!b.dataset.r } }); rotta(); } catch (x) { er.textContent = x.message; b.disabled = false; }
   };
