@@ -52,6 +52,13 @@ export const chi = (cfg, etichetta) => ({ ...cfg, _chi: { ...(cfg._chi || {}), .
 
 // ------------------------------------------------------------------ API della pagina Costi
 export async function apiConsumi(req, env, p, m, json) {
+  // saldo Claude: Anthropic non lo fa leggere via API. Johnny scrive quello che vede nella Console, da lì scalo la spesa contata dall'agenzia
+  if (p === '/api/consumi' && m === 'POST') {
+    const d = await req.json().catch(() => ({})), v = Number(String(d.saldo ?? '').replace(',', '.'));
+    if (!(v >= 0) || v > 100000) return json({ errore: 'scrivi il saldo in dollari, es. 23.50' }, 400);
+    await env.DB.prepare('INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES (?,?)').bind('SALDO_CLAUDE', JSON.stringify({ dollari: v, quando: ora() })).run();
+    return json({ ok: true });
+  }
   if (p !== '/api/consumi' || m !== 'GET') return null;
   await schemaConsumi(env);
   const url = new URL(req.url);
@@ -76,8 +83,18 @@ export async function apiConsumi(req, env, p, m, json) {
   // proiezione: media al giorno dei giorni con dati (al massimo i giorni scelti) × 30
   const giorniDati = totale.primo ? Math.max(1, Math.min(giorni, (Date.now() - new Date(totale.primo).getTime()) / 864e5)) : 0;
   const alGiorno = giorniDati ? totale.costo / giorniDati : 0;
+  let saldo = null;
+  try {
+    const S = JSON.parse((await one(env, "SELECT valore FROM impostazioni WHERE chiave='SALDO_CLAUDE'"))?.valore || 'null');
+    if (S) {
+      const sp = await one(env, "SELECT COALESCE(SUM(costo),0) AS costo FROM consumi WHERE servizio='claude' AND quando > ?", S.quando);
+      const set = await one(env, "SELECT COALESCE(SUM(costo),0) AS costo FROM consumi WHERE servizio='claude' AND quando > ?", new Date(Date.now() - 7 * 864e5).toISOString());
+      const alG = set.costo / 7, residuo = S.dollari - sp.costo;
+      saldo = { iniziale: S.dollari, quando: S.quando, speso: sp.costo, residuo, al_giorno: alG, giorni: alG > 0.001 ? Math.max(0, residuo / alG) : null };
+    }
+  } catch (_) {}
   return json({
-    giorni, totale, servizi, aree, agenti, clienti, reel, profilo, giornaliero, fissi, fissi_totale: fissiTot,
+    giorni, saldo, totale, servizi, aree, agenti, clienti, reel, profilo, giornaliero, fissi, fissi_totale: fissiTot,
     questo_mese: mese.costo, al_giorno: alGiorno, proiezione_mese: alGiorno * 30 + fissiTot, giorni_con_dati: giorniDati,
     cambio: Number(cfg.CAMBIO_USD_EUR) || 0.86, heygen_minuto: Number(cfg.HEYGEN_DOLLARI_MINUTO) || 1,
   });
