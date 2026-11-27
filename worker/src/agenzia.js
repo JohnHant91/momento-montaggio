@@ -474,7 +474,8 @@ export async function apiAgenzia(req, env, p, m, json) {
   }
 
   // clienti
-  if (p === '/api/clienti' && m === 'GET') return json(await all(env, 'SELECT id, nome, nicchia, gest_id, (scheda IS NOT NULL) AS ha_scheda, aggiornato FROM clienti ORDER BY nome'));
+  if (p === '/api/clienti' && m === 'GET') { await schemaChiara(env); }
+  if (p === '/api/clienti' && m === 'GET') return json(await all(env, "SELECT id, nome, nicchia, gest_id, (scheda IS NOT NULL) AS ha_scheda, (json_extract(domande, '$.stato') IN ('da_fare','pronte')) AS ha_domande, aggiornato FROM clienti ORDER BY nome"));
   if (p === '/api/clienti' && m === 'POST') {
     const d = await corpo();
     const nome = String(d.nome || '').trim();
