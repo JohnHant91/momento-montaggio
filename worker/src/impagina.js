@@ -2,6 +2,8 @@
 // (colori, font e logo del cliente), e il motore GitHub la fotografa a 1080×1350 con Chrome. Niente Canva da fare a mano.
 import { J, all, one, ora, run, configurazione, log } from './db.js';
 import { logoCliente } from './archivio.js';
+import { coloriCliente } from './palette.js';
+import { clientePerNome, schemaChiara } from './chiara.js';
 
 export const MODELLI = {
   copertina_foto: 'foto a tutto schermo, titolo grande in basso su sfumatura',
@@ -64,7 +66,7 @@ export function tavolozza(stile) {
   const ordinati = [...p].sort((a, b) => lum(b) - lum(a));
   const chiaro = ordinati[0] && lum(ordinati[0]) > 0.6 ? ordinati[0] : '#F6F4EF';
   const scuro = ordinati.length && lum(ordinati[ordinati.length - 1]) < 0.12 ? ordinati[ordinati.length - 1] : '#16181A';
-  const accento = p.find((c) => c !== chiaro && c !== scuro) || '#0E9F9A';
+  const accento = hex(stile?.accento, null) || p.find((c) => c !== chiaro && c !== scuro) || '#0E9F9A';
   return { chiaro, scuro, accento };
 }
 
@@ -224,7 +226,14 @@ export async function preparaImpaginazione(env, P) {
   const cfg = await configurazione(env);
   const mio = String(P.cliente_id || '') === String(cfg.IG_CLIENTE_ID) || /^momento|profilo instagram/i.test(P.cliente || '');
   const profilo = mio ? (cfg.IG_USERNAME || '') : '';
-  if (mio) st.palette = ['#F1EFEA', '#17171A', '#0E9F9A']; // il profilo di Momento usa sempre i colori di Momento
+  if (mio) { st.palette = ['#F1EFEA', '#17171A', '#0E9F9A']; st.accento = '#0E9F9A'; } // il profilo di Momento usa sempre i colori di Momento
+  else { // i colori sono del cliente (di marca, o fissati la prima volta dall'archivio), non inventati a ogni carosello
+    await schemaChiara(env);
+    const C = P.cliente_id ? await one(env, 'SELECT * FROM clienti WHERE id=?', P.cliente_id) : await clientePerNome(env, P.cliente).catch(() => null);
+    const K = await coloriCliente(env, C, { nicchia: P.nicchia || '', richiesta: (P.brief || '') + ' ' + (P.note || '') });
+    st.palette = [K.chiaro, K.scuro, K.accento]; st.accento = K.accento;
+    if (K.origine === 'nuova') await log(env, null, 'caroselli', `🎨 ${P.cliente}: nessun colore di marca, fisso la palette "${K.nome}" per tutti i suoi contenuti (cambiala nella scheda cliente)`).catch(() => {});
+  }
   const firma = profilo ? '@' + profilo : mio ? 'Momento Produzione' : String(P.cliente || '').slice(0, 34);
   // regola n.1: nessun carosello uguale. Temi già usati dagli ultimi lavori dello stesso cliente + quelli di questo lotto
   const prima = await all(env, "SELECT contenuti FROM post_lavori WHERE cliente=? AND id<? ORDER BY id DESC LIMIT 4", P.cliente || '', P.id).catch(() => []);

@@ -5,7 +5,7 @@ import { libreriaTesto } from './libreria.js';
 import * as S from './servizi.js';
 import * as A from './archivio.js';
 import { inviaPush } from './notifiche.js';
-import { PALETTE, descriviPalette } from './palette.js';
+import { PALETTE, descriviPalette, coloriCliente, leggiColori } from './palette.js';
 import { ANIMAZIONI } from './animazioni.js';
 import { SKILL as SKILL_V } from './skill_testi.js';
 import { clientePerNome, lineaCliente, testoLinea, ripassoChiara } from './chiara.js';
@@ -921,6 +921,12 @@ almeno metà dei pezzi da clip diverse o da momenti diversi delle stesse clip (l
     lut: (() => { const s = indicazioni?.lut || J(L.stile, null)?.lut || prima?.piano?.lut?.nome; return s && s !== 'nessuna' && LUT[s] ? { ...voceLut(s, null), scelta_da: 'johnny' } : null; })(),
   };
   if (PALETTE[p.palette_nome]) piano.colori = { ...(piano.colori || {}), accento: PALETTE[p.palette_nome][0], secondario: PALETTE[p.palette_nome][1] };
+  // colori fissi del cliente: se Johnny non ha chiesto colori nel prompt, il reel usa quelli della scheda (di marca o fissati dall'archivio)
+  if (Ccl && !PALETTE[p.palette_nome] && !palette && !/color|palette|#[0-9a-f]{6}/i.test(L.prompt || '')) {
+    const K = await coloriCliente(env, Ccl, { richiesta: L.prompt || '' }).catch(() => null);
+    if (K) { piano.colori = { ...(piano.colori || {}), accento: K.accento, secondario: K.secondario }; if (!piano.palette) piano.palette = { accento: K.accento, secondario: K.secondario };
+      await log(env, L.id, 'regista', `🎨 colori di ${Ccl.nome}: ${K.nome || 'di marca'} (${K.accento})`).catch(() => {}); }
+  }
   // REGOLE DI MONTAGGIO APPLICATE IN CODICE (reel con le clip girate). Il Regista è libero di usare transizioni, effetti,
   // titoli ed elementi, ma solo dove servono: qui si controlla ogni scelta e si corregge quella sbagliata.
   if (formato === 'montaggio' && !eAvatar) {

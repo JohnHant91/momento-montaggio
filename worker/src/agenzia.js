@@ -57,6 +57,7 @@ async function _schemaAgenzia(env) {
 
 // ------------------------------------------------------------------ scheda cliente
 import { testoLinea, lineaCliente, schemaChiara } from './chiara.js';
+import { PALETTE, daArchivio, leggiColori } from './palette.js';
 export async function cliente(env, id) { return id ? one(env, 'SELECT * FROM clienti WHERE id=?', id) : null; }
 const testoScheda = (C) => C ? `SCHEDA CLIENTE: ${C.nome}${C.nicchia ? ' · ' + C.nicchia : ''}
 ${C.scheda || '(la scheda non è ancora stata scritta: lavora con quello che sai dal brief e scrivilo in "domande")'}
@@ -498,10 +499,16 @@ export async function apiAgenzia(req, env, p, m, json) {
     if (!C) return json({ errore: 'non trovato' }, 404);
     const inc = await all(env, 'SELECT id, agente, titolo, stato, aggiornato FROM incarichi WHERE cliente_id=? ORDER BY id DESC LIMIT 40', C.id);
     const con = await all(env, "SELECT id, tipo, piattaforma, data, ora, titolo, stato FROM contenuti WHERE cliente_id=? AND stato!='scartato' ORDER BY COALESCE(data,'9999') DESC LIMIT 60", C.id);
-    return json({ ...C, incarichi: inc, contenuti: con });
+    return json({ ...C, incarichi: inc, contenuti: con, colori: leggiColori(C.colori), palette_archivio: Object.entries(PALETTE).map(([k, v]) => ({ k, mood: v[4], c: daArchivio(k) })) });
   }
   if (kc && m === 'PUT') {
     const d = await corpo();
+    if (d.colori !== undefined) { // {palette:'nome'} dall'archivio, {chiaro,scuro,accento} di marca, o null per farli riscegliere
+      await schemaChiara(env);
+      const k = d.colori && (d.colori.accento ? { chiaro: d.colori.chiaro, scuro: d.colori.scuro, accento: d.colori.accento, fissati: 'johnny' } : PALETTE[d.colori.palette] ? { palette: d.colori.palette, fissati: 'johnny' } : null);
+      if (d.colori && !leggiColori(k)) return json({ errore: 'colori non validi: servono codici tipo #0E9F9A' }, 400);
+      await run(env, 'UPDATE clienti SET colori=?, aggiornato=? WHERE id=?', k ? JSON.stringify(k) : null, ora(), kc[1]);
+    }
     await run(env, 'UPDATE clienti SET nome=COALESCE(?,nome), nicchia=COALESCE(?,nicchia), scheda=COALESCE(?,scheda), note=COALESCE(?,note), gest_id=COALESCE(?,gest_id), aggiornato=? WHERE id=?',
       d.nome ?? null, d.nicchia ?? null, d.scheda ?? null, d.note ?? null, d.gest_id ?? null, ora(), kc[1]);
     return json({ ok: true });

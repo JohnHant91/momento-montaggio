@@ -35,3 +35,47 @@ export const PALETTE = {
   halloween: ['#FF7518', '#7B2CBF', '#0A0A0A', '#FFFFFF', 'halloween, misterioso'],
 };
 export const descriviPalette = () => Object.entries(PALETTE).map(([k, v]) => `${k} (${v[4]}): accento ${v[0]}, secondario ${v[1]}, fondo ${v[2]}`).join('\n');
+
+// ------------------------------------------------------------------ COLORI FISSI DEL CLIENTE
+// I colori sono l'identità del cliente: cambiano stile e contenuto, i colori no. Quelli di marca li salva Johnny nella scheda;
+// se mancano l'agenzia sceglie UNA palette dell'archivio per la nicchia e la fissa. Le stagionali valgono solo se chieste nel prompt.
+const STAGIONALI = { natale: /natal|feste di fine anno|capodann/i, halloween: /halloween/i, romantico: /san valentino/i };
+const NICCHIE = [['forno', /pan(e|ific)|forn|pizz/i], ['caffe', /caff|bar\b|torref|colazion/i], ['pasticceria', /pasticc|dolc|gelat|cake/i], ['mare', /mare|lido|spiagg|hotel|b&b|bed and|costier|barca/i],
+  ['oro_nero', /luss|gioiell|orolog|boutique/i], ['mediterraneo', /ristor|trattor|pesce|osteria|cucina|ceramic|limon/i], ['oliva', /olio|agri|vino|cantin|campagn|bio\b/i], ['legno', /falegn|legno|arred|mobil/i],
+  ['terracotta', /casa|immobil|edil|ristruttur|interior/i], ['pastello', /beauty|estet|parrucch|unghie|make.?up/i], ['menta', /salute|dent|farmac|fisio|medic|benesser/i], ['energia', /palestr|sport|fitness|crossfit|calcio/i],
+  ['elettrico', /tech|software|ai\b|informat|digital|web|app\b/i], ['corporate', /studio|avvocat|commercial|assicur|consul|impiant|azienda/i], ['lavanda', /yoga|olistic|spa\b|relax/i], ['bosco', /artigian|natura|outdoor|trek/i],
+  ['romantico', /wedding|matrimon|fior/i], ['neon_rosa_blu', /creator|locale notturn|discotec|dj\b|club/i], ['vintage', /vintage|barbier|barber|retr/i], ['fuoco', /burger|grigl|brace|street food|kebab/i]];
+const esa = (c) => /^#[0-9a-f]{6}$/i.test(c || '') ? c.toUpperCase() : null;
+const lumi = (h) => { const n = parseInt(h.slice(1), 16); return (0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255; };
+// una palette dell'archivio → {nome, chiaro, scuro, accento, secondario}
+export function daArchivio(nome) {
+  const v = PALETTE[nome]; if (!v) return null;
+  const tutti = [v[2], v[3], v[1], v[0]].sort((a, b) => lumi(b) - lumi(a));
+  const accento = lumi(v[0]) > 0.92 || lumi(v[0]) < 0.08 ? v[1] : v[0];
+  const chiaro = lumi(tutti[0]) > 0.75 ? tutti[0] : '#F6F4EF', scuro = lumi(tutti[tutti.length - 1]) < 0.2 ? tutti[tutti.length - 1] : '#16181A';
+  return { nome, chiaro, scuro, accento: accento === chiaro || accento === scuro ? v[1] : accento, secondario: v[1] };
+}
+export function paletteStagionale(testo) { const k = Object.keys(STAGIONALI).find((n) => STAGIONALI[n].test(testo || '')); return k ? daArchivio(k) : null; }
+export function palettePerNicchia(testo, seme = 0) {
+  const k = NICCHIE.find(([, re]) => re.test(testo || ''))?.[0];
+  const neutre = ['minimal_crema', 'corporate', 'menta', 'mediterraneo', 'terracotta', 'bosco'];
+  return daArchivio(k || neutre[Math.abs(seme) % neutre.length]);
+}
+// i colori salvati nella scheda (JSON) → oggetto pulito, o null
+export function leggiColori(testo) {
+  let d; try { d = typeof testo === 'string' ? JSON.parse(testo) : testo; } catch { d = null; }
+  if (!d) return null;
+  if (d.palette && PALETTE[d.palette] && !d.accento) return { ...daArchivio(d.palette), fissati: d.fissati || 'agenzia' };
+  const accento = esa(d.accento); if (!accento) return null;
+  return { nome: d.palette && PALETTE[d.palette] ? d.palette : null, chiaro: esa(d.chiaro) || '#F6F4EF', scuro: esa(d.scuro) || '#16181A', accento, secondario: esa(d.secondario) || accento, fissati: d.fissati || 'johnny' };
+}
+// i colori da usare per un contenuto del cliente C (riga di clienti, o null): stagionale chiesta → di marca → archivio (e la fissa)
+export async function coloriCliente(env, C, { nicchia = '', richiesta = '' } = {}) {
+  const st = paletteStagionale(richiesta);
+  if (st) return { ...st, origine: 'stagionale' };
+  const suoi = leggiColori(C?.colori);
+  if (suoi) return { ...suoi, origine: suoi.fissati === 'johnny' ? 'marca' : 'fissata' };
+  const scelta = palettePerNicchia((C?.nicchia || '') + ' ' + nicchia + ' ' + (C?.nome || ''), C?.id || nicchia.length);
+  if (C?.id) await env.DB.prepare('UPDATE clienti SET colori=? WHERE id=? AND colori IS NULL').bind(JSON.stringify({ palette: scelta.nome, fissati: 'agenzia' }), C.id).run().catch(() => {});
+  return { ...scelta, origine: 'nuova' };
+}

@@ -10,6 +10,7 @@ let _fattoChiara;
 export function schemaChiara(env) { return (_fattoChiara ||= _schemaChiara(env).catch((e) => { _fattoChiara = null; throw e; })); }
 async function _schemaChiara(env) {
   await env.DB.prepare('ALTER TABLE clienti ADD COLUMN linea TEXT').run().catch(() => {});
+  await env.DB.prepare('ALTER TABLE clienti ADD COLUMN colori TEXT').run().catch(() => {});
 }
 
 export async function clientePerNome(env, nome) {
