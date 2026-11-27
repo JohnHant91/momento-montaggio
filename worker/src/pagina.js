@@ -570,16 +570,18 @@ async function editorTagli(id) {
     $('#pz_lista').innerHTML = D.pezzi.map((p) => {
       const t = tagli[p.pezzo];
       return '<div class="riga" style="padding:6px 0;border-bottom:1px solid var(--bordo,#2a2a2a);' + (p.problema ? 'color:var(--err)' : '') + '"><div style="flex:1;min-width:0"><b>' + (p.pezzo + 1) + '.</b> ' + e(p.nome) +
-        ' <span class="mut">da ' + Number(t ? t.da : p.in).toFixed(1) + ' s per ' + Number(t ? t.a - t.da : p.dur).toFixed(1) + ' s</span>' + (t ? ' <span class="pill">tagliato da te</span>' : '') +
+        (t && t.elimina ? ' <span class="pill errore">eliminato</span>' : ' <span class="mut">da ' + Number(t ? t.da : p.in).toFixed(1) + ' s per ' + Number(t ? t.a - t.da : p.dur).toFixed(1) + ' s</span>' + (t ? ' <span class="pill">tagliato da te</span>' : '')) +
         (p.problema ? '<div>⚠︎ ' + e(p.problema) + '</div>' : '') + '</div>' +
-        (p.link ? '<button class="sec pz_t" data-k="' + p.pezzo + '">✂️ Taglia</button>' : '<span class="mut">clip non visibile qui</span>') + '</div>';
+        (t && t.elimina ? '' : (p.link ? '<button class="sec pz_t" data-k="' + p.pezzo + '">✂️ Taglia</button>' : '<span class="mut">clip non visibile qui</span>')) +
+        '<button class="sec pz_x" data-k="' + p.pezzo + '" style="margin-left:6px">' + (t && t.elimina ? '↩︎ Rimetti' : '🗑 Elimina') + '</button></div>';
     }).join('');
     $('#pz_ok').disabled = !Object.keys(tagli).length;
     document.querySelectorAll('.pz_t').forEach((b) => b.onclick = () => apri(Number(b.dataset.k)));
+    document.querySelectorAll('.pz_x').forEach((b) => b.onclick = () => { const k = Number(b.dataset.k); if (tagli[k] && tagli[k].elimina) delete tagli[k]; else { if (D.pezzi.filter((x) => !(tagli[x.pezzo] && tagli[x.pezzo].elimina)).length <= 1) return alert('Deve restare almeno un pezzo'); tagli[k] = { pezzo: k, elimina: true }; } $('#pz_ed').innerHTML = ''; disegna(); });
   };
   const apri = (k) => {
     const p = D.pezzi.find((x) => x.pezzo === k);
-    const t = tagli[k] || { da: p.in, a: p.in + p.dur };
+    const t = tagli[k] && !tagli[k].elimina ? tagli[k] : { da: p.in, a: p.in + p.dur };
     const r = Number(p.ruota) || 0;
     const giro = r === 90 || r === -90;
     $('#pz_ed').innerHTML = '<div class="card" style="margin-top:10px"><b>Pezzo ' + (k + 1) + ' · ' + e(p.nome) + '</b>' +

@@ -438,9 +438,10 @@ export async function applicaTagli(env, L, tagli) {
     const src = base.nome === t.nome || !c ? {} : { clip: tutte.indexOf(c), ...rifSorgente(c), nome: c.nome };
     return { ...base, ...src, in: Number(t.in) || 0, durata: Number(t.dur) || base.durata, in_bloccato: true };
   });
-  const fatti = [];
+  const fatti = [], via = new Set();
   for (const x of tagli || []) {
     const s = nuovi[Number(x.pezzo)];
+    if (s && x.elimina) { via.add(Number(x.pezzo)); fatti.push(`pezzo ${Number(x.pezzo) + 1} (${s.nome}) eliminato`); continue; }
     const da = Number(x.da), a = Number(x.a);
     if (!s || !(a > da) || da < 0) continue;
     const vel = s.rallenty ? 0.5 : Number(s.velocita) || 1;
@@ -450,11 +451,12 @@ export async function applicaTagli(env, L, tagli) {
     fatti.push(`pezzo ${Number(x.pezzo) + 1} (${s.nome}) da ${da.toFixed(1)} a ${a.toFixed(1)} s`);
   }
   if (!fatti.length) throw new Error('nessun taglio valido: segna inizio e fine');
-  m.piano.segmenti = nuovi;
+  if (via.size >= nuovi.length) throw new Error('non puoi eliminare tutti i pezzi: ne deve restare almeno uno');
+  m.piano.segmenti = nuovi.filter((_, i) => !via.has(i)); // i pezzi eliminati spariscono dal reel, che si accorcia
   Object.assign(m, { stato: 'da_fare', tentativi: 0, errore: null, salta_qa: true, versione: (m.versione || 1) + 1, taglio: null });
   delete m.qa;
   await run(env, "UPDATE lavori SET montaggio=?, stato='in_corso', fase='montaggio', errore=NULL, tentativi=0, blocco_fino=NULL, aggiornato=? WHERE id=?", JSON.stringify(m), ora(), L.id);
-  await log(env, L.id, 'editor', `✂️ tagli di Johnny: ${fatti.join(' · ')}. Rimonto solo con questi, il resto resta uguale`);
+  await log(env, L.id, 'editor', `✂️ modifiche di Johnny: ${fatti.join(' · ')}. Rimonto solo con queste, il resto resta uguale`);
   return fatti;
 }
 export async function ricordaScartato(env, L) {
