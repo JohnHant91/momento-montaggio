@@ -482,7 +482,8 @@ export async function apiAgenzia(req, env, p, m, json) {
     let gest = d.gest_id || null;
     if (!gest && d.crea_nel_gestionale && env.GEST) { const r = await strumento(env, 'Bianca', 'crea', { sezione: 'clienti', campi: { nome, servizi: 'Social management', stato: 'Attivo', note: d.nicchia || '' } }); gest = r.id || null; }
     const r = await one(env, 'INSERT INTO clienti (nome, nicchia, gest_id, note, creato, aggiornato) VALUES (?,?,?,?,?,?) RETURNING id', nome, String(d.nicchia || ''), gest, String(d.note || ''), ora(), ora());
-    if (d.info) {
+    if (d.info && d.scheda_pronta) await run(env, 'UPDATE clienti SET scheda=? WHERE id=?', String(d.info).slice(0, 20000), r.id); // Johnny ha già la scheda scritta: si salva così com'è
+    else if (d.info) {
       await run(env, 'INSERT INTO incarichi (agente, cliente_id, titolo, brief, creato, aggiornato) VALUES (?,?,?,?,?,?)', 'brand', r.id, 'Scheda cliente: ' + nome,
         'Scrivi la scheda cliente completa con queste informazioni di Johnny:\n' + String(d.info).slice(0, 8000), ora(), ora());
     }
