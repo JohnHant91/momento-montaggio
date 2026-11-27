@@ -201,6 +201,7 @@ Rispondi SOLO JSON:
 {"stile": {"palette": ["#hex", "#hex", "#hex"], "font_titoli": "...", "font_testo": "...", "mood": "...", "regole": "indicazioni grafiche per tutto il set"},
  "post": [{"n": 1, "tipo": "carosello | post", "titolo": "titolo interno", "obiettivo": "salvataggi | condivisioni | commenti | contatti",
    "tema": "uno dei TEMI GRAFICI",
+   "data_proposta": "SOLO se il brief chiede un calendario editoriale o delle date: giorno e ora consigliati, formato 2026-12-03T19:00 (ora italiana), altrimenti null. È una proposta: decide Johnny quando approva",
    "slide": [{"n": 1, "ruolo": "copertina | contenuto | cta", "modello": "uno dei MODELLI", "titolo": "testo grande", "testo": "testo piccolo o vuoto (per lista: un punto per riga)", "foto": "nome file o null", "altre_foto": ["solo per collage"], "icona": "facoltativa: icona Iconify del set Phosphor per testo, lista e numero (es. ph:coffee-bold, ph:fire-bold, ph:clock-bold, ph:map-pin-bold, ph:heart-bold) — mai emoji"}],
    "caption": "caption completa con gancio e CTA", "hashtag": ["8-12 hashtag senza #"], "alt": "testo alternativo"}]}`, { maxTokens: 16000 });
   const post = (out.post || []).slice(0, P.numero).map((p, i) => ({ ...p, n: i + 1, stato: 'da_approvare' }));
@@ -374,14 +375,15 @@ export async function apiPost(req, env, p, m, json) {
     const Ct = J(P.contenuti, {}), file = J(P.slide_file, {}) || {}, cv = J(P.canva, {});
     const origine = new URL(req.url).origin, fatti = [];
     for (const x of (Ct.post || []).filter((y) => (d.n || []).map(Number).includes(y.n))) {
-      if (x.ig_id) { fatti.push({ n: x.n, errore: 'già programmato' }); continue; }
+      if (x.finale !== 'approvato') { fatti.push({ n: x.n, errore: 'prima va approvato il contenuto finito' }); continue; }
+      if (x.ig_id && !d.di_nuovo) { fatti.push({ n: x.n, errore: 'già programmato' }); continue; }
       const nSlide = ((cv.post || []).find((c) => c.n === x.n)?.png || []).length;
       const chiavi = Array.from({ length: nSlide }, (_, k) => `${x.n}-${k + 1}`).filter((k) => file[`post-${P.id}/${k}.png`]);
       if (!chiavi.length) { fatti.push({ n: x.n, errore: 'slide non ancora pronte' }); continue; }
       const tipi = await Promise.all(chiavi.map(async (k) => (await env.VIDEO.getWithMetadata(`post-${P.id}/${k}.png`, { type: 'stream' })).metadata?.tipo || ''));
       if (tipi.some((t) => !/jpe?g/i.test(t))) { fatti.push({ n: x.n, errore: 'Instagram accetta solo JPG: riesporta le slide da Canva in JPG' }); continue; }
       const link = await Promise.all(chiavi.slice(0, 10).map(async (k) => `${origine}/pubblico/post/${P.id}/${k}.jpg?f=${await firmaPubblica(env, 'post' + P.id, k)}`));
-      const quando = d.quando?.[x.n] && !isNaN(new Date(d.quando[x.n])) ? new Date(d.quando[x.n]).toISOString() : new Date(Date.now() + 3600e3).toISOString();
+      const quando = d.subito ? new Date().toISOString() : d.quando?.[x.n] && !isNaN(new Date(d.quando[x.n])) ? new Date(d.quando[x.n]).toISOString() : new Date(Date.now() + 3600e3).toISOString();
       const caption = [x.caption || '', (x.hashtag || []).map((h) => '#' + String(h).replace(/^#/, '')).join(' ')].filter(Boolean).join('\n\n').slice(0, 2200);
       try {
         const it = await instagram(env, 'POST', '/coda', link.length > 1 ? { type: 'carousel', media_urls: link, caption, publish_at: quando, ...igConto } : { type: 'image', media_url: link[0], caption, publish_at: quando, ...igConto });

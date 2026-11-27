@@ -1368,6 +1368,11 @@ async function approvatiPagina() {
     const per = {}; (P.slide_file || []).forEach((k) => { const m = k.match(/\\/(\\d+)-(\\d+)\\.png$/); if (m) (per[m[1]] ||= []).push([Number(m[2]), k]); });
     return ((P.contenuti || {}).post || []).filter((x) => x.finale === 'approvato').map((x) => '<div class="card ap" data-cli="' + e(String(P.cliente || '').toLowerCase()) + '"><b>' + e(x.titolo || 'Post ' + x.n) + '</b><div class="mut" style="margin:4px 0 8px">' + e(P.cliente || '') + ' · ' + e(x.tipo || P.tipo || '') + ' · ' + giorno(P.aggiornato) + ' · <a href="#/post/' + P.id + '">apri</a></div>' +
       '<div style="display:flex;gap:6px;overflow-x:auto">' + (per[x.n] || []).sort((a, b) => a[0] - b[0]).map(([, k]) => '<a href="/api/post/' + P.id + '/slide/' + k.split('/')[1] + '" target="_blank" download><img loading="lazy" src="/api/post/' + P.id + '/slide/' + k.split('/')[1] + '" style="height:190px;border-radius:8px"></a>').join('') + '</div>' +
+      '<div class="pubbl" style="margin-top:10px">' + (x.ig_id && x.ig_stato !== 'errore' ? '<span class="pill ' + (x.ig_stato === 'pubblicato' ? 'pronto' : 'corso') + '">' + (x.ig_stato === 'pubblicato' ? '✅ pubblicato su Instagram' : x.ig_stato === 'in_elaborazione' ? '⏳ Instagram lo sta pubblicando' : '🗓 programmato per ' + new Date(x.ig_quando).toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) + '</span>' + (x.ig_link ? ' <a href="' + e(x.ig_link) + '" target="_blank" rel="noopener">vedi il post</a>' : '') :
+        !(P.instagram && P.instagram.collegato && P.instagram.suo_profilo) ? '<span class="mut">Instagram non collegato per questo cliente: collegalo dalla sua scheda, oppure scarica le slide.</span>' :
+        (x.ig_stato === 'errore' ? '<div class="err">Instagram ha rifiutato la pubblicazione: ' + e(x.ig_errore || '') + '</div>' : '') +
+        '<div class="riga" style="gap:8px;flex-wrap:wrap;align-items:center"><button class="pb_ora" data-p="' + P.id + '" data-n="' + x.n + '" data-r="' + (x.ig_id ? 1 : '') + '" style="width:auto">🚀 Pubblica subito</button><input type="datetime-local" class="pb_q" data-p="' + P.id + '" data-n="' + x.n + '" data-prop="' + e(x.data_proposta || '') + '" style="width:auto"><button class="sec pb_prog" data-p="' + P.id + '" data-n="' + x.n + '" data-r="' + (x.ig_id ? 1 : '') + '" style="width:auto">🗓 Programma</button></div>' +
+        (x.data_proposta ? '<div class="mut" style="margin-top:4px">Data proposta dal calendario editoriale: puoi cambiarla.</div>' : '')) + '<div class="err pb_er"></div></div>' +
       (x.caption ? '<details style="margin-top:8px"><summary>Caption e hashtag</summary><div style="white-space:pre-wrap;font-size:14px;margin-top:6px">' + e(x.caption) + (x.hashtag ? '\\n\\n' + e((x.hashtag || []).map((h) => '#' + h).join(' ')) : '') + '</div><button class="sec copia" data-t="' + e(x.caption + (x.hashtag ? '\\n\\n' + (x.hashtag || []).map((h) => '#' + h).join(' ') : '')) + '" style="width:auto;margin-top:6px">📋 Copia</button></details>' : '') + '</div>').join('');
   }).join('');
   const bTesti = testi.map((c) => '<div class="card ap" data-cli="' + e(String(c.cliente || '').toLowerCase()) + '"><b>' + e(c.titolo || c.tipo || 'contenuto') + '</b><div class="mut" style="margin:4px 0 8px">' + e(c.cliente || '') + ' · ' + e(c.tipo || '') + (c.data ? ' · ' + e(c.data) : '') + ' · ' + (c.stato === 'pubblicato' ? 'pubblicato' : 'da pubblicare') + '</div>' +
@@ -1386,6 +1391,18 @@ async function approvatiPagina() {
     document.querySelectorAll('.card.ap').forEach((c) => { c.style.display = !q || (c.dataset.cli || '').includes(q) ? '' : 'none'; }); };
   document.querySelectorAll('#apf button').forEach((b) => b.onclick = () => { document.querySelectorAll('#apf button').forEach((x) => x.classList.toggle('on', x === b)); filtra(); });
   $('#apq').oninput = filtra;
+  document.querySelectorAll('.pb_q').forEach((x) => { let d = x.dataset.prop && !isNaN(new Date(x.dataset.prop)) && new Date(x.dataset.prop) > new Date() ? new Date(x.dataset.prop) : null; if (!d) { d = new Date(); d.setDate(d.getDate() + 1); d.setHours(19, 0, 0, 0); } x.value = new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16); });
+  const pubblica = async (b, subito) => {
+    const n = Number(b.dataset.n), er = b.closest('.pubbl').querySelector('.pb_er'); er.textContent = '';
+    const q = document.querySelector('.pb_q[data-p="' + b.dataset.p + '"][data-n="' + n + '"]').value;
+    if (!subito && (!q || new Date(q) < new Date())) { er.textContent = 'scegli una data futura'; return; }
+    if (!confirm(subito ? 'Pubblicare ADESSO su Instagram? Esce entro 5 minuti.' : 'Programmare su Instagram per ' + new Date(q).toLocaleString('it-IT', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) + '?')) return;
+    b.disabled = true;
+    try { const r = await chiama('/api/post/' + b.dataset.p + '/pubblica', { method: 'POST', body: { n: [n], subito, quando: { [n]: subito ? null : new Date(q).toISOString() }, di_nuovo: !!b.dataset.r } }); const ko = (r.fatti || []).filter((f) => f.errore); if (ko.length) { er.textContent = ko[0].errore; b.disabled = false; } else rotta(); }
+    catch (x) { er.textContent = x.message; b.disabled = false; }
+  };
+  document.querySelectorAll('.pb_ora').forEach((b) => b.onclick = () => pubblica(b, true));
+  document.querySelectorAll('.pb_prog').forEach((b) => b.onclick = () => pubblica(b, false));
   document.querySelectorAll('.copia').forEach((b) => b.onclick = async () => { try { await navigator.clipboard.writeText(b.dataset.t); b.textContent = '✅ Copiato'; } catch (x) { b.textContent = 'Non riesco a copiare'; } });
 }
 
