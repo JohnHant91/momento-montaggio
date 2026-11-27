@@ -87,7 +87,7 @@ jobs:
           cat > b.json <<'J'
           {"durata":9,"fps":30,"video":"base.mp4","riquadro":"box","volto":{"cx":0.5,"cy":0.33},
            "palette":{"fondo":"#F7F5EF","inchiostro":"#10241A","accento":"#1FD17A","secondario":"#9BE8C0","tenue":"rgba(0,0,0,.06)"},
-           "parole":[{"t":"Vuoi","da":0.2,"a":0.5},{"t":"la","da":0.5,"a":0.6},{"t":"casa","da":0.6,"a":0.9},{"t":"smart","da":0.9,"a":1.4,"k":true},{"t":"Ci","da":3.0,"a":3.2},{"t":"dici","da":3.2,"a":3.6},{"t":"com'è","da":3.6,"a":4.0},{"t":"casa","da":4.0,"a":4.4}],
+           "parole":[{"t":"Vuoi","da":0.2,"a":0.5},{"t":"la","da":0.5,"a":0.6},{"t":"casa","da":0.6,"a":0.9},{"t":"smart?","da":0.9,"a":1.4,"k":true},{"t":"Ci","da":3.0,"a":3.2},{"t":"dici","da":3.2,"a":3.6},{"t":"com'è","da":3.6,"a":4.0},{"t":"casa","da":4.0,"a":4.4}],
            "righe":[{"da":0.2,"a":1.5,"p":[0,1,2,3]},{"da":3.0,"a":4.6,"p":[4,5,6,7]}],
            "scene":[{"da":0,"a":2.8,"tipo":"titolo","dati":{"testo":"Casa smart?","sotto":"non sai da dove partire?"}},
                     {"da":2.8,"a":6,"tipo":"lista","dati":{"titolo":"Ci dici","voci":["Luci","Clima","Sicurezza"]}},

@@ -478,6 +478,24 @@ export const Split: React.FC<SplitProps> = (P) => {
     Object.assign(stileVideo, { left: (bw - wv) / 2, width: wv, height: hv, top: Math.max(bh - hv, Math.min(0, bh * 0.36 - cy * hv)) });
   } else stileVideo.top = Math.max(hPersona - 1920 * scala, Math.min(0, 330 - cy * 1920 * scala)); // il viso a ~1/3 del riquadro
   if (box) { zona.top = 0; zona.height = by - 110; }
+  // MULTICAMERA nel riquadro: da una ripresa dritta, più "camere" (larga, media, primo piano, di lato). Si cambia a inizio
+  // frase, almeno ogni 2,2 s, con uno scatto di 5 fotogrammi che poi resta fermo. Il viso resta sempre dentro il riquadro.
+  if (box) {
+    const CAM: [number, number][] = [[1, 0], [1.28, 0], [1.14, -5], [1.5, 0], [1.14, 5], [1.36, 0], [1.06, 0], [1.44, -3]];
+    const tagli = React.useMemo(() => {
+      const out = [0]; let ultimo = 0;
+      P.righe.forEach((r, i) => {
+        const prima = i ? P.parole[P.righe[i - 1].p.slice(-1)[0]]?.t || "" : "";
+        if (i && r.da - ultimo >= 2.2 && (/[.!?]$/.test(prima) || r.da - ultimo >= 4.5)) { out.push(r.da); ultimo = r.da; }
+      });
+      return out;
+    }, [P.righe, P.parole]);
+    let k = 0; while (k + 1 < tagli.length && tagli[k + 1] <= t) k++;
+    const [z1, x1] = CAM[k % CAM.length], [z0, x0] = k ? CAM[(k - 1) % CAM.length] : CAM[0];
+    const m = interpolate(t, [tagli[k], tagli[k] + 5 / fps], [0, 1], { ...clamp, easing: Easing.out(Easing.cubic) });
+    const z = z0 + (z1 - z0) * m, dx = x0 + (x1 - x0) * m;
+    Object.assign(stileVideo, { transform: `translateX(${dx}%) scale(${z})`, transformOrigin: `50% ${cy * 100}%`, filter: m < 1 && k ? `blur(${(1 - m) * 6}px)` : undefined });
+  }
   return (
     <C.Provider value={ctx}>
       <AbsoluteFill>
