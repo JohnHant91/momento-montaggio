@@ -181,6 +181,14 @@ async function api(req, env, url) {
   }
 
   // stato dell'ufficio: lavori aperti + ultima attività di ogni agente
+  // numeri del menù (una sola richiesta): proposte da scegliere, lavori in corso o fermi, contenuti da approvare
+  if (p === '/api/conteggi' && m === 'GET') {
+    const r = await one(env, `SELECT
+      (SELECT COUNT(*) FROM riunioni WHERE tipo='richiesta' AND stato='proposte') AS proposte,
+      (SELECT COUNT(*) FROM lavori WHERE stato IN ('in_corso','errore','pausa')) + (SELECT COUNT(*) FROM post_lavori WHERE stato IN ('in_corso','errore')) + (SELECT COUNT(*) FROM avatar_piani WHERE stato IN ('in_corso','errore','attende_avatar')) + (SELECT COUNT(*) FROM piani WHERE stato IN ('in_corso','errore')) + (SELECT COUNT(*) FROM riunioni WHERE stato IN ('in_corso','errore')) AS lavorazione,
+      (SELECT COUNT(*) FROM lavori WHERE stato='pronto' AND approvato IS NULL) + (SELECT COUNT(*) FROM post_lavori WHERE stato IN ('da_approvare','da_vedere','attende_canva')) + (SELECT COUNT(*) FROM avatar_piani WHERE stato='da_approvare') + (SELECT COUNT(*) FROM contenuti WHERE stato='da_approvare') AS approvare`).catch(() => ({}));
+    return json(r || {});
+  }
   if (p === '/api/regia' && m === 'GET') {
     const [attivi, ultimi, feed, conti] = await Promise.all([
       all(env, "SELECT id, prompt, fase, stato, blocco_fino, json_extract(piano, '$.settore') AS settore FROM lavori WHERE stato='in_corso' ORDER BY id"),

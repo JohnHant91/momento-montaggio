@@ -319,7 +319,7 @@ const ICO = {
   agenzia: '<path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/>',
   riunioni: '<circle cx="12" cy="8" r="3"/><path d="M5 20c.8-3.5 3.6-5.5 7-5.5s6.2 2 7 5.5M4.5 10.5a2.3 2.3 0 1 0 0-.1M19.5 10.5a2.3 2.3 0 1 0 0-.1"/>',
   profilo: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".6"/>',
-  approvazioni: '<path d="M20 6 9 17l-5-5"/>', approvati: '<path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><path d="M22 4 12 14l-3-3"/>',
+  approvazioni: '<path d="M20 6 9 17l-5-5"/>', approvati: '<path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><path d="M22 4 12 14l-3-3"/>', lavorazione: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   calendario: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M8 14h3M13 14h3M8 17h3"/>',
   archivio: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
   clienti: '<path d="M16 20v-1.5a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4V20M9.5 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M21 20v-1.5a4 4 0 0 0-3-3.9M15.5 3.6a3.5 3.5 0 0 1 0 6.8"/>',
@@ -330,9 +330,9 @@ const ICO = {
   gestionale: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   impostazioni: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'
 };
-const VOCI = [['agenzia', 'Home', '#/'], ['riunioni', 'Proposte', '#/riunioni'], ['approvazioni', 'Da approvare', '#/approvazioni'], ['approvati', 'Approvati', '#/approvati'], ['calendario', 'Calendario', '#/calendario'], ['clienti', 'Clienti', '#/clienti'], ['archivio', 'Archivio', '#/archivio']];
+const VOCI = [['agenzia', 'Home', '#/'], ['riunioni', 'Proposte', '#/riunioni'], ['lavorazione', 'In lavorazione', '#/lavorazione'], ['approvazioni', 'Da approvare', '#/approvazioni'], ['approvati', 'Approvati', '#/approvati'], ['calendario', 'Calendario', '#/calendario'], ['clienti', 'Clienti', '#/clienti'], ['archivio', 'Archivio', '#/archivio']];
 const STRUMENTI = [['profilo', 'Profilo IG', '#/profilo'], ['gestionale', 'Gestionale', '#/gestionale'], ['costi', 'Costi', '#/costi']];
-const voce = (v) => '<a class="vm" href="' + v[2] + '" data-k="' + v[0] + '"><svg viewBox="0 0 24 24">' + ICO[v[0]] + '</svg><span class="tx">' + v[1] + '</span>' + (v[0] === 'costi' ? '<span class="num" id="num_costi"></span>' : '') + '</a>';
+const voce = (v) => '<a class="vm" href="' + v[2] + '" data-k="' + v[0] + '"><svg viewBox="0 0 24 24">' + ICO[v[0]] + '</svg><span class="tx">' + v[1] + '</span>' + (['costi', 'riunioni', 'lavorazione', 'approvazioni'].includes(v[0]) ? '<span class="num" id="num_' + v[0] + '"></span>' : '') + '</a>';
 function menu(on) {
   document.body.classList.toggle('dentro', !!on);
   $('#ham').hidden = !on;
@@ -346,11 +346,12 @@ function menu(on) {
 }
 async function aggiornaNumCosti() {
   try { const c = await chiama('/api/consumi?giorni=30'); const n = $('#num_costi'); if (n) n.textContent = soldi(c.questo_mese, c.cambio); } catch (_) {}
+  try { const k = await chiama('/api/conteggi'); [['riunioni', k.proposte], ['lavorazione', k.lavorazione], ['approvazioni', k.approvare]].forEach(([id, n]) => { const el = $('#num_' + id); if (el) el.textContent = n ? String(n) : ''; }); } catch (_) {}
 }
 const soldi = (usd, cambio) => '€ ' + (usd * (cambio || 0.86)).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 function evidenzia() {
   const h = location.hash || '#/';
-  const k = h === '#/' || h.startsWith('#/agente') || h.startsWith('#/ufficio') || h.startsWith('#/incarico') || h === '#/chat/capo' ? 'agenzia' : h.startsWith('#/riunion') ? 'riunioni' : h.startsWith('#/profilo') ? 'profilo' : h.startsWith('#/archivio') ? 'archivio' : h.startsWith('#/calendario') ? 'calendario' : h.startsWith('#/approvati') ? 'approvati' : h.startsWith('#/approvazion') ? 'approvazioni' : h.startsWith('#/client') ? 'clienti' :
+  const k = h === '#/' || h.startsWith('#/agente') || h.startsWith('#/ufficio') || h.startsWith('#/incarico') || h === '#/chat/capo' ? 'agenzia' : h.startsWith('#/riunion') ? 'riunioni' : h.startsWith('#/profilo') ? 'profilo' : h.startsWith('#/archivio') ? 'archivio' : h.startsWith('#/calendario') ? 'calendario' : h.startsWith('#/approvati') ? 'approvati' : h.startsWith('#/lavorazione') ? 'lavorazione' : h.startsWith('#/approvazion') ? 'approvazioni' : h.startsWith('#/client') ? 'clienti' :
     h.startsWith('#/reel') || h.startsWith('#/lavoro') || h.startsWith('#/nuovo') || h.startsWith('#/post') || h.startsWith('#/copion') || h.startsWith('#/piano') ? 'approvazioni' : h.startsWith('#/chat/gestionale') || h.startsWith('#/chat/contabile') || h === '#/gestionale' ? 'gestionale' : h.startsWith('#/costi') ? 'costi' : h.startsWith('#/impostazioni') ? 'impostazioni' : '';
   document.querySelectorAll('#nav .vm[data-k]').forEach((a) => a.classList.toggle('att', a.dataset.k === k));
   const tutte = VOCI.concat(STRUMENTI, [['impostazioni', 'Impostazioni']]).find((v) => v[0] === k);
@@ -1315,6 +1316,34 @@ async function riunionePagina(id) {
 
 // APPROVAZIONI: un'unica casella con tutto quello che aspetta Johnny, e si approva da qui senza andare a cercare:
 // reel finiti, copioni (profilo e clienti), caroselli, post del calendario, proposte delle riunioni, documenti degli agenti
+// IN LAVORAZIONE: tutto ciò che l'agenzia sta facendo adesso, in un posto solo, con quello che si è fermato e come sbloccarlo
+async function lavorazionePagina() {
+  const nulla = () => [];
+  const [Re, Po, Av, Pi, Ri] = await Promise.all([chiama('/api/lavori').catch(nulla), chiama('/api/post').catch(nulla), chiama('/api/avatar').catch(nulla), chiama('/api/piani').catch(nulla), chiama('/api/riunioni').catch(nulla)]);
+  const FASI_REEL = { piano: ['Preparo il lavoro', 5], ricerca: ['Cerco i reel di riferimento', 15], riferimenti: ['Studio i riferimenti', 30], clip: ['Guardo le tue clip', 45], scheda: ['Preparo la scheda', 55], regia: ['Il Regista scrive il piano', 65], montaggio: ['Montaggio in corso', 85] };
+  const FASI_POST = { ricerca: ['Cerco i post della nicchia', 15], studio: ['Studio i riferimenti', 30], foto: ['Scelgo le foto', 45], contenuti: ['Scrivo i testi', 60], impagina: ['Impagino le grafiche', 80], scarica: ['Preparo i file', 92] };
+  const FASI_AV = { ricerca: ['Ricerca sul web', 15], virali: ['Studio i reel della nicchia', 30], copioni: ['Nora scrive i copioni', 50], avatar: ['Genero il video con l’avatar', 70], montaggio: ['Passo al montaggio', 88] };
+  const voci = [
+    ...Ri.filter((x) => ['in_corso', 'errore'].includes(x.stato)).map((x) => ({ ic: '🧭', t: x.titolo || x.richiesta || 'Riunione', cli: x.cliente, f: x.tipo === 'settimanale' ? 'Riunione operativa settimanale' : 'Alba prepara le 10 proposte', p: 50, st: x.stato, err: x.errore, q: x.aggiornato, link: '#/riunione/' + x.id })),
+    ...Re.filter((x) => ['in_corso', 'errore', 'pausa'].includes(x.stato)).map((x) => ({ ic: '🎬', t: '#' + x.id + ' · ' + (x.titolo || (x.prompt || '').slice(0, 80)), cli: (/^Cliente: ([^.·\\n]+)/.exec(x.prompt || '') || [])[1], f: x.stato === 'pausa' ? 'Aspetta un tuo taglio' : (FASI_REEL[x.fase] || [x.fase, 50])[0], p: (FASI_REEL[x.fase] || [0, 50])[1], st: x.stato, err: x.errore, q: x.aggiornato, link: '#/lavoro/' + x.id, rip: '/api/lavori/' + x.id + '/riprova' })),
+    ...Po.filter((x) => ['in_corso', 'errore'].includes(x.stato)).map((x) => ({ ic: '🗂️', t: x.titolo || (x.tipo === 'post' ? 'Post' : 'Caroselli') + ' · ' + (x.numero || ''), cli: x.cliente, f: (FASI_POST[x.fase] || [x.fase, 50])[0], p: (FASI_POST[x.fase] || [0, 50])[1], st: x.stato, err: x.errore, q: x.aggiornato, link: '#/post/' + x.id, rip: '/api/post/' + x.id + '/riprova' })),
+    ...Av.filter((x) => ['in_corso', 'errore', 'attende_avatar'].includes(x.stato)).map((x) => ({ ic: '🎭', t: x.argomento || 'Reel con avatar', cli: 'Profilo di Johnny', f: x.stato === 'attende_avatar' ? 'Aspetta il video dell’avatar' : (FASI_AV[x.fase] || [x.fase, 50])[0], p: (FASI_AV[x.fase] || [0, 50])[1], st: x.stato, err: x.errore, q: x.aggiornato, link: '#/profilo/' + x.id, rip: '/api/avatar/' + x.id + '/riprova' })),
+    ...Pi.filter((x) => ['in_corso', 'errore'].includes(x.stato)).map((x) => ({ ic: '📝', t: x.titolo || 'Copioni', cli: x.cliente, f: x.fase === 'strategia' ? 'Nora studia la strategia' : 'Nora scrive i copioni', p: x.fase === 'strategia' ? 25 : 65, st: x.stato, err: x.errore, q: x.aggiornato || x.creato, link: '#/copioni/' + x.id })),
+  ];
+  const fermi = voci.filter((v) => v.st === 'errore' || v.st === 'pausa'), vivi = voci.filter((v) => v.st !== 'errore' && v.st !== 'pausa');
+  const riga = (v) => '<div class="card ap"><div class="riga" style="gap:12px;align-items:flex-start"><div style="font-size:26px">' + v.ic + '</div><div style="flex:1;min-width:0"><a href="' + v.link + '" style="color:inherit;text-decoration:none"><b>' + e(String(v.t).slice(0, 110)) + '</b></a>' +
+    '<div class="mut" style="margin:3px 0 8px">' + (v.cli ? e(v.cli) + ' · ' : '') + e(v.f || '') + (v.q ? ' · ' + fa(v.q) : '') + '</div>' +
+    (v.st === 'errore' ? '<div class="err" style="margin-bottom:8px">' + e(String(v.err || 'si è fermato').replace(/\\x1b\\[[0-9;]*m/g, '').slice(0, 260)) + '</div>' :
+      '<div style="height:6px;border-radius:4px;background:var(--line);overflow:hidden"><div style="height:100%;width:' + v.p + '%;background:var(--teal)"></div></div>') +
+    '<div class="riga" style="gap:6px;margin-top:8px;flex-wrap:wrap"><a class="btn sec" href="' + v.link + '">Apri</a>' + (v.st === 'errore' && v.rip ? '<button class="lv_rip" data-u="' + v.rip + '" style="width:auto">🔁 Riprova</button>' : '') + '</div></div></div></div>';
+  $('#app').innerHTML = '<h1>In lavorazione <span class="pill">' + voci.length + '</span></h1><p class="mut">Tutto quello che l’agenzia sta facendo adesso. I lavori girano in parallelo.</p>' +
+    (fermi.length ? '<h2 class="ap-h">⚠️ Fermi: serve un tuo intervento <span class="pill">' + fermi.length + '</span></h2>' + fermi.map(riga).join('') : '') +
+    (vivi.length ? '<h2 class="ap-h">⏳ In corso <span class="pill">' + vivi.length + '</span></h2>' + vivi.map(riga).join('') : '') +
+    (!voci.length ? '<div class="card"><b>Niente in lavorazione.</b><p class="mut">Scrivi un comando ad Alba dalla <a href="#/">Home</a>: le proposte arrivano in “Proposte”.</p></div>' : '');
+  document.querySelectorAll('.lv_rip').forEach((b) => b.onclick = async () => { b.disabled = true; try { await chiama(b.dataset.u, { method: 'POST' }); rotta(); } catch (x) { b.disabled = false; alert(x.message); } });
+  if (vivi.length) timer = setTimeout(rotta, 8000);
+}
+
 // CONTENUTI APPROVATI: tutto ciò che Johnny ha approvato, pronto da scaricare e consegnare al cliente
 async function approvatiPagina() {
   const nulla = () => [];
@@ -1745,6 +1774,7 @@ async function rotta(ev) {
     else if (h.startsWith('#/incarico/')) await incarico(h.split('/')[2]);
     else if (h === '#/approvazioni') await approvazioni();
     else if (h === '#/approvati') await approvatiPagina();
+    else if (h === '#/lavorazione') await lavorazionePagina();
     else if (h === '#/calendario') await calendarioPagina();
     else if (h === '#/archivio' || h.startsWith('#/archivio/')) await archivioPagina(decodeURIComponent(h.slice(11)));
     else if (h === '#/riunioni') await riunioniPagina();
