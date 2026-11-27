@@ -438,7 +438,7 @@ export async function pezziReel(env, origine, L) {
     const seg = segs.find((x) => x.nome === t.nome) || {};
     const proxy = !!m.revisore?.proxy;
     const link = proxy ? `/api/lavori/${L.id}/proxy-${k}.mp4?v=${m.versione || 1}` : c?.sorgente?.tipo === 'archivio' ? await A.linkFirmato(env, origine, c.sorgente.percorso) : (c?.sorgente?.tipo === 'url' ? c.sorgente.url : null);
-    out.push({ pezzo: k, nome: t.nome, in: t.in, dur: t.dur, durata_clip: Number(c?.tecnico?.durata_sec) || null, link, ruota: proxy ? 0 : (seg.ruota ?? c?.analisi?.rotazione ?? 0),
+    out.push({ pezzo: k, nome: t.nome, in: t.in, dur: t.dur, durata_clip: Number(c?.tecnico?.durata_sec) || null, link, ruota: ((proxy ? 0 : Number(seg.ruota ?? c?.analisi?.rotazione ?? 0) || 0) + (Number(seg.ruota_extra) || 0)) % 360,
       problema: (m.taglio?.pezzi || []).find((x) => x.pezzo === k)?.problema || null });
   }
   return { pezzi: out, taglio: m?.taglio || null };
@@ -476,16 +476,23 @@ export async function applicaTagli(env, L, tagli) {
     const cfg = chi(await configurazione(env), { area: 'montaggio', agente: 'editor', lavoro_id: L.id });
     const campi = ['rallenty', 'velocita', 'effetto', 'transizione_in', 'audio', 'testo', 'zoom_fisso', 'fuoco', 'ruota', 'specchia', 'movimento', 'stabilizza', 'correzione', 'centro_x'];
     const out = await S.claude({ ...cfg, CLAUDE_MODEL: cfg.CLAUDE_MODEL_LIGHT || cfg.CLAUDE_MODEL }, 'Sei il montatore di AGENZIA MOMENTO AI. Johnny ha guardato un pezzo del reel e ti dice a parole cosa cambiare. Traduci SOLO quello che chiede nei campi del pezzo, il resto non si tocca.',
-      `CAMPI CHE PUOI CAMBIARE: rallenty (bool), velocita (0.5-2, 1 = normale), effetto (uno di: ${Object.keys(EFFETTI).join(', ')} oppure null), transizione_in (uno di: ${TRANSIZIONI.join(', ')}), audio (0-1, volume del suono originale), testo ({"testo","stile","posizione","evidenzia"} oppure null per toglierlo), zoom_fisso ({"z": 1.1-3, "cx": 0-1, "cy": 0-1} oppure null: z = quanto avvicinare, cx/cy = punto dell'immagine su cui stringere, 0.5/0.5 = centro; "allarga/togli lo zoom" = null), fuoco (oggetto su cui stringere, 1-4 parole, oppure null), ruota (gradi con cui girare la clip: 0, 90 = senso orario, -90 = antiorario, 180 = capovolta; "è storta/coricata" di solito 90 o -90: se non dice il verso scegli 90), specchia (bool, ribalta destra-sinistra), movimento (movimento di camera aggiunto: push_in, push_out, ken_burns, punch, pan_dx, pan_sx, sali, scendi, oppure "fermo" per nessuno), stabilizza (true = forza, false = mai, "auto"), correzione ({"luminosita": -0.4..0.4, "contrasto": 0.6..1.6, "saturazione": 0..2}: più chiaro/scuro, più contrasto, più o meno colore, bianco e nero = saturazione 0; oppure null), centro_x (0-1, dove tenere il soggetto in orizzontale nel ritaglio verticale: 0 = sinistra, 1 = destra).
+      `CAMPI CHE PUOI CAMBIARE: rallenty (bool), velocita (0.5-2, 1 = normale), effetto (uno di: ${Object.keys(EFFETTI).join(', ')} oppure null), transizione_in (uno di: ${TRANSIZIONI.join(', ')}), audio (0-1, volume del suono originale), testo ({"testo","stile","posizione","evidenzia"} oppure null per toglierlo), zoom_fisso ({"z": 1.1-3, "cx": 0-1, "cy": 0-1} oppure null: z = quanto avvicinare, cx/cy = punto dell'immagine su cui stringere, 0.5/0.5 = centro; "allarga/togli lo zoom" = null), fuoco (oggetto su cui stringere, 1-4 parole, oppure null), ruota (di quanto girare la clip RISPETTO A COME SI VEDE ORA: 90 = un quarto in senso orario, -90 = antiorario, 180 = sottosopra; metti SOLO la rotazione nuova da aggiungere; "è capovolta/sottosopra" = 180; "è coricata" senza verso = 90), specchia (bool, ribalta destra-sinistra), movimento (movimento di camera aggiunto: push_in, push_out, ken_burns, punch, pan_dx, pan_sx, sali, scendi, oppure "fermo" per nessuno), stabilizza (true = forza, false = mai, "auto"), correzione ({"luminosita": -0.4..0.4, "contrasto": 0.6..1.6, "saturazione": 0..2}: più chiaro/scuro, più contrasto, più o meno colore, bianco e nero = saturazione 0; oppure null), centro_x (0-1, dove tenere il soggetto in orizzontale nel ritaglio verticale: 0 = sinistra, 1 = destra).
 PEZZI E RICHIESTE:
 ${note.map((x) => `- pezzo ${Number(x.pezzo)}: ora ${JSON.stringify(Object.fromEntries(campi.map((k) => [k, nuovi[Number(x.pezzo)][k] ?? null])))}\n  JOHNNY CHIEDE: ${String(x.nota).trim().slice(0, 500)}`).join('\n')}
 Rispondi SOLO JSON: {"pezzi": [{"pezzo": numero, "cambi": {solo i campi che cambiano}, "detto": "cosa hai cambiato, in 6-10 parole semplici", "non_posso": "se chiede qualcosa che questi campi non permettono (es. musica, ordine dei pezzi, titoli generali del reel) dillo qui in breve, altrimenti null"}]}`, { maxTokens: 900 }).catch(() => null);
+    const prima_ruota = nuovi.map((x) => x.ruota);
     for (const r of out?.pezzi || []) {
       const s = nuovi[Number(r.pezzo)]; if (!s) continue;
       for (const k of campi) if (r.cambi && k in r.cambi) s[k] = r.cambi[k];
       if (s.effetto && !EFFETTI[s.effetto]) s.effetto = null;
       if (s.transizione_in && !TRANSIZIONI.includes(s.transizione_in)) delete s.transizione_in;
-      if ('ruota' in (r.cambi || {})) { s.ruota = [0, 90, -90, 180].includes(Number(s.ruota)) ? Number(s.ruota) : 0; for (const y of nuovi) if (y !== s && y.nome === s.nome) y.ruota = s.ruota;  m.ruote = { ...(m.ruote || {}), [s.nome]: s.ruota }; } // la clip gira tutta, in ogni pezzo dove torna
+      if ('ruota' in (r.cambi || {})) { // Johnny gira la clip rispetto a come la vede adesso: si somma a quello che c'era (campo a parte: "ruota" è il verso automatico)
+        const g = [90, -90, 180].includes(Number(r.cambi.ruota)) ? Number(r.cambi.ruota) : 0;
+        s.ruota = prima_ruota[Number(r.pezzo)]; if (s.ruota == null) delete s.ruota;
+        s.ruota_extra = (((Number(s.ruota_extra) || 0) + g) % 360 + 360) % 360;
+        for (const y of nuovi) if (y !== s && y.nome === s.nome) y.ruota_extra = s.ruota_extra;
+        m.ruote = { ...(m.ruote || {}), [s.nome]: s.ruota_extra };
+      } // la clip gira tutta, in ogni pezzo dove torna
       fatti.push(`pezzo ${Number(r.pezzo) + 1}: ${String(r.detto || 'modificato').slice(0, 120)}${r.non_posso ? ' (⚠️ non fatto: ' + String(r.non_posso).slice(0, 160) + ')' : ''}`);
     }
     if (!out) fatti.push('⚠️ le note scritte non sono state lette (errore): riprova');
@@ -975,6 +982,22 @@ almeno metà dei pezzi da clip diverse o da momenti diversi delle stesse clip (l
   if (formato === 'montaggio' && !eAvatar) {
     const S2 = piano.segmenti, note = [];
     const durTot = S2.reduce((x, y) => x + y.durata, 0);
+    // COLORE ESATTO: sul girato di un cliente il colore lo fa il color (stessa luce su tutte le clip + look). Niente velature sopra
+    // l'immagine che sporcano i bianchi e la pelle: tinta, particelle, bagliori e glow entrano solo se Johnny li chiede nel prompt.
+    {
+      const chiesto = (re) => re.test(String(L.prompt || '') + ' ' + String(indicazioni?.testo || indicazioni?.nota || ''));
+      const lr = piano.look_reel || {}, via = [];
+      if (lr.tinta && !chiesto(/tinta|velatura|filtro colorato/i)) { lr.tinta = null; via.push('tinta'); }
+      if (lr.particelle && !chiesto(/neve|polvere|coriandol|bokeh|particell/i)) { lr.particelle = null; via.push('particelle'); }
+      if (Number(lr.grana) > 0.04) lr.grana = 0.04;
+      if (Number(lr.vignetta ?? 0.32) > 0.22) lr.vignetta = 0.22;
+      piano.look_reel = lr;
+      const g0 = piano.effetti_globali || [];
+      piano.effetti_globali = g0.filter((x) => !(x === 'light_leak' && !chiesto(/light.?leak|bagliore/i)) && !(x === 'glow' && !chiesto(/glow|sogno|morbid/i)));
+      if (piano.effetti_globali.length < g0.length) via.push(g0.filter((x) => !piano.effetti_globali.includes(x)).join(' e '));
+      if (Number(piano.intensita_look) > 0.6) { piano.intensita_look = 0.6; via.push('look meno carico'); }
+      if (via.length) note.push('colore pulito: tolti ' + via.join(', '));
+    }
     // 0) NIENTE DOPPIONI: mai due pezzi di fila dalla stessa clip (è la stessa inquadratura) e i primi 4 pezzi tutti da clip diverse:
     //    l'apertura deve cambiare immagine a ogni taglio. Il pezzo ripetuto scambia posto con il primo più avanti che non crea doppioni.
     let scambi = 0;
@@ -1060,7 +1083,7 @@ almeno metà dei pezzi da clip diverse o da momenti diversi delle stesse clip (l
   // Chiara ripassa titoli, copertina e caption prima del montaggio: la sua nota arriva a Johnny con il reel
   const notaChiara = await ripassoChiara(env, cfg, Ccl, 'reel', { titoli: (piano.titoli || []).map((t) => t.testo || t), copertina: piano.copertina?.testo, caption: piano.caption || p.caption, chiusura: piano.chiusura?.testo || p.chiusura }).catch(() => null);
   // il verso che Johnny ha dato a una clip ("girala") vale anche per i montaggi dopo: non deve ridirlo
-  if (prima?.ruote) for (const x of piano.segmenti || []) if (x.nome in prima.ruote) x.ruota = prima.ruote[x.nome];
+  if (prima?.ruote) for (const x of piano.segmenti || []) if (x.nome in prima.ruote) x.ruota_extra = prima.ruote[x.nome];
   await run(env, 'UPDATE lavori SET montaggio=? WHERE id=?', JSON.stringify({ stato: 'da_fare', piano, versione, ruote: prima?.ruote || undefined, creato: ora(), indicazioni: indicazioni || null, nota_chiara: notaChiara, qa_giri: indicazioni?.da === 'revisore' ? (prima?.qa_giri || 0) : 0 }), L.id);
   const tot = seg.reduce((a, s) => a + s.durata, 0);
   const nomeF = { montaggio: 'montaggio', talking_head: 'talking-head', carosello: 'carosello', split_grafico: 'split con grafiche animate', parole_dietro: 'parole giganti dietro la persona' }[formato];

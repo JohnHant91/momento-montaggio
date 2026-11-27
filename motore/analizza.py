@@ -616,10 +616,6 @@ def monta(lavoro):
             usati_cache.add(os.path.basename(cf))
             segno = cf[:-4] + ".dritta"  # il file in cache è già raddrizzato così: non si rifà a ogni rimontaggio
             usati_cache.add(os.path.basename(segno))
-            if "ruota" in s and os.path.exists(segno) and open(segno).read().strip() != str(s.get("ruota")):
-                for x in (cf, segno):  # il verso è cambiato: riparto dal file originale
-                    if os.path.exists(x):
-                        os.remove(x)
             if ck and os.path.exists(cf):
                 r = subprocess.run(["openssl", "enc", "-d", "-aes-256-ctr", "-pbkdf2", "-iter", "1000", "-in", cf, "-out", dest, "-pass", "env:CCK"],
                                    env=dict(os.environ, CCK=ck), capture_output=True)
@@ -654,34 +650,66 @@ def monta(lavoro):
         avvisa("motore", f"clip pronte in {time.time() - t_dl:.0f} s ({da_cache} dalla cache, {len(voci) - da_cache} scaricate)")
         # verso del girato: le clip orizzontali girate con la camera in verticale escono coricate. Claude guarda un
         # fotogramma di ognuna (una sola chiamata) e dice di quanto girarle; quelle dritte restano orizzontali
+        # Le clip già sistemate in un giro prima (segno ".dritta" in cache) non si riguardano né si rigirano.
+        def segno_di(k):
+            return os.path.join(CACHE_CLIP, ident(voci[k]) + ".dritta")
+        def stato(k):
+            """None = clip mai sistemata. Altrimenti {"j": rotazione chiesta da Johnny già applicata al file in cache}."""
+            f = segno_di(k)
+            if not (ck and os.path.exists(f) and os.path.exists(f[:-7] + ".enc")):
+                return None
+            try:
+                d = json.load(open(f))
+                if isinstance(d, dict):
+                    return d
+            except Exception:
+                pass
+            return {"j": int(voci[k].get("ruota_extra") or 0) % 360}  # segno del formato vecchio: il file è già come lo voleva Johnny
+        def salva(k, j):
+            if not ck:
+                return
+            try:
+                f = segno_di(k)
+                subprocess.run(["openssl", "enc", "-aes-256-ctr", "-pbkdf2", "-iter", "1000", "-in", file_per_id[k], "-out", f[:-7] + ".enc", "-pass", "env:CCK"],
+                               env=dict(os.environ, CCK=ck), capture_output=True, check=True)
+                json.dump({"j": j}, open(f, "w"))
+            except Exception:
+                pass
+        clip_k = [k for k in voci if voci[k] is not piano.get("musica")]
+        prime = {k: stato(k) for k in clip_k}
+        nuove = [k for k in clip_k if prime[k] is None]
         try:
-            # le clip con il verso già deciso (anche 0) non si ricontrollano: rimontare con lo stesso piano non costa niente
-            versi = verso_clip(lavoro, {k: f for k, f in file_per_id.items() if voci[k] is not piano.get("musica") and "ruota" not in voci[k]})
+            # le clip con il verso già deciso dall'analisi non si ricontrollano
+            versi = verso_clip(lavoro, {k: file_per_id[k] for k in nuove if "ruota" not in voci[k]}) if nuove else {}
         except Exception as e:
             versi = {}
             avvisa("motore", f"controllo del verso non riuscito: {str(e)[:100]}", "warn")
         def sistema(k):
-            s = voci[k]
-            if s is piano.get("musica"):
-                return
-            r = versi.get(k, s.get("ruota"))
-            cf = os.path.join(CACHE_CLIP, ident(s) + ".enc")
-            segno = cf[:-4] + ".dritta"
-            if ck and os.path.exists(cf) and os.path.exists(segno) and open(segno).read().strip() == str(r):
-                return "cache"
-            f = file_per_id[k]
-            prima = (os.path.getsize(f), os.path.getmtime(f))
-            raddrizza(f, r, avvisa)  # girato storto o con bande nere: lo raddrizzo e zoommo prima di montare
-            if ck:
-                try:
-                    if (os.path.getsize(f), os.path.getmtime(f)) != prima:  # in cache metto quello dritto
-                        subprocess.run(["openssl", "enc", "-aes-256-ctr", "-pbkdf2", "-iter", "1000", "-in", f, "-out", cf, "-pass", "env:CCK"],
-                                       env=dict(os.environ, CCK=ck), capture_output=True, check=True)
-                    open(segno, "w").write(str(r))
-                except Exception:
-                    pass
+            raddrizza(file_per_id[k], versi.get(k, voci[k].get("ruota")), avvisa)  # girato storto o con bande nere: lo raddrizzo e zoommo prima di montare
         with ThreadPoolExecutor(3) as ex:
-            gia = sum(1 for x in ex.map(sistema, list(voci)) if x == "cache")
+            list(ex.map(sistema, nuove))
+        # SECONDO SGUARDO: chi guarda un'immagine coricata sbaglia spesso il senso (orario/antiorario) e la clip esce capovolta.
+        # Riguardo solo quelle appena girate: se una è ancora storta la sistemo adesso, non nel reel di Johnny.
+        girate = [k for k in nuove if versi.get(k, voci[k].get("ruota")) in (90, -90, 180, 270)]
+        if girate:
+            try:
+                for k, g in (verso_clip(lavoro, {k: file_per_id[k] for k in girate}) or {}).items():
+                    raddrizza(file_per_id[k], g, None)
+                    avvisa("motore", f"{os.path.basename(file_per_id[k])[-24:]}: al secondo controllo era ancora storta, corretta")
+            except Exception as e:
+                avvisa("motore", f"secondo controllo del verso non riuscito: {str(e)[:100]}", "warn")
+        # ROTAZIONE CHIESTA DA JOHNNY ("girala", "è capovolta"): è rispetto a come la vede lui, quindi si somma a quella automatica
+        def di_johnny(k):
+            voluto = int(voci[k].get("ruota_extra") or 0) % 360
+            fatto = int((prime[k] or {}).get("j") or 0) % 360
+            delta = (voluto - fatto) % 360
+            if delta:
+                raddrizza(file_per_id[k], {90: 90, 180: 180, 270: -90}[delta], avvisa)
+            if delta or prime[k] is None or "j" not in (prime[k] or {}):
+                salva(k, voluto)
+        with ThreadPoolExecutor(3) as ex:
+            list(ex.map(di_johnny, clip_k))
+        gia = len(clip_k) - len(nuove)
         if gia:
             avvisa("motore", f"{gia} clip già raddrizzate dal giro prima: non le rifaccio")
         if (piano.get("logo") or {}).get("kv") or (piano.get("logo") or {}).get("archivio"):
