@@ -1,7 +1,7 @@
 // La catena di lavoro: piano → ricerca → riferimenti (Gemini guarda) → clip (Analista) → scheda tecnica.
 // Ogni minuto il cron fa avanzare i lavori aperti, una fase alla volta, ripartendo da dove si era fermato.
 import { J, all, log, one, ora, run, configurazione } from './db.js';
-import { libreriaTesto } from './libreria.js';
+import { libreriaTesto, EFFETTI } from './libreria.js';
 import * as S from './servizi.js';
 import * as A from './archivio.js';
 import { inviaPush } from './notifiche.js';
@@ -449,6 +449,25 @@ export async function applicaTagli(env, L, tagli) {
     s.durata = Math.round(Math.min(12, Math.max(0.4, (a - da) / vel)) * 100) / 100;
     s.in_bloccato = true;
     fatti.push(`pezzo ${Number(x.pezzo) + 1} (${s.nome}) da ${da.toFixed(1)} a ${a.toFixed(1)} s`);
+  }
+  // modifiche descritte a parole da Johnny su un pezzo ("rallenta", "togli la scritta", "stringi sulle mani"): un passaggio leggero le traduce nei campi del pezzo
+  const note = (tagli || []).filter((x) => !x.elimina && nuovi[Number(x.pezzo)] && String(x.nota || '').trim().length > 2);
+  if (note.length) {
+    const cfg = chi(await configurazione(env), { area: 'montaggio', agente: 'editor', lavoro_id: L.id });
+    const campi = ['rallenty', 'velocita', 'effetto', 'transizione_in', 'audio', 'testo', 'zoom_fisso', 'fuoco'];
+    const out = await S.claude({ ...cfg, CLAUDE_MODEL: cfg.CLAUDE_MODEL_LIGHT || cfg.CLAUDE_MODEL }, 'Sei il montatore di AGENZIA MOMENTO AI. Johnny ha guardato un pezzo del reel e ti dice a parole cosa cambiare. Traduci SOLO quello che chiede nei campi del pezzo, il resto non si tocca.',
+      `CAMPI CHE PUOI CAMBIARE: rallenty (bool), velocita (0.5-2, 1 = normale), effetto (uno di: ${Object.keys(EFFETTI).join(', ')} oppure null), transizione_in (uno di: ${TRANSIZIONI.join(', ')}), audio (0-1, volume del suono originale), testo ({"testo","stile","posizione","evidenzia"} oppure null per toglierlo), zoom_fisso ({"z": 1.2-2.5, "cx": 0-1, "cy": 0-1} oppure null), fuoco (oggetto su cui stringere, 1-4 parole, oppure null).
+PEZZI E RICHIESTE:
+${note.map((x) => `- pezzo ${Number(x.pezzo)}: ora ${JSON.stringify(Object.fromEntries(campi.map((k) => [k, nuovi[Number(x.pezzo)][k] ?? null])))}\n  JOHNNY CHIEDE: ${String(x.nota).trim().slice(0, 500)}`).join('\n')}
+Rispondi SOLO JSON: {"pezzi": [{"pezzo": numero, "cambi": {solo i campi che cambiano}, "detto": "cosa hai cambiato, in 6-10 parole semplici", "non_posso": "se chiede qualcosa che questi campi non permettono (es. colori, musica, ordine dei pezzi) dillo qui in breve, altrimenti null"}]}`, { maxTokens: 900 }).catch(() => null);
+    for (const r of out?.pezzi || []) {
+      const s = nuovi[Number(r.pezzo)]; if (!s) continue;
+      for (const k of campi) if (r.cambi && k in r.cambi) s[k] = r.cambi[k];
+      if (s.effetto && !EFFETTI[s.effetto]) s.effetto = null;
+      if (s.transizione_in && !TRANSIZIONI.includes(s.transizione_in)) delete s.transizione_in;
+      fatti.push(`pezzo ${Number(r.pezzo) + 1}: ${String(r.detto || 'modificato').slice(0, 120)}${r.non_posso ? ' (⚠️ non fatto: ' + String(r.non_posso).slice(0, 160) + ')' : ''}`);
+    }
+    if (!out) fatti.push('⚠️ le note scritte non sono state lette (errore): riprova');
   }
   if (!fatti.length) throw new Error('nessun taglio valido: segna inizio e fine');
   if (via.size >= nuovi.length) throw new Error('non puoi eliminare tutti i pezzi: ne deve restare almeno uno');

@@ -570,7 +570,7 @@ async function editorTagli(id) {
     $('#pz_lista').innerHTML = D.pezzi.map((p) => {
       const t = tagli[p.pezzo];
       return '<div class="riga" style="padding:6px 0;border-bottom:1px solid var(--bordo,#2a2a2a);' + (p.problema ? 'color:var(--err)' : '') + '"><div style="flex:1;min-width:0"><b>' + (p.pezzo + 1) + '.</b> ' + e(p.nome) +
-        (t && t.elimina ? ' <span class="pill errore">eliminato</span>' : ' <span class="mut">da ' + Number(t ? t.da : p.in).toFixed(1) + ' s per ' + Number(t ? t.a - t.da : p.dur).toFixed(1) + ' s</span>' + (t ? ' <span class="pill">tagliato da te</span>' : '')) +
+        (t && t.elimina ? ' <span class="pill errore">eliminato</span>' : ' <span class="mut">da ' + Number(t ? t.da : p.in).toFixed(1) + ' s per ' + Number(t ? t.a - t.da : p.dur).toFixed(1) + ' s</span>' + (t ? ' <span class="pill">' + (t.da !== p.in || Math.abs((t.a - t.da) - p.dur) > 0.05 ? 'tagliato da te' : 'modifica') + '</span>' : '') + (t && t.nota ? '<div class="mut">📝 ' + e(t.nota) + '</div>' : '')) +
         (p.problema ? '<div>⚠︎ ' + e(p.problema) + '</div>' : '') + '</div>' +
         (p.link ? '<button class="sec pz_t" data-k="' + p.pezzo + '">▾ Guarda e taglia</button>' : '<span class="mut">clip non visibile qui</span>') +
         '<button class="sec pz_x" data-k="' + p.pezzo + '" style="margin-left:6px">' + (t && t.elimina ? '↩︎ Rimetti' : '🗑 Elimina') + '</button></div><div class="pz_d" id="pz_d' + p.pezzo + '"></div>';
@@ -590,7 +590,8 @@ async function editorTagli(id) {
       (giro ? 'width:420px;max-width:none;transform:rotate(' + r + 'deg)' : 'width:100%;max-width:360px') + '"></video></div>' +
       '<div class="riga" style="justify-content:center;margin-top:8px"><button class="sec" id="pz_m1">−0,1 s</button><button class="sec" id="pz_p1">+0,1 s</button></div>' +
       '<div class="riga" style="justify-content:center;margin-top:8px"><button id="pz_in">Inizio qui</button><button id="pz_out">Fine qui</button><button class="sec" id="pz_prova">▶ Riguarda il taglio</button></div>' +
-      '<p style="text-align:center" id="pz_info"></p><div style="text-align:center"><button id="pz_tieni">Tieni questo taglio</button> <button class="sec" id="pz_via">🗑 Elimina questa clip</button> <button class="sec" id="pz_chiudi">Chiudi</button></div></div>';
+      '<p style="text-align:center" id="pz_info"></p><label>Cosa devo cambiare su questa clip? (facoltativo)</label><textarea id="pz_nota" style="min-height:54px" placeholder="Es. rallentala · togli la scritta · stringi sulle mani · abbassa il suono · niente transizione">' + e((tagli[k] && tagli[k].nota) || '') + '</textarea>' +
+      '<div style="text-align:center;margin-top:8px"><button id="pz_tieni">Tieni taglio e nota</button> <button class="sec" id="pz_via">🗑 Elimina questa clip</button> <button class="sec" id="pz_chiudi">Chiudi</button></div></div>';
     const bt = document.querySelector('.pz_t[data-k="' + k + '"]'); if (bt) bt.textContent = '▴ Chiudi';
     const v = $('#pz_v');
     const info = () => { $('#pz_info').textContent = 'da ' + t.da.toFixed(1) + ' s a ' + t.a.toFixed(1) + ' s (' + (t.a - t.da).toFixed(1) + ' s)' + (t.a - t.da < 0.5 ? ' · troppo corto' : ''); };
@@ -600,7 +601,7 @@ async function editorTagli(id) {
     $('#pz_in').onclick = () => { t.da = Math.round(v.currentTime * 10) / 10; if (t.a <= t.da) t.a = t.da + Math.max(1, p.dur); info(); };
     $('#pz_out').onclick = () => { t.a = Math.round(v.currentTime * 10) / 10; info(); };
     $('#pz_prova').onclick = () => { v.currentTime = t.da; v.play(); const st = () => { if (v.currentTime >= t.a) { v.pause(); v.removeEventListener('timeupdate', st); } }; v.addEventListener('timeupdate', st); };
-    $('#pz_tieni').onclick = () => { if (t.a - t.da < 0.5) return alert('Il pezzo deve durare almeno mezzo secondo'); tagli[k] = { pezzo: k, da: t.da, a: t.a }; disegna(); };
+    $('#pz_tieni').onclick = () => { if (t.a - t.da < 0.5) return alert('Il pezzo deve durare almeno mezzo secondo'); tagli[k] = { pezzo: k, da: t.da, a: t.a, nota: $('#pz_nota').value.trim() }; disegna(); };
     $('#pz_via').onclick = () => { const x = document.querySelector('.pz_x[data-k="' + k + '"]'); if (x) x.click(); };
     $('#pz_chiudi').onclick = chiudi;
     $('#pz_d' + k).scrollIntoView({ behavior: 'smooth', block: 'nearest' });
