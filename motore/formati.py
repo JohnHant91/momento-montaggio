@@ -1251,7 +1251,8 @@ class MontatoreCompleto(TalkingHead):
         occhi = {}
         try:
             import occhio as OC
-            files = sorted({x["file"] for x in segmenti + riserve if x.get("file")})
+            # rimontaggio con i tagli di Johnny (tutti i pezzi bloccati): non c'è niente da scegliere, non riguardo il girato
+            files = [] if segmenti and all(x.get("in_bloccato") for x in segmenti) else sorted({x["file"] for x in segmenti + riserve if x.get("file")})
 
             def guarda(f):
                 try:
@@ -1260,7 +1261,7 @@ class MontatoreCompleto(TalkingHead):
                     return f, None
             with ThreadPoolExecutor(PARALLELO) as ex:
                 occhi = {f: l for f, l in ex.map(guarda, files) if l}
-            self.avvisa("editor", f"occhio del videomaker: {len(occhi)} clip guardate (azioni, camera, fuoco, luce)")
+            self.avvisa("editor", f"occhio del videomaker: {len(occhi)} clip guardate (azioni, camera, fuoco, luce)" if files else "pezzi scelti da te: salto la scelta dei tratti e rimonto subito")
         except Exception as e:
             self.avvisa("editor", f"occhio non disponibile ({str(e)[:60]}): scelgo col solo controllo del mosso", "warn")
 

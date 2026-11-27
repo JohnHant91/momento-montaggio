@@ -609,6 +609,12 @@ def monta(lavoro):
             dest = os.path.join(cartella, "src_" + re.sub(r"\W+", "_", k)[-40:])
             cf = os.path.join(CACHE_CLIP, ident(s) + ".enc")
             usati_cache.add(os.path.basename(cf))
+            segno = cf[:-4] + ".dritta"  # il file in cache è già raddrizzato così: non si rifà a ogni rimontaggio
+            usati_cache.add(os.path.basename(segno))
+            if "ruota" in s and os.path.exists(segno) and open(segno).read().strip() != str(s.get("ruota")):
+                for x in (cf, segno):  # il verso è cambiato: riparto dal file originale
+                    if os.path.exists(x):
+                        os.remove(x)
             if ck and os.path.exists(cf):
                 r = subprocess.run(["openssl", "enc", "-d", "-aes-256-ctr", "-pbkdf2", "-iter", "1000", "-in", cf, "-out", dest, "-pass", "env:CCK"],
                                    env=dict(os.environ, CCK=ck), capture_output=True)
@@ -638,7 +644,7 @@ def monta(lavoro):
                 file_per_id[k] = dest
                 da_cache += cache
         for x in os.listdir(CACHE_CLIP):  # in cache resta solo il girato di questo lavoro
-            if x not in usati_cache:
+            if x not in usati_cache and x != "fuochi.json":
                 os.remove(os.path.join(CACHE_CLIP, x))
         avvisa("motore", f"clip pronte in {time.time() - t_dl:.0f} s ({da_cache} dalla cache, {len(voci) - da_cache} scaricate)")
         # verso del girato: le clip orizzontali girate con la camera in verticale escono coricate. Claude guarda un
@@ -654,9 +660,25 @@ def monta(lavoro):
             if s is piano.get("musica"):
                 return
             r = versi.get(k, s.get("ruota"))
-            raddrizza(file_per_id[k], r, avvisa)  # girato storto o con bande nere: lo raddrizzo e zoommo prima di montare
+            cf = os.path.join(CACHE_CLIP, ident(s) + ".enc")
+            segno = cf[:-4] + ".dritta"
+            if ck and os.path.exists(cf) and os.path.exists(segno) and open(segno).read().strip() == str(r):
+                return "cache"
+            f = file_per_id[k]
+            prima = (os.path.getsize(f), os.path.getmtime(f))
+            raddrizza(f, r, avvisa)  # girato storto o con bande nere: lo raddrizzo e zoommo prima di montare
+            if ck:
+                try:
+                    if (os.path.getsize(f), os.path.getmtime(f)) != prima:  # in cache metto quello dritto
+                        subprocess.run(["openssl", "enc", "-aes-256-ctr", "-pbkdf2", "-iter", "1000", "-in", f, "-out", cf, "-pass", "env:CCK"],
+                                       env=dict(os.environ, CCK=ck), capture_output=True, check=True)
+                    open(segno, "w").write(str(r))
+                except Exception:
+                    pass
         with ThreadPoolExecutor(3) as ex:
-            list(ex.map(sistema, list(voci)))
+            gia = sum(1 for x in ex.map(sistema, list(voci)) if x == "cache")
+        if gia:
+            avvisa("motore", f"{gia} clip già raddrizzate dal giro prima: non le rifaccio")
         if (piano.get("logo") or {}).get("kv") or (piano.get("logo") or {}).get("archivio"):
             try:
                 dest = os.path.join(cartella, "logo.png")
@@ -670,10 +692,21 @@ def monta(lavoro):
             if piano.get(campo):
                 piano[campo] = [dict(s, file=file_per_id[chiave(s)]) for s in piano[campo] if chiave(s) in file_per_id]
         # attenzione su un oggetto (es. "la scatola"): lo cerco nel pezzo già raddrizzato e ci sposto e stringo l'inquadratura
+        fuochi_f = os.path.join(CACHE_CLIP, "fuochi.json")  # dove sta l'oggetto in ogni pezzo: trovato una volta, vale per i rimontaggi (solo numeri)
+        try:
+            fuochi = json.load(open(fuochi_f)) if ck and os.path.exists(fuochi_f) else {}
+        except Exception:
+            fuochi = {}
         for s in piano.get("segmenti") or []:
             if s.get("fuoco") and s.get("file") and not s.get("zoom_fisso"):
                 try:
+                    kf = hashlib.sha256(f"{ident(s)}|{float(s.get('in', 0)):.1f}|{float(s.get('durata', 1)):.1f}|{s['fuoco']}".encode()).hexdigest()[:24]
+                    if kf in fuochi:
+                        if fuochi[kf]:
+                            s.update(fuochi[kf])
+                        continue
                     inq = inquadra_su(lavoro, s["file"], float(s.get("in", 0)) + float(s.get("durata", 1)) / 2, s["fuoco"])
+                    fuochi[kf] = inq or None
                     if inq:
                         s.update(inq)
                         avvisa("editor", f"{s.get('nome') or 'pezzo'}: inquadratura spostata su {s['fuoco']}" + (f" e stretta {inq['zoom_fisso']['z']:.1f}x" if inq.get("zoom_fisso") else ""))
@@ -681,6 +714,11 @@ def monta(lavoro):
                         avvisa("editor", f"{s.get('nome') or 'pezzo'}: {s['fuoco']} non trovato nell'immagine, lascio l'inquadratura piena", "warn")
                 except Exception as e:
                     avvisa("editor", f"fuoco su {s['fuoco']} non riuscito: {str(e)[:80]}", "warn")
+        if ck:
+            try:
+                json.dump(fuochi, open(fuochi_f, "w"))
+            except Exception:
+                pass
         # fotogrammi al secondo del reel = quelli del girato (25 in Italia): montare a 30 un girato a 25 ripete
         # un fotogramma ogni cinque e l'immagine scatta
         try:
