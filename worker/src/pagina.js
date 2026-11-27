@@ -286,11 +286,32 @@ const STANZE = [['direzione', 'Direzione creativa'], ['scouting', 'Scouting · r
 const FASE_AGENTI = { piano: ['regista'], ricerca: ['scout'], riferimenti: ['motore', 'occhi'], clip: ['motore', 'occhi'], scheda: ['regista'], regia: ['regista'], montaggio: ['motore', 'caroselli'] };
 const fa = (q) => { const s = (Date.now() - new Date(q)) / 1000; return s < 60 ? 'ora' : s < 3600 ? Math.round(s / 60) + ' min fa' : s < 86400 ? Math.round(s / 3600) + ' h fa' : new Date(q).toLocaleDateString('it-IT'); };
 
-async function chiama(path, opts = {}) {
+// PAGINE ISTANTANEE: ogni risposta letta resta in memoria. Quando cambi pagina dal menù la vedi SUBITO con i dati
+// dell'ultima volta, e intanto si scaricano quelli nuovi: se sono cambiati, la pagina si aggiorna da sola.
+const MEMO = new Map(); let VELOCE = false;
+async function chiamaRete(path, opts = {}) {
   const r = await fetch(path, { ...opts, headers: { 'content-type': 'application/json' }, body: opts.body ? JSON.stringify(opts.body) : undefined });
   const d = await r.json().catch(() => ({}));
   if (r.status === 401 && !['/api/accedi', '/api/recupera', '/api/password'].includes(path)) { accesso(); throw new Error('accesso'); }
   if (!r.ok) throw new Error(d.errore || 'errore ' + r.status);
+  return d;
+}
+async function chiama(path, opts = {}) {
+  if (opts.method && opts.method !== 'GET') { const d = await chiamaRete(path, opts); MEMO.clear(); return d; } // dopo una modifica niente dati vecchi
+  const c = MEMO.get(path);
+  if (c && Date.now() - c.t < 3000) return JSON.parse(c.s);
+  if (c && VELOCE) {
+    const h0 = location.hash;
+    chiamaRete(path).then((d) => {
+      const s = JSON.stringify(d), cambiato = s !== c.s;
+      MEMO.set(path, { s, t: Date.now() });
+      const scrive = document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+      if (cambiato && location.hash === h0 && !scrive) { clearTimeout(MEMO.tr); MEMO.tr = setTimeout(() => rotta(), 60); }
+    }).catch(() => {});
+    return JSON.parse(c.s);
+  }
+  const d = await chiamaRete(path);
+  MEMO.set(path, { s: JSON.stringify(d), t: Date.now() });
   return d;
 }
 
@@ -1663,8 +1684,9 @@ async function attivaNotifiche() {
 }
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
 
-async function rotta() {
+async function rotta(ev) {
   clearTimeout(timer);
+  VELOCE = !!(ev && ev.type === 'hashchange'); // solo quando sei tu a cambiare pagina
   const h = location.hash || '#/';
   // l'accesso si ricontrolla al massimo una volta al minuto: una richiesta in meno a ogni pagina e a ogni aggiornamento
   if (!window._dentro || Date.now() - window._dentro > 60000) {
@@ -1701,6 +1723,7 @@ async function rotta() {
     else if (h.startsWith('#/copioni/')) await piano(h.split('/')[2]);
     else await azienda();
   } catch (x) { if (x.message !== 'accesso') $('#app').innerHTML = '<div class="card err">' + e(x.message) + '</div>'; }
+  VELOCE = false;
 }
 addEventListener('hashchange', rotta);
 rotta();

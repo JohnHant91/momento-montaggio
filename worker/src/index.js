@@ -28,8 +28,14 @@ const sha = async (s) => hex(await crypto.subtle.digest('SHA-256', new TextEncod
 
 // ACCESSO: email + password scelte al primo accesso. La password non è mai salvata in chiaro: PBKDF2 con sale casuale.
 // Se la perdi: codice di recupero (mostrato una volta sola al primo accesso) → nuova password.
-const imp = async (env, k) => (await one(env, 'SELECT valore FROM impostazioni WHERE chiave=?', k))?.valore || '';
-const salva = (env, k, v) => run(env, 'INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES (?,?)', k, v);
+// le impostazioni lette a ogni richiesta (password, email…) restano in memoria 20 s: due query in meno per ogni clic
+const _imp = new Map();
+const imp = async (env, k) => {
+  const c = _imp.get(k); if (c && Date.now() - c.t < 20000) return c.v;
+  const v = (await one(env, 'SELECT valore FROM impostazioni WHERE chiave=?', k))?.valore || '';
+  _imp.set(k, { v, t: Date.now() }); return v;
+};
+const salva = (env, k, v) => { _imp.delete(k); return run(env, 'INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES (?,?)', k, v); };
 async function pbkdf2(password, sale, giri = 100000) {
   const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(String(password)), 'PBKDF2', false, ['deriveBits']);
   return hex(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode(sale), iterations: giri }, k, 256));
