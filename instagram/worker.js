@@ -1,8 +1,9 @@
 // momento-instagram — modulo di pubblicazione Instagram per Agenzia Momento AI
 // Coda in KV (binding CODA). Cron ogni 5 minuti: crea il contenitore, aspetta l'elaborazione, pubblica.
 // Secret richiesti: IG_TOKEN, ADMIN_KEY. Variabile: IG_USER_ID (il profilo di Johnny, quello predefinito).
-// PIÙ ACCOUNT: ogni richiesta può portare "ig_user_id" (un altro account Instagram raggiungibile dallo stesso token,
-// es. la pagina di Momento Produzione o quella di un cliente). GET /conti elenca gli account che il token vede.
+// PIÙ ACCOUNT: Meta dà un token per ogni account Instagram. Per aggiungerne uno (Momento Produzione, un cliente) si crea
+// il secret IG_TOKEN_<id dell'account> (il numero che Meta mostra sotto il nome). Ogni richiesta può portare "ig_user_id";
+// senza, vale il profilo predefinito. GET /conti elenca gli account collegati.
 
 const GRAPH = "https://graph.facebook.com";
 
@@ -16,7 +17,7 @@ function json(data, status = 200) {
 // l'account su cui lavorare: quello chiesto (solo cifre) o quello predefinito
 const conto = (env, id) => (/^\d{5,25}$/.test(String(id || "")) ? String(id) : env.IG_USER_ID);
 
-async function graph(env, method, path, params = {}) {
+async function graph(env, method, path, params = {}, io) {
   const url = new URL(`${GRAPH}/${path}`);
   const body = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
@@ -24,7 +25,7 @@ async function graph(env, method, path, params = {}) {
     if (method === "GET") url.searchParams.set(k, String(v));
     else body.set(k, String(v));
   }
-  const headers = { Authorization: `Bearer ${env.IG_TOKEN}` };
+  const headers = { Authorization: `Bearer ${(io && env["IG_TOKEN_" + io]) || env.IG_TOKEN}` }; // il token dell'account, o quello predefinito
   const res = await fetch(url, method === "GET" ? { headers } : { method, headers, body });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || data.error) {
@@ -78,8 +79,8 @@ async function creaContenitore(env, item) {
     const figli = [];
     for (const u of item.media_urls || []) {
       const f = /\.(mp4|mov)(\?|$)/i.test(u)
-        ? await graph(env, "POST", `${io}/media`, { media_type: "VIDEO", video_url: u, is_carousel_item: true })
-        : await graph(env, "POST", `${io}/media`, { image_url: u, is_carousel_item: true });
+        ? await graph(env, "POST", `${io}/media`, { media_type: "VIDEO", video_url: u, is_carousel_item: true }, io)
+        : await graph(env, "POST", `${io}/media`, { image_url: u, is_carousel_item: true }, io);
       figli.push(f.id);
     }
     params.media_type = "CAROUSEL";
@@ -87,18 +88,19 @@ async function creaContenitore(env, item) {
   } else {
     params.image_url = item.media_url; // solo JPEG
   }
-  const r = await graph(env, "POST", `${io}/media`, params);
+  const r = await graph(env, "POST", `${io}/media`, params, io);
   return r.id;
 }
 
 async function avanza(env, item) {
+  const io = conto(env, item.ig_user_id);
   try {
     if (!item.container_id) {
       item.container_id = await creaContenitore(env, item);
       item.stato = "in_elaborazione";
       await salva(env, item);
     }
-    const st = await graph(env, "GET", item.container_id, { fields: "status_code,status" });
+    const st = await graph(env, "GET", item.container_id, { fields: "status_code,status" }, io);
     if (st.status_code === "IN_PROGRESS") {
       item.tentativi = (item.tentativi || 0) + 1;
       if (item.tentativi > 24) throw new Error("Elaborazione oltre 2 ore, annullato");
@@ -109,12 +111,12 @@ async function avanza(env, item) {
       throw new Error(`Contenitore ${st.status_code}: ${st.status || ""}`);
     }
     if (st.status_code === "FINISHED") {
-      const pub = await graph(env, "POST", `${conto(env, item.ig_user_id)}/media_publish`, {
+      const pub = await graph(env, "POST", `${io}/media_publish`, {
         creation_id: item.container_id,
-      });
+      }, io);
       item.media_id = pub.id;
       try {
-        const m = await graph(env, "GET", pub.id, { fields: "permalink" });
+        const m = await graph(env, "GET", pub.id, { fields: "permalink" }, io);
         item.permalink = m.permalink;
       } catch (_) {}
       item.stato = "pubblicato";
@@ -151,23 +153,18 @@ async function controlloToken(env) {
   }
 }
 
-// gli account Instagram professionali che il token può usare (pagine Facebook gestite e il loro Instagram collegato)
+// gli account Instagram collegati: quello predefinito e uno per ogni secret IG_TOKEN_<id>
 async function conti(env) {
   const out = [];
-  try {
-    const io = await graph(env, "GET", env.IG_USER_ID, { fields: "username" });
-    out.push({ ig_user_id: String(env.IG_USER_ID), username: io.username, predefinito: true });
-  } catch (_) {}
-  let dopo, giri = 0;
-  do {
-    const r = await graph(env, "GET", "me/accounts", { fields: "name,instagram_business_account{id,username}", limit: 100, after: dopo });
-    for (const pg of r.data || []) {
-      const ig = pg.instagram_business_account;
-      if (ig && !out.some((x) => x.ig_user_id === String(ig.id))) out.push({ ig_user_id: String(ig.id), username: ig.username, pagina: pg.name });
-      else if (!ig) out.push({ pagina: pg.name, senza_instagram: true });
+  const ids = [String(env.IG_USER_ID), ...Object.keys(env).map((k) => (k.match(/^IG_TOKEN_(\d{5,25})$/) || [])[1]).filter(Boolean)];
+  for (const id of [...new Set(ids)]) {
+    try {
+      const p = await graph(env, "GET", id, { fields: "username" }, id);
+      out.push({ ig_user_id: id, username: p.username, predefinito: id === String(env.IG_USER_ID) });
+    } catch (e) {
+      out.push({ ig_user_id: id, errore: String(e.message), predefinito: id === String(env.IG_USER_ID) });
     }
-    dopo = r.paging && r.paging.next ? r.paging.cursors && r.paging.cursors.after : undefined;
-  } while (dopo && ++giri < 5);
+  }
   return out;
 }
 
@@ -198,8 +195,8 @@ export default {
       const io = conto(env, url.searchParams.get("ig_user_id"));
       const out = { ig_user_id: io, token_configurato: !!env.IG_TOKEN };
       try {
-        out.profilo = await graph(env, "GET", io, { fields: "username,followers_count,media_count" });
-        out.limite_pubblicazione = await graph(env, "GET", `${io}/content_publishing_limit`, { fields: "config,quota_usage" });
+        out.profilo = await graph(env, "GET", io, { fields: "username,followers_count,media_count" }, io);
+        out.limite_pubblicazione = await graph(env, "GET", `${io}/content_publishing_limit`, { fields: "config,quota_usage" }, io);
       } catch (e) {
         out.errore = String(e.message);
       }
