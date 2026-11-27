@@ -1,6 +1,6 @@
 // Anteprima di tutti i temi dei caroselli: stesse 7 slide di prova in ogni tema. Uso: node prove/temi.mjs <cartella>
 import fs from 'fs';
-import { slideHTML, TEMI } from '../src/impagina.js';
+import { slideHTML, TEMI, incorporaIcone } from '../src/impagina.js';
 const out = process.argv[2] || '/tmp/temi';
 fs.mkdirSync(out, { recursive: true });
 const stile = { palette: ['#F1EFEA', '#17171A', '#0E9F9A'], mood: 'pulito' };
@@ -13,5 +13,6 @@ const S = [
   { modello: 'citazione', titolo: 'Chi guarda non compra il servizio: compra il risultato.', testo: 'Regola numero uno' },
   { ruolo: 'cta', modello: 'cta', titolo: 'Salvalo per il prossimo post', testo: 'Seguimi per altri consigli pratici ogni settimana.' },
 ];
-for (const tema of Object.keys(TEMI)) S.forEach((slide, i) => fs.writeFileSync(`${out}/${tema}-${i + 1}.html`, slideHTML({ slide, i, totale: S.length, stile, logo: null, profilo: 'momentoproduzione', tema, firma: '@momentoproduzione' })));
+const memo = {};
+for (const tema of Object.keys(TEMI)) for (const [i, slide] of S.entries()) fs.writeFileSync(`${out}/${tema}-${i + 1}.html`, await incorporaIcone(slideHTML({ slide, i, totale: S.length, stile, logo: null, profilo: 'momentoproduzione', tema, firma: '@momentoproduzione' }), memo));
 console.log(Object.keys(TEMI).length, 'temi');

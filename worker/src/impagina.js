@@ -193,14 +193,26 @@ body::before,body::after{content:'';position:absolute;pointer-events:none}
 .t-bold h1,.t-bold h2{text-transform:uppercase;line-height:.94;letter-spacing:.005em;font-weight:400}.t-bold::before{right:-280px;bottom:-240px;width:920px;height:920px;border-radius:50%;background:var(--a);opacity:.2}.t-bold .numero{font-weight:400}
 .t-notte{background-image:radial-gradient(900px 700px at 90% 0%,color-mix(in srgb,var(--v) 50%,transparent),transparent 70%),radial-gradient(760px 640px at 0% 100%,color-mix(in srgb,var(--v) 28%,transparent),transparent 70%)}.t-notte .col.no{background:rgba(255,255,255,.09)}
 .t-rivista .capo{border-bottom:3px solid currentColor;padding-bottom:20px;text-transform:uppercase;letter-spacing:.2em;font-size:22px;opacity:.9}.t-rivista h1,.t-rivista h2{font-weight:400;letter-spacing:-.01em}.t-rivista .barra{display:none}.t-rivista .pieno h2::after{content:'';display:block;width:150px;border-top:7px solid var(--a);margin-top:38px}.t-rivista p{font-size:44px}.t-rivista .ghost{opacity:.22}
-.t-brutal::before{inset:34px;border:8px solid currentColor;z-index:1}.t-brutal .ico-box,.t-brutal .col,.t-brutal .profilo,.t-brutal .fr,.t-brutal .ico-pt,.t-brutal .spunte i{border-radius:0;border:6px solid var(--t);box-shadow:9px 9px 0 var(--t)}.t-brutal .pieno .tt{background:linear-gradient(transparent 58%,var(--a) 58%);-webkit-box-decoration-break:clone;box-decoration-break:clone;padding:0 6px}.t-brutal h1,.t-brutal h2{font-weight:400;line-height:1.08}.t-brutal .prog{border-radius:0;height:10px}.t-brutal .prog b{background:var(--t)}
+.t-brutal::before{inset:34px;border:8px solid currentColor;z-index:1}.t-brutal .ico-box,.t-brutal .col,.t-brutal .profilo,.t-brutal .fr,.t-brutal .ico-pt,.t-brutal .spunte i{border-radius:0;border:6px solid var(--t);box-shadow:9px 9px 0 var(--t)}.t-brutal .pieno .tt{background:linear-gradient(transparent 66%,var(--a) 66%);-webkit-box-decoration-break:clone;box-decoration-break:clone;padding:0 6px}.t-brutal h1,.t-brutal h2{font-weight:400;line-height:1.08}.t-brutal .prog{border-radius:0;height:10px}.t-brutal .prog b{background:var(--t)}
 .t-morbido{background-image:radial-gradient(640px 640px at 100% 0%,color-mix(in srgb,var(--v) 42%,transparent),transparent 70%),radial-gradient(760px 760px at 0% 100%,color-mix(in srgb,var(--v) 26%,transparent),transparent 70%)}.t-morbido .pieno{inset:150px 60px 170px;background:#fff;color:#161616;border-radius:60px;padding:76px 64px;box-shadow:0 50px 90px -50px rgba(0,0,0,.38)}.t-morbido .ico-box{border-radius:50%}.t-morbido .ghost{display:none}.t-morbido h1,.t-morbido h2{font-weight:600;line-height:1.08}
 .t-nastro{background-image:radial-gradient(rgba(127,127,127,.24) 3px,transparent 3.5px);background-size:46px 46px}.t-nastro .pieno h2{transform:rotate(-2deg);line-height:1.32;transform-origin:left center}.t-nastro .pieno .tt{background:var(--a);color:var(--ta);padding:6px 20px;-webkit-box-decoration-break:clone;box-decoration-break:clone}.t-nastro .barra{display:none}.t-nastro .ico-box{transform:rotate(6deg);border-radius:50%}
 .t-lusso::before{inset:44px;border:2px solid var(--a);opacity:.75}.t-lusso .pieno,.t-lusso .centro{align-items:center;text-align:center}.t-lusso h1,.t-lusso h2{font-weight:500;letter-spacing:0;line-height:1.06}.t-lusso ul{align-self:center;text-align:left}.t-lusso .barra{height:2px;width:120px}.t-lusso .prog{height:2px}.t-lusso .capo{letter-spacing:.24em;text-transform:uppercase;font-size:22px}.t-lusso .ghost{display:none}
 .t-griglia{background-image:linear-gradient(rgba(127,127,127,.16) 2px,transparent 2px),linear-gradient(90deg,rgba(127,127,127,.16) 2px,transparent 2px);background-size:90px 90px}.t-griglia::before{left:40px;top:40px;width:74px;height:74px;border-left:7px solid var(--a);border-top:7px solid var(--a)}.t-griglia::after{right:40px;bottom:40px;width:74px;height:74px;border-right:7px solid var(--a);border-bottom:7px solid var(--a)}.t-griglia .capo{text-transform:uppercase;letter-spacing:.16em;font-size:22px;left:130px}.t-griglia .ico-box{border-radius:10px}.t-griglia h1,.t-griglia h2{font-weight:700}.t-griglia .piede{right:130px}
 .t-gradiente{background-image:radial-gradient(820px 820px at 100% 0%,rgba(255,255,255,.3),transparent 70%),radial-gradient(900px 900px at 0% 100%,rgba(0,0,0,.24),transparent 70%)}.t-gradiente .col.no{background:rgba(0,0,0,.12)}
 .t-cornice .foto.alta{left:60px;right:60px;top:60px;height:57%;border:16px solid #fff;box-shadow:0 34px 60px -34px rgba(0,0,0,.45)}.t-cornice .foto.piena{inset:40px}.t-cornice .velo{inset:40px}.t-cornice .ritaglio{border-radius:0;border:16px solid #fff;box-shadow:0 34px 60px -34px rgba(0,0,0,.45)}.t-cornice h1,.t-cornice h2{font-weight:400;letter-spacing:-.01em;line-height:1.04}.t-cornice .ed h1{font-weight:400}.t-cornice .ico-box{border-radius:50%}
-</style></head><body class="t-${tm}" style="--a:${T.accento};--v:${accentoVero};--s:${T.scuro};--c:${T.chiaro};--t:${colTesto};--ta:${suColore(T.accento)}">${corpo}</body></html>`;
+.fit{display:flex;flex-direction:column;align-items:flex-start;width:100%}.fit ul,.fit .due{width:100%}.t-lusso .fit{align-items:center}.t-lusso .fit ul{width:auto}
+.t-linee .forma,.t-rivista .forma,.t-lusso .forma,.t-griglia .forma,.t-brutal .forma,.t-nastro .forma,.t-cornice .forma,.t-bold .forma{display:none}
+</style></head><body class="t-${tm}" style="--a:${T.accento};--v:${accentoVero};--s:${T.scuro};--c:${T.chiaro};--t:${colTesto};--ta:${suColore(T.accento)}">${corpo}<script>(function(){function fit(){var b=document.querySelector('.pieno,.centro');if(!b)return;var w=document.createElement('div');w.className='fit';while(b.firstChild)w.appendChild(b.firstChild);b.appendChild(w);var cs=getComputedStyle(b);var alto=b.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom);for(var z=1.7;z>=0.55;z-=0.05){w.style.zoom=z;if(w.getBoundingClientRect().height<=alto*0.9&&w.scrollWidth*z<=b.clientWidth)break;}}if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);else fit();})();</script></body></html>`;
+}
+
+// le icone (Iconify) entrano nella pagina come dati: niente riquadri vuoti se la rete del motore rallenta
+export async function incorporaIcone(html, memo = {}) {
+  const U = [...new Set(html.match(/https:\/\/api\.iconify\.design\/[^"]+/g) || [])];
+  for (const u of U) {
+    if (!(u in memo)) memo[u] = await fetch(u.replace(/&amp;/g, '&')).then(async (r) => r.ok ? 'data:image/svg+xml;base64,' + btoa(await r.text()) : null).catch(() => null);
+    if (memo[u]) html = html.split(u).join(memo[u]);
+  }
+  return html;
 }
 
 // pacchetto per il motore: tutte le slide dei post approvati
@@ -232,6 +244,8 @@ export async function preparaImpaginazione(env, P) {
     S.forEach((s, k) => slide.push({ n: x.n, k: k + 1, chiave: `post-${P.id}/${x.n}-${k + 1}.png`, html: slideHTML({ slide: s, i: k, totale: S.length, stile: st, logo, profilo, tema, firma }),
       foto: [s.foto, ...(s.altre_foto || [])].filter(Boolean).map((nome) => { const f = fotoF.find((z) => z.nome === nome); return f ? { nome, ...(f.percorso ? { archivio: f.percorso } : { fileid: f.fileid }) } : null; }).filter(Boolean) }));
   }
+  const memo = {};
+  for (const x of slide) x.html = await incorporaIcone(x.html, memo);
   if (cambiato) await run(env, 'UPDATE post_lavori SET contenuti=? WHERE id=?', JSON.stringify(Ct), P.id);
   return { slide, logo, pcloud: /code=/.test(P.pcloud || '') ? P.pcloud : null };
 }
