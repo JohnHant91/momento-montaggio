@@ -225,7 +225,7 @@ export async function preparaImpaginazione(env, P) {
   const mio = String(P.cliente_id || '') === String(cfg.IG_CLIENTE_ID) || /^momento|profilo instagram/i.test(P.cliente || '');
   const profilo = mio ? (cfg.IG_USERNAME || '') : '';
   if (mio) st.palette = ['#F1EFEA', '#17171A', '#0E9F9A']; // il profilo di Momento usa sempre i colori di Momento
-  const firma = profilo ? '@' + profilo : String(P.cliente || '').slice(0, 34);
+  const firma = profilo ? '@' + profilo : mio ? 'Momento Produzione' : String(P.cliente || '').slice(0, 34);
   // regola n.1: nessun carosello uguale. Temi già usati dagli ultimi lavori dello stesso cliente + quelli di questo lotto
   const prima = await all(env, "SELECT contenuti FROM post_lavori WHERE cliente=? AND id<? ORDER BY id DESC LIMIT 4", P.cliente || '', P.id).catch(() => []);
   const usati = prima.flatMap((r) => (J(r.contenuti, {}).post || []).map((y) => y.tema).filter(Boolean)).slice(0, 5);
