@@ -33,7 +33,7 @@ def _font(cartella, famiglia="Anton", peso=400):
             f.write(r.read())
         return dest
     except Exception:
-        for c in ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"):
+        for c in (os.environ.get("FONT_RISERVA", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"), "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"):
             if os.path.exists(c):
                 return c
         return None

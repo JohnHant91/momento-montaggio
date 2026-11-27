@@ -1029,7 +1029,7 @@ def copertina(sorgente, secondo, testo, dest, font_dir=None, colore_accento="#F2
         d = ImageDraw.Draw(im)
         font_path = None
         for cand in ([os.path.join(font_dir, f) for f in sorted(os.listdir(font_dir))] if font_dir and os.path.isdir(font_dir) else []) + [
-                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]:
+                os.environ.get("FONT_RISERVA", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")]:
             if cand.endswith(".ttf") and os.path.exists(cand):
                 font_path = cand
                 break

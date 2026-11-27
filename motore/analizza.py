@@ -13,7 +13,7 @@ e ogni lavoro ha un lasciapassare usa-e-getta.
 """
 import base64, hashlib, io, json, math, os, re, shutil, subprocess, sys, tempfile, time, urllib.parse, urllib.request
 from concurrent.futures import ThreadPoolExecutor
-CACHE_CLIP = "/tmp/cache_clip"  # cache cifrata del girato fra un giro e l'altro dello stesso lavoro (actions/cache)
+CACHE_CLIP = os.environ.get("CACHE_CLIP") or "/tmp/cache_clip"  # cache cifrata del girato fra un giro e l'altro dello stesso lavoro (actions/cache)
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -346,7 +346,7 @@ def trascrivi(y):
 
 # ------------------------------------------------------------------ tavole di fotogrammi
 def font(dim):
-    for f in ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"):
+    for f in (os.environ.get("FONT_RISERVA", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"), "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"):
         if os.path.exists(f):
             return ImageFont.truetype(f, dim)
     return ImageFont.load_default()

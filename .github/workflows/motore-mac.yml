@@ -1,0 +1,77 @@
+# Motore "occhi" sul Mac di Johnny (runner suo, etichetta momento-mac): stesso lavoro di analizza.yml, ma su una macchina
+# molto più veloce e senza tempi di avvio. Parte solo su comando dell'agenzia. Se il Mac è spento, l'agenzia usa analizza.yml.
+name: occhi-mac
+
+on:
+  workflow_dispatch:
+    inputs:
+      lavoro:
+        description: "id del lavoro (vuoto = giro generale)"
+        required: false
+        default: ""
+
+permissions:
+  id-token: write
+  contents: write
+  actions: write
+
+concurrency:
+  group: motore-mac-${{ github.event.inputs.lavoro || 'giro' }}
+  cancel-in-progress: false
+
+env:
+  REGIA: https://momento-reel.gestionalelcl.workers.dev
+
+jobs:
+  occhi:
+    runs-on: [self-hosted, momento-mac]
+    timeout-minutes: 120
+    steps:
+      - name: C'è lavoro?
+        id: coda
+        run: |
+          r=$(curl -fsS "$REGIA/api/motore/coda?lavoro=${{ github.event.inputs.lavoro }}" || echo '{}')
+          echo "$r"
+          echo "lavoro=$(echo "$r" | grep -q '"lavoro":true' && echo si || echo no)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        if: steps.coda.outputs.lavoro == 'si'
+
+      - name: Strumenti (restano sul Mac, si installano solo la prima volta)
+        if: steps.coda.outputs.lavoro == 'si'
+        run: |
+          B="$(brew --prefix)"
+          echo "$B/opt/openssl@3/bin" >> "$GITHUB_PATH"
+          V="$HOME/momento-motore/venv"
+          [ -x "$V/bin/python" ] || "$B/opt/python@3.12/bin/python3.12" -m venv "$V"
+          "$V/bin/pip" install -q -r motore/requirements.txt
+          echo "$V/bin" >> "$GITHUB_PATH"
+          F="$HOME/Library/Fonts/DejaVuSans-Bold.ttf"; [ -f "$F" ] || F="/System/Library/Fonts/Supplemental/Arial Bold.ttf"
+          echo "FONT_RISERVA=$F" >> "$GITHUB_ENV"
+          echo "PARALLELO=4" >> "$GITHUB_ENV"
+          # sul Mac la cache del girato resta su disco, una cartella per lavoro; quelle ferme da 10 giorni si tolgono
+          C="$HOME/momento-motore/cache"; mkdir -p "$C/lavoro-${{ github.event.inputs.lavoro || 'giro' }}"
+          find "$C" -mindepth 1 -maxdepth 1 -type d -mtime +10 -exec rm -rf {} + 2>/dev/null || true
+          echo "CACHE_CLIP=$C/lavoro-${{ github.event.inputs.lavoro || 'giro' }}" >> "$GITHUB_ENV"
+          echo "ATTESA_MAX=30" >> "$GITHUB_ENV"   # il Mac riparte in un attimo: non resta ad aspettare 4 minuti a vuoto
+          ffmpeg -version | head -1; sysctl -n machdep.cpu.brand_string hw.ncpu hw.memsize | tr '\n' ' '
+
+      - name: Guarda i video e monta i reel
+        if: steps.coda.outputs.lavoro == 'si'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          LAVORO: ${{ github.event.inputs.lavoro }}
+        run: python motore/analizza.py
+
+      - name: Tavole di controllo (cifrate)
+        if: always() && steps.coda.outputs.lavoro == 'si'
+        run: |
+          ls /tmp/tavole/*.jpg >/dev/null 2>&1 || exit 0
+          rm -rf /tmp/out && mkdir -p /tmp/out && cd /tmp/tavole && tar czf /tmp/t.tgz *.jpg
+          openssl rand -out /tmp/k.bin 32
+          openssl enc -aes-256-cbc -pbkdf2 -in /tmp/t.tgz -out /tmp/out/tavole.enc -pass file:/tmp/k.bin
+          openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/motore/chiave_studio.pem" -in /tmp/k.bin -out /tmp/out/k.enc
+          cd /tmp/out && git init -q && git checkout -q -b tavole && git add . \
+          && git -c user.name=motore -c user.email=motore@momento commit -qm "tavole" \
+          && git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" tavole
+          rm -rf /tmp/tavole /tmp/out /tmp/t.tgz /tmp/k.bin

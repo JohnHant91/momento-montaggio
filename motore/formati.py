@@ -38,7 +38,7 @@ class _Base(Montatore):
         f = os.path.join(self.fontdir, re.sub(r"\W+", "", famiglia) + f"-{peso}.ttf")
         if not os.path.exists(f):
             cand = [os.path.join(self.fontdir, x) for x in sorted(os.listdir(self.fontdir)) if x.endswith(".ttf")]
-            f = cand[0] if cand else "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+            f = cand[0] if cand else os.environ.get("FONT_RISERVA", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
         prova = ImageFont.truetype(f, 200)
         asc, desc = prova.getmetrics()
         em = dim_ass * 200 / max(1, asc + desc)  # libass: dimensione = altezza della riga (ascendente + discendente)
@@ -468,7 +468,7 @@ class TalkingHead(_Base):
         if et:
             fp = self.font_file(800) if hasattr(self, "font_file") else None
             try:
-                fnt = ImageFont.truetype(fp or "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 34)
+                fnt = ImageFont.truetype(fp or os.environ.get("FONT_RISERVA", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"), 34)
             except Exception:
                 fnt = ImageFont.load_default()
             tw = int(ImageDraw.Draw(tela).textlength(et, font=fnt)) + 34
@@ -807,7 +807,7 @@ def installa_grafiche(avvisa=None):
 
 def screenshot_sito(url, out):
     """Schermata vera del sito citato (Chrome senza finestra del runner GitHub)."""
-    for exe in ("google-chrome", "chromium-browser", "chromium"):
+    for exe in ("google-chrome", "chromium-browser", "chromium", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"):
         try:
             p = subprocess.run([exe, "--headless=new", "--no-sandbox", "--disable-gpu", "--hide-scrollbars", "--window-size=1280,900",
                                 "--virtual-time-budget=6000", f"--screenshot={out}", url], capture_output=True, text=True, timeout=60)

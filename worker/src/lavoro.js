@@ -291,6 +291,25 @@ async function faseRiferimenti(env, cfg, L) {
   return true;
 }
 
+// IL MAC DI JOHNNY COME MOTORE (impostazione MOTORE_MAC='si'): molto più veloce delle macchine gratuite, ma fa un lavoro alla volta
+// e c'è solo quando è acceso. Lo uso se è in linea e libero; altrimenti il lavoro va sulle macchine di GitHub come sempre.
+async function macLibero(env, cfg, lavoroId) {
+  try {
+    if ((await one(env, "SELECT valore FROM impostazioni WHERE chiave='MOTORE_MAC'"))?.valore !== 'si') return false;
+    const provato = Number((await one(env, 'SELECT valore FROM impostazioni WHERE chiave=?', 'MAC_PROVATO_' + lavoroId))?.valore || 0);
+    const L = await one(env, 'SELECT motore_fino FROM lavori WHERE id=?', lavoroId);
+    const r = await fetch('https://api.github.com/repos/JohnHant91/momento-montaggio/actions/runners?per_page=30', { headers: { authorization: `Bearer ${cfg.GITHUB_TOKEN}`, accept: 'application/vnd.github+json', 'user-agent': 'momento-reel', 'x-github-api-version': '2022-11-28' } });
+    if (r.ok) {
+      const mac = ((await r.json()).runners || []).find((x) => (x.labels || []).some((l) => l.name === 'momento-mac'));
+      return !!mac && mac.status === 'online' && !mac.busy;
+    }
+    // il permesso dell'agenzia non fa vedere i motori: provo il Mac una volta; se dopo 3 minuti non ha preso il lavoro, torno a GitHub
+    if (provato && Date.now() - provato < 30 * 60e3 && !(L?.motore_fino)) return false;
+    await run(env, 'INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES (?, ?)', 'MAC_PROVATO_' + lavoroId, String(Date.now()));
+    return true;
+  } catch (_) { return false; }
+}
+
 // Avvia subito il motore su GitHub (workflow_dispatch) invece di aspettare il giro programmato.
 // Al massimo una richiesta ogni 3 minuti, e non se il motore sta già lavorando a questo lavoro.
 // Con l'id del lavoro parte un motore SOLO per quel reel, in parallelo agli altri (5 reel insieme = il tempo di uno).
@@ -301,7 +320,8 @@ export async function svegliaMotore(env, perche = '', lavoroId = 0) {
   const ultimo = (await one(env, 'SELECT valore FROM impostazioni WHERE chiave=?', chiave))?.valore;
   if (ultimo && Date.now() - Number(ultimo) < 3 * 60e3) return true;
   await run(env, 'INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES (?, ?)', chiave, String(Date.now()));
-  const r = await fetch('https://api.github.com/repos/JohnHant91/momento-montaggio/actions/workflows/analizza.yml/dispatches', {
+  const file = lavoroId && await macLibero(env, cfg, lavoroId) ? 'motore-mac.yml' : 'analizza.yml';
+  const r = await fetch(`https://api.github.com/repos/JohnHant91/momento-montaggio/actions/workflows/${file}/dispatches`, {
     method: 'POST', body: JSON.stringify(lavoroId ? { ref: 'main', inputs: { lavoro: String(lavoroId) } } : { ref: 'main' }),
     headers: { authorization: `Bearer ${cfg.GITHUB_TOKEN}`, accept: 'application/vnd.github+json', 'content-type': 'application/json', 'user-agent': 'momento-reel', 'x-github-api-version': '2022-11-28' },
   });
