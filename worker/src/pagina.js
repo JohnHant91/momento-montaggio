@@ -1354,6 +1354,7 @@ async function approvatiPagina() {
   const nulla = () => [];
   const [Re, Po, Co, Pi, Av] = await Promise.all([chiama('/api/lavori').catch(nulla), chiama('/api/post').catch(nulla), chiama('/api/contenuti').catch(nulla), chiama('/api/piani').catch(nulla), chiama('/api/avatar').catch(nulla)]);
   const reel = Re.filter((l) => l.approvato);
+  const CODA = reel.some((l) => l.pubblicazione) ? (await chiama('/api/avatar/instagram').catch(() => ({}))).coda || [] : [];
   const post = await Promise.all(Po.filter((x) => x.approvati > 0).slice(0, 20).map((x) => chiama('/api/post/' + x.id).catch(() => null)));
   const testi = Co.filter((c) => ['approvato', 'da_pubblicare', 'pubblicato'].includes(c.stato));
   const copioni = Pi.filter((x) => x.approvato).map((x) => ({ t: x.cliente || 'copioni', link: '#/copioni/' + x.id, q: x.aggiornato }))
@@ -1363,6 +1364,10 @@ async function approvatiPagina() {
   const bReel = reel.map((l) => '<div class="card ap" data-cli="' + e(cliDi(l).toLowerCase()) + '"><div class="riga" style="align-items:flex-start;gap:14px">' +
     '<video src="/api/lavori/' + l.id + '/reel.mp4" controls playsinline preload="none" poster="' + (l.copertina ? '/api/lavori/' + l.id + '/copertina.jpg' : '') + '" style="width:130px;aspect-ratio:9/16;border-radius:12px;background:#000;flex:0 0 130px"></video>' +
     '<div style="flex:1;min-width:0"><b>#' + l.id + ' · ' + e(l.titolo || (l.prompt || '').slice(0, 90)) + '</b><div class="mut" style="margin:4px 0 10px">' + e(cliDi(l)) + ' · approvato il ' + giorno(l.approvato) + '</div>' +
+    (() => { const pb = l.pubblicazione ? JSON.parse(l.pubblicazione) : null, q = pb && CODA.find((c) => c.id === pb.ig_id), st = q ? q.stato : (pb ? 'programmato' : '');
+      return '<div class="pubbl" style="margin-bottom:10px">' + (pb && st !== 'errore' ? '<span class="pill ' + (st === 'pubblicato' ? 'pronto' : 'corso') + '">' + (st === 'pubblicato' ? '✅ pubblicato su Instagram' : st === 'in_elaborazione' ? '⏳ Instagram lo sta pubblicando' : '🗓 programmato per ' + new Date(pb.ig_quando).toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) + '</span>' + (q && q.permalink ? ' <a href="' + e(q.permalink) + '" target="_blank" rel="noopener">vedi il reel</a>' : '') :
+        (st === 'errore' ? '<div class="err">Instagram ha rifiutato la pubblicazione: ' + e((q && q.errore) || '') + '</div>' : '') +
+        '<div class="riga" style="gap:8px;flex-wrap:wrap;align-items:center"><button class="pr_ora" data-id="' + l.id + '" data-r="' + (pb ? 1 : '') + '" style="width:auto">🚀 Pubblica subito</button><input type="datetime-local" class="pb_q" data-id="' + l.id + '" data-prop="" style="width:auto"><button class="sec pr_prog" data-id="' + l.id + '" data-r="' + (pb ? 1 : '') + '" style="width:auto">🗓 Programma</button></div>') + '<div class="err pb_er"></div></div>'; })() +
     '<div class="riga" style="gap:6px;flex-wrap:wrap"><a class="btn" href="/api/lavori/' + l.id + '/reel.mp4?scarica=1">⬇︎ Scarica il reel</a>' + (l.copertina ? '<a class="btn sec" href="/api/lavori/' + l.id + '/copertina.jpg" target="_blank">🖼 Copertina</a>' : '') + '<a class="btn sec" href="#/lavoro/' + l.id + '">Apri</a></div></div></div></div>').join('');
   const bPost = post.filter(Boolean).map((P) => {
     const per = {}; (P.slide_file || []).forEach((k) => { const m = k.match(/\\/(\\d+)-(\\d+)\\.png$/); if (m) (per[m[1]] ||= []).push([Number(m[2]), k]); });
@@ -1401,6 +1406,16 @@ async function approvatiPagina() {
     try { const r = await chiama('/api/post/' + b.dataset.p + '/pubblica', { method: 'POST', body: { n: [n], subito, quando: { [n]: subito ? null : new Date(q).toISOString() }, di_nuovo: !!b.dataset.r } }); const ko = (r.fatti || []).filter((f) => f.errore); if (ko.length) { er.textContent = ko[0].errore; b.disabled = false; } else rotta(); }
     catch (x) { er.textContent = x.message; b.disabled = false; }
   };
+  const pubblicaReel = async (b, subito) => {
+    const er = b.closest('.pubbl').querySelector('.pb_er'); er.textContent = '';
+    const q = document.querySelector('.pb_q[data-id="' + b.dataset.id + '"]').value;
+    if (!subito && (!q || new Date(q) < new Date())) { er.textContent = 'scegli una data futura'; return; }
+    if (!confirm(subito ? 'Pubblicare ADESSO il reel su Instagram? Esce entro pochi minuti.' : 'Programmare il reel su Instagram per ' + new Date(q).toLocaleString('it-IT', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) + '?')) return;
+    b.disabled = true;
+    try { await chiama('/api/lavori/' + b.dataset.id + '/pubblica', { method: 'POST', body: { subito, quando: subito ? null : new Date(q).toISOString(), di_nuovo: !!b.dataset.r } }); rotta(); } catch (x) { er.textContent = x.message; b.disabled = false; }
+  };
+  document.querySelectorAll('.pr_ora').forEach((b) => b.onclick = () => pubblicaReel(b, true));
+  document.querySelectorAll('.pr_prog').forEach((b) => b.onclick = () => pubblicaReel(b, false));
   document.querySelectorAll('.pb_ora').forEach((b) => b.onclick = () => pubblica(b, true));
   document.querySelectorAll('.pb_prog').forEach((b) => b.onclick = () => pubblica(b, false));
   document.querySelectorAll('.copia').forEach((b) => b.onclick = async () => { try { await navigator.clipboard.writeText(b.dataset.t); b.textContent = '✅ Copiato'; } catch (x) { b.textContent = 'Non riesco a copiare'; } });

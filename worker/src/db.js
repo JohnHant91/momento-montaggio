@@ -27,7 +27,7 @@ async function _schema(env) {
     env.DB.prepare('CREATE TABLE IF NOT EXISTS cache_analisi (chiave TEXT PRIMARY KEY, dati TEXT, quando TEXT)'),
   ]);
   // colonne aggiunte dopo (motore GitHub): se esistono già l'errore si ignora
-  for (const c of ['motore_pass TEXT', 'motore_fino TEXT', 'motore_visto TEXT', 'motore_svegliato INTEGER', 'montaggio TEXT', "fonte TEXT DEFAULT 'pcloud'", 'stile TEXT', 'approvato TEXT']) {
+  for (const c of ['motore_pass TEXT', 'motore_fino TEXT', 'motore_visto TEXT', 'motore_svegliato INTEGER', 'montaggio TEXT', "fonte TEXT DEFAULT 'pcloud'", 'stile TEXT', 'approvato TEXT', 'pubblicazione TEXT']) {
     try { await env.DB.prepare(`ALTER TABLE lavori ADD COLUMN ${c}`).run(); } catch {}
   }
   pronto = true;

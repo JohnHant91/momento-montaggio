@@ -7,7 +7,8 @@ import { rilevaStile } from './stili.js';
 import { apiPiani, avanzaPiani, schemaPiani } from './copioni.js';
 import { apiAgenzia, avanzaUffici, schemaAgenzia } from './agenzia.js';
 import { apiRiunioni, avanzaRiunioni } from './riunioni.js';
-import { apiAvatar, avanzaAvatar, firmaPubblica } from './avatar.js';
+import { apiAvatar, avanzaAvatar, firmaPubblica, instagram } from './avatar.js';
+import { clientePerNome } from './chiara.js';
 import { apiConsumi } from './consumi.js';
 import { diagnosiGemini, youtube } from './servizi.js';
 import { apiPost, avanzaPost } from './post.js';
@@ -18,7 +19,7 @@ import { apiImporta } from './importa.js';
 import { apiCalendario } from './calendario.js';
 import { apiSchede, avanzaSchede } from './social/schede.js';
 import { avanzaGirato } from './social/girato.js';
-import { apiArchivio, linkValido, pulisci, servi, trovaCartella } from './archivio.js';
+import { apiArchivio, linkValido, pulisci, servi, trovaCartella, clienteDalTesto } from './archivio.js';
 import { PAGINA } from './pagina.js';
 import SALA3D_JS from './sala3d.txt';
 
@@ -208,7 +209,7 @@ async function api(req, env, url) {
   }
 
   if (p === '/api/lavori' && m === 'GET') {
-    const r = await all(env, "SELECT id, prompt, stato, fase, errore, creato, aggiornato, approvato, json_extract(scheda, '$.titolo_lavoro') AS titolo, json_extract(montaggio, '$.stato') AS mstato, json_extract(montaggio, '$.copertina') AS copertina, json_extract(stile, '$.avatar') AS avatar, json_extract(montaggio, '$.nota_chiara.nota') AS nota_chiara, json_extract(montaggio, '$.nota_chiara.voto') AS voto_chiara FROM lavori ORDER BY id DESC LIMIT 100");
+    const r = await all(env, "SELECT id, prompt, stato, fase, errore, creato, aggiornato, approvato, pubblicazione, json_extract(piano, '$.caption') AS caption, json_extract(scheda, '$.titolo_lavoro') AS titolo, json_extract(montaggio, '$.stato') AS mstato, json_extract(montaggio, '$.copertina') AS copertina, json_extract(stile, '$.avatar') AS avatar, json_extract(montaggio, '$.nota_chiara.nota') AS nota_chiara, json_extract(montaggio, '$.nota_chiara.voto') AS voto_chiara FROM lavori ORDER BY id DESC LIMIT 100");
     return json(r);
   }
   if (p === '/api/lavori' && m === 'POST') {
@@ -259,7 +260,7 @@ async function api(req, env, url) {
     h.set('content-length', String(tot));
     return new Response(value, { headers: h });
   }
-  const mm = p.match(/^\/api\/lavori\/(\d+)(?:\/(riprova|registro|girato|rimonta|pausa|riprendi|approva|pezzi|taglio))?$/);
+  const mm = p.match(/^\/api\/lavori\/(\d+)(?:\/(riprova|registro|girato|rimonta|pausa|riprendi|approva|pezzi|taglio|pubblica))?$/);
   if (mm) {
     const id = Number(mm[1]);
     if (!mm[2] && m === 'GET') {
@@ -298,6 +299,33 @@ async function api(req, env, url) {
       await run(env, "UPDATE lavori SET stato='in_corso', errore=NULL, tentativi=0, blocco_fino=NULL, motore_svegliato=NULL, aggiornato=? WHERE id=? AND stato IN ('pausa','errore')", ora(), id);
       await log(env, id, 'regia', '▶️ ripreso');
       return json({ ok: true });
+    }
+    // il reel approvato va su Instagram: subito o alla data scelta da Johnny. Mai da solo, mai senza approvazione
+    if (mm[2] === 'pubblica' && m === 'POST') {
+      const d = await req.json().catch(() => ({}));
+      const L = await one(env, 'SELECT id, prompt, stato, approvato, fonte, pcloud, stile, piano, montaggio, pubblicazione FROM lavori WHERE id=?', id);
+      if (!L || L.stato !== 'pronto' || !L.approvato) return json({ errore: 'prima va approvato il reel finito' }, 400);
+      if (J(L.pubblicazione, null)?.ig_id && !d.di_nuovo) return json({ errore: 'già programmato' }, 400);
+      const cfg = await configurazione(env), avatar = !!J(L.stile, {})?.avatar;
+      let conto = {};
+      if (!avatar) { // reel di un cliente: va sul SUO account, mai sul profilo di Johnny per sbaglio
+        const nome = L.fonte === 'archivio' && /^Clienti\//.test(L.pcloud || '') ? L.pcloud.split('/')[1] : await clienteDalTesto(env, L.prompt).catch(() => null);
+        const C = nome ? await clientePerNome(env, nome).catch(() => null) : null;
+        if (C && String(C.id) === String(cfg.IG_CLIENTE_ID)) conto = {};
+        else if (C?.ig_user_id) conto = { ig_user_id: C.ig_user_id };
+        else return json({ errore: (C ? C.nome + ' non ha' : 'questo reel non ha un cliente con') + ' un account Instagram collegato: collegalo dalla scheda cliente' }, 400);
+      }
+      const quando = d.subito ? new Date().toISOString() : d.quando && !isNaN(new Date(d.quando)) && new Date(d.quando) > new Date() ? new Date(d.quando).toISOString() : null;
+      if (!quando) return json({ errore: 'scegli una data futura' }, 400);
+      const piano = J(L.piano, {}) || {}, origine = new URL(req.url).origin;
+      const caption = String(d.caption ?? [piano.caption || '', (piano.hashtag || []).map((x) => '#' + String(x).replace(/^#/, '')).join(' ')].filter(Boolean).join('\n\n')).slice(0, 2200);
+      const link = async (f) => `${origine}/pubblico/${L.id}/${f}?f=${await firmaPubblica(env, L.id, f)}`;
+      try {
+        const it = await instagram(env, 'POST', '/coda', { type: 'reel', media_url: await link('reel.mp4'), cover_url: J(L.montaggio, {})?.copertina ? await link('copertina.jpg') : undefined, caption, ai_generated: avatar, publish_at: quando, ...conto });
+        await run(env, 'UPDATE lavori SET pubblicazione=?, aggiornato=? WHERE id=?', JSON.stringify({ ig_id: it.id, ig_quando: it.publish_at, ...conto }), ora(), id);
+        await log(env, id, 'social', `📲 reel ${d.subito ? 'in pubblicazione adesso' : 'programmato per ' + it.publish_at.slice(0, 16).replace('T', ' ')} su Instagram`);
+        return json({ ok: true, quando: it.publish_at });
+      } catch (e) { return json({ errore: String(e.message || e) }, 502); }
     }
     // approvazione del reel finito (sezione Approvazioni)
     if (mm[2] === 'approva' && m === 'POST') {
