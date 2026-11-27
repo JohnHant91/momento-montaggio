@@ -30,7 +30,11 @@ if k.startswith("post-"):  # slide di un post o carosello: "post-ID/N" → tutte
         except Exception:
             break
     print("slide", n)
-    subprocess.run(["ffmpeg", "-v", "error", "-pattern_type", "glob", "-i", "/tmp/s*.png", "-vf", f"scale=540:-2,tile={min(n, 4)}x{(n + 3) // 4}", "-frames:v", "1", "-q:v", "3", "-y", "/tmp/tavole/t000.jpg"], check=True)
+    for f in sorted(os.listdir("/tmp")):  # le slide possono essere JPEG con nome .png: le porto tutte a JPEG uguali
+        if f.startswith("s") and f.endswith(".png"):
+            fmt = "png_pipe" if open("/tmp/" + f, "rb").read(4) == b"\x89PNG" else "jpeg_pipe"
+            subprocess.run(["ffmpeg", "-v", "error", "-f", fmt, "-i", "/tmp/" + f, "-vf", "scale=540:676", "-q:v", "3", "-y", "/tmp/n" + f[1:3] + ".jpg"], check=True)
+    subprocess.run(["ffmpeg", "-v", "error", "-pattern_type", "glob", "-i", "/tmp/n*.jpg", "-vf", f"tile={min(n, 4)}x{(n + 3) // 4}", "-frames:v", "1", "-q:v", "3", "-y", "/tmp/tavole/t000.jpg"], check=True)
     sys.exit(0)
 dest = "/tmp/reel.mp4"
 n = scarica(f"{REGIA}/api/motore/verso-prova/umano", dest) if k == "umano" else scarica(f"{REGIA}/api/motore/verso-prova/reel?k={urllib.parse.quote(k)}", dest)
