@@ -1,6 +1,8 @@
 name: temi
 on:
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   temi:
     runs-on: ubuntu-latest
@@ -18,8 +20,8 @@ jobs:
           mkdir out
           for t in $(ls *-1.png | sed 's/-1.png//'); do ffmpeg -v error -pattern_type glob -i "$t-*.png" -vf "scale=432:540,tile=7x1" -frames:v 1 -q:v 3 out/$t.jpg; done
           ls out | wc -l
-      - uses: actions/upload-artifact@v4
-        with:
-          name: temi
-          path: /tmp/temi/out
-          retention-days: 2
+      - name: Pubblica sul ramo temi (solo slide di prova, nessun dato dei clienti)
+        run: |
+          cd /tmp/temi/out && git init -q && git checkout -q -b temi && git add -A
+          git -c user.name=motore -c user.email=motore@users.noreply.github.com commit -qm temi
+          git push -qf https://x-access-token:${{ github.token }}@github.com/${{ github.repository }} temi
