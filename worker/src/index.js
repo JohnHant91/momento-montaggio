@@ -17,6 +17,7 @@ import { ICONA_192, ICONA_512 } from './icone.js';
 import { apiImporta } from './importa.js';
 import { apiCalendario } from './calendario.js';
 import { apiSchede, avanzaSchede } from './social/schede.js';
+import { avanzaGirato } from './social/girato.js';
 import { apiArchivio, linkValido, pulisci, servi, trovaCartella } from './archivio.js';
 import { PAGINA } from './pagina.js';
 import SALA3D_JS from './sala3d.txt';
@@ -488,6 +489,6 @@ export default {
     await schemaPiani(env);
     await schemaAgenzia(env);
     await schemaNotifiche(env);
-    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env), avanzaRiunioni(env), avanzaAvatar(env), avanzaPost(env), avanzaSchede(env).catch((e) => console.log('schede', e.message)), diagnosiUnaVolta(env), controllaApprovazioni(env).catch((e) => console.log('notifiche', e.message))]));
+    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env), avanzaRiunioni(env), avanzaAvatar(env), avanzaPost(env), avanzaGirato(env).catch((e) => console.log('girato', e.message)), avanzaSchede(env).catch((e) => console.log('schede', e.message)), diagnosiUnaVolta(env), controllaApprovazioni(env).catch((e) => console.log('notifiche', e.message))]));
   },
 };

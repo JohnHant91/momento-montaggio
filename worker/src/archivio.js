@@ -23,7 +23,7 @@ export async function schemaArchivio(env) {
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS archivio_cartella ON archivio(cartella)').run();
 }
 
-async function creaCartella(env, p) {
+export async function creaCartella(env, p) {
   // crea anche le cartelle intermedie (Clienti, Clienti/Torretta…)
   const pezzi = p.split('/');
   for (let k = 1; k <= pezzi.length; k++) {
