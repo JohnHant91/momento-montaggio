@@ -42,7 +42,9 @@ r = await chiama('/api/riunioni'); ok(r.j.filter((x) => x.tipo === 'settimanale'
 env.DB._db.prepare("UPDATE riunioni SET stato='report' WHERE tipo='settimanale'").run();
 env.DB._db.prepare("DELETE FROM riunioni WHERE richiesta='Ciao Alba'").run();
 await cron();
-r = await chiama('/api/riunioni/' + rid); ok(r.j.stato === 'decisa' && r.j.proposte.length === 1, 'un solo piano, eseguito senza aspettare la scelta');
+r = await chiama('/api/riunioni/' + rid); ok(r.j.stato === 'proposte' && r.j.proposte.length >= 2, 'la riunione porta le proposte e aspetta la scelta di Johnny');
+await chiama('/api/riunioni/' + rid + '/scegli', { method: 'POST', body: { indice: 0 } }); 
+r = await chiama('/api/riunioni/' + rid); ok(r.j.stato === 'decisa', 'scelta la proposta, parte il piano');
 const inc = (await chiama('/api/incarichi')).j;
 ok(inc.length === 3, 'partono 3 incarichi (agente inesistente scartato)');
 ok(inc.every((i) => i.cliente) , 'il nuovo cliente è stato creato e collegato');
@@ -66,11 +68,13 @@ ok(env.DB._db.prepare('SELECT stato FROM contenuti WHERE id=?').get(c1.id).stato
 console.log('\n5) altre richieste: partono da sole');
 r = await chiama('/api/capo', { method: 'POST', body: { testo: 'Altra richiesta di prova' } }); const rid2 = r.j.riunione;
 await cron();
-ok((await chiama('/api/riunioni/' + rid2)).j.stato === 'decisa', 'seconda richiesta eseguita senza riunione');
+await chiama('/api/riunioni/' + rid2 + '/scegli', { method: 'POST', body: { indice: 0 } }); 
+ok((await chiama('/api/riunioni/' + rid2)).j.stato === 'decisa', 'seconda richiesta: scelta e partita');
 
 console.log('\n6) richiesta con reel e copioni');
 r = await chiama('/api/capo', { method: 'POST', body: { testo: 'Reel e copioni' } }); const rid4 = r.j.riunione;
 await cron();
+await chiama('/api/riunioni/' + rid4 + '/scegli', { method: 'POST', body: { indice: 0 } }); 
 r = await chiama('/api/riunioni/' + rid4);
 ok(r.j.stato === 'decisa' && r.j.esito?.reel && r.j.esito?.piano, 'parte un reel e un piano copioni (' + JSON.stringify(r.j.esito || {}).slice(0, 120) + ')');
 
@@ -90,7 +94,7 @@ r = await chiama('/api/riunioni/' + rid5); ok(r.j.stato === 'in_corso' && /Credi
 ok(r.j.tentativi === 0, 'i tentativi non si consumano');
 stato.modoClaude = 'ok'; sblocca('riunioni');
 await cron();
-r = await chiama('/api/riunioni/' + rid5); ok(r.j.stato === 'decisa', 'ricaricato il credito, la richiesta riparte da sola');
+r = await chiama('/api/riunioni/' + rid5); ok(r.j.stato === 'proposte', 'ricaricato il credito, la riunione riparte da sola');
 
 console.log('\n9) chat del gestionale (Gino)');
 r = await chiama('/api/chat/gestionale', { method: 'POST', body: { testo: 'segnami uno shooting il 12' } });

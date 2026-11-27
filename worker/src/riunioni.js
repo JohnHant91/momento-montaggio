@@ -1,4 +1,5 @@
 // RIUNIONI · Johnny parla solo con la Direttrice (Alba).
+import { inviaPush } from './notifiche.js';
 // 1) Ogni sua richiesta: Alba convoca i capireparto in SALA MEETING, discutono e preparano 2-3 proposte.
 //    Johnny ne sceglie una (o la modifica) e solo allora partono gli uffici.
 // 2) Ogni lunedì mattina: riunione operativa in DIREZIONE sull'andamento dell'agenzia, con report per Johnny.
@@ -88,15 +89,21 @@ export async function chiediDirettrice(env, testo, clienteId) {
   return { risposta, riunione: r.id, incarichi: [] };
 }
 
-async function svolgiRichiesta(env, cfg, R) {
-  const clienti = await all(env, 'SELECT id, nome, nicchia, (scheda IS NOT NULL) AS ha_scheda FROM clienti ORDER BY nome');
-  const C = R.cliente_id ? await cliente(env, R.cliente_id) : null;
-  const precedente = J(R.esito, {})?.rifai_da;
-  const out = await S.claude(cfg, `Sei Alba, Direttrice di AGENZIA MOMENTO AI (Momento Produzione: video, foto, social, siti ed e-commerce).
-Johnny (il titolare) ti ha dato un comando. Niente riunione e niente proposte alternative: trasformi il comando in UN piano eseguibile subito dai reparti.
-Johnny approva solo il risultato finale. Sii essenziale: solo gli incarichi necessari, brief brevi e completi.
-
-CAPIREPARTO PRESENTI E I LORO UFFICI:
+// idee già proposte o fatte (tutti i clienti): REGOLA N.1 di Johnny, ogni contenuto è diverso dagli altri
+async function giaFatte(env) {
+  const r = await all(env, "SELECT proposte, scelta FROM riunioni WHERE tipo='richiesta' AND stato='decisa' ORDER BY id DESC LIMIT 40").catch(() => []);
+  const t = r.map((x) => { const P = J(x.proposte, [])[x.scelta ?? 0]; return P ? `${P.titolo}${P.gancio ? ' — ' + P.gancio : ''}` : null; }).filter(Boolean);
+  const l = await all(env, "SELECT substr(prompt,1,110) AS p FROM lavori ORDER BY id DESC LIMIT 20").catch(() => []);
+  return [...t, ...l.map((x) => x.p)].slice(0, 50);
+}
+const SCHEMA_PIANO = `{"cliente_id": numero o null, "nuovo_cliente": {"nome": "...", "nicchia": "..."} o null,
+     "incarichi": [{"agente": "uno di: ${DELEGABILI.join(', ')}", "titolo": "...", "brief": "brief completo e autonomo", "dopo": null}],
+     "reel": {"prompt": "descrizione completa del reel", "pcloud": "link o null"} o null,
+     "copioni": {"argomenti": ["..."], "numero": 20, "mesi": 3} o null,
+     "post": {"tipo": "carosello | post | misto", "numero": 3, "slide": 7, "brief": "di cosa parlano e per chi", "pcloud": "link della cartella foto o null"} o null (comparto Post e caroselli: Ines e Tea cercano i virali della nicchia, Iris li studia, Ada sceglie le foto, Pietro e Giulia scrivono, Johnny approva, si impaginano su Canva),
+     "avatar": {"argomento": "...", "numero": 5, "note": "..."} o null (SOLO per i reel del PROFILO PERSONALE di Johnny fatti col suo avatar HeyGen: Sofia ricerca, Zoe studia i virali, Nora scrive i copioni, Ava genera, il comparto Reel monta),
+     "note_gestionale": null}`;
+const REGOLE_PIANO = `CAPIREPARTO PRESENTI E I LORO UFFICI:
 ${squadraTesto()}
 
 STILI DI VIDEO CHE IL COMPARTO REEL SA MONTARE (nel "prompt" del reel scrivi il nome dello stile): ${Object.values(GENERI).map((g) => g.nome).join(', ')}.
@@ -106,34 +113,58 @@ REGOLE
 - Il piano deve essere fattibile con gli agenti che esistono. Attiva SOLO i reparti che servono al comando.
 - Se mancano informazioni, scegli tu la soluzione più ragionevole e scrivila in "domande"; non inventare dati del cliente.
 - Se il cliente non ha la scheda, il primo incarico del piano è a "brand" e gli altri che ne hanno bisogno lo aspettano ("dopo").
-- Gestionale e contabilità (Gino, Dora) li attivi solo se la richiesta lo riguarda: in quel caso nel piano scrivi cosa fare in "note_gestionale".`,
+- Gestionale e contabilità (Gino, Dora) li attivi solo se la richiesta lo riguarda: in quel caso nel piano scrivi cosa fare in "note_gestionale".`;
+
+// PASSO 1: riunione operativa sul comando di Johnny → le 10 proposte migliori, tutte diverse. Sceglie lui.
+async function svolgiRichiesta(env, cfg, R) {
+  const clienti = await all(env, 'SELECT id, nome, nicchia, (scheda IS NOT NULL) AS ha_scheda FROM clienti ORDER BY nome');
+  const C = R.cliente_id ? await cliente(env, R.cliente_id) : null;
+  const precedente = J(R.esito, {})?.rifai_da;
+  const fatte = await giaFatte(env);
+  const out = await S.claude(cfg, `Sei Alba, Direttrice di AGENZIA MOMENTO AI (agenzia di marketing, social media e creazione di contenuti). Johnny (il titolare) ti ha dato un comando.
+Fai la riunione operativa con i capireparto su QUEL cliente e porta a Johnny le 10 PROPOSTE MIGLIORI, dalla più forte alla più debole. Sceglie lui: tu non fai partire niente.
+REGOLA N.1: ogni proposta è un'idea DAVVERO diversa dalle altre nove (angolo, gancio, formato, struttura) e diversa da tutto ciò che l'agenzia ha già fatto, per questo cliente e per gli altri. Vietate le varianti della stessa idea.
+REGOLA N.2: niente fatti inventati. Le idee partono da ciò che è vero del cliente (scheda) e della sua nicchia; ciò che va verificato sul web lo scrivi in "da_verificare".
+Se Johnny chiede UN contenuto (un reel, un post, un carosello) le 10 proposte sono 10 idee per quel contenuto. Se chiede PIÙ contenuti o un periodo, sono 10 linee di calendario editoriale diverse (ognuna con i suoi contenuti in sintesi).`,
   `OGGI: ${new Date().toISOString().slice(0, 10)}
-CLIENTI DELL'AGENZIA: ${clienti.map((c) => `#${c.id} ${c.nome}${c.nicchia ? ' (' + c.nicchia + ')' : ''}${c.ha_scheda ? '' : ' [senza scheda]'}`).join('; ') || 'nessuno'}
+CLIENTI DELL'AGENZIA: ${clienti.map((c) => `#${c.id} ${c.nome}${c.nicchia ? ' (' + c.nicchia + ')' : ''}`).join('; ') || 'nessuno'}
 ${C ? `CLIENTE SELEZIONATO DA JOHNNY: #${C.id} ${C.nome}\n${(C.scheda || '').slice(0, 3000)}` : ''}
-${precedente ? `\nPIANO PRECEDENTE (Johnny l'ha rimandato indietro):\n${precedente}` : ''}
+${fatte.length ? `\nGIÀ PROPOSTO O FATTO DALL'AGENZIA (vietato riproporre o fare cose simili):\n- ${fatte.join('\n- ')}` : ''}
+${precedente ? `\nPROPOSTE PRECEDENTI (Johnny le ha rimandate indietro: portane di nuove):\n${precedente}` : ''}
 
 RICHIESTA DI JOHNNY: ${R.richiesta}
 
 Rispondi SOLO JSON:
-{"titolo": "titolo breve del lavoro",
- "proposte": [{"titolo": "...", "sintesi": "1-2 frasi", "reparti": ["social", ...], "domande": ["..."],
-   "piano": {"cliente_id": numero o null, "nuovo_cliente": {"nome": "...", "nicchia": "..."} o null,
-     "incarichi": [{"agente": "uno di: ${DELEGABILI.join(', ')}", "titolo": "...", "brief": "brief completo e autonomo", "dopo": null}],
-     "reel": {"prompt": "descrizione completa del reel", "pcloud": "link o null"} o null,
-     "copioni": {"argomenti": ["..."], "numero": 20, "mesi": 3} o null,
-     "post": {"tipo": "carosello | post | misto", "numero": 3, "slide": 7, "brief": "di cosa parlano e per chi", "pcloud": "link della cartella foto o null"} o null (comparto Post e caroselli: Ines e Tea cercano i virali della nicchia, Iris li studia, Ada sceglie le foto, Pietro e Giulia scrivono, Johnny approva, si impaginano su Canva),
-     "avatar": {"argomento": "...", "numero": 5, "note": "..."} o null (SOLO per i reel del PROFILO PERSONALE di Johnny fatti col suo avatar HeyGen: Sofia ricerca, Zoe studia i virali, Nora scrive i copioni, Ava genera, il comparto Reel monta),
-     "note_gestionale": null}}],
- "messaggio": "1 frase di Alba a Johnny: cosa parte"}
-"proposte" contiene UNA sola proposta.`, { maxTokens: 10000 });
-  const proposte = (out.proposte || []).slice(0, 1);
-  if (!proposte.length) throw new Error('nessun piano prodotto');
-  const fine = ora(); // niente sala meeting
-  await run(env, `UPDATE riunioni SET stato='proposte', titolo=?, verbale=?, proposte=?, consigliata=?, messaggio=?, errore=NULL, blocco_fino=NULL, fine_visiva=?, aggiornato=? WHERE id=?`,
-    String(out.titolo || R.titolo).slice(0, 120), '[]', JSON.stringify(proposte), 0, String(out.messaggio || ''), fine, ora(), R.id);
-  // parte subito: Johnny approva solo il risultato
-  await scegli(env, await one(env, 'SELECT * FROM riunioni WHERE id=?', R.id), 0, null);
-  await log(env, null, 'capo', `🚀 richiesta #${R.id}: piano eseguito (${proposte[0].titolo || ''})`);
+{"titolo": "titolo breve del lavoro", "cliente_id": numero o null,
+ "proposte": [{"titolo": "max 8 parole", "formato": "reel | carosello | post | calendario", "gancio": "la prima frase o immagine che ferma chi scorre", "sintesi": "2 frasi: cosa si vede e perché funziona per questa nicchia", "passi": ["3-4 passaggi del contenuto"], "da_verificare": ["fatti da controllare sul web"]}],
+ "consigliata": 0,
+ "messaggio": "1-2 frasi di Alba a Johnny"}
+"proposte" ha ESATTAMENTE 10 voci.`, { maxTokens: 9000 });
+  // nella pagina: il formato come etichetta, il gancio dentro la sintesi
+  const proposte = (out.proposte || []).slice(0, 10).map((x) => ({ ...x, tempi: x.formato || undefined, sintesi: `${x.gancio ? 'Gancio: “' + x.gancio + '”. ' : ''}${x.sintesi || ''}` }));
+  if (proposte.length < 2) throw new Error('la riunione non ha prodotto abbastanza proposte');
+  await run(env, `UPDATE riunioni SET stato='proposte', titolo=?, verbale=?, proposte=?, consigliata=?, messaggio=?, cliente_id=COALESCE(cliente_id, ?), errore=NULL, blocco_fino=NULL, fine_visiva=?, aggiornato=? WHERE id=?`,
+    String(out.titolo || R.titolo).slice(0, 120), '[]', JSON.stringify(proposte), Number(out.consigliata) || 0, String(out.messaggio || ''), Number(out.cliente_id) || null, ora(), ora(), R.id);
+  await run(env, 'INSERT INTO chat (canale, ruolo, testo, quando) VALUES (?,?,?,?)', 'capo', 'assistant', `${out.messaggio || 'Riunione finita.'} Le ${proposte.length} proposte sono qui: #/riunione/${R.id}`, ora());
+  await log(env, null, 'capo', `📋 riunione #${R.id} finita: ${proposte.length} proposte, scegli tu`);
+  await inviaPush(env, '📋 Proposte pronte', `${proposte.length} idee per "${String(out.titolo || R.richiesta).slice(0, 60)}": scegline una`, `#/riunione/${R.id}`).catch(() => {});
+}
+
+// PASSO 2: Johnny ha scelto. Alba scrive il piano di produzione SOLO per quell'idea.
+async function pianoPerScelta(env, R, P, modifica) {
+  const cfg = chi(await configurazione(env), { area: 'riunioni', agente: 'capo', cliente_id: R.cliente_id });
+  const C = R.cliente_id ? await cliente(env, R.cliente_id) : null;
+  const out = await S.claude(cfg, `Sei Alba, Direttrice di AGENZIA MOMENTO AI. Johnny ha scelto UNA proposta della riunione: scrivi il piano di produzione per i reparti, solo per quell'idea.
+ORDINE DI LAVORO OBBLIGATO: 1) ricerca sul web dei fatti veri (Sofia) e dei video/post di riferimento della nicchia e dello stile; 2) Nora scrive il copione dalla ricerca, senza inventare nulla e senza chiedere l'approvazione di Johnny; 3) produzione del contenuto (reel, carosello o post); 4) Johnny approva solo il risultato finale.
+Nei brief scrivi sempre: "usa solo fatti trovati nella ricerca o nella scheda del cliente; niente numeri, prezzi, premi o date inventati" e "il contenuto deve essere diverso da quelli già fatti".
+
+${REGOLE_PIANO}`,
+  `${C ? `CLIENTE: #${C.id} ${C.nome}\n${(C.scheda || '').slice(0, 3000)}\n` : ''}RICHIESTA ORIGINALE DI JOHNNY: ${R.richiesta}
+PROPOSTA SCELTA: ${JSON.stringify(P)}${modifica ? `\nMODIFICHE DI JOHNNY (da rispettare alla lettera): ${modifica}` : ''}
+
+Rispondi SOLO JSON: {"piano": ${SCHEMA_PIANO}, "messaggio": "1 frase: cosa parte"}`, { maxTokens: 8000 });
+  if (!out.piano) throw new Error('piano non prodotto');
+  return out;
 }
 
 // ------------------------------------------------------------------ riunione operativa settimanale
@@ -222,7 +253,8 @@ async function scegli(env, R, indice, modifica) {
   const P = proposte[indice];
   if (!P) throw new Error('proposta non trovata');
   let piano = P.piano || {}, messaggio = `Perfetto, parto con "${P.titolo}".`;
-  if (modifica) {
+  if (!P.piano) { const o = await pianoPerScelta(env, R, P, modifica); piano = o.piano; messaggio = o.messaggio || messaggio; }
+  else if (modifica) {
     const cfg = chi(await configurazione(env), { area: 'riunioni', agente: 'capo', cliente_id: R.cliente_id });
     const out = await S.claude(cfg, `Sei Alba, Direttrice di AGENZIA MOMENTO AI. Johnny ha scelto una proposta della riunione ma vuole delle modifiche. Aggiorna il piano rispettando ESATTAMENTE le sue modifiche e lo stesso formato. Agenti disponibili per gli incarichi: ${DELEGABILI.join(', ')}.`,
       `RICHIESTA ORIGINALE: ${R.richiesta}\nPROPOSTA SCELTA: ${JSON.stringify(P)}\nMODIFICHE DI JOHNNY: ${modifica}\n\nRispondi SOLO JSON: {"piano": {stesso formato del piano}, "messaggio": "conferma breve a Johnny di cosa parte"}`, { maxTokens: 10000 });

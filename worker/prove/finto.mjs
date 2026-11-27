@@ -73,7 +73,7 @@ function rispostaClaude(body) {
   if (sys.includes('Valuti foto')) return { foto: [{ nome: 'a.jpg', descrizione: 'tazzina', qualita: 9, spazio_testo: 'alto', uso: 'copertina' }, { nome: 'b.jpg', descrizione: 'mosso', qualita: 3, uso: 'scarta' }] };
   if (sys.startsWith('Sei Pietro (caroselli e grafiche) con Giulia')) return { stile: { palette: ['#1a1a1a', '#e9d9bc', '#0e9f9a'], font_titoli: 'Inter Bold', font_testo: 'Inter', mood: 'caldo', regole: 'foto piene' },
     post: [1, 2, 3, 4].map((n) => ({ titolo: 'Carosello ' + n, tipo: 'carosello', obiettivo: 'salvataggi', slide: [{ n: 1, ruolo: 'copertina', titolo: 'Gancio ' + n, testo: '', foto: 'a.jpg', layout: 'testo in alto' }, { n: 2, ruolo: 'cta', titolo: 'Salva', testo: 'seguici', foto: null, layout: 'centrato' }], caption: 'Caption ' + n, hashtag: ['caffe', 'salerno'], alt: 'foto' })) };
-  if (sys.includes('UN piano eseguibile subito')) return ((o) => (msg.includes('RICHIESTA DI JOHNNY: Reel e copioni') ? { ...o, proposte: [...o.proposte].reverse() } : o))({
+  if (sys.includes('10 PROPOSTE MIGLIORI')) return ((o) => (msg.includes('RICHIESTA DI JOHNNY: Reel e copioni') ? { ...o, proposte: [...o.proposte].reverse() } : o))({
     titolo: 'Post di dicembre per Villetta Prova',
     verbale: [{ chi: 'capo', testo: 'Apro la riunione.' }, { chi: 'stratega', testo: 'Serve la strategia.' }, { chi: 'calendario', testo: 'Calendario pronto in un giorno.' }, { chi: 'capo', testo: 'Chiudo.' }],
     proposte: [

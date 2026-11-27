@@ -489,6 +489,6 @@ export default {
     await schemaPiani(env);
     await schemaAgenzia(env);
     await schemaNotifiche(env);
-    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env), avanzaRiunioni(env), avanzaAvatar(env), avanzaPost(env), avanzaGirato(env).catch((e) => console.log('girato', e.message)), avanzaSchede(env).catch((e) => console.log('schede', e.message)), diagnosiUnaVolta(env), controllaApprovazioni(env).catch((e) => console.log('notifiche', e.message))]));
+    ctx.waitUntil(Promise.all([avanza(env), avanzaPiani(env), avanzaUffici(env), avanzaRiunioni(env), avanzaAvatar(env), avanzaPost(env), avanzaSchede(env).catch((e) => console.log('schede', e.message)), diagnosiUnaVolta(env), controllaApprovazioni(env).catch((e) => console.log('notifiche', e.message))]));
   },
 };
