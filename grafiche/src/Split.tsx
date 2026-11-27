@@ -62,15 +62,13 @@ const Entra: React.FC<{ ritardo?: number; da?: "basso" | "alto" | "scala"; style
 };
 
 // ------------------------------------------------------------------ sfondo: carta, griglia, crocette
+// sfondo a macchie fatto con sfumature radiali: stesso effetto del blur ma si disegna in un attimo (il blur a 110 px
+// su 4 cerchi, rifatto a ogni fotogramma, era metà del tempo di render)
 const Macchie: React.FC<{ pal: Palette }> = ({ pal }) => {
   const f = useCurrentFrame();
   const m = [[180, 260, 520, pal.accento], [900, 620, 460, pal.secondario], [240, 1250, 560, pal.secondario], [880, 1550, 520, pal.accento]] as const;
-  return (
-    <AbsoluteFill style={{ background: pal.fondo, overflow: "hidden" }}>
-      {m.map(([x, y, r, c], i) => <div key={i} style={{ position: "absolute", left: x - r / 2 + Math.sin(f / (70 + i * 13) + i) * 40, top: y - r / 2 + Math.cos(f / (80 + i * 11) + i) * 40,
-        width: r, height: r, borderRadius: "50%", background: c, opacity: 0.22, filter: "blur(110px)" }} />)}
-    </AbsoluteFill>
-  );
+  const sfum = m.map(([x, y, r, c], i) => `radial-gradient(circle ${r}px at ${Math.round(x + Math.sin(f / (70 + i * 13) + i) * 40)}px ${Math.round(y + Math.cos(f / (80 + i * 11) + i) * 40)}px, ${c}47 0%, ${c}00 100%)`).join(", ");
+  return <AbsoluteFill style={{ background: `${sfum}, ${pal.fondo}` }} />;
 };
 const Sfondo: React.FC<{ pal: Palette }> = ({ pal }) => {
   const f = useCurrentFrame();

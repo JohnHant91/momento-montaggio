@@ -995,7 +995,7 @@ class SplitGrafico(TalkingHead):
         anim = os.path.join(self.tmp, "split.mp4")
         try:
             p = subprocess.run(["npx", "remotion", "render", "src/index.ts", self.COMPOSIZIONE, anim, f"--props={pj}", "--codec=h264", "--crf=16", "--muted",
-                                "--concurrency=2", "--log=error"], cwd=GRAFICHE, capture_output=True, text=True, timeout=2400)
+                                "--concurrency=4", "--log=error"], cwd=GRAFICHE, capture_output=True, text=True, timeout=2400)
             if p.returncode != 0 or not os.path.exists(anim):
                 raise RuntimeError("render delle grafiche non riuscito: " + (p.stderr or p.stdout)[-500:])
         finally:
