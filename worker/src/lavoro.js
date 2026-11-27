@@ -300,8 +300,7 @@ async function macLibero(env, cfg, lavoroId) {
     const L = await one(env, 'SELECT motore_fino FROM lavori WHERE id=?', lavoroId);
     const r = await fetch('https://api.github.com/repos/JohnHant91/momento-montaggio/actions/runners?per_page=30', { headers: { authorization: `Bearer ${cfg.GITHUB_TOKEN}`, accept: 'application/vnd.github+json', 'user-agent': 'momento-reel', 'x-github-api-version': '2022-11-28' } });
     if (r.ok) {
-      const mac = ((await r.json()).runners || []).find((x) => (x.labels || []).some((l) => l.name === 'momento-mac'));
-      return !!mac && mac.status === 'online' && !mac.busy;
+      return ((await r.json()).runners || []).some((x) => (x.labels || []).some((l) => l.name === 'momento-mac') && x.status === 'online' && !x.busy); // almeno un motore del Mac acceso e libero
     }
     // il permesso dell'agenzia non fa vedere i motori: provo il Mac una volta; se dopo 3 minuti non ha preso il lavoro, torno a GitHub
     if (provato && Date.now() - provato < 30 * 60e3 && !(L?.motore_fino)) return false;
