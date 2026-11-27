@@ -63,7 +63,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           LAVORO: ${{ github.event.inputs.lavoro }}
-        run: python motore/analizza.py
+        run: caffeinate -i python motore/analizza.py   # caffeinate: il Mac non va in standby a metà montaggio
 
       - name: Tavole di controllo (cifrate)
         if: always() && steps.coda.outputs.lavoro == 'si'
