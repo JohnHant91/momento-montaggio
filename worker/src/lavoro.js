@@ -720,7 +720,13 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
   const extraRegole = `\n\nREGOLE FISSE DI JOHNNY PER TUTTI I REEL (vincolanti, valgono più di ogni altra indicazione):\n${regole}`;
   // NUOVE DISPOSIZIONI DI JOHNNY (nov 2026): le clip le sceglie lui, lo stile lo detta lui nel prompt, la musica la mette lui
   const extraDisposizioni = `\n\nCOME LAVORIAMO ORA (vincolante):
-- MONTAGGIO PULITO: se Johnny non li chiede a parole, NIENTE transizioni (solo taglio netto), NIENTE effetti o rallenty, NIENTE elementi grafici, adesivi o barra, NIENTE scritte sui pezzi. Solo: un titolo di gancio (max 5 parole) nei primi 2 s e la chiusura. Il montaggio si regge su scelta dei momenti, ordine del racconto e ritmo dei tagli. Quello che metti in più viene tolto in automatico.
+- REGOLE DEL MONTATORE PROFESSIONISTA (un controllo automatico corregge chi non le rispetta):
+  · TAGLI: ogni pezzo inizia e finisce su un'immagine che serve (un gesto che parte, il soggetto ben visibile, un movimento che si chiude). Usa i "momenti" e l'"occhio" di ogni clip: l'"in" cade dentro un momento/azione, mai su tratti mossi, sfocati o vuoti. Entra un attimo prima del gesto, esci quando è finito.
+  · RACCONTO: gancio (l'immagine più forte nei primi 2 s) → sviluppo in ordine logico → chiusura sul risultato. Alterna le inquadrature (totale, dettaglio, primo piano): mai due pezzi quasi uguali di fila.
+  · TRANSIZIONI: il taglio netto è la regola. Una transizione solo quando cambia luogo, tempo o fase del racconto (es. dalla lavorazione al prodotto finito), mai nel ritmo veloce, mai dentro la stessa clip, al massimo una ogni 5 pezzi e tutte della stessa famiglia.
+  · EFFETTI: rallenty solo su un gesto bello che dura (max 2 nel reel). Nessun effetto messo per riempire.
+  · TITOLI E MOTION GRAPHICS: un titolo di gancio (max 5 parole) nei primi 2 s; poi una scritta solo se aggiunge un'informazione che l'immagine non dà. Uno stile, un font, una animazione per tutto il reel. Ogni scritta resta almeno 1,5 s e non copre il soggetto. Frecce e cerchi solo per indicare un dettaglio preciso (x,y sul dettaglio), max 4.
+  · COLORE: un solo look per tutto il reel; esposizione e bianco uguali su tutte le clip (li pareggia il montatore): non scegliere look diversi per pezzi diversi.
 - Le clip le ha GIÀ SCELTE Johnny: sono quelle da usare. Usale TUTTE, ognuna almeno una volta, salvo una clip davvero inutilizzabile (mossa o sfocata in ogni tratto): in quel caso scrivilo in "note". Non aggiungere materiale che non c'è.
 - Stile, mood, colori, sottotitoli, transizioni e titoli li detta Johnny nel prompt con i nomi dell'archivio Stili (es. "stile street, mood energico, colori nero e giallo, sottotitoli pop in bebas"): applicali alla lettera. Quello che non dice lo scegli tu coerente con il resto.
 - I colori che chiede diventano la palette di testi, titoli e grafiche: se nomina una palette dell'archivio o colori che ci somigliano, metti il suo nome in "palette_nome"; altrimenti metti gli HEX in colori.accento. Palette disponibili:\n${descriviPalette()}
@@ -915,38 +921,76 @@ almeno metà dei pezzi da clip diverse o da momenti diversi delle stesse clip (l
     lut: (() => { const s = indicazioni?.lut || J(L.stile, null)?.lut || prima?.piano?.lut?.nome; return s && s !== 'nessuna' && LUT[s] ? { ...voceLut(s, null), scelta_da: 'johnny' } : null; })(),
   };
   if (PALETTE[p.palette_nome]) piano.colori = { ...(piano.colori || {}), accento: PALETTE[p.palette_nome][0], secondario: PALETTE[p.palette_nome][1] };
-  // MONTAGGIO PULITO (reel dei clienti con le clip girate): il Regista non fa di testa sua. Tutto ciò che Johnny non ha
-  // chiesto a parole nel prompt o nelle indicazioni viene tolto qui, in codice: resta un montaggio a tagli netti, coerente.
+  // REGOLE DI MONTAGGIO APPLICATE IN CODICE (reel con le clip girate). Il Regista è libero di usare transizioni, effetti,
+  // titoli ed elementi, ma solo dove servono: qui si controlla ogni scelta e si corregge quella sbagliata.
   if (formato === 'montaggio' && !eAvatar) {
-    const chiesto = ((L.prompt || '') + ' ' + JSON.stringify(indicazioni || {})).toLowerCase();
-    const vuole = (re) => re.test(chiesto);
-    const tolti = [];
-    if (!vuole(/transizion|dissolv|zoom|whip|frustat|glitch|tendina|flash|spingi|cubo|morph/)) {
-      const n = piano.segmenti.filter((x) => x.transizione_in && x.transizione_in !== 'taglio_netto').length;
-      piano.segmenti.forEach((x) => { x.transizione_in = 'taglio_netto'; });
-      if (n) tolti.push(n + ' transizioni');
+    const S2 = piano.segmenti, note = [];
+    const durTot = S2.reduce((x, y) => x + y.durata, 0);
+    // 1) TAGLI SULLE IMMAGINI CHE SERVONO: ogni pezzo deve cadere su un momento visto nella clip (azione, gesto, soggetto),
+    //    non a caso, e non su un tratto mosso o sfocato. Se cade fuori, si sposta sul momento buono più vicino.
+    let spostati = 0;
+    for (const x of S2) {
+      const c = tutte[x.clip]; if (!c || eImm(c)) continue;
+      const dur = Number(c.tecnico?.durata_sec) || 0, serve = x.durata * (x.rallenty ? 0.6 : 1);
+      const occ = String(c.analisi?.misure?.occhio || c.occhio || '');
+      const buoni = [...(c.analisi?.momenti || []).map((m) => [Number(m.da), Number(m.a)]),
+        ...[...occ.matchAll(/([\d.]+)-([\d.]+)s azione(?![^;]*trema)/g)].map((m) => [Number(m[1]), Number(m[2])])].filter(([d, f]) => f > d);
+      const brutti = [...occ.matchAll(/([\d.]+)-([\d.]+)s (?!azione)[^;]+|([\d.]+)-([\d.]+)s azione[^;]*trema/g)].map((m) => [Number(m[1] ?? m[3]), Number(m[2] ?? m[4])]);
+      const sovr = (d, f, ins) => ins.reduce((t, [u, v]) => t + Math.max(0, Math.min(f, v) - Math.max(d, u)), 0);
+      if (!buoni.length || !dur) continue;
+      const male = sovr(x.in, x.in + serve, buoni) < Math.min(0.4, serve * 0.3) || sovr(x.in, x.in + serve, brutti) > serve * 0.4;
+      if (!male) continue;
+      const usati = S2.filter((y) => y !== x && y.clip === x.clip).map((y) => [y.in - 2, y.in + y.durata + 2]);
+      const cand = buoni.map(([d, f]) => Math.max(0, Math.min(d - 0.15, dur - serve - 0.05)))
+        .filter((d) => sovr(d, d + serve, brutti) <= serve * 0.25 && sovr(d, d + serve, usati) === 0)
+        .sort((u, v) => Math.abs(u - x.in) - Math.abs(v - x.in));
+      if (cand.length) { x.in = Math.round(cand[0] * 100) / 100; x.in_preciso = true; spostati++; }
     }
-    if (!vuole(/effett|rallent|slow|speed|ramp|veloc|tremol|shake/)) {
-      const n = piano.segmenti.filter((x) => (x.effetto && x.effetto !== 'nessuno') || x.rallenty).length;
-      piano.segmenti.forEach((x) => { x.effetto = 'nessuno'; x.rallenty = false; });
-      piano.effetti_globali = [];
-      if (n) tolti.push(n + ' effetti');
-    }
-    if (!vuole(/frecc|cerchi|sottoline|spunt|scintill|lente|conto alla rovescia|etichett|element|adesiv|sticker/)) { if ((piano.elementi || []).length) tolti.push(piano.elementi.length + ' elementi grafici'); piano.elementi = []; piano.adesivi = []; }
-    if (!vuole(/barra/)) piano.barra = false;
-    if (!vuole(/titol|testo|testi|scritt|sottotitol|didascal/)) {
-      // senza richiesta: un solo titolo di gancio e la chiusura; niente scritte sparse sui pezzi
-      const sparse = piano.segmenti.filter((x) => x.testo).length + Math.max(0, (piano.titoli || []).length - 1);
-      piano.segmenti.forEach((x) => { x.testo = null; });
-      piano.titoli = (piano.titoli || []).slice(0, 1);
-      if (sparse) tolti.push(sparse + ' scritte');
-    }
-    // i titoli che restano hanno UNO stile, UN font, UNA animazione (quelli del primo)
+    if (spostati) note.push(`${spostati} tagli spostati sul gesto giusto`);
+    // 2) TRANSIZIONI SOLO DOVE SERVONO: mai nel ritmo veloce (pezzi sotto 1,5 s), mai dentro la stessa clip, mai due di
+    //    fila, al massimo una ogni 5 pezzi, e tutte della stessa famiglia. Il resto è taglio netto.
+    const eTr = (x) => x.transizione_in && x.transizione_in !== 'taglio_netto';
+    const fam = (t) => FAMIGLIA_TR[t] || t;
+    const conta = {}; S2.filter(eTr).forEach((x) => { conta[fam(x.transizione_in)] = (conta[fam(x.transizione_in)] || 0) + 1; });
+    const famScelta = Object.entries(conta).sort((u, v) => v[1] - u[1])[0]?.[0];
+    let nTr = 0, tolte = 0; const maxTr = Math.max(1, Math.ceil(S2.length / 5));
+    S2.forEach((x, k) => {
+      if (!eTr(x)) return;
+      const ok = k > 0 && x.durata >= 1.5 && S2[k - 1].durata >= 1.5 && S2[k - 1].clip !== x.clip && !eTr(S2[k - 1]) && nTr < maxTr && fam(x.transizione_in) === famScelta;
+      if (ok) nTr++; else { x.transizione_in = 'taglio_netto'; tolte++; }
+    });
+    if (tolte) note.push(`${tolte} transizioni tolte dove non servivano (restano ${nTr})`);
+    // 3) EFFETTI: rallenty solo su pezzi da almeno 1,5 s, massimo 2; altri effetti massimo 2, mai su due pezzi di fila
+    let nRal = 0, nEff = 0, effTolti = 0;
+    S2.forEach((x, k) => {
+      if (x.rallenty && (x.durata < 1.5 || nRal >= 2)) { x.rallenty = false; effTolti++; } else if (x.rallenty) nRal++;
+      const e = x.effetto && x.effetto !== 'nessuno';
+      if (e && (nEff >= 2 || (k && S2[k - 1].effetto && S2[k - 1].effetto !== 'nessuno'))) { x.effetto = 'nessuno'; effTolti++; } else if (e) nEff++;
+    });
+    if (effTolti) note.push(`${effTolti} effetti tolti (troppi o su pezzi troppo corti)`);
+    // 4) TITOLI E SCRITTE: uno stile, un font, una animazione; al massimo uno ogni 5 s; mai su pezzi sotto 1,2 s; max 6 parole
+    const corte = (t) => String(t || '').trim().split(/\s+/).slice(0, 6).join(' ');
     const t0 = (piano.titoli || [])[0];
-    if (t0) piano.titoli = piano.titoli.map((t) => ({ ...t, stile: t0.stile, font: t0.font, animazione: t0.animazione, unita: t0.unita }));
-    const st0 = piano.segmenti.find((x) => x.testo)?.testo;
-    if (st0) piano.segmenti.forEach((x) => { if (x.testo) x.testo = { ...x.testo, stile: st0.stile, posizione: st0.posizione }; });
-    if (tolti.length) await log(env, L.id, 'regista', `montaggio pulito: tolti ${tolti.join(', ')} che non avevi chiesto (tagli netti, uno stile solo)`);
+    if (t0) {
+      const maxT = Math.floor(durTot / 5) + 1, prima2 = piano.titoli.length;
+      piano.titoli = piano.titoli.slice(0, maxT).map((t) => ({ ...t, testo: corte(t.testo), stile: t0.stile, font: t0.font, animazione: t0.animazione, unita: t0.unita }));
+      if (prima2 > piano.titoli.length) note.push(`${prima2 - piano.titoli.length} titoli di troppo tolti`);
+    }
+    const st0 = S2.find((x) => x.testo)?.testo; let scr = 0;
+    S2.forEach((x, k) => {
+      if (!x.testo) return;
+      if (x.durata < 1.2 || (k && S2[k - 1].testo)) { x.testo = null; scr++; return; }
+      x.testo = { ...x.testo, testo: corte(x.testo.testo), stile: st0.stile, posizione: st0.posizione };
+    });
+    if (scr) note.push(`${scr} scritte tolte (pezzo troppo corto o due di fila)`);
+    // 5) ELEMENTI GRAFICI (frecce, cerchi…): massimo 4, non nel primo secondo, visibili almeno 1,2 s, mai due insieme
+    if ((piano.elementi || []).length) {
+      const n0 = piano.elementi.length; let fine = 1;
+      piano.elementi = piano.elementi.filter((e) => Number(e.da) >= 1 && Number(e.a) - Number(e.da) >= 1.2 && Number.isFinite(Number(e.x)) && Number.isFinite(Number(e.y)))
+        .sort((u, v) => u.da - v.da).filter((e) => { if (e.da < fine) return false; fine = e.a; return true; }).slice(0, 4);
+      if (n0 > piano.elementi.length) note.push(`${n0 - piano.elementi.length} elementi grafici tolti (sovrapposti o messi male)`);
+    }
+    if (note.length) await log(env, L.id, 'regista', 'controllo delle regole di montaggio: ' + note.join(' · '));
   }
   const versione = (prima?.versione || 0) + 1;
   // Chiara ripassa titoli, copertina e caption prima del montaggio: la sua nota arriva a Johnny con il reel
