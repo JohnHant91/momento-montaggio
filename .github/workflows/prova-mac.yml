@@ -1,0 +1,34 @@
+# Collaudo del motore sul Mac: controlla che ci siano tutti gli strumenti, senza toccare nessun lavoro.
+name: prova-mac
+on:
+  workflow_dispatch:
+jobs:
+  prova:
+    runs-on: [self-hosted, momento-mac]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Strumenti
+        run: |
+          B="$(brew --prefix)"; echo "brew: $B"
+          sysctl -n machdep.cpu.brand_string; echo "core: $(sysctl -n hw.ncpu) · RAM GB: $(( $(sysctl -n hw.memsize) / 1073741824 ))"; sw_vers -productVersion
+          df -g "$HOME" | tail -1 | awk '{print "disco libero GB: " $4}'
+          V="$HOME/momento-motore/venv"
+          [ -x "$V/bin/python" ] || "$B/opt/python@3.12/bin/python3.12" -m venv "$V"
+          time "$V/bin/pip" install -q -r motore/requirements.txt
+          "$V/bin/python" -c "import cv2, numpy, PIL, faster_whisper, rembg, yt_dlp; print('python ok', cv2.__version__)"
+          ffmpeg -version | head -1
+          for f in vidstabdetect vidstabtransform drawtext subtitles lut3d zscale minterpolate loudnorm; do ffmpeg -hide_banner -filters 2>/dev/null | grep -q " $f " && echo "filtro $f: sì" || echo "filtro $f: NO"; done
+          ffmpeg -hide_banner -encoders 2>/dev/null | grep -E "libx264|h264_videotoolbox" | awk '{print "codificatore " $2}'
+          "$B/opt/openssl@3/bin/openssl" version; node -v; npm -v
+          ls "$HOME/Library/Fonts"/DejaVuSans-Bold.ttf 2>/dev/null || echo "font DejaVu: NO"
+          ls "/Applications/Google Chrome.app" >/dev/null 2>&1 && echo "Chrome: sì" || echo "Chrome: NO"
+      - name: Motore grafico (Remotion)
+        run: |
+          cd grafiche && time npm install --no-audit --no-fund --loglevel=error
+          ls src | head -20
+          npx remotion versions 2>&1 | head -5 || true
+      - name: Velocità (codifica di prova 10 s 1080x1920)
+        run: |
+          time ffmpeg -hide_banner -loglevel error -y -f lavfi -i testsrc2=s=1080x1920:r=25:d=10 -c:v libx264 -preset medium -crf 18 /tmp/prova_x264.mp4
+          ls -la /tmp/prova_x264.mp4 && rm -f /tmp/prova_x264.mp4
