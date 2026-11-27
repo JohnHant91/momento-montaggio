@@ -224,6 +224,7 @@ im = await chiama('/api/post/img?u=' + encodeURIComponent('https://evil.example/
 r = await chiama('/api/consumi?giorni=30'); ok(r.j.aree.some((a) => a.area === 'post'), 'i costi dei post sono contati');
 
 console.log('\n17) caroselli su Instagram');
+r = await chiama('/api/instagram/conti'); ok(r.status !== 404, 'la ricerca degli account Instagram risponde');
 r = await chiama('/api/post/' + pid2 + '/pubblica', { method: 'POST', body: { n: [1] } }); ok(r.status === 400 && /collegato/.test(r.j.errore), 'cliente senza Instagram collegato: non pubblica (mai sul tuo profilo)');
 env.DB._db.prepare('UPDATE post_lavori SET cliente_id=3 WHERE id=?').run(pid2);
 r = await chiama('/api/post/' + pid2 + '/pubblica', { method: 'POST', body: { n: [1] } }); ok(r.j.fatti?.[0]?.errore?.includes('JPG'), 'slide PNG: chiede di esportarle in JPG');
