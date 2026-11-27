@@ -1190,7 +1190,7 @@ const PILL_RIU = { in_corso: 'corso', proposte: 'errore', decisa: 'pronto', repo
 const FASI_AV = [['ricerca', '📚 Sofia si documenta'], ['virali', '🔥 Zoe studia i video virali'], ['copioni', '✍️ Nora scrive i copioni'], ['approvazione', '✅ Approvi tu'], ['avatar', '🎭 Ava genera con il tuo avatar'], ['montaggio', '🎬 Il comparto Reel monta'], ['fatto', 'Pronti']];
 async function profiloPagina() {
   const [L, PP] = await Promise.all([chiama('/api/avatar'), chiama('/api/post').catch(() => [])]);
-  const MIEI = PP.filter((x) => /^momento/i.test(x.cliente || ''));
+  const MIEI = PP.filter((x) => /^momento|profilo instagram/i.test(x.cliente || ''));
   const fase = (x) => (FASI_AV.find((f) => f[0] === x.fase) || [0, x.fase])[1];
   $('#app').innerHTML = '<h1>Profilo Instagram · reel, caroselli e post</h1><p class="mut">Dai l’argomento ad Alba: Sofia si documenta sul web, Zoe guarda i video simili e quelli virali, Nora scrive i copioni gancio → problema → tensione → soluzione. Tu li approvi, poi Ava li genera con il tuo avatar HeyGen e il comparto Reel li monta con le grafiche del talking head educativo.</p>' +
     '<div class="card"><label>Cosa</label><select id="av_cosa"><option value="reel">Reel con il tuo avatar</option><option value="carosello">Caroselli</option><option value="post">Post a immagine singola</option></select><label>Argomento</label><input id="av_a" placeholder="Es. perché i reel dei ristoranti non funzionano"><div class="riga" style="gap:12px;align-items:end"><div><label id="av_nl">Quanti</label><input id="av_n" type="number" min="1" max="10" value="1" style="width:90px"></div><div style="flex:1"><label>Indicazioni (facoltative)</label><input id="av_note" placeholder="Es. tono ironico, parla ai titolari di B&B"></div></div><div style="margin-top:12px"><button id="av_go">Manda ad Alba</button></div><div id="av_er" class="err"></div></div>' +
@@ -1198,7 +1198,7 @@ async function profiloPagina() {
   $('#av_go').onclick = async () => {
     try {
       const cosa = $('#av_cosa').value, num = Number($('#av_n').value) || 1;
-      if (cosa !== 'reel') { const r = await chiama('/api/post', { method: 'POST', body: { cliente: 'Momento Produzione', nicchia: 'agenzia di social media, video, foto, siti web ed e-commerce', tipo: cosa, numero: num, slide: 7, brief: $('#av_a').value.trim(), note: $('#av_note').value.trim() } }); location.hash = '#/post/' + r.id; return; }
+      if (cosa !== 'reel') { const r = await chiama('/api/post', { method: 'POST', body: { profilo: true, cliente: 'Johnny · profilo Instagram', nicchia: 'agenzia di social media, video, foto, siti web ed e-commerce', tipo: cosa, numero: num, slide: 7, brief: $('#av_a').value.trim(), note: $('#av_note').value.trim() } }); location.hash = '#/post/' + r.id; return; }
       const r = await chiama('/api/avatar', { method: 'POST', body: { argomento: $('#av_a').value, numero: num, note: $('#av_note').value } }); location.hash = '#/profilo/' + r.id;
     }
     catch (x) { $('#av_er').textContent = x.message; }

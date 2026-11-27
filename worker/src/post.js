@@ -282,6 +282,7 @@ export async function apiPost(req, env, p, m, json) {
   if (p === '/api/post' && m === 'GET') return json(await all(env, "SELECT p.id, p.cliente, p.tipo, p.numero, p.fase, p.stato, p.errore, p.creato, p.aggiornato, json_extract(p.contenuti, '$.post[0].titolo') AS titolo, (SELECT COUNT(*) FROM json_each(p.contenuti, '$.post') WHERE json_extract(value, '$.stato')='approvato' AND json_extract(value, '$.finale') IS NULL) AS da_finale, (SELECT COUNT(*) FROM json_each(p.contenuti, '$.post') WHERE json_extract(value, '$.finale')='approvato') AS approvati FROM post_lavori p ORDER BY p.id DESC LIMIT 60"));
   if (p === '/api/post' && m === 'POST') {
     const d = await corpo();
+    if (d.profilo) { d.cliente = 'Johnny · profilo Instagram'; d.cliente_id = null; }
     if (!d.cliente_id && String(d.cliente || '').trim().length < 2) return json({ errore: 'scegli o scrivi il cliente' }, 400);
     if (String(d.brief || '').trim().length < 10) return json({ errore: 'scrivi di cosa devono parlare (almeno una frase)' }, 400);
     if (d.pcloud && /^https?:/.test(d.pcloud) && !/code=/.test(d.pcloud)) return json({ errore: 'il link pCloud deve essere il link pubblico della cartella (contiene "code=")' }, 400);

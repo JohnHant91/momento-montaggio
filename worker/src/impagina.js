@@ -222,7 +222,7 @@ export async function preparaImpaginazione(env, P) {
   const cart = P.pcloud && !/code=/.test(P.pcloud) ? P.pcloud : (P.cliente ? 'Clienti/' + P.cliente : '');
   const logo = cart ? await logoCliente(env, cart).catch(() => null) : null;
   const cfg = await configurazione(env);
-  const mio = String(P.cliente_id || '') === String(cfg.IG_CLIENTE_ID) || /^momento/i.test(P.cliente || '');
+  const mio = String(P.cliente_id || '') === String(cfg.IG_CLIENTE_ID) || /^momento|profilo instagram/i.test(P.cliente || '');
   const profilo = mio ? (cfg.IG_USERNAME || '') : '';
   if (mio) st.palette = ['#F1EFEA', '#17171A', '#0E9F9A']; // il profilo di Momento usa sempre i colori di Momento
   const firma = profilo ? '@' + profilo : String(P.cliente || '').slice(0, 34);
