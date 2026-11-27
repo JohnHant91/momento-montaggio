@@ -19,7 +19,13 @@ def scarica(url, dest):
 
 k = os.environ["CHIAVE"]
 dest = "/tmp/reel.mp4"
-n = scarica(f"{REGIA}/api/motore/verso-prova/reel?k={urllib.parse.quote(k)}", dest)
+n = scarica(f"{REGIA}/api/motore/verso-prova/umano", dest) if k == "umano" else scarica(f"{REGIA}/api/motore/verso-prova/reel?k={urllib.parse.quote(k)}", dest)
+if k == "umano":
+    n = 1
+    # tagli del montatore umano: dove cambia inquadratura (numeri utili per le regole)
+    r = subprocess.run(["ffmpeg", "-i", dest, "-vf", "select='gt(scene,0.28)',showinfo", "-f", "null", "-"], capture_output=True, text=True).stderr
+    import re
+    print("tagli", " ".join(f"{float(x):.1f}" for x in re.findall(r"pts_time:([0-9.]+)", r)))
 with open(dest, "ab") as o:
     for i in range(1, n):
         scarica(f"{REGIA}/api/motore/verso-prova/reel?k={urllib.parse.quote(k)}&n={i}", dest + ".p")
