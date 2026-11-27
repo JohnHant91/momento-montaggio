@@ -10,7 +10,10 @@ import { chi } from './consumi.js';
 const GRUPPO = 4; // reel per chiamata a Claude
 const BLOCCO_MIN = 15;
 
-export async function schemaPiani(env) {
+// lo schema si controlla UNA volta per istanza, non a ogni richiesta (erano decine di query in più per ogni pagina)
+let _fattoPiani;
+export function schemaPiani(env) { return (_fattoPiani ||= _schemaPiani(env).catch((e) => { _fattoPiani = null; throw e; })); }
+async function _schemaPiani(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS piani (
     id INTEGER PRIMARY KEY AUTOINCREMENT, cliente TEXT, dati TEXT, stato TEXT NOT NULL DEFAULT 'in_corso', fase TEXT NOT NULL DEFAULT 'strategia',
     strategia TEXT, reel TEXT, errore TEXT, tentativi INTEGER DEFAULT 0, blocco_fino TEXT, creato TEXT, aggiornato TEXT)`).run();

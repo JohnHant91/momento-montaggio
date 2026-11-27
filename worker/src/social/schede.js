@@ -8,7 +8,10 @@ import { registra, daUsage, chi } from '../consumi.js';
 
 export const JOHNNY = { id: 'johnny', nome: 'Johnny · IG personale', cartella: 'Johnny IG personale', personale: true };
 
-export async function schemaSchede(env) {
+// lo schema si controlla UNA volta per istanza, non a ogni richiesta (erano decine di query in più per ogni pagina)
+let _fattoSchede;
+export function schemaSchede(env) { return (_fattoSchede ||= _schemaSchede(env).catch((e) => { _fattoSchede = null; throw e; })); }
+async function _schemaSchede(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS s_clienti (id TEXT PRIMARY KEY, nome TEXT NOT NULL, cartella TEXT NOT NULL, stato TEXT,
     scheda TEXT, errore TEXT, aggiornato TEXT)`).run();
 }

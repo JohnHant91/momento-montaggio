@@ -7,7 +7,10 @@ export const one = (env, sql, ...a) => env.DB.prepare(sql).bind(...a).first();
 export const run = (env, sql, ...a) => env.DB.prepare(sql).bind(...a).run();
 
 let pronto = false;
-export async function schema(env) {
+// lo schema si controlla UNA volta per istanza, non a ogni richiesta (erano decine di query in più per ogni pagina)
+let _fatto;
+export function schema(env) { return (_fatto ||= _schema(env).catch((e) => { _fatto = null; throw e; })); }
+async function _schema(env) {
   if (pronto) return;
   await env.DB.batch([
     env.DB.prepare('CREATE TABLE IF NOT EXISTS impostazioni (chiave TEXT PRIMARY KEY, valore TEXT)'),
@@ -19,6 +22,8 @@ export async function schema(env) {
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS registro (
       id INTEGER PRIMARY KEY AUTOINCREMENT, lavoro_id INTEGER, agente TEXT, messaggio TEXT, livello TEXT, quando TEXT)`),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS registro_lavoro ON registro(lavoro_id, id)'),
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS registro_agente ON registro(agente, id)'),
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS registro_quando ON registro(quando)'),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS cache_analisi (chiave TEXT PRIMARY KEY, dati TEXT, quando TEXT)'),
   ]);
   // colonne aggiunte dopo (motore GitHub): se esistono già l'errore si ignora

@@ -1660,8 +1660,12 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js', { s
 async function rotta() {
   clearTimeout(timer);
   const h = location.hash || '#/';
-  const s = await fetch('/api/stato').then((r) => r.json());
-  if (!s.dentro) return accesso();
+  // l'accesso si ricontrolla al massimo una volta al minuto: una richiesta in meno a ogni pagina e a ogni aggiornamento
+  if (!window._dentro || Date.now() - window._dentro > 60000) {
+    const s = await fetch('/api/stato').then((r) => r.json());
+    if (!s.dentro) { window._dentro = 0; return accesso(); }
+    window._dentro = Date.now();
+  }
   menu(true);
   try {
     if (h.startsWith('#/lavoro/')) await dettaglio(h.split('/')[2]);

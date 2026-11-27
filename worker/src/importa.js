@@ -6,7 +6,10 @@ import { pulisci, schemaArchivio, tipoFile } from './archivio.js';
 
 const UTILI = /\.(mp4|mov|m4v|mxf|avi|mkv|webm|mts|jpe?g|png|webp|heic|heif|tiff?|dng|cr2|cr3|nef|arw|raf|orf|rw2|mp3|m4a|wav|aac|flac|ogg|psd|ai|svg|pdf|cube|lut|aep|prproj|zip)$/i;
 
-export async function schemaImporta(env) {
+// lo schema si controlla UNA volta per istanza, non a ogni richiesta (erano decine di query in più per ogni pagina)
+let _fattoImporta;
+export function schemaImporta(env) { return (_fattoImporta ||= _schemaImporta(env).catch((e) => { _fattoImporta = null; throw e; })); }
+async function _schemaImporta(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS importazioni (id INTEGER PRIMARY KEY AUTOINCREMENT, link TEXT, cartella TEXT, stato TEXT DEFAULT 'da_fare',
     file TEXT, totale INTEGER DEFAULT 0, errore TEXT, pass TEXT, fino TEXT, creato TEXT, aggiornato TEXT)`).run();
 }

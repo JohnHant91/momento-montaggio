@@ -17,7 +17,10 @@ export function pulisci(p) {
 const padre = (p) => p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '';
 const nomeDi = (p) => p.slice(p.lastIndexOf('/') + 1);
 
-export async function schemaArchivio(env) {
+// lo schema si controlla UNA volta per istanza, non a ogni richiesta (erano decine di query in più per ogni pagina)
+let _fattoArchivio;
+export function schemaArchivio(env) { return (_fattoArchivio ||= _schemaArchivio(env).catch((e) => { _fattoArchivio = null; throw e; })); }
+async function _schemaArchivio(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS archivio (percorso TEXT PRIMARY KEY, cartella TEXT NOT NULL, nome TEXT NOT NULL, tipo TEXT NOT NULL,
     dimensione INTEGER DEFAULT 0, etag TEXT, mime TEXT, creato TEXT)`).run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS archivio_cartella ON archivio(cartella)').run();

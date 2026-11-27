@@ -1,7 +1,10 @@
 // CALENDARIO "Cosa esce": i contenuti pronti (reel e caroselli) si trascinano su un giorno; si vedono la settimana e la prossima.
 import { J, all, one, ora, run } from './db.js';
 
-export async function schemaCalendario(env) {
+// lo schema si controlla UNA volta per istanza, non a ogni richiesta (erano decine di query in più per ogni pagina)
+let _fattoCalendario;
+export function schemaCalendario(env) { return (_fattoCalendario ||= _schemaCalendario(env).catch((e) => { _fattoCalendario = null; throw e; })); }
+async function _schemaCalendario(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS uscite (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT NOT NULL, rif INTEGER NOT NULL, n INTEGER DEFAULT 0,
     data TEXT NOT NULL, ora TEXT, creato TEXT, UNIQUE(tipo, rif, n))`).run();
 }

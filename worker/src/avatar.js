@@ -53,7 +53,10 @@ export function richiestaProfilo(testo) {
   return { numero, argomento: argomento || null };
 }
 
-export async function schemaAvatar(env) {
+// lo schema si controlla UNA volta per istanza, non a ogni richiesta (erano decine di query in più per ogni pagina)
+let _fattoAvatar;
+export function schemaAvatar(env) { return (_fattoAvatar ||= _schemaAvatar(env).catch((e) => { _fattoAvatar = null; throw e; })); }
+async function _schemaAvatar(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS avatar_piani (id INTEGER PRIMARY KEY AUTOINCREMENT, argomento TEXT NOT NULL, numero INTEGER DEFAULT 5,
     note TEXT, fase TEXT NOT NULL DEFAULT 'ricerca', stato TEXT NOT NULL DEFAULT 'in_corso', ricerca TEXT, virali TEXT, copioni TEXT, video TEXT, lavori TEXT,
     errore TEXT, tentativi INTEGER DEFAULT 0, blocco_fino TEXT, riunione_id INTEGER, creato TEXT, aggiornato TEXT)`).run();

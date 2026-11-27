@@ -16,7 +16,10 @@ export function prezzoClaude(modello, u = {}) {
   return inp / 1e6 + ((u.out || 0) * p[2]) / 1e6 + (u.ricerche || 0) * RICERCA_WEB;
 }
 
-export async function schemaConsumi(env) {
+// lo schema si controlla UNA volta per istanza, non a ogni richiesta (erano decine di query in più per ogni pagina)
+let _fattoConsumi;
+export function schemaConsumi(env) { return (_fattoConsumi ||= _schemaConsumi(env).catch((e) => { _fattoConsumi = null; throw e; })); }
+async function _schemaConsumi(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS consumi (
     id INTEGER PRIMARY KEY AUTOINCREMENT, quando TEXT, servizio TEXT, modello TEXT, area TEXT, agente TEXT, cliente_id INTEGER, lavoro_id INTEGER, piano_id INTEGER,
     in_tok INTEGER DEFAULT 0, out_tok INTEGER DEFAULT 0, cache_r INTEGER DEFAULT 0, cache_w INTEGER DEFAULT 0, ricerche INTEGER DEFAULT 0, secondi REAL DEFAULT 0, costo REAL DEFAULT 0)`).run();

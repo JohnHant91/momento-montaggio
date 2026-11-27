@@ -7,7 +7,10 @@ import { all, one, run, J, ora } from './db.js';
 const b64u = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const daB64u = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
 
-export async function schemaNotifiche(env) {
+// lo schema si controlla UNA volta per istanza, non a ogni richiesta (erano decine di query in più per ogni pagina)
+let _fattoNotifiche;
+export function schemaNotifiche(env) { return (_fattoNotifiche ||= _schemaNotifiche(env).catch((e) => { _fattoNotifiche = null; throw e; })); }
+async function _schemaNotifiche(env) {
   await env.DB.prepare('CREATE TABLE IF NOT EXISTS push (id INTEGER PRIMARY KEY AUTOINCREMENT, endpoint TEXT UNIQUE, dispositivo TEXT, creato TEXT)').run();
 }
 

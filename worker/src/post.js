@@ -18,7 +18,10 @@ const BLOCCO_MIN = 12;
 export const FASI_POST = [['ricerca', 'Post virali'], ['studio', 'Studio'], ['foto', 'Foto'], ['contenuti', 'Testi'], ['approvazione', 'Approvazione'], ['impagina', 'Impaginazione'], ['fatto', 'Pronto']];
 const AGENTE_FASE = { ricerca: 'scout_ig', studio: 'occhi', foto: 'analista', contenuti: 'caroselli', scarica: 'caroselli' };
 
-export async function schemaPost(env) {
+// lo schema si controlla UNA volta per istanza, non a ogni richiesta (erano decine di query in più per ogni pagina)
+let _fattoPost;
+export function schemaPost(env) { return (_fattoPost ||= _schemaPost(env).catch((e) => { _fattoPost = null; throw e; })); }
+async function _schemaPost(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS post_lavori (id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER, cliente TEXT, nicchia TEXT, tipo TEXT DEFAULT 'carosello',
     numero INTEGER DEFAULT 3, slide INTEGER DEFAULT 7, brief TEXT, pcloud TEXT, esempi TEXT, note TEXT, fase TEXT NOT NULL DEFAULT 'ricerca', stato TEXT NOT NULL DEFAULT 'in_corso',
     virali TEXT, studio TEXT, foto TEXT, contenuti TEXT, canva TEXT, slide_file TEXT, errore TEXT, tentativi INTEGER DEFAULT 0, blocco_fino TEXT, riunione_id INTEGER, creato TEXT, aggiornato TEXT)`).run();

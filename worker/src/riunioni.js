@@ -28,7 +28,10 @@ const SETTIMANALE = CAPI.map((c) => c[1]);
 const NOME = Object.fromEntries(CAPI.map(([, id, n, r]) => [id, `${n} (${r})`]));
 const DURATA_VISIVA = 150e3; // i capireparto restano in sala almeno 2 minuti e mezzo: arrivano, discutono, tornano
 
-export async function schemaRiunioni(env) {
+// lo schema si controlla UNA volta per istanza, non a ogni richiesta (erano decine di query in più per ogni pagina)
+let _fattoRiunioni;
+export function schemaRiunioni(env) { return (_fattoRiunioni ||= _schemaRiunioni(env).catch((e) => { _fattoRiunioni = null; throw e; })); }
+async function _schemaRiunioni(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS riunioni (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT NOT NULL, stato TEXT NOT NULL DEFAULT 'in_corso',
     richiesta TEXT, cliente_id INTEGER, partecipanti TEXT, titolo TEXT, verbale TEXT, proposte TEXT, consigliata INTEGER, messaggio TEXT, report TEXT,
     scelta INTEGER, modifica TEXT, esito TEXT, errore TEXT, tentativi INTEGER DEFAULT 0, blocco_fino TEXT, fine_visiva TEXT, creato TEXT, aggiornato TEXT)`).run();

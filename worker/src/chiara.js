@@ -5,7 +5,10 @@ import { J, all, one, ora, run, log } from './db.js';
 import * as S from './servizi.js';
 import { SKILL } from './skill_testi.js';
 
-export async function schemaChiara(env) {
+// lo schema si controlla UNA volta per istanza, non a ogni richiesta (erano decine di query in più per ogni pagina)
+let _fattoChiara;
+export function schemaChiara(env) { return (_fattoChiara ||= _schemaChiara(env).catch((e) => { _fattoChiara = null; throw e; })); }
+async function _schemaChiara(env) {
   await env.DB.prepare('ALTER TABLE clienti ADD COLUMN linea TEXT').run().catch(() => {});
 }
 

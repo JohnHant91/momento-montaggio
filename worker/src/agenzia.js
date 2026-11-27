@@ -37,7 +37,10 @@ export const agId = (id) => (SQUADRA[id] ? id : ACCORPATI[id] || id);
 export const DELEGABILI = Object.keys(SQUADRA).filter((k) => !SQUADRA[k].chat && !SQUADRA[k].speciale && k !== 'capo');
 const MAX_FIGLI = 2, MAX_PROFONDITA = 2, IN_PARALLELO = 6, BLOCCO_MIN = 15;
 
-export async function schemaAgenzia(env) {
+// lo schema si controlla UNA volta per istanza, non a ogni richiesta (erano decine di query in più per ogni pagina)
+let _fattoAgenzia;
+export function schemaAgenzia(env) { return (_fattoAgenzia ||= _schemaAgenzia(env).catch((e) => { _fattoAgenzia = null; throw e; })); }
+async function _schemaAgenzia(env) {
   await env.DB.batch([
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS clienti (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, nicchia TEXT, gest_id TEXT,
       scheda TEXT, note TEXT, creato TEXT, aggiornato TEXT)`),
