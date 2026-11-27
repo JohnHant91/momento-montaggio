@@ -275,7 +275,7 @@ const IMG_OK = /(^|\.)(cdninstagram\.com|fbcdn\.net|tiktokcdn\.com|tiktokcdn-us\
 export async function apiPost(req, env, p, m, json) {
   await schemaPost(env);
   const corpo = () => req.json().catch(() => ({}));
-  if (p === '/api/post' && m === 'GET') return json(await all(env, "SELECT p.id, p.cliente, p.tipo, p.numero, p.fase, p.stato, p.errore, p.creato, p.aggiornato, json_extract(p.contenuti, '$.post[0].titolo') AS titolo FROM post_lavori p ORDER BY p.id DESC LIMIT 60"));
+  if (p === '/api/post' && m === 'GET') return json(await all(env, "SELECT p.id, p.cliente, p.tipo, p.numero, p.fase, p.stato, p.errore, p.creato, p.aggiornato, json_extract(p.contenuti, '$.post[0].titolo') AS titolo, (SELECT COUNT(*) FROM json_each(p.contenuti, '$.post') WHERE json_extract(value, '$.stato')='approvato' AND json_extract(value, '$.finale') IS NULL) AS da_finale, (SELECT COUNT(*) FROM json_each(p.contenuti, '$.post') WHERE json_extract(value, '$.finale')='approvato') AS approvati FROM post_lavori p ORDER BY p.id DESC LIMIT 60"));
   if (p === '/api/post' && m === 'POST') {
     const d = await corpo();
     if (!d.cliente_id && String(d.cliente || '').trim().length < 2) return json({ errore: 'scegli o scrivi il cliente' }, 400);
@@ -300,7 +300,7 @@ export async function apiPost(req, env, p, m, json) {
     if (new URL(req.url).searchParams.get('scarica')) h['content-disposition'] = `attachment; filename="post${sl[1]}-${sl[2]}-slide${sl[3]}.png"`;
     return new Response(value, { headers: h });
   }
-  const mm = p.match(/^\/api\/post\/(\d+)(?:\/(approva|riprova|canva|pubblica))?$/);
+  const mm = p.match(/^\/api\/post\/(\d+)(?:\/(approva|riprova|canva|pubblica|finale))?$/);
   if (!mm) return null;
   const P = await one(env, 'SELECT * FROM post_lavori WHERE id=?', mm[1]);
   if (!P) return json({ errore: 'non trovato' }, 404);
@@ -322,6 +322,32 @@ export async function apiPost(req, env, p, m, json) {
     for (const k of Object.keys(J(P.slide_file, {}) || {})) await env.VIDEO.delete(k);
     await run(env, "UPDATE post_lavori SET contenuti=?, canva=NULL, slide_file=NULL, fase='impagina', stato='in_corso', blocco_fino=NULL, tentativi=0, aggiornato=? WHERE id=?", JSON.stringify(Ct), ora(), P.id);
     await log(env, null, 'caroselli', `🎨 post #${P.id}: ${ok.size} approvati da Johnny, li impagino`);
+    return json({ ok: true });
+  }
+  // APPROVAZIONE FINALE: Johnny guarda le slide impaginate e, post per post, approva, scarta o chiede modifiche
+  if (m === 'POST' && mm[2] === 'finale') { // {n, azione: approva|scarta|rifai, nota}
+    const d = await corpo();
+    const Ct = J(P.contenuti, {});
+    const x = (Ct.post || []).find((y) => Number(y.n) === Number(d.n));
+    if (!x) return json({ errore: 'post non trovato' }, 404);
+    if (d.azione === 'approva') { x.finale = 'approvato'; x.approvato_il = ora(); }
+    else if (d.azione === 'scarta') x.finale = 'scartato';
+    else if (d.azione === 'rifai') {
+      const nota = String(d.nota || '').trim().slice(0, 1500);
+      if (nota.length < 3) return json({ errore: 'scrivi cosa cambiare' }, 400);
+      const cfg = chi(await configurazione(env), { area: 'post', agente: 'caroselli', cliente_id: P.cliente_id });
+      const { nota_chiara, finale, approvato_il, ...pulito } = x;
+      const out = await S.claude(cfg, `Sei il copy dei caroselli di AGENZIA MOMENTO AI. Johnny ha visto il post impaginato e chiede modifiche: applicale ESATTAMENTE, il resto resta com'è. Stesso formato JSON del post (stessi campi, stessi nomi dei modelli di slide: ${Object.keys(MODELLI).join(', ')}). Solo fatti veri già presenti nel post o detti da Johnny.`,
+        `POST ATTUALE: ${JSON.stringify(pulito).slice(0, 9000)}\n\nMODIFICHE DI JOHNNY: ${nota}\n\nRispondi SOLO JSON: {"post": {il post riscritto}}`, { maxTokens: 6000 });
+      if (!out.post?.slide?.length) return json({ errore: 'non sono riuscito a riscriverlo: riprova' }, 500);
+      Object.assign(x, out.post, { n: x.n, stato: 'approvato', nota_johnny: nota }); delete x.finale;
+      for (const k of Object.keys(J(P.slide_file, {}) || {})) await env.VIDEO.delete(k);
+      await run(env, "UPDATE post_lavori SET contenuti=?, canva=NULL, slide_file=NULL, fase='impagina', stato='in_corso', errore=NULL, blocco_fino=NULL, tentativi=0, aggiornato=? WHERE id=?", JSON.stringify(Ct), ora(), P.id);
+      await log(env, null, 'caroselli', `✏️ post #${P.id}.${x.n}: riscritto con le modifiche di Johnny, lo reimpagino`);
+      return json({ ok: true, rifatto: true });
+    } else return json({ errore: 'azione non valida' }, 400);
+    await run(env, 'UPDATE post_lavori SET contenuti=?, aggiornato=? WHERE id=?', JSON.stringify(Ct), ora(), P.id);
+    await log(env, null, 'caroselli', `${x.finale === 'approvato' ? '✅' : '🗑'} post #${P.id}.${x.n} ${x.finale} da Johnny`);
     return json({ ok: true });
   }
   if (m === 'POST' && mm[2] === 'canva') { // {post:[{n, design_id, link, png:[url…]}]} le slide fatte su Canva

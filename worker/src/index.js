@@ -186,7 +186,7 @@ async function api(req, env, url) {
     const r = await one(env, `SELECT
       (SELECT COUNT(*) FROM riunioni WHERE tipo='richiesta' AND stato='proposte') AS proposte,
       (SELECT COUNT(*) FROM lavori WHERE stato IN ('in_corso','errore','pausa')) + (SELECT COUNT(*) FROM post_lavori WHERE stato IN ('in_corso','errore')) + (SELECT COUNT(*) FROM avatar_piani WHERE stato IN ('in_corso','errore','attende_avatar')) + (SELECT COUNT(*) FROM piani WHERE stato IN ('in_corso','errore')) + (SELECT COUNT(*) FROM riunioni WHERE stato IN ('in_corso','errore')) AS lavorazione,
-      (SELECT COUNT(*) FROM lavori WHERE stato='pronto' AND approvato IS NULL) + (SELECT COUNT(*) FROM post_lavori WHERE stato IN ('da_approvare','da_vedere','attende_canva')) + (SELECT COUNT(*) FROM avatar_piani WHERE stato='da_approvare') + (SELECT COUNT(*) FROM contenuti WHERE stato='da_approvare') AS approvare`).catch(() => ({}));
+      (SELECT COUNT(*) FROM lavori WHERE stato='pronto' AND approvato IS NULL) + (SELECT COUNT(*) FROM post_lavori p WHERE p.stato IN ('da_approvare','attende_canva') OR (p.stato IN ('fatto','da_vedere') AND EXISTS (SELECT 1 FROM json_each(p.contenuti, '$.post') WHERE json_extract(value, '$.stato')='approvato' AND json_extract(value, '$.finale') IS NULL))) + (SELECT COUNT(*) FROM avatar_piani WHERE stato='da_approvare') + (SELECT COUNT(*) FROM contenuti WHERE stato='da_approvare') AS approvare`).catch(() => ({}));
     return json(r || {});
   }
   if (p === '/api/regia' && m === 'GET') {

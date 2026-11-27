@@ -73,7 +73,7 @@ export async function motoreApi(req, env, url) {
       const id = Number(new URL(req.url).searchParams.get('id')) || 0;
       const n = Number(new URL(req.url).searchParams.get('n')) || 0;
       const kk = new URL(req.url).searchParams.get('k') || '';
-      const base = /^(lavoro-\d+|backup\/lavoro-\d+-v\d+)\/reel\.mp4$/.test(kk) ? kk : `lavoro-${id}/reel.mp4`;
+      const base = /^(lavoro-\d+|backup\/lavoro-\d+-v\d+)\/reel\.mp4$|^post-\d+\/\d+-\d+\.png$/.test(kk) ? kk : `lavoro-${id}/reel.mp4`;
       const chiave = base + (n ? '#' + n : '');
       const { value, metadata } = await env.VIDEO.getWithMetadata(chiave, { type: 'arrayBuffer' });
       if (!value) return json({ errore: 'non trovato' }, 404);

@@ -1349,7 +1349,7 @@ async function approvatiPagina() {
   const nulla = () => [];
   const [Re, Po, Co, Pi, Av] = await Promise.all([chiama('/api/lavori').catch(nulla), chiama('/api/post').catch(nulla), chiama('/api/contenuti').catch(nulla), chiama('/api/piani').catch(nulla), chiama('/api/avatar').catch(nulla)]);
   const reel = Re.filter((l) => l.approvato);
-  const post = await Promise.all(Po.filter((x) => x.stato === 'fatto').slice(0, 20).map((x) => chiama('/api/post/' + x.id).catch(() => null)));
+  const post = await Promise.all(Po.filter((x) => x.approvati > 0).slice(0, 20).map((x) => chiama('/api/post/' + x.id).catch(() => null)));
   const testi = Co.filter((c) => ['approvato', 'da_pubblicare', 'pubblicato'].includes(c.stato));
   const copioni = Pi.filter((x) => x.approvato).map((x) => ({ t: x.cliente || 'copioni', link: '#/copioni/' + x.id, q: x.aggiornato }))
     .concat(Av.filter((x) => x.stato === 'fatto').map((x) => ({ t: 'Profilo · ' + (x.argomento || ''), link: '#/profilo/' + x.id, q: x.aggiornato })));
@@ -1361,7 +1361,7 @@ async function approvatiPagina() {
     '<div class="riga" style="gap:6px;flex-wrap:wrap"><a class="btn" href="/api/lavori/' + l.id + '/reel.mp4?scarica=1">⬇︎ Scarica il reel</a>' + (l.copertina ? '<a class="btn sec" href="/api/lavori/' + l.id + '/copertina.jpg" target="_blank">🖼 Copertina</a>' : '') + '<a class="btn sec" href="#/lavoro/' + l.id + '">Apri</a></div></div></div></div>').join('');
   const bPost = post.filter(Boolean).map((P) => {
     const per = {}; (P.slide_file || []).forEach((k) => { const m = k.match(/\\/(\\d+)-(\\d+)\\.png$/); if (m) (per[m[1]] ||= []).push([Number(m[2]), k]); });
-    return ((P.contenuti || {}).post || []).filter((x) => x.stato === 'approvato').map((x) => '<div class="card ap" data-cli="' + e(String(P.cliente || '').toLowerCase()) + '"><b>' + e(x.titolo || 'Post ' + x.n) + '</b><div class="mut" style="margin:4px 0 8px">' + e(P.cliente || '') + ' · ' + e(x.tipo || P.tipo || '') + ' · ' + giorno(P.aggiornato) + ' · <a href="#/post/' + P.id + '">apri</a></div>' +
+    return ((P.contenuti || {}).post || []).filter((x) => x.finale === 'approvato').map((x) => '<div class="card ap" data-cli="' + e(String(P.cliente || '').toLowerCase()) + '"><b>' + e(x.titolo || 'Post ' + x.n) + '</b><div class="mut" style="margin:4px 0 8px">' + e(P.cliente || '') + ' · ' + e(x.tipo || P.tipo || '') + ' · ' + giorno(P.aggiornato) + ' · <a href="#/post/' + P.id + '">apri</a></div>' +
       '<div style="display:flex;gap:6px;overflow-x:auto">' + (per[x.n] || []).sort((a, b) => a[0] - b[0]).map(([, k]) => '<a href="/api/post/' + P.id + '/slide/' + k.split('/')[1] + '" target="_blank" download><img loading="lazy" src="/api/post/' + P.id + '/slide/' + k.split('/')[1] + '" style="height:190px;border-radius:8px"></a>').join('') + '</div>' +
       (x.caption ? '<details style="margin-top:8px"><summary>Caption e hashtag</summary><div style="white-space:pre-wrap;font-size:14px;margin-top:6px">' + e(x.caption) + (x.hashtag ? '\\n\\n' + e((x.hashtag || []).map((h) => '#' + h).join(' ')) : '') + '</div><button class="sec copia" data-t="' + e(x.caption + (x.hashtag ? '\\n\\n' + (x.hashtag || []).map((h) => '#' + h).join(' ') : '')) + '" style="width:auto;margin-top:6px">📋 Copia</button></details>' : '') + '</div>').join('');
   }).join('');
@@ -1393,7 +1393,7 @@ async function approvazioni() {
   const [avD, piD, poD, riD] = await Promise.all([
     Promise.all(Av.filter((x) => x.stato === 'da_approvare').map((x) => chiama('/api/avatar/' + x.id).catch(() => null))),
     Promise.all(Pi.filter((x) => x.stato === 'pronto' && !x.approvato).map((x) => chiama('/api/piani/' + x.id).catch(() => null))),
-    Promise.all(Po.filter((x) => ['da_approvare', 'attende_canva', 'da_vedere'].includes(x.stato)).map((x) => chiama('/api/post/' + x.id).catch(() => null))),
+    Promise.all(Po.filter((x) => ['da_approvare', 'attende_canva'].includes(x.stato) || (['da_vedere', 'fatto'].includes(x.stato) && x.da_finale > 0)).map((x) => chiama('/api/post/' + x.id).catch(() => null))),
     Promise.all(Ri.filter((x) => x.stato === 'proposte').map((x) => chiama('/api/riunioni/' + x.id).catch(() => null))),
   ]);
   const sez = (ic, t, n, corpo, cat) => n ? '<div class="apsez" data-cat="' + cat + '"><h2 class="ap-h">' + ic + ' ' + t + ' <span class="pill">' + n + '</span></h2>' + corpo + '</div>' : '';
@@ -1421,10 +1421,16 @@ async function approvazioni() {
   const bPo = poD.filter(Boolean).map((P) => '<div class="apsez" data-cat="' + tipoPo(P) + '">' + ((P) => { const Ct = P.contenuti || {}; const da = P.stato === 'da_approvare';
     if (!da) { // slide impaginate: si guardano qui, si pubblicano dalla pagina del lavoro
       const per = {}; (P.slide_file || []).forEach((k) => { const m = k.match(/\\/(\\d+)-(\\d+)\\.png$/); if (m) (per[m[1]] ||= []).push([Number(m[2]), k]); });
-      return '<div class="card ap"><b>🎨 Slide pronte · ' + e(P.cliente || '') + '</b><div class="mut" style="margin-bottom:8px">impaginate con i modelli dell’agenzia</div>' +
-        Object.entries(per).map(([n, ks]) => { const x = (Ct.post || []).find((y) => String(y.n) === n) || {}; return '<div class="ap-voce"><b>' + n + '. ' + e(x.titolo || '') + '</b><div class="sl-fila">' +
-          ks.sort((a, b) => a[0] - b[0]).map(([, k]) => '<a href="/api/post/' + P.id + '/slide/' + k.split('/')[1] + '" target="_blank"><img loading="lazy" src="/api/post/' + P.id + '/slide/' + k.split('/')[1] + '"></a>').join('') + '</div></div>'; }).join('') +
-        '<div class="riga" style="gap:6px;margin-top:8px"><a class="btn" href="#/post/' + P.id + '">Pubblica o programma</a><button class="sec po_rifai" data-p="' + P.id + '" style="width:auto">Rifai l’impaginazione</button>' + btnDel('/api/post/' + P.id, 'i caroselli di ' + (P.cliente || '')) + '</div></div>'; }
+      // slide impaginate: Johnny le GUARDA e decide post per post (approva, chiede modifiche, scarta)
+      const daVedere = (Ct.post || []).filter((y) => y.stato === 'approvato' && !y.finale);
+      if (!daVedere.length) return '';
+      return '<div class="card ap"><b>🎨 ' + e(P.cliente || '') + '</b><div class="mut" style="margin-bottom:8px">guardali e approva quelli che vanno bene · <a href="#/post/' + P.id + '">apri il lavoro</a></div>' +
+        daVedere.map((x) => { const ks = per[x.n] || []; return '<div class="ap-voce"><b>' + x.n + '. ' + e(x.titolo || '') + '</b> <span class="mut">' + e(x.tipo || '') + ' · ' + ks.length + ' slide</span><div class="sl-fila">' +
+          (ks.length ? ks.sort((a, b) => a[0] - b[0]).map(([, k]) => '<a href="/api/post/' + P.id + '/slide/' + k.split('/')[1] + '" target="_blank"><img loading="lazy" src="/api/post/' + P.id + '/slide/' + k.split('/')[1] + '"></a>').join('') : '<span class="mut">slide in preparazione…</span>') + '</div>' +
+          (x.caption ? '<details style="margin:6px 0"><summary>Caption</summary><div style="white-space:pre-wrap;font-size:14px;margin-top:6px">' + e(x.caption) + '</div></details>' : '') +
+          '<div class="riga" style="gap:6px;flex-wrap:wrap;margin-top:6px"><button class="po_fin" data-p="' + P.id + '" data-n="' + x.n + '" data-a="approva" style="width:auto">✅ Approva</button><button class="rosso po_fin" data-p="' + P.id + '" data-n="' + x.n + '" data-a="scarta" style="width:auto">🗑 Scarta</button></div>' +
+          '<div class="riga" style="gap:8px;margin-top:6px"><input class="po_nota" data-p="' + P.id + '" data-n="' + x.n + '" placeholder="Cosa cambio? es. titolo più corto, togli la slide 3, colori più caldi" style="flex:1"><button class="sec po_fin" data-p="' + P.id + '" data-n="' + x.n + '" data-a="rifai" style="width:auto">✏️ Rifallo</button></div></div>'; }).join('') +
+        '<div class="riga" style="gap:6px;margin-top:8px"><button class="sec po_rifai" data-p="' + P.id + '" style="width:auto">Rifai l’impaginazione</button>' + btnDel('/api/post/' + P.id, 'i caroselli di ' + (P.cliente || '')) + '</div></div>'; }
     return '<div class="card ap"><b>🗂️ Caroselli ' + e(P.cliente || '') + '</b><div class="mut" style="margin-bottom:8px"><a href="#/post/' + P.id + '">apri per modificare le slide</a></div>' +
       (Ct.post || []).filter((x) => x.stato === 'da_approvare' || !x.stato).map((x) => '<div class="ap-voce"><label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" class="po_ap" data-p="' + P.id + '" data-n="' + x.n + '" checked style="width:auto">' + x.n + '. ' + e(x.titolo || '') + '</label>' +
         (x.nota_chiara?.nota ? '<div class="nota-chiara">📣 <b>Chiara' + (x.nota_chiara.voto ? ' · ' + x.nota_chiara.voto + '/10' : '') + ':</b> ' + e(x.nota_chiara.nota) + '</div>' : '') +
@@ -1482,6 +1488,12 @@ async function approvazioni() {
   document.querySelectorAll('.po_go').forEach((b) => b.onclick = () => { const pid = b.dataset.p; const n = [...document.querySelectorAll('.po_ap[data-p="' + pid + '"]:checked')].map((x) => Number(x.dataset.n));
     const modifiche = {}; document.querySelectorAll('.po_cap[data-p="' + pid + '"]').forEach((x) => { modifiche[x.dataset.n] = { caption: x.value }; });
     if (!n.length) return alert('Seleziona almeno un carosello'); azione(b, () => chiama('/api/post/' + pid + '/approva', { method: 'POST', body: { n, modifiche } })); });
+  document.querySelectorAll('.po_fin').forEach((b) => b.onclick = async () => {
+    const corpo = { n: Number(b.dataset.n), azione: b.dataset.a };
+    if (b.dataset.a === 'rifai') { corpo.nota = document.querySelector('.po_nota[data-p="' + b.dataset.p + '"][data-n="' + b.dataset.n + '"]').value.trim(); if (!corpo.nota) return; b.textContent = 'Lo riscrivo…'; }
+    b.disabled = true;
+    try { await chiama('/api/post/' + b.dataset.p + '/finale', { method: 'POST', body: corpo }); rotta(); } catch (x) { b.disabled = false; alert(x.message); }
+  });
   document.querySelectorAll('.po_rifai').forEach((b) => b.onclick = () => azione(b, () => chiama('/api/post/' + b.dataset.p + '/riprova', { method: 'POST', body: {} })));
   document.querySelectorAll('.ri_go').forEach((b) => b.onclick = () => azione(b, () => chiama('/api/riunioni/' + b.dataset.r + '/scegli', { method: 'POST', body: { indice: Number(b.dataset.i) } })));
   document.querySelectorAll('.doc_ok').forEach((b) => b.onclick = () => azione(b, () => chiama('/api/incarichi/' + b.dataset.id + '/visto', { method: 'POST', body: {} })));
