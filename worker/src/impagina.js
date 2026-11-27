@@ -224,17 +224,16 @@ export async function preparaImpaginazione(env, P) {
   const cart = P.pcloud && !/code=/.test(P.pcloud) ? P.pcloud : (P.cliente ? 'Clienti/' + P.cliente : '');
   const logo = cart ? await logoCliente(env, cart).catch(() => null) : null;
   const cfg = await configurazione(env);
-  const mio = String(P.cliente_id || '') === String(cfg.IG_CLIENTE_ID) || /^momento|profilo instagram/i.test(P.cliente || '');
+  const mio = String(P.cliente_id || '') === String(cfg.IG_CLIENTE_ID) || /profilo instagram/i.test(P.cliente || ''); // il profilo personale di Johnny (Momento Produzione è un cliente a parte)
   const profilo = mio ? (cfg.IG_USERNAME || '') : '';
-  if (mio) { st.palette = ['#F1EFEA', '#17171A', '#0E9F9A']; st.accento = '#0E9F9A'; } // il profilo di Momento usa sempre i colori di Momento
-  else { // i colori sono del cliente (di marca, o fissati la prima volta dall'archivio), non inventati a ogni carosello
+  { // i colori sono del cliente (di marca, o fissati la prima volta dall'archivio), non inventati a ogni carosello. Vale anche per il profilo di Johnny
     await schemaChiara(env);
-    const C = P.cliente_id ? await one(env, 'SELECT * FROM clienti WHERE id=?', P.cliente_id) : await clientePerNome(env, P.cliente).catch(() => null);
+    const C = P.cliente_id ? await one(env, 'SELECT * FROM clienti WHERE id=?', P.cliente_id) : mio && cfg.IG_CLIENTE_ID ? await one(env, 'SELECT * FROM clienti WHERE id=?', cfg.IG_CLIENTE_ID) : await clientePerNome(env, P.cliente).catch(() => null);
     const K = await coloriCliente(env, C, { nicchia: P.nicchia || '', richiesta: (P.brief || '') + ' ' + (P.note || '') });
     st.palette = [K.chiaro, K.scuro, K.accento]; st.accento = K.accento;
     if (K.origine === 'nuova') await log(env, null, 'caroselli', `🎨 ${P.cliente}: nessun colore di marca, fisso la palette "${K.nome}" per tutti i suoi contenuti (cambiala nella scheda cliente)`).catch(() => {});
   }
-  const firma = profilo ? '@' + profilo : mio ? 'Momento Produzione' : String(P.cliente || '').slice(0, 34);
+  const firma = profilo ? '@' + profilo : mio ? 'Johnny' : String(P.cliente || '').slice(0, 34);
   // regola n.1: nessun carosello uguale. Temi già usati dagli ultimi lavori dello stesso cliente + quelli di questo lotto
   const prima = await all(env, "SELECT contenuti FROM post_lavori WHERE cliente=? AND id<? ORDER BY id DESC LIMIT 4", P.cliente || '', P.id).catch(() => []);
   const usati = prima.flatMap((r) => (J(r.contenuti, {}).post || []).map((y) => y.tema).filter(Boolean)).slice(0, 5);
