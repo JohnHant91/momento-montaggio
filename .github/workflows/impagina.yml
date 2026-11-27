@@ -31,7 +31,9 @@ jobs:
           sparse-checkout: motore/impagina.py
           sparse-checkout-cone-mode: false
       - name: Font
-        run: sudo apt-get install -y -qq fonts-noto-color-emoji > /dev/null 2>&1 || true
+        run: |
+          command -v ffmpeg >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null)
+          sudo apt-get install -y -qq fonts-noto-color-emoji > /dev/null 2>&1 || true
       - name: Impagina le slide
         env:
           POST: ${{ github.event.inputs.post }}
