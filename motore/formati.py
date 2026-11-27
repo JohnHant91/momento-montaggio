@@ -1415,6 +1415,22 @@ class MontatoreCompleto(TalkingHead):
         with ThreadPoolExecutor(PARALLELO) as ex:
             pezzi = list(ex.map(lambda a: self.pezzo(a[0], a[1], lut, globali), enumerate(segmenti)))
         pezzi = self.pareggia(pezzi)
+        # CORREZIONI CHIESTE DA JOHNNY su un pezzo (più chiaro, più contrasto, specchiato...): dopo il pareggio, così non vengono annullate
+        for k, (sg, pz) in enumerate(zip(segmenti, pezzi)):
+            cz, fl = sg.get("correzione") or {}, []
+            try:
+                lum, con, sat = float(cz.get("luminosita") or 0), float(cz.get("contrasto") or 1), float(cz.get("saturazione") if cz.get("saturazione") is not None else 1)
+                if abs(lum) > 0.005 or abs(con - 1) > 0.01 or abs(sat - 1) > 0.01:
+                    fl.append(f"eq=brightness={max(-0.4, min(0.4, lum)):.3f}:contrast={max(0.6, min(1.6, con)):.3f}:saturation={max(0.0, min(2.0, sat)):.3f}")
+                if sg.get("specchia"):
+                    fl.append("hflip")
+                if fl:
+                    o2 = pz[:-4] + "_corr.mp4"
+                    self.ff(["-i", pz, "-vf", ",".join(fl), "-an"] + X264_INT + [o2], f"correzione pezzo {k + 1}")
+                    pezzi[k] = o2
+                    self.report.append(f"pezzo {k + 1}: correzione chiesta da Johnny ({', '.join(fl)})")
+            except Exception as e:
+                self.avvisa("color", f"correzione del pezzo {k + 1} non riuscita: {str(e)[:80]}", "warn")
         with ThreadPoolExecutor(PARALLELO) as ex:
             volti = list(ex.map(self.volto, [dict(s, file=p, **{"in": 0}) for s, p in zip(segmenti, pezzi)]))
 

@@ -590,7 +590,7 @@ async function editorTagli(id) {
       (giro ? 'width:420px;max-width:none;transform:rotate(' + r + 'deg)' : 'width:100%;max-width:360px') + '"></video></div>' +
       '<div class="riga" style="justify-content:center;margin-top:8px"><button class="sec" id="pz_m1">−0,1 s</button><button class="sec" id="pz_p1">+0,1 s</button></div>' +
       '<div class="riga" style="justify-content:center;margin-top:8px"><button id="pz_in">Inizio qui</button><button id="pz_out">Fine qui</button><button class="sec" id="pz_prova">▶ Riguarda il taglio</button></div>' +
-      '<p style="text-align:center" id="pz_info"></p><label>Cosa devo cambiare su questa clip? (facoltativo)</label><textarea id="pz_nota" style="min-height:54px" placeholder="Es. rallentala · togli la scritta · stringi sulle mani · abbassa il suono · niente transizione">' + e((tagli[k] && tagli[k].nota) || '') + '</textarea>' +
+      '<p style="text-align:center" id="pz_info"></p><label>Cosa devo cambiare su questa clip? (facoltativo)</label><textarea id="pz_nota" style="min-height:54px" placeholder="Es. girala di 90° · zoom sulle mani · più luminosa · rallentala · togli la scritta · specchiala · tienila ferma">' + e((tagli[k] && tagli[k].nota) || '') + '</textarea>' +
       '<div style="text-align:center;margin-top:8px"><button id="pz_tieni">Tieni taglio e nota</button> <button class="sec" id="pz_via">🗑 Elimina questa clip</button> <button class="sec" id="pz_chiudi">Chiudi</button></div></div>';
     const bt = document.querySelector('.pz_t[data-k="' + k + '"]'); if (bt) bt.textContent = '▴ Chiudi';
     const v = $('#pz_v');

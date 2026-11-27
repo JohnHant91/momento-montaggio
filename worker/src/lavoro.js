@@ -473,17 +473,18 @@ export async function applicaTagli(env, L, tagli) {
   const note = (tagli || []).filter((x) => !x.elimina && nuovi[Number(x.pezzo)] && String(x.nota || '').trim().length > 2);
   if (note.length) {
     const cfg = chi(await configurazione(env), { area: 'montaggio', agente: 'editor', lavoro_id: L.id });
-    const campi = ['rallenty', 'velocita', 'effetto', 'transizione_in', 'audio', 'testo', 'zoom_fisso', 'fuoco'];
+    const campi = ['rallenty', 'velocita', 'effetto', 'transizione_in', 'audio', 'testo', 'zoom_fisso', 'fuoco', 'ruota', 'specchia', 'movimento', 'stabilizza', 'correzione', 'centro_x'];
     const out = await S.claude({ ...cfg, CLAUDE_MODEL: cfg.CLAUDE_MODEL_LIGHT || cfg.CLAUDE_MODEL }, 'Sei il montatore di AGENZIA MOMENTO AI. Johnny ha guardato un pezzo del reel e ti dice a parole cosa cambiare. Traduci SOLO quello che chiede nei campi del pezzo, il resto non si tocca.',
-      `CAMPI CHE PUOI CAMBIARE: rallenty (bool), velocita (0.5-2, 1 = normale), effetto (uno di: ${Object.keys(EFFETTI).join(', ')} oppure null), transizione_in (uno di: ${TRANSIZIONI.join(', ')}), audio (0-1, volume del suono originale), testo ({"testo","stile","posizione","evidenzia"} oppure null per toglierlo), zoom_fisso ({"z": 1.2-2.5, "cx": 0-1, "cy": 0-1} oppure null), fuoco (oggetto su cui stringere, 1-4 parole, oppure null).
+      `CAMPI CHE PUOI CAMBIARE: rallenty (bool), velocita (0.5-2, 1 = normale), effetto (uno di: ${Object.keys(EFFETTI).join(', ')} oppure null), transizione_in (uno di: ${TRANSIZIONI.join(', ')}), audio (0-1, volume del suono originale), testo ({"testo","stile","posizione","evidenzia"} oppure null per toglierlo), zoom_fisso ({"z": 1.1-3, "cx": 0-1, "cy": 0-1} oppure null: z = quanto avvicinare, cx/cy = punto dell'immagine su cui stringere, 0.5/0.5 = centro; "allarga/togli lo zoom" = null), fuoco (oggetto su cui stringere, 1-4 parole, oppure null), ruota (gradi con cui girare la clip: 0, 90 = senso orario, -90 = antiorario, 180 = capovolta; "è storta/coricata" di solito 90 o -90: se non dice il verso scegli 90), specchia (bool, ribalta destra-sinistra), movimento (movimento di camera aggiunto: push_in, push_out, ken_burns, punch, pan_dx, pan_sx, sali, scendi, oppure "fermo" per nessuno), stabilizza (true = forza, false = mai, "auto"), correzione ({"luminosita": -0.4..0.4, "contrasto": 0.6..1.6, "saturazione": 0..2}: più chiaro/scuro, più contrasto, più o meno colore, bianco e nero = saturazione 0; oppure null), centro_x (0-1, dove tenere il soggetto in orizzontale nel ritaglio verticale: 0 = sinistra, 1 = destra).
 PEZZI E RICHIESTE:
 ${note.map((x) => `- pezzo ${Number(x.pezzo)}: ora ${JSON.stringify(Object.fromEntries(campi.map((k) => [k, nuovi[Number(x.pezzo)][k] ?? null])))}\n  JOHNNY CHIEDE: ${String(x.nota).trim().slice(0, 500)}`).join('\n')}
-Rispondi SOLO JSON: {"pezzi": [{"pezzo": numero, "cambi": {solo i campi che cambiano}, "detto": "cosa hai cambiato, in 6-10 parole semplici", "non_posso": "se chiede qualcosa che questi campi non permettono (es. colori, musica, ordine dei pezzi) dillo qui in breve, altrimenti null"}]}`, { maxTokens: 900 }).catch(() => null);
+Rispondi SOLO JSON: {"pezzi": [{"pezzo": numero, "cambi": {solo i campi che cambiano}, "detto": "cosa hai cambiato, in 6-10 parole semplici", "non_posso": "se chiede qualcosa che questi campi non permettono (es. musica, ordine dei pezzi, titoli generali del reel) dillo qui in breve, altrimenti null"}]}`, { maxTokens: 900 }).catch(() => null);
     for (const r of out?.pezzi || []) {
       const s = nuovi[Number(r.pezzo)]; if (!s) continue;
       for (const k of campi) if (r.cambi && k in r.cambi) s[k] = r.cambi[k];
       if (s.effetto && !EFFETTI[s.effetto]) s.effetto = null;
       if (s.transizione_in && !TRANSIZIONI.includes(s.transizione_in)) delete s.transizione_in;
+      if ('ruota' in (r.cambi || {})) { s.ruota = [0, 90, -90, 180].includes(Number(s.ruota)) ? Number(s.ruota) : 0; for (const y of nuovi) if (y !== s && y.nome === s.nome) y.ruota = s.ruota; } // la clip gira tutta, in ogni pezzo dove torna
       fatti.push(`pezzo ${Number(r.pezzo) + 1}: ${String(r.detto || 'modificato').slice(0, 120)}${r.non_posso ? ' (⚠️ non fatto: ' + String(r.non_posso).slice(0, 160) + ')' : ''}`);
     }
     if (!out) fatti.push('⚠️ le note scritte non sono state lette (errore): riprova');
