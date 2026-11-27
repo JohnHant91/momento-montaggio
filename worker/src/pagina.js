@@ -1755,7 +1755,8 @@ async function clientePagina(id) {
   if (!AGENTI.capo) { const R = await chiama('/api/azienda'); Object.assign(AGENTI, R.squadra); }
   const scrive = !C.scheda && (C.incarichi || []).some((I) => I.agente === 'brand' && !['fatto', 'errore', 'annullato', 'scartato'].includes(I.stato));
   $('#app').innerHTML = '<div class="riga"><a class="mut" href="#/clienti">← Clienti</a><span style="flex:1"></span><button class="rosso" id="c_del">Elimina</button></div><h1>' + e(C.nome) + '</h1><div class="mut">' + e(C.nicchia || '') + (C.gest_id ? ' · collegato al gestionale' : '') + '</div>' +
-    '<h2>Scheda cliente</h2><div class="card">' + (C.scheda ? md(C.scheda) : (scrive ? '<p><b>🪪 Bianca sta scrivendo la scheda…</b></p><p class="mut">Ci mette 1-2 minuti: questa pagina si aggiorna da sola. Non devi salvare nulla.</p>' : '<p class="mut">Non ancora scritta. Incollala in “Modifica la scheda a mano” qui sotto e premi Salva, oppure dai le informazioni a Bianca.</p>')) + '</div>' +
+    '<h2>Scheda cliente</h2><div class="card">' + (C.scheda ? md(C.scheda) : (scrive ? '<p><b>🪪 Bianca sta scrivendo la scheda…</b></p><p class="mut">Ci mette 1-2 minuti: questa pagina si aggiorna da sola. Non devi salvare nulla.</p>' : '<p class="mut">Non ancora scritta. Rispondi alle domande di Bianca qui sotto, oppure incollala in “Modifica la scheda a mano” e premi Salva.</p>')) + '</div>' +
+    '<div id="c_dom"></div>' +
     '<h2>📣 Linea editoriale (Chiara)</h2><div class="card" id="c_linea">' + (C.linea ? (() => { const L = JSON.parse(C.linea); return '<div class="kv"><b>Obiettivo</b><span>' + e(L.obiettivo || '') + '</span><b>Pubblico</b><span>' + e(L.pubblico || '') + '</span><b>Voce</b><span>' + e(L.voce || '') + '</span><b>Pilastri</b><span>' + e((L.pilastri || []).join(' · ')) + '</span><b>Da evitare</b><span>' + e((L.cosa_evitare || []).join(' · ')) + '</span><b>Mix del mese</b><span>' + e(Object.entries(L.mix_mese || {}).map(([k, v]) => v + ' ' + k.replace(/_/g, ' ')).join(', ')) + '</span><b>Stile visivo</b><span>' + e(L.stile_visivo || '') + '</span>' + ((L.da_chiedere || []).length ? '<b>Mi serve sapere</b><span>' + e(L.da_chiedere.join(' · ')) + '</span>' : '') + '</div>'; })() : '<p class="mut">Chiara la scrive al primo lavoro social per questo cliente, oppure adesso.</p>') +
       '<button class="sec" id="c_lin" style="width:auto;margin-top:10px">' + (C.linea ? 'Chiara, riscrivila' : 'Chiara, scrivila adesso') + '</button></div>' +
     '<h2>📸 Instagram del cliente</h2><div class="card">' + (C.ig_user_id ? '<p style="margin-top:0">Collegato: <b>@' + e(C.ig_username || C.ig_user_id) + '</b>. I suoi post e caroselli approvati si possono programmare su questo account.</p><button class="sec" id="c_igno" style="width:auto">Scollega</button>' : '<p class="mut" style="margin-top:0">Nessun account collegato. Cerco gli account Instagram già aggiunti all’agenzia su Meta.</p><button class="sec" id="c_igc" style="width:auto">Cerca gli account</button>') + '<div id="c_igl" style="margin-top:10px"></div><div id="c_iger" class="err"></div></div>' +
@@ -1764,11 +1765,32 @@ async function clientePagina(id) {
       '<button id="c_csal" style="width:auto">Salva i colori di marca</button></div>' +
       '<label style="margin-top:14px">Oppure una palette dell’archivio</label><div class="riga" style="gap:8px"><select id="c_cp" style="flex:1"><option value="">— scegli —</option>' + (C.palette_archivio || []).map((x) => '<option value="' + e(x.k) + '"' + (C.colori?.nome === x.k ? ' selected' : '') + '>' + e(x.k.replace(/_/g, ' ')) + ' · ' + e(x.mood) + '</option>').join('') + '</select><button class="sec" id="c_cpal" style="width:auto">Usa questa</button><button class="sec" id="c_cno" style="width:auto">Azzera</button></div><div id="c_cer" class="err"></div></div>' +
     '<details class="card"' + (C.scheda || scrive ? '' : ' open') + '><summary><b>✏️ Modifica la scheda a mano</b></summary><textarea id="c_sc" style="min-height:260px">' + e(C.scheda || '') + '</textarea><button id="c_salva" style="margin-top:8px">Salva</button></details>' +
-    '<div class="card"><b>🪪 Fai aggiornare la scheda a Bianca</b><textarea id="c_in" placeholder="Nuove informazioni, regole, cose da evitare…" style="margin-top:8px"></textarea><button class="sec" id="c_br" style="margin-top:8px">Manda a Bianca</button></div>' +
+    '<div class="card"><b>🪪 Fai aggiornare la scheda a Bianca</b> <button class="sec" id="c_fd" style="width:auto;float:right">Fatti fare le domande</button><textarea id="c_in" placeholder="Nuove informazioni, regole, cose da evitare…" style="margin-top:8px"></textarea><button class="sec" id="c_br" style="margin-top:8px">Manda a Bianca</button></div>' +
     '<label>Note per tutti gli agenti</label><textarea id="c_no" style="min-height:60px">' + e(C.note || '') + '</textarea><button class="sec" id="c_nos" style="margin-top:8px">Salva note</button>' +
     '<h2>Incarichi</h2>' + (C.incarichi.map((I) => '<a class="card lav" href="#/incarico/' + I.id + '">' + (AGENTI[I.agente]?.i || '') + ' <b>#' + I.id + ' · ' + e(I.titolo) + '</b> <span class="pill">' + (ST_INC[I.stato] || I.stato) + '</span></a>').join('') || '<p class="mut">Nessuno.</p>') +
     '<h2>Contenuti</h2>' + (C.contenuti.map((c) => '<div class="card"><span class="pill">' + e(c.tipo) + '</span> <b>' + e(c.titolo || '') + '</b> <span class="mut">' + e(c.data || '') + ' · ' + e(c.stato.replace('_', ' ')) + '</span></div>').join('') || '<p class="mut">Nessuno.</p>');
   $('#c_lin').onclick = async () => { const b = $('#c_lin'); b.disabled = true; b.textContent = 'Chiara ci sta lavorando…'; try { await chiama('/api/clienti/' + id + '/linea', { method: 'POST', body: {} }); rotta(); } catch (x) { alert(x.message); b.disabled = false; } };
+  // Bianca fa le domande prima di scrivere la scheda
+  const DOM = C.domande ? JSON.parse(C.domande) : null;
+  const mostraDomande = (D) => {
+    $('#c_dom').innerHTML = '<h2>🪪 Bianca ha qualche domanda</h2><div class="card"><p class="mut" style="margin-top:0">Rispondi a quelle che sai, anche in due parole: così la scheda esce pulita e completa. Quelle che lasci vuote Bianca le segna come “da chiedere”.</p>' +
+      (D.domande || []).map((x) => '<label>' + x.id + '. ' + e(x.domanda) + '</label><textarea class="c_dr" data-i="' + x.id + '" style="min-height:54px" placeholder="' + e(x.esempio ? 'Es. ' + x.esempio : '') + '"></textarea>').join('') +
+      '<label>Altro da aggiungere (facoltativo)</label><textarea id="c_dx" style="min-height:54px"></textarea>' +
+      '<div class="riga" style="gap:8px;margin-top:10px;flex-wrap:wrap"><button id="c_dgo" style="width:auto">Scrivi la scheda</button><button class="sec" id="c_dno" style="width:auto">Salta le domande</button></div><div id="c_der" class="err"></div></div>';
+    const manda = async (vuote) => {
+      const risposte = {}; if (!vuote) document.querySelectorAll('.c_dr').forEach((x) => { if (x.value.trim()) risposte[x.dataset.i] = x.value.trim(); });
+      $('#c_dgo').disabled = true;
+      try { await chiama('/api/clienti/' + id + '/risposte', { method: 'POST', body: { risposte, extra: $('#c_dx').value } }); rotta(); } catch (x) { $('#c_der').textContent = x.message; $('#c_dgo').disabled = false; }
+    };
+    $('#c_dgo').onclick = () => manda(false); $('#c_dno').onclick = () => manda(true);
+  };
+  const chiediDomande = async (corpo) => {
+    $('#c_dom').innerHTML = '<div class="card"><b>🪪 Bianca sta preparando le domande…</b><p class="mut">Qualche secondo.</p></div>';
+    try { mostraDomande(await chiama('/api/clienti/' + id + '/domande', { method: 'POST', body: corpo || {} })); } catch (x) { $('#c_dom').innerHTML = '<div class="card err">' + e(x.message) + '</div>'; }
+  };
+  if (DOM && DOM.stato === 'pronte' && !scrive) mostraDomande(DOM);
+  else if (DOM && DOM.stato === 'da_fare' && !scrive) chiediDomande();
+  $('#c_fd').onclick = () => { chiediDomande({ rifai: true, info: $('#c_in').value }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   $('#c_salva').onclick = async () => { $('#c_salva').disabled = true; try { await chiama('/api/clienti/' + id, { method: 'PUT', body: { scheda: $('#c_sc').value } }); MEMO.clear(); rotta(); } catch (x) { $('#c_salva').disabled = false; alert(x.message); } };
   if (scrive) timer = setTimeout(() => { MEMO.clear(); rotta(); }, 6000);
   const salvaIg = async (ig) => { try { await chiama('/api/clienti/' + id, { method: 'PUT', body: { ig } }); rotta(); } catch (x) { $('#c_iger').textContent = x.message; } };

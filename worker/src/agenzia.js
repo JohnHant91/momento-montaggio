@@ -483,6 +483,7 @@ export async function apiAgenzia(req, env, p, m, json) {
     if (!gest && d.crea_nel_gestionale && env.GEST) { const r = await strumento(env, 'Bianca', 'crea', { sezione: 'clienti', campi: { nome, servizi: 'Social management', stato: 'Attivo', note: d.nicchia || '' } }); gest = r.id || null; }
     const r = await one(env, 'INSERT INTO clienti (nome, nicchia, gest_id, note, creato, aggiornato) VALUES (?,?,?,?,?,?) RETURNING id', nome, String(d.nicchia || ''), gest, String(d.note || ''), ora(), ora());
     if (d.info && d.scheda_pronta) await run(env, 'UPDATE clienti SET scheda=? WHERE id=?', String(d.info).slice(0, 20000), r.id); // Johnny ha già la scheda scritta: si salva così com'è
+    else if (d.info && !d.senza_domande) { await schemaChiara(env); await run(env, 'UPDATE clienti SET domande=? WHERE id=?', JSON.stringify({ stato: 'da_fare', info: String(d.info).slice(0, 8000) }), r.id); } // prima Bianca fa le sue domande
     else if (d.info) {
       await run(env, 'INSERT INTO incarichi (agente, cliente_id, titolo, brief, creato, aggiornato) VALUES (?,?,?,?,?,?)', 'brand', r.id, 'Scheda cliente: ' + nome,
         'Scrivi la scheda cliente completa con queste informazioni di Johnny:\n' + String(d.info).slice(0, 8000), ora(), ora());
@@ -493,6 +494,37 @@ export async function apiAgenzia(req, env, p, m, json) {
     if (!env.GEST) return json([]);
     const r = (await env.GEST.prepare("SELECT id, data FROM records WHERE store='clienti' ORDER BY updated DESC").all()).results;
     return json(r.map((x) => { const d = J(x.data, {}); return { id: x.id, nome: d.nome, servizi: d.servizi, stato: d.stato }; }));
+  }
+  // BIANCA FA LE DOMANDE prima di scrivere la scheda: solo quello che manca davvero, poi scrive con le risposte di Johnny
+  const kd = p.match(/^\/api\/clienti\/(\d+)\/(domande|risposte)$/);
+  if (kd && m === 'POST') {
+    await schemaChiara(env);
+    const C = await cliente(env, kd[1]); if (!C) return json({ errore: 'non trovato' }, 404);
+    const D = J(C.domande, null) || { stato: 'da_fare', info: '' };
+    const d = await corpo().catch(() => ({}));
+    if (kd[2] === 'domande') {
+      if (d.info) D.info = String(d.info).slice(0, 8000);
+      if (D.stato === 'pronte' && !d.rifai) return json(D);
+      const cfg = chi(await configurazione(env), { area: 'agenzia', agente: 'brand', cliente_id: C.id });
+      const out = await S.claude({ ...cfg, CLAUDE_MODEL: cfg.CLAUDE_MODEL_LIGHT || cfg.CLAUDE_MODEL }, 'Sei Bianca, brand manager di AGENZIA MOMENTO AI. Prima di scrivere la scheda di un cliente fai al titolare SOLO le domande che servono davvero. Italiano semplice, niente gergo.',
+        `CLIENTE: ${C.nome}\nNICCHIA: ${C.nicchia || 'non detta'}${C.scheda ? '\nSCHEDA ATTUALE:\n' + String(C.scheda).slice(0, 4000) : ''}\nCOSA HA GIÀ DETTO JOHNNY:\n${D.info || '(niente)'}\n
+La scheda serve a chi scrive post, caroselli e reel: cosa vende e a che prezzi, chi sono i clienti, cosa lo distingue, tono di voce, cosa NON dire, obiettivo dei social, colori e font di marca, profili social e sito, orari e contatti, promozioni o date importanti.
+Fai da 4 a 7 domande, SOLO su ciò che manca o è vago in quello che Johnny ha già detto (non richiedere cose già scritte). Ogni domanda breve e precisa, con un esempio di risposta.
+Rispondi SOLO JSON: {"domande": [{"id": 1, "domanda": "...", "esempio": "..."}]}`, { maxTokens: 900 });
+      D.domande = (out?.domande || []).slice(0, 7).map((x, i) => ({ id: i + 1, domanda: String(x.domanda || '').slice(0, 300), esempio: String(x.esempio || '').slice(0, 200) })).filter((x) => x.domanda);
+      D.stato = 'pronte';
+      await run(env, 'UPDATE clienti SET domande=? WHERE id=?', JSON.stringify(D), C.id);
+      return json(D);
+    }
+    const R = d.risposte || {};
+    const qa = (D.domande || []).map((x) => String(R[x.id] || '').trim() ? `D: ${x.domanda}\nR: ${String(R[x.id]).trim().slice(0, 1500)}` : null).filter(Boolean);
+    const info = [D.info, d.extra ? String(d.extra).slice(0, 4000) : ''].filter(Boolean).join('\n');
+    if (!info && !qa.length) return json({ errore: 'rispondi almeno a una domanda o scrivi qualcosa sul cliente' }, 400);
+    const r = await one(env, 'INSERT INTO incarichi (agente, cliente_id, titolo, brief, creato, aggiornato) VALUES (?,?,?,?,?,?) RETURNING id', 'brand', C.id, 'Scheda cliente: ' + C.nome,
+      (C.scheda ? 'Aggiorna la scheda esistente (qui sotto) con le nuove informazioni.\nSCHEDA ATTUALE:\n' + C.scheda + '\n\n' : 'Scrivi la scheda cliente completa.\n') + 'INFORMAZIONI DI JOHNNY:\n' + info +
+      (qa.length ? '\n\nRISPOSTE DI JOHNNY ALLE TUE DOMANDE (sono la fonte più affidabile):\n' + qa.join('\n\n') : '') + '\n\nNon inventare nulla: quello che non sai scrivilo in fondo sotto "Da chiedere".', ora(), ora());
+    await run(env, 'UPDATE clienti SET domande=? WHERE id=?', JSON.stringify({ ...D, stato: 'fatto', risposte: R }), C.id);
+    return json({ id: r.id });
   }
   // gli account Instagram che il token dell'agenzia può usare (per collegare Momento Produzione o un cliente)
   if (p === '/api/instagram/conti' && m === 'GET') {
