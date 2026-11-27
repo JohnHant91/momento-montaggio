@@ -720,6 +720,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
   const extraRegole = `\n\nREGOLE FISSE DI JOHNNY PER TUTTI I REEL (vincolanti, valgono più di ogni altra indicazione):\n${regole}`;
   // NUOVE DISPOSIZIONI DI JOHNNY (nov 2026): le clip le sceglie lui, lo stile lo detta lui nel prompt, la musica la mette lui
   const extraDisposizioni = `\n\nCOME LAVORIAMO ORA (vincolante):
+- MONTAGGIO PULITO: se Johnny non li chiede a parole, NIENTE transizioni (solo taglio netto), NIENTE effetti o rallenty, NIENTE elementi grafici, adesivi o barra, NIENTE scritte sui pezzi. Solo: un titolo di gancio (max 5 parole) nei primi 2 s e la chiusura. Il montaggio si regge su scelta dei momenti, ordine del racconto e ritmo dei tagli. Quello che metti in più viene tolto in automatico.
 - Le clip le ha GIÀ SCELTE Johnny: sono quelle da usare. Usale TUTTE, ognuna almeno una volta, salvo una clip davvero inutilizzabile (mossa o sfocata in ogni tratto): in quel caso scrivilo in "note". Non aggiungere materiale che non c'è.
 - Stile, mood, colori, sottotitoli, transizioni e titoli li detta Johnny nel prompt con i nomi dell'archivio Stili (es. "stile street, mood energico, colori nero e giallo, sottotitoli pop in bebas"): applicali alla lettera. Quello che non dice lo scegli tu coerente con il resto.
 - I colori che chiede diventano la palette di testi, titoli e grafiche: se nomina una palette dell'archivio o colori che ci somigliano, metti il suo nome in "palette_nome"; altrimenti metti gli HEX in colori.accento. Palette disponibili:\n${descriviPalette()}
@@ -914,6 +915,39 @@ almeno metà dei pezzi da clip diverse o da momenti diversi delle stesse clip (l
     lut: (() => { const s = indicazioni?.lut || J(L.stile, null)?.lut || prima?.piano?.lut?.nome; return s && s !== 'nessuna' && LUT[s] ? { ...voceLut(s, null), scelta_da: 'johnny' } : null; })(),
   };
   if (PALETTE[p.palette_nome]) piano.colori = { ...(piano.colori || {}), accento: PALETTE[p.palette_nome][0], secondario: PALETTE[p.palette_nome][1] };
+  // MONTAGGIO PULITO (reel dei clienti con le clip girate): il Regista non fa di testa sua. Tutto ciò che Johnny non ha
+  // chiesto a parole nel prompt o nelle indicazioni viene tolto qui, in codice: resta un montaggio a tagli netti, coerente.
+  if (formato === 'montaggio' && !eAvatar) {
+    const chiesto = ((L.prompt || '') + ' ' + JSON.stringify(indicazioni || {})).toLowerCase();
+    const vuole = (re) => re.test(chiesto);
+    const tolti = [];
+    if (!vuole(/transizion|dissolv|zoom|whip|frustat|glitch|tendina|flash|spingi|cubo|morph/)) {
+      const n = piano.segmenti.filter((x) => x.transizione_in && x.transizione_in !== 'taglio_netto').length;
+      piano.segmenti.forEach((x) => { x.transizione_in = 'taglio_netto'; });
+      if (n) tolti.push(n + ' transizioni');
+    }
+    if (!vuole(/effett|rallent|slow|speed|ramp|veloc|tremol|shake/)) {
+      const n = piano.segmenti.filter((x) => (x.effetto && x.effetto !== 'nessuno') || x.rallenty).length;
+      piano.segmenti.forEach((x) => { x.effetto = 'nessuno'; x.rallenty = false; });
+      piano.effetti_globali = [];
+      if (n) tolti.push(n + ' effetti');
+    }
+    if (!vuole(/frecc|cerchi|sottoline|spunt|scintill|lente|conto alla rovescia|etichett|element|adesiv|sticker/)) { if ((piano.elementi || []).length) tolti.push(piano.elementi.length + ' elementi grafici'); piano.elementi = []; piano.adesivi = []; }
+    if (!vuole(/barra/)) piano.barra = false;
+    if (!vuole(/titol|testo|testi|scritt|sottotitol|didascal/)) {
+      // senza richiesta: un solo titolo di gancio e la chiusura; niente scritte sparse sui pezzi
+      const sparse = piano.segmenti.filter((x) => x.testo).length + Math.max(0, (piano.titoli || []).length - 1);
+      piano.segmenti.forEach((x) => { x.testo = null; });
+      piano.titoli = (piano.titoli || []).slice(0, 1);
+      if (sparse) tolti.push(sparse + ' scritte');
+    }
+    // i titoli che restano hanno UNO stile, UN font, UNA animazione (quelli del primo)
+    const t0 = (piano.titoli || [])[0];
+    if (t0) piano.titoli = piano.titoli.map((t) => ({ ...t, stile: t0.stile, font: t0.font, animazione: t0.animazione, unita: t0.unita }));
+    const st0 = piano.segmenti.find((x) => x.testo)?.testo;
+    if (st0) piano.segmenti.forEach((x) => { if (x.testo) x.testo = { ...x.testo, stile: st0.stile, posizione: st0.posizione }; });
+    if (tolti.length) await log(env, L.id, 'regista', `montaggio pulito: tolti ${tolti.join(', ')} che non avevi chiesto (tagli netti, uno stile solo)`);
+  }
   const versione = (prima?.versione || 0) + 1;
   // Chiara ripassa titoli, copertina e caption prima del montaggio: la sua nota arriva a Johnny con il reel
   const notaChiara = await ripassoChiara(env, cfg, Ccl, 'reel', { titoli: (piano.titoli || []).map((t) => t.testo || t), copertina: piano.copertina?.testo, caption: piano.caption || p.caption, chiusura: piano.chiusura?.testo || p.chiusura }).catch(() => null);
