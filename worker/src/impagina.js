@@ -19,6 +19,32 @@ export const MODELLI = {
   nota: 'come un post/nota condivisa: scheda bianca con nome del profilo e testo personale, tono diretto',
   panorama: 'una foto orizzontale che continua da una slide all\u2019altra (usa la stessa foto su slide consecutive)',
 };
+// TEMI: lo stile grafico di tutto il carosello. Stesso contenuto, aspetto diverso: mai due caroselli uguali di fila.
+// [descrizione, font titoli, font testo, scala titoli, quando usarlo]
+export const TEMI = {
+  pulito: ['essenziale: fondo chiaro, sans, icone in riquadro', 'Montserrat', 'Inter', 1, 'servizi|aziend|corporate|profession'],
+  linee: ['minimal elegante: filetti sottili, titoli serif leggeri, molta aria ordinata', 'Playfair Display', 'Inter', 1, 'minimal|elegant|beauty|benessere|studio'],
+  bold: ['d’impatto: titoli condensati MAIUSCOLI enormi, grande forma tonda', 'Anton', 'Inter', 1.18, 'sport|palestra|energ|street|lancio|promo'],
+  notte: ['scuro: fondo quasi nero con bagliore del colore del brand', 'Space Grotesk', 'Inter', 1, 'tech|ai|notte|locale|cocktail|video'],
+  rivista: ['editoriale: serif grande, testatina con filetto, taglio da magazine', 'DM Serif Display', 'Lora', 1.05, 'moda|rivista|cultura|vino|ristorante|storia'],
+  brutal: ['grafico deciso: cornice e bordi spessi, ombre piene, titolo evidenziato', 'Archivo Black', 'Space Grotesk', 0.92, 'creativ|giovane|agenzia|marketing|trend'],
+  morbido: ['soft: macchie di colore sfumate, contenuto in scheda bianca arrotondata', 'Poppins', 'DM Sans', 0.92, 'soft|delicat|bimbi|dolci|pasticc|salute'],
+  nastro: ['giocoso: titolo su nastro colorato inclinato, fondo a puntini', 'DM Sans', 'DM Sans', 0.9, 'gioc|iron|simpat|pet|food|bar'],
+  lusso: ['elegante: fondo scuro, cornice sottile, serif fine centrato', 'Cormorant Garamond', 'Lora', 1.18, 'lusso|gioiell|hotel|b&b|wedding|matrimon'],
+  griglia: ['tecnico: fondo a quadretti, angoli a squadra, etichette spaziate', 'Space Grotesk', 'Manrope', 1, 'tech|dati|guida|tutorial|edil|impiant'],
+  gradiente: ['moderno: tutto sul colore pieno del brand con luci sfumate', 'Manrope', 'Inter', 1, 'modern|app|digital|startup|social'],
+  cornice: ['fotografico: foto in cornice bianca tipo stampa, serif morbido', 'Instrument Serif', 'DM Sans', 1.12, 'foto|viaggi|casa|immobil|artigian|natura'],
+};
+export const descriviTemi = () => Object.entries(TEMI).map(([k, v]) => '- ' + k + ': ' + v[0]).join('\n');
+// il tema di un post: quello scelto dall'agente se non è già stato usato da poco, altrimenti il primo libero adatto allo stile
+export function scegliTema(voluto, usati, stile, seme) {
+  const K = Object.keys(TEMI), u = new Set(usati);
+  if (TEMI[voluto] && !u.has(voluto)) return voluto;
+  const mood = String((stile?.mood || '') + ' ' + (stile?.nicchia || '')).toLowerCase();
+  const adatti = K.filter((k) => new RegExp(TEMI[k][4]).test(mood));
+  const giro = [...adatti, ...K.map((_, i) => K[(i + seme) % K.length])];
+  return giro.find((k) => !u.has(k)) || giro[0];
+}
 const FONT = { 'Inter': 'Inter:wght@400;600;800', 'Montserrat': 'Montserrat:wght@400;600;800', 'Poppins': 'Poppins:wght@400;600;800', 'Manrope': 'Manrope:wght@400;600;800',
   'DM Sans': 'DM+Sans:wght@400;600;800', 'Space Grotesk': 'Space+Grotesk:wght@400;600;700', 'Archivo Black': 'Archivo+Black', 'Bebas Neue': 'Bebas+Neue', 'Anton': 'Anton',
   'Playfair Display': 'Playfair+Display:wght@500;700;900', 'DM Serif Display': 'DM+Serif+Display', 'Fraunces': 'Fraunces:wght@500;700;900', 'Lora': 'Lora:wght@400;600',
@@ -52,18 +78,28 @@ export function modelloPer(slide, i, totale) {
 }
 
 // una slide → pagina HTML completa (le foto e il logo sono segnaposto che il motore sostituisce con i file veri)
-export function slideHTML({ slide, i, totale, stile, logo, profilo }) {
+export function slideHTML({ slide, i, totale, stile, logo, profilo, tema, firma }) {
   const T = tavolozza(stile);
-  const ft = trovaFont(stile?.font_titoli, /elegant|lusso|romant|natal/i.test(stile?.mood || '') ? 'Playfair Display' : 'Montserrat');
-  const fx = trovaFont(stile?.font_testo, 'Inter');
+  const tm = TEMI[tema] ? tema : 'pulito', TM = TEMI[tm];
+  const accentoVero = T.accento;
+  if (tm === 'notte' || tm === 'lusso') T.chiaro = T.scuro;
+  if (tm === 'gradiente') { T.chiaro = accentoVero; T.accento = suColore(accentoVero) === '#FFFFFF' ? '#FFFFFF' : T.scuro; }
+  const ft = tm !== 'pulito' ? TM[1] : trovaFont(stile?.font_titoli, /elegant|lusso|romant|natal/i.test(stile?.mood || '') ? 'Playfair Display' : 'Montserrat');
+  const fx = tm !== 'pulito' ? TM[2] : trovaFont(stile?.font_testo, 'Inter');
   const famiglie = [...new Set([ft, fx])].map((f) => 'family=' + FONT[f]).join('&');
   const m = modelloPer(slide, i, totale);
-  const titolo = esc(slide.titolo), testo = esc(slide.testo);
+  const titolo = '<span class="tt">' + esc(slide.titolo) + '</span>', testo = esc(slide.testo);
   const foto = slide.foto ? `{{FOTO:${slide.foto}}}` : null;
   const logoTag = logo ? `<img class="logo" src="{{LOGO}}">` : '';
-  const pagina = totale > 1 && m !== 'copertina_foto' && m !== 'copertina_titolo' ? `<div class="pag">${i + 1}/${totale}</div>` : '';
+  const due = (n) => String(n).padStart(2, '0');
+  const chi = firma ? esc(firma) : '';
+  const passo = (slide.titolo || '').match(/^\s*(\d{1,2})\s*[.)]/)?.[1];
+  // testata (chi parla + pagina) e piede (avanzamento + freccia): riempiono la slide e la tengono in serie con le altre
+  const pagina = totale > 1 && m !== 'copertina_foto' && m !== 'copertina_titolo' ? `<div class="capo"><span>${m === 'editoriale' && logo ? '' : chi}</span><span>${due(i + 1)} / ${due(totale)}</span></div>` +
+    (['testo', 'lista', 'citazione', 'numero', 'checklist', 'confronto'].includes(m) ? `<div class="piede"><i class="prog"><b style="width:${Math.round(((i + 1) / totale) * 100)}%"></b></i>${i < totale - 1 ? `<span class="fr">${icona('ph:arrow-right-bold', suColore(T.accento), 34)}</span>` : ''}</div>` : '') +
+    (passo && m === 'testo' ? `<div class="ghost">${esc(passo)}</div>` : '') : '';
   const lungo = (slide.titolo || '').length;
-  const tg = (base) => Math.round(base * (lungo > 60 ? 0.62 : lungo > 40 ? 0.78 : lungo > 24 ? 0.9 : 1));
+  const tg = (base) => Math.round(base * TM[3] * (lungo > 60 ? 0.62 : lungo > 40 ? 0.78 : lungo > 24 ? 0.9 : 1));
   let corpo = '', fondo = T.chiaro;
   if (m === 'copertina_foto') {
     fondo = T.scuro;
@@ -128,7 +164,6 @@ p{font-size:46px;line-height:1.35;margin-top:30px;text-wrap:pretty;max-width:900
 .sotto{position:absolute;left:84px;right:84px;bottom:90px;top:66%;display:flex;flex-direction:column;justify-content:center}.sotto p{font-size:36px;margin-top:20px}
 .forma{position:absolute;right:-180px;top:-180px;width:640px;height:640px;border-radius:50%;opacity:.16}
 .logo{position:absolute;left:84px;top:84px;height:86px;max-width:300px;object-fit:contain}.logo.grande{position:static;height:150px;max-width:460px;margin-bottom:56px}
-.pag{position:absolute;right:84px;top:84px;font-size:30px;font-weight:600;opacity:.55}
 .scorri{position:absolute;right:84px;bottom:54px;font-size:28px;font-weight:600;letter-spacing:.04em;opacity:.8}
 ul{list-style:none;padding:0;margin-top:44px;display:flex;flex-direction:column;gap:30px}li{display:flex;gap:28px;align-items:flex-start;font-size:50px;line-height:1.3}
 li span{flex:0 0 22px;height:22px;border-radius:50%;margin-top:14px}
@@ -146,7 +181,26 @@ li span{flex:0 0 22px;height:22px;border-radius:50%;margin-top:14px}
 .nota{position:absolute;left:70px;right:70px;top:50%;transform:translateY(-50%);background:#fff;color:#111;border-radius:40px;padding:60px 56px;box-shadow:0 40px 80px -40px rgba(0,0,0,.45)}
 .nota .testa{display:flex;gap:22px;align-items:center;margin-bottom:40px}.nota .av{width:84px;height:84px;border-radius:50%;color:#fff;display:grid;place-items:center;font-size:40px;font-weight:800}.nota b{display:block;font-size:34px}.nota small{font-size:28px;opacity:.55}
 .nota h2{font-family:inherit;font-weight:700;letter-spacing:-.01em;line-height:1.15}.nota p{font-size:36px;color:#333}
-</style></head><body>${corpo}</body></html>`;
+.capo{position:absolute;left:84px;right:84px;top:74px;display:flex;justify-content:space-between;font-size:28px;font-weight:600;opacity:.62;letter-spacing:.03em;z-index:3}
+.piede{position:absolute;left:84px;right:84px;bottom:66px;height:72px;display:flex;align-items:center;gap:30px;z-index:3}
+.prog{flex:1;height:6px;border-radius:3px;background:rgba(127,127,127,.28);overflow:hidden}.prog b{display:block;height:100%;background:var(--a)}
+.fr{flex:0 0 72px;height:72px;border-radius:50%;background:var(--a);display:grid;place-items:center}
+.ghost{position:absolute;right:50px;top:150px;font-family:'${ft}',serif;font-weight:800;font-size:560px;line-height:.8;color:var(--a);opacity:.16;z-index:0}
+.pieno,.centro{z-index:2}.pieno{padding-bottom:180px}
+body::before,body::after{content:'';position:absolute;pointer-events:none}
+.t-linee::before{left:84px;right:84px;top:140px;border-top:2px solid currentColor;opacity:.45}.t-linee::after{left:84px;right:84px;bottom:160px;border-top:2px solid currentColor;opacity:.45}
+.t-linee h1,.t-linee h2{font-weight:500;letter-spacing:-.01em;line-height:1.1}.t-linee .ico-box{border-radius:50%}.t-linee .barra{height:3px;width:170px}.t-linee .fr{flex-basis:124px;height:58px;border-radius:29px}.t-linee .prog{display:none}.t-linee .piede{justify-content:flex-end}.t-linee .capo{text-transform:uppercase;letter-spacing:.2em;font-size:22px}
+.t-bold h1,.t-bold h2{text-transform:uppercase;line-height:.94;letter-spacing:.005em;font-weight:400}.t-bold::before{right:-280px;bottom:-240px;width:920px;height:920px;border-radius:50%;background:var(--a);opacity:.2}.t-bold .numero{font-weight:400}
+.t-notte{background-image:radial-gradient(900px 700px at 90% 0%,color-mix(in srgb,var(--v) 50%,transparent),transparent 70%),radial-gradient(760px 640px at 0% 100%,color-mix(in srgb,var(--v) 28%,transparent),transparent 70%)}.t-notte .col.no{background:rgba(255,255,255,.09)}
+.t-rivista .capo{border-bottom:3px solid currentColor;padding-bottom:20px;text-transform:uppercase;letter-spacing:.2em;font-size:22px;opacity:.9}.t-rivista h1,.t-rivista h2{font-weight:400;letter-spacing:-.01em}.t-rivista .barra{display:none}.t-rivista .pieno h2::after{content:'';display:block;width:150px;border-top:7px solid var(--a);margin-top:38px}.t-rivista p{font-size:44px}.t-rivista .ghost{opacity:.22}
+.t-brutal::before{inset:34px;border:8px solid currentColor;z-index:1}.t-brutal .ico-box,.t-brutal .col,.t-brutal .profilo,.t-brutal .fr,.t-brutal .ico-pt,.t-brutal .spunte i{border-radius:0;border:6px solid var(--t);box-shadow:9px 9px 0 var(--t)}.t-brutal .pieno .tt{background:linear-gradient(transparent 58%,var(--a) 58%);-webkit-box-decoration-break:clone;box-decoration-break:clone;padding:0 6px}.t-brutal h1,.t-brutal h2{font-weight:400;line-height:1.08}.t-brutal .prog{border-radius:0;height:10px}.t-brutal .prog b{background:var(--t)}
+.t-morbido{background-image:radial-gradient(640px 640px at 100% 0%,color-mix(in srgb,var(--v) 42%,transparent),transparent 70%),radial-gradient(760px 760px at 0% 100%,color-mix(in srgb,var(--v) 26%,transparent),transparent 70%)}.t-morbido .pieno{inset:150px 60px 170px;background:#fff;color:#161616;border-radius:60px;padding:76px 64px;box-shadow:0 50px 90px -50px rgba(0,0,0,.38)}.t-morbido .ico-box{border-radius:50%}.t-morbido .ghost{display:none}.t-morbido h1,.t-morbido h2{font-weight:600;line-height:1.08}
+.t-nastro{background-image:radial-gradient(rgba(127,127,127,.24) 3px,transparent 3.5px);background-size:46px 46px}.t-nastro .pieno h2{transform:rotate(-2deg);line-height:1.32;transform-origin:left center}.t-nastro .pieno .tt{background:var(--a);color:var(--ta);padding:6px 20px;-webkit-box-decoration-break:clone;box-decoration-break:clone}.t-nastro .barra{display:none}.t-nastro .ico-box{transform:rotate(6deg);border-radius:50%}
+.t-lusso::before{inset:44px;border:2px solid var(--a);opacity:.75}.t-lusso .pieno,.t-lusso .centro{align-items:center;text-align:center}.t-lusso h1,.t-lusso h2{font-weight:500;letter-spacing:0;line-height:1.06}.t-lusso ul{align-self:center;text-align:left}.t-lusso .barra{height:2px;width:120px}.t-lusso .prog{height:2px}.t-lusso .capo{letter-spacing:.24em;text-transform:uppercase;font-size:22px}.t-lusso .ghost{display:none}
+.t-griglia{background-image:linear-gradient(rgba(127,127,127,.16) 2px,transparent 2px),linear-gradient(90deg,rgba(127,127,127,.16) 2px,transparent 2px);background-size:90px 90px}.t-griglia::before{left:40px;top:40px;width:74px;height:74px;border-left:7px solid var(--a);border-top:7px solid var(--a)}.t-griglia::after{right:40px;bottom:40px;width:74px;height:74px;border-right:7px solid var(--a);border-bottom:7px solid var(--a)}.t-griglia .capo{text-transform:uppercase;letter-spacing:.16em;font-size:22px;left:130px}.t-griglia .ico-box{border-radius:10px}.t-griglia h1,.t-griglia h2{font-weight:700}.t-griglia .piede{right:130px}
+.t-gradiente{background-image:radial-gradient(820px 820px at 100% 0%,rgba(255,255,255,.3),transparent 70%),radial-gradient(900px 900px at 0% 100%,rgba(0,0,0,.24),transparent 70%)}.t-gradiente .col.no{background:rgba(0,0,0,.12)}
+.t-cornice .foto.alta{left:60px;right:60px;top:60px;height:57%;border:16px solid #fff;box-shadow:0 34px 60px -34px rgba(0,0,0,.45)}.t-cornice .foto.piena{inset:40px}.t-cornice .velo{inset:40px}.t-cornice .ritaglio{border-radius:0;border:16px solid #fff;box-shadow:0 34px 60px -34px rgba(0,0,0,.45)}.t-cornice h1,.t-cornice h2{font-weight:400;letter-spacing:-.01em;line-height:1.04}.t-cornice .ed h1{font-weight:400}.t-cornice .ico-box{border-radius:50%}
+</style></head><body class="t-${tm}" style="--a:${T.accento};--v:${accentoVero};--s:${T.scuro};--c:${T.chiaro};--t:${colTesto};--ta:${suColore(T.accento)}">${corpo}</body></html>`;
 }
 
 // pacchetto per il motore: tutte le slide dei post approvati
@@ -156,18 +210,29 @@ export async function preparaImpaginazione(env, P) {
   const cart = P.pcloud && !/code=/.test(P.pcloud) ? P.pcloud : (P.cliente ? 'Clienti/' + P.cliente : '');
   const logo = cart ? await logoCliente(env, cart).catch(() => null) : null;
   const cfg = await configurazione(env);
-  const profilo = String(P.cliente_id || '') === String(cfg.IG_CLIENTE_ID) ? (cfg.IG_USERNAME || '') : '';
+  const mio = String(P.cliente_id || '') === String(cfg.IG_CLIENTE_ID) || /^momento/i.test(P.cliente || '');
+  const profilo = mio ? (cfg.IG_USERNAME || '') : '';
+  if (mio) st.palette = ['#F1EFEA', '#17171A', '#0E9F9A']; // il profilo di Momento usa sempre i colori di Momento
+  const firma = profilo ? '@' + profilo : String(P.cliente || '').slice(0, 34);
+  // regola n.1: nessun carosello uguale. Temi già usati dagli ultimi lavori dello stesso cliente + quelli di questo lotto
+  const prima = await all(env, "SELECT contenuti FROM post_lavori WHERE cliente=? AND id<? ORDER BY id DESC LIMIT 4", P.cliente || '', P.id).catch(() => []);
+  const usati = prima.flatMap((r) => (J(r.contenuti, {}).post || []).map((y) => y.tema).filter(Boolean)).slice(0, 5);
+  let cambiato = false;
   const fotoF = (J(P.foto, {})?.foto || []);
   const slide = [];
   for (const x of (Ct.post || []).filter((y) => y.stato === 'approvato')) {
+    const tema = scegliTema(x.tema, x.tema_fisso ? [] : usati, { ...st, nicchia: P.nicchia }, P.id * 5 + Number(x.n || 0) * 3);
+    if (x.tema !== tema || !x.tema_fisso) { x.tema = tema; x.tema_fisso = true; cambiato = true; }
+    usati.push(tema);
     const S = (x.slide || []).map((s) => ({ ...s }));
     for (let k = 0; k < S.length; k++) if (S[k].modello === 'panorama' && S[k].foto && (k === 0 || S[k - 1].modello !== 'panorama' || S[k - 1].foto !== S[k].foto)) {
       let j = k; while (j + 1 < S.length && S[j + 1].modello === 'panorama' && S[j + 1].foto === S[k].foto) j++;
       for (let t = k; t <= j; t++) Object.assign(S[t], { parte: t - k, di: Math.max(2, j - k + 1) });
     }
-    S.forEach((s, k) => slide.push({ n: x.n, k: k + 1, chiave: `post-${P.id}/${x.n}-${k + 1}.png`, html: slideHTML({ slide: s, i: k, totale: S.length, stile: st, logo, profilo }),
+    S.forEach((s, k) => slide.push({ n: x.n, k: k + 1, chiave: `post-${P.id}/${x.n}-${k + 1}.png`, html: slideHTML({ slide: s, i: k, totale: S.length, stile: st, logo, profilo, tema, firma }),
       foto: [s.foto, ...(s.altre_foto || [])].filter(Boolean).map((nome) => { const f = fotoF.find((z) => z.nome === nome); return f ? { nome, ...(f.percorso ? { archivio: f.percorso } : { fileid: f.fileid }) } : null; }).filter(Boolean) }));
   }
+  if (cambiato) await run(env, 'UPDATE post_lavori SET contenuti=? WHERE id=?', JSON.stringify(Ct), P.id);
   return { slide, logo, pcloud: /code=/.test(P.pcloud || '') ? P.pcloud : null };
 }
 

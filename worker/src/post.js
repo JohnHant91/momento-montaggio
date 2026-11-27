@@ -10,7 +10,7 @@ import { SKILL } from './skill_testi.js';
 import { chi } from './consumi.js';
 import { cliente } from './agenzia.js';
 import { instagram, firmaPubblica } from './avatar.js';
-import { MODELLI, svegliaImpagina } from './impagina.js';
+import { MODELLI, descriviTemi, svegliaImpagina } from './impagina.js';
 import { fileSotto } from './archivio.js';
 import { clientePerNome, lineaCliente, testoLinea, ripassoChiara } from './chiara.js';
 
@@ -179,6 +179,9 @@ async function faseContenuti(env, cfg, P) {
   if (linea) await log(env, null, 'smm', `📣 Chiara passa a Pietro e Giulia la linea editoriale di ${C.nome}`);
   const St = J(P.studio, {}), F = (J(P.foto, {})?.foto || []).filter((f) => f.uso !== 'scarta').sort((a, b) => (b.qualita || 0) - (a.qualita || 0));
   const out = await S.claude(cfg, `Sei Pietro (caroselli e grafiche) con Giulia (copywriter) di AGENZIA MOMENTO AI. Scrivi post e caroselli Instagram pronti da impaginare con i modelli dell'agenzia.
+TEMI GRAFICI (uno per ogni post, nel campo "tema": scegli in base allo stile del cliente e della nicchia; post diversi = temi DIVERSI):
+${descriviTemi()}
+
 MODELLI DI SLIDE (scegli per ogni slide quello giusto, la copertina con foto se c'è una foto buona):
 ${Object.entries(MODELLI).map(([k, v]) => '- ' + k + ': ' + v).join('\n')}
 REGOLE: ogni slide ha UNA idea; copertina con gancio forte e corto; testi brevi (rispetta il massimo di parole per slide); l'ultima slide chiude con una CTA chiara;
@@ -197,6 +200,7 @@ FOTO DISPONIBILI (scattate da Johnny): ${F.length ? F.map((f) => `${f.nome} · $
 Rispondi SOLO JSON:
 {"stile": {"palette": ["#hex", "#hex", "#hex"], "font_titoli": "...", "font_testo": "...", "mood": "...", "regole": "indicazioni grafiche per tutto il set"},
  "post": [{"n": 1, "tipo": "carosello | post", "titolo": "titolo interno", "obiettivo": "salvataggi | condivisioni | commenti | contatti",
+   "tema": "uno dei TEMI GRAFICI",
    "slide": [{"n": 1, "ruolo": "copertina | contenuto | cta", "modello": "uno dei MODELLI", "titolo": "testo grande", "testo": "testo piccolo o vuoto (per lista: un punto per riga)", "foto": "nome file o null", "altre_foto": ["solo per collage"], "icona": "facoltativa: icona Iconify del set Phosphor per testo, lista e numero (es. ph:coffee-bold, ph:fire-bold, ph:clock-bold, ph:map-pin-bold, ph:heart-bold) — mai emoji"}],
    "caption": "caption completa con gancio e CTA", "hashtag": ["8-12 hashtag senza #"], "alt": "testo alternativo"}]}`, { maxTokens: 16000 });
   const post = (out.post || []).slice(0, P.numero).map((p, i) => ({ ...p, n: i + 1, stato: 'da_approvare' }));
