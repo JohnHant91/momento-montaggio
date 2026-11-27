@@ -42,6 +42,8 @@ jobs:
         run: |
           B="$(brew --prefix)"
           echo "$B/opt/openssl@3/bin" >> "$GITHUB_PATH"
+          brew list --formula ffmpeg-full >/dev/null 2>&1 || brew install ffmpeg-full 2>&1 | tail -2   # ffmpeg completo: stabilizzazione e sottotitoli
+          echo "$B/opt/ffmpeg-full/bin" >> "$GITHUB_PATH"; export PATH="$B/opt/ffmpeg-full/bin:$PATH"
           V="$HOME/momento-motore/venv"
           [ -x "$V/bin/python" ] || "$B/opt/python@3.12/bin/python3.12" -m venv "$V"
           "$V/bin/pip" install -q -r motore/requirements.txt

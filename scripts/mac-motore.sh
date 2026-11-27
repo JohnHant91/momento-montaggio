@@ -26,9 +26,9 @@ if [ "${1:-}" = "togli" ]; then
 fi
 
 dico "1/5 Programmi che servono (ffmpeg, python, node, gh): installo solo quelli che mancano"
-for x in ffmpeg python@3.12 node gh; do brew list --formula "$x" >/dev/null 2>&1 || brew install "$x"; done
+for x in ffmpeg-full python@3.12 node gh; do brew list --formula "$x" >/dev/null 2>&1 || brew install "$x"; done
 ls "$HOME/Library/Fonts"/DejaVuSans-Bold.ttf >/dev/null 2>&1 || brew install --cask font-dejavu || echo "⚠︎ font DejaVu non installato: uso un font di sistema"
-ffmpeg -hide_banner -filters 2>/dev/null | grep -q vidstabdetect || echo "⚠︎ questo ffmpeg non ha la stabilizzazione (vidstab): i reel escono lo stesso, ma senza stabilizzare."
+"$(brew --prefix)/opt/ffmpeg-full/bin/ffmpeg" -hide_banner -filters 2>/dev/null | grep -q vidstabdetect || echo "⚠︎ questo ffmpeg non ha la stabilizzazione (vidstab): i reel escono lo stesso, ma senza stabilizzare."
 
 dico "2/5 Accesso a GitHub (si apre il browser: entra con il tuo account, quello del repository)"
 gh auth status >/dev/null 2>&1 || gh auth login --hostname github.com --git-protocol https --web

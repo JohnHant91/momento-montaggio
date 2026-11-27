@@ -17,8 +17,11 @@ jobs:
           [ -x "$V/bin/python" ] || "$B/opt/python@3.12/bin/python3.12" -m venv "$V"
           time "$V/bin/pip" install -q -r motore/requirements.txt
           "$V/bin/python" -c "import cv2, numpy, PIL, faster_whisper, rembg, yt_dlp; print('python ok', cv2.__version__)"
-          ffmpeg -version | head -1
-          for f in vidstabdetect vidstabtransform drawtext subtitles lut3d zscale minterpolate loudnorm; do ffmpeg -hide_banner -filters 2>/dev/null | grep -q " $f " && echo "filtro $f: sì" || echo "filtro $f: NO"; done
+          # il ffmpeg base di Homebrew non ha stabilizzazione e sottotitoli: serve quello completo
+          brew list --formula ffmpeg-full >/dev/null 2>&1 || brew install ffmpeg-full 2>&1 | tail -3
+          export PATH="$B/opt/ffmpeg-full/bin:$PATH"
+          which ffmpeg; ffmpeg -version | head -1
+          for f in vidstabdetect vidstabtransform drawtext subtitles ass lut3d zscale minterpolate loudnorm; do ffmpeg -hide_banner -filters 2>/dev/null | grep -q " $f " && echo "filtro $f: sì" || echo "filtro $f: NO"; done
           ffmpeg -hide_banner -encoders 2>/dev/null | grep -E "libx264|h264_videotoolbox" | awk '{print "codificatore " $2}'
           "$B/opt/openssl@3/bin/openssl" version; node -v; npm -v
           ls "$HOME/Library/Fonts"/DejaVuSans-Bold.ttf 2>/dev/null || echo "font DejaVu: NO"
@@ -30,5 +33,6 @@ jobs:
           npx remotion versions 2>&1 | head -5 || true
       - name: Velocità (codifica di prova 10 s 1080x1920)
         run: |
+          export PATH="$(brew --prefix)/opt/ffmpeg-full/bin:$PATH"
           time ffmpeg -hide_banner -loglevel error -y -f lavfi -i testsrc2=s=1080x1920:r=25:d=10 -c:v libx264 -preset medium -crf 18 /tmp/prova_x264.mp4
           ls -la /tmp/prova_x264.mp4 && rm -f /tmp/prova_x264.mp4
