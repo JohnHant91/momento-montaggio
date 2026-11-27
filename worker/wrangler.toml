@@ -11,7 +11,7 @@ crons = ["* * * * *"]
 [[d1_databases]]
 binding = "DB"
 database_name = "momento-reel"
-database_id = "bba77d37-c34e-4dd1-9514-5463ca1d9fec"
+database_id = "bda2fd60-c0eb-44d6-92e7-54ad3846e393"
 
 [[kv_namespaces]]
 binding = "VIDEO"
