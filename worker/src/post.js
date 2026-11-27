@@ -352,7 +352,8 @@ export async function apiPost(req, env, p, m, json) {
       await log(env, null, 'caroselli', `✏️ post #${P.id}.${x.n}: riscritto con le modifiche di Johnny, lo reimpagino`);
       return json({ ok: true, rifatto: true });
     } else return json({ errore: 'azione non valida' }, 400);
-    await run(env, 'UPDATE post_lavori SET contenuti=?, aggiornato=? WHERE id=?', JSON.stringify(Ct), ora(), P.id);
+    const restano = (Ct.post || []).some((y) => y.stato === 'approvato' && !y.finale); // quando hai deciso tutto il lavoro è chiuso: niente più "da guardare"
+    await run(env, 'UPDATE post_lavori SET contenuti=?, stato=CASE WHEN ? = 0 AND stato=\'da_vedere\' THEN \'fatto\' ELSE stato END, aggiornato=? WHERE id=?', JSON.stringify(Ct), restano ? 1 : 0, ora(), P.id);
     await log(env, null, 'caroselli', `${x.finale === 'approvato' ? '✅' : '🗑'} post #${P.id}.${x.n} ${x.finale} da Johnny`);
     return json({ ok: true });
   }

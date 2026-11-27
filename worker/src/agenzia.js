@@ -365,7 +365,7 @@ export async function apiAgenzia(req, env, p, m, json) {
     const [attivi, recenti, approvare, conti, clienti, reelAttivi, pianiAttivi, profilo, postl] = await Promise.all([
       all(env, "SELECT id, agente, titolo, stato, blocco_fino FROM incarichi WHERE stato IN ('in_coda','in_corso') ORDER BY id"),
       all(env, "SELECT i.id, i.agente, i.titolo, i.stato, i.aggiornato, k.nome AS cliente FROM incarichi i LEFT JOIN clienti k ON k.id=i.cliente_id ORDER BY i.id DESC LIMIT 25"),
-      one(env, "SELECT COUNT(*) AS n FROM contenuti WHERE stato IN ('da_approvare','da_pubblicare')"),
+      one(env, "SELECT COUNT(*) AS n FROM contenuti WHERE stato='da_approvare'"),
       all(env, "SELECT agente, COUNT(*) AS n FROM incarichi WHERE creato > ? GROUP BY agente", new Date(Date.now() - 30 * 864e5).toISOString()),
       one(env, 'SELECT COUNT(*) AS n FROM clienti'),
       all(env, "SELECT id, fase, blocco_fino, COALESCE(json_extract(scheda, '$.titolo_lavoro'), substr(prompt, 1, 70)) AS titolo, json_extract(montaggio, '$.stato') AS mstato FROM lavori WHERE stato='in_corso'"),
@@ -377,7 +377,7 @@ export async function apiAgenzia(req, env, p, m, json) {
     // tutto quello che aspetta Johnny (sezione Approvazioni unica)
     const n = async (sql) => (await one(env, sql).catch(() => null))?.n || 0;
     approvare.n += await n("SELECT COUNT(*) AS n FROM lavori WHERE stato='pronto' AND approvato IS NULL") + await n("SELECT COUNT(*) AS n FROM avatar_piani WHERE stato='da_approvare'") +
-      await n("SELECT COUNT(*) AS n FROM post_lavori WHERE stato IN ('da_approvare','attende_canva','da_vedere')") + await n("SELECT COUNT(*) AS n FROM piani WHERE stato='pronto' AND approvato IS NULL") +
+      await n("SELECT COUNT(*) AS n FROM post_lavori p WHERE p.stato IN ('da_approvare','attende_canva') OR (p.stato IN ('fatto','da_vedere') AND EXISTS (SELECT 1 FROM json_each(p.contenuti, '$.post') WHERE json_extract(value, '$.stato')='approvato' AND json_extract(value, '$.finale') IS NULL))") + await n("SELECT COUNT(*) AS n FROM piani WHERE stato='pronto' AND approvato IS NULL") +
       await n("SELECT COUNT(*) AS n FROM riunioni WHERE stato='proposte'") + await n("SELECT COUNT(*) AS n FROM incarichi WHERE stato IN ('fatto','da_approvare') AND visto IS NULL AND esito LIKE '%documento%'");
     return json({ adesso, uffici: UFFICI, squadra: SQUADRA, attivi, recenti, da_approvare: approvare.n, conti, clienti: clienti.n, reel: reelAttivi, piani: pianiAttivi, profilo, postl, feed, gestionale: !!env.GEST });
   }
