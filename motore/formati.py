@@ -949,8 +949,8 @@ class SplitGrafico(TalkingHead):
             scene = tenute
             if scene:
                 scene[0]["da"] = 0.0
-                if totale - scene[-1]["da"] < 1.8 and len(scene) > 1:
-                    scene.pop()
+                if totale - scene[-1]["da"] < 2.2 and len(scene) > 1:  # la chiusura (invito) si deve leggere: almeno 2,2 s
+                    scene[-1]["da"] = max(scene[-2]["da"] + 1.8, totale - 2.2)
         for i, s in enumerate(scene):
             s["a"] = round(scene[i + 1]["da"] if i + 1 < len(scene) else totale, 3)
             s["da"] = round(s["da"], 3)

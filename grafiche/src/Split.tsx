@@ -513,7 +513,7 @@ export const Split: React.FC<SplitProps> = (P) => {
               <Sequence key={i} from={da} durationInFrames={dur} layout="none">
                 {ha("fantasma") && fant ? <Fantasma pal={P.palette} testo={fant} font={ctx.titoli} /> : null}
                 <div style={{ position: "absolute", inset: 0, paddingTop: P.tracker ? 120 : 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Respiro seme={i} scossa={ha("scossa") ? Math.round(fps * 1.3) : undefined}>{box ? <div style={{ transform: "scale(1.15)" }}>{corpo}</div> : corpo}</Respiro>
+                  <Respiro seme={i} scossa={ha("scossa") ? Math.round(fps * 1.3) : undefined}>{box ? <div style={{ transform: `scale(${s.tipo === "titolo" && String(s.dati?.testo || s.dati?.titolo || "").length > 11 ? 0.95 : 1.15})` }}>{corpo}</div> : corpo}</Respiro>
                 </div>
                 {ha("icone") ? <Icone pal={P.palette} glifi={s.dati?.decor || GLIFI_BASE[s.tipo] || []} font={ctx.mono} seme={i} /> : null}
                 {ha("lente") ? <Lente pal={P.palette} /> : null}
@@ -534,7 +534,7 @@ export const Split: React.FC<SplitProps> = (P) => {
           <Sequence key={"c" + i} from={Math.round(s.da * fps) + 4} durationInFrames={Math.round(fps * 1.8)} layout="none">
             <Coriandoli pal={P.palette} x={540} y={zona.height * 0.5} seme={i} />
           </Sequence>) : null))}
-        {P.tracker ? (box ? <div style={{ position: "absolute", inset: 0, transform: "scale(1.5)", transformOrigin: "50% 70px", pointerEvents: "none" }}><Tracker tr={P.tracker} t={t} pieno={0} /></div> : <Tracker tr={P.tracker} t={t} pieno={pieno} />) : null}
+        {P.tracker ? (box ? <div style={{ position: "absolute", inset: 0, transform: "scale(1.5)", transformOrigin: "50% 70px", pointerEvents: "none", opacity: kb }}><Tracker tr={P.tracker} t={t} pieno={0} /></div> : <Tracker tr={P.tracker} t={t} pieno={pieno} />) : null}
         <Pillola parole={P.parole} righe={P.righe} t={t} y={box ? by - 78 : Y_PILLOLA - 40 + pieno * 640} morbida={box} />
         <Grana />
         {/* chiusura: dissolvenza al bianco (o al nero) negli ultimi 0,6 s, dopo l'ultima parola */}
