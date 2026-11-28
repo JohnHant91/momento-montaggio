@@ -735,7 +735,7 @@ def monta(lavoro):
         for s in piano.get("segmenti") or []:
             if s.get("fuoco") and s.get("file") and not s.get("zoom_fisso"):
                 try:
-                    kf = hashlib.sha256(f"{ident(s)}|{float(s.get('in', 0)):.1f}|{float(s.get('durata', 1)):.1f}|{s['fuoco']}|v2".encode()).hexdigest()[:24]
+                    kf = hashlib.sha256(f"{ident(s)}|{float(s.get('in', 0)):.1f}|{float(s.get('durata', 1)):.1f}|{s['fuoco']}|v3".encode()).hexdigest()[:24]
                     if kf in fuochi:
                         if fuochi[kf]:
                             s.update(fuochi[kf])
