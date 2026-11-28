@@ -771,6 +771,7 @@ ${descriviLut(lutPerStile(J(L.stile, null)))}` : '';
   const extraDisposizioni = `\n\nCOME LAVORIAMO ORA (vincolante):
 - REGOLE DEL MONTATORE PROFESSIONISTA (un controllo automatico corregge chi non le rispetta):
   · TAGLI: ogni pezzo inizia e finisce su un'immagine che serve (un gesto che parte, il soggetto ben visibile, un movimento che si chiude). Usa i "momenti" e l'"occhio" di ogni clip: l'"in" cade dentro un momento/azione, mai su tratti mossi, sfocati o vuoti. Entra un attimo prima del gesto, esci quando è finito.
+  · APERTURA: il primo pezzo è l'immagine PIÙ FORTE del girato (il prodotto finito, il gesto più bello, la colata), mai un oggetto vuoto o fermo, e dura al massimo 2,5 s. Dopo il gancio il racconto segue l'ordine vero del lavoro: non si torna a una fase precedente (niente impasto crudo dopo la glassa).
   · MAI DOPPIONI: due pezzi di fila non mostrano mai la stessa inquadratura (stessa clip, o stesso soggetto alla stessa distanza). I primi 4 pezzi vengono da 4 clip diverse e cambiano soggetto o distanza a ogni taglio: totale → dettaglio → mani → prodotto. Una clip torna al massimo 2 volte nel reel, mai vicine.
   · RACCONTO: gancio (l'immagine più forte nei primi 2 s) → sviluppo in ordine logico → chiusura sul risultato. Alterna le inquadrature (totale, dettaglio, primo piano): mai due pezzi quasi uguali di fila.
   · TRANSIZIONI: il taglio netto è la regola. Una transizione solo quando cambia luogo, tempo o fase del racconto (es. dalla lavorazione al prodotto finito), mai nel ritmo veloce, mai dentro la stessa clip, al massimo una ogni 5 pezzi e tutte della stessa famiglia.
@@ -998,6 +999,8 @@ almeno metà dei pezzi da clip diverse o da momenti diversi delle stesse clip (l
       if (Number(piano.intensita_look) > 0.6) { piano.intensita_look = 0.6; via.push('look meno carico'); }
       if (via.length) note.push('colore pulito: tolti ' + via.join(', '));
     }
+    // GANCIO: il primo pezzo non resta fermo sulla stessa immagine. Massimo 2,5 secondi, poi si taglia (a meno che l'abbia scelto Johnny).
+    if (S2[0] && !S2[0].in_bloccato && S2[0].durata > 2.5 && S2.length > 4) { S2[0].durata = 2.5; note.push('apertura accorciata a 2,5 s'); }
     // 0) NIENTE DOPPIONI: mai due pezzi di fila dalla stessa clip (è la stessa inquadratura) e i primi 4 pezzi tutti da clip diverse:
     //    l'apertura deve cambiare immagine a ogni taglio. Il pezzo ripetuto scambia posto con il primo più avanti che non crea doppioni.
     let scambi = 0;

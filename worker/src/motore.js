@@ -209,7 +209,7 @@ Trova l'oggetto. Se l'oggetto esatto non si vede o si chiama in un altro modo, N
 Dai UN riquadro che contenga il soggetto in TUTTI i fotogrammi (se si sposta, il riquadro copre tutto il percorso). Rispondi SOLO JSON:
 {"trovato": bool, "esatto": bool, "x": centro orizzontale 0-1, "y": centro verticale 0-1, "w": larghezza 0-1, "h": altezza 0-1}
 Le misure sono frazioni dell'immagine (0,0 = in alto a sinistra). "trovato": false SOLO se l'immagine è vuota, nera o senza un soggetto riconoscibile.`,
-        `Oggetto da trovare: ${String(d.oggetto).slice(0, 60)}`, foto.map((j, k) => ({ cosa: 'fotogramma ' + (k + 1), jpeg: j })), 300);
+        `Oggetto da trovare: ${String(d.oggetto).slice(0, 60)}`, foto.map((j, k) => ({ cosa: 'fotogramma ' + (k + 1), jpeg: j })), 900);
       const n = (v) => Math.min(1, Math.max(0, Number(v)));
       return json(out?.trovato ? { trovato: true, x: n(out.x), y: n(out.y), w: n(out.w), h: n(out.h) } : { trovato: false });
     } catch (e) { return json({ trovato: false, errore: String(e?.message || e).slice(0, 200) }); }

@@ -204,6 +204,8 @@ def inquadra_su(lavoro, path, t, oggetto, durata=0):
         return None
     r = regia(lavoro, "fuoco", corpo={"jpeg": foto[len(foto) // 2], "fotogrammi": foto, "oggetto": oggetto}, timeout=180)
     if not r.get("trovato"):
+        if r.get("errore"):  # non è "non c'è": è la ricerca che non ha funzionato. Va detto, altrimenti sembra colpa del girato
+            raise RuntimeError("ricerca dell'oggetto non riuscita: " + str(r["errore"])[:140])
         return None
     tt = tecnico(path)
     sw, sh = (int(v) for v in tt["risoluzione"].split("x"))
